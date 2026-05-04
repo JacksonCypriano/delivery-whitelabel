@@ -1,5 +1,5 @@
 from .utils import enviar_mensagem_via_evolution
-from .classifier import classificar
+from apps.ml_engine.classifier import classificar
 
 def processar_mensagem(payload, tenant):
     numero = payload.get("number")

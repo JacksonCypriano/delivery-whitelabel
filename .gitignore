@@ -216,3 +216,25 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Static files gerados automaticamente
+staticfiles/
+static/css/tailwind.css
+static/dist/
+static/build/
+node_modules/
+tailwind.config.js
+postcss.config.js
+
+# Logs
+logs/
+*.log
+
+# Ambiente local Django
+.env
+.env.local
+.env.*.local
+
+# Docker
+.env.*
+!.env.example

@@ -1,6 +1,7 @@
-from core.models import TenantModel
 from django.db import models
-from stores.models import Product
+
+from apps.core.models import TenantModel
+from apps.stores.models import Product
 
 from .choices import Status
 

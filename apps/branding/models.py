@@ -1,4 +1,4 @@
-from core.models import TenantModel
+from apps.core.models import TenantModel
 from django.db import models
 
 

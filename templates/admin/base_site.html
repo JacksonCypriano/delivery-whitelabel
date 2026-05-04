@@ -1,5 +1,5 @@
 {% extends "admin/base_site.html" %}
-{% block title %}{{ tenant_brand.tenant.name if tenant_brand else site_title }}{% endblock %}
+{% block title %}{{ tenant_brand.tenant.name|default:site_title }}{% endblock %}
 
 {% block branding %}
   <div id="branding">

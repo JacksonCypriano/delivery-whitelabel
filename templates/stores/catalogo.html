@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ tenant.name|default:"Sua Loja" }}</title>
+    <style>
+        :root {
+            /* Aqui usamos as cores dinâmicas do Whitelabel */
+            --primary-color: {{ tenant.brandconfig.primary_color|default:"#e74c3c" }};
+            --secondary-color: {{ tenant.brandconfig.secondary_color|default:"#2c3e50" }};
+        }
+        body { font-family: sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; }
+        header { background: var(--primary-color); color: white; padding: 20px; text-align: center; }
+        .container { max-width: 800px; margin: 20px auto; padding: 0 20px; }
+        .product-card { background: white; padding: 15px; margin-bottom: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 5px solid var(--primary-color); }
+        .btn-order { background: var(--primary-color); color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>{{ tenant.name }}</h1>
+        <p>Peça direto pelo WhatsApp!</p>
+    </header>
+
+    <div class="container">
+        {% for produto in produtos %}
+        <div class="product-card">
+            <h3>{{ produto.name }}</h3>
+            <p>{{ produto.description }}</p>
+            <p><strong>R$ {{ produto.price }}</strong></p>
+            <button class="btn-order">Adicionar ao Carrinho</button>
+        </div>
+        {% empty %}
+        <p>Nenhum produto cadastrado no momento.</p>
+        {% endfor %}
+    </div>
+</body>
+</html>

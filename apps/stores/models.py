@@ -1,5 +1,7 @@
 from django.db import models
-from core.models import TenantModel
+
+from apps.core.models import TenantModel
+
 
 class Category(TenantModel):
     name = models.CharField(max_length=100)

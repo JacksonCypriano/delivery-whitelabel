@@ -1,7 +1,10 @@
 from django.contrib import admin
-from .models import Product, Category
-from core.admin import TenantModelAdmin
-from tenants.admin_site import tenant_admin_site
+
+from apps.core.admin import TenantModelAdmin
+from apps.tenants.admin_site import tenant_admin_site
+
+from .models import Category, Product
+
 
 @admin.register(Category, site=tenant_admin_site)
 class CategoryAdmin(TenantModelAdmin):

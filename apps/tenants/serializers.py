@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import Tenant
-from branding.models import BrandConfig
+from apps.branding.models import BrandConfig
 
 class BrandConfigSerializer(serializers.ModelSerializer):
     class Meta:

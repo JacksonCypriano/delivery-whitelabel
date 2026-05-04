@@ -5,11 +5,11 @@ host="$DATABASE_HOST"
 port="${DATABASE_PORT:-5432}"
 
 echo "Waiting for $host:$port..."
-while ! nc -z $host $port; do
+until python -c "import socket; socket.create_connection(('$host', $port), timeout=1)"; do
   sleep 0.5
 done
 
-export DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE:-config.settings.production}
+export DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE:-config.settings}
 
 python manage.py migrate --noinput
 python manage.py collectstatic --noinput

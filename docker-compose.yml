@@ -1,0 +1,86 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-delivery}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - appnet
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    networks:
+      - appnet
+
+  web:
+    build: .
+    command: /entrypoint.sh
+    env_file: .env
+    environment:
+      - DATABASE_HOST=db
+      - DATABASE_PORT=5432
+    volumes:
+      - ./:/app:rw
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    networks:
+      - appnet
+
+  celery:
+    build: .
+    env_file: .env
+    environment:
+      - CELERY_WORKER=true
+      - DATABASE_HOST=db
+    volumes:
+      - ./:/app:rw
+    depends_on:
+      - db
+      - redis
+    networks:
+      - appnet
+
+  # Opcional: Celery Beat
+  celery-beat:
+    build: .
+    env_file: .env
+    environment:
+      - CELERY_BEAT=true
+      - DATABASE_HOST=db
+    volumes:
+      - ./:/app:rw
+    depends_on:
+      - db
+      - redis
+    networks:
+      - appnet
+
+  # Opcional: Nginx reverse proxy para produção (serve static + proxy)
+  nginx:
+    image: nginx:stable-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
+      - static_volume:/app/static
+    depends_on:
+      - web
+    networks:
+      - appnet
+
+volumes:
+  pgdata:
+  static_volume:
+
+networks:
+  appnet:
+    driver: bridge

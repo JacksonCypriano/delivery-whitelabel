@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{{ request.tenant.name }}</title>
+  <style>
+    :root {
+      --primary: {{ request.tenant.brand.primary_color }};
+      --secondary: {{ request.tenant.brand.secondary_color }};
+    }
+  </style>
+</head>
+<body style="background-color: var(--secondary); color: var(--primary);">
+  <h1>{{ request.tenant.name }}</h1>
+  {% for product in products %}
+    <div>
+      <h3>{{ product.name }}</h3>
+      <p>{{ product.description }}</p>
+      <p>R$ {{ product.price }}</p>
+    </div>
+  {% endfor %}
+</body>
+</html>

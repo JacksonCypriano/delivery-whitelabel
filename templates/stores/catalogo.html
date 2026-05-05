@@ -1,38 +1,165 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <title>{{ tenant.name|default:"Sua Loja" }}</title>
-    <style>
-        :root {
-            /* Aqui usamos as cores dinâmicas do Whitelabel */
-            --primary-color: {{ tenant.brandconfig.primary_color|default:"#e74c3c" }};
-            --secondary-color: {{ tenant.brandconfig.secondary_color|default:"#2c3e50" }};
-        }
-        body { font-family: sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; }
-        header { background: var(--primary-color); color: white; padding: 20px; text-align: center; }
-        .container { max-width: 800px; margin: 20px auto; padding: 0 20px; }
-        .product-card { background: white; padding: 15px; margin-bottom: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 5px solid var(--primary-color); }
-        .btn-order { background: var(--primary-color); color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
-    </style>
-</head>
-<body>
-    <header>
-        <h1>{{ tenant.name }}</h1>
-        <p>Peça direto pelo WhatsApp!</p>
-    </header>
+{% extends "base.html" %}
 
-    <div class="container">
-        {% for produto in produtos %}
-        <div class="product-card">
-            <h3>{{ produto.name }}</h3>
-            <p>{{ produto.description }}</p>
-            <p><strong>R$ {{ produto.price }}</strong></p>
-            <button class="btn-order">Adicionar ao Carrinho</button>
+{% block content %}
+{% csrf_token %}
+<div class="relative h-32 md:h-40 bg-gray-200 overflow-hidden shadow-inner">
+    {% if tenant.brand_config.banner %}
+        <img src="{{ tenant.brand_config.banner.url }}" class="w-full h-full object-cover">
+    {% else %}
+        <div class="w-full h-full bg-gradient-to-r from-primary via-primary/90 to-red-800 opacity-95"></div>
+    {% endif %}
+    
+    <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent p-4 md:p-5">
+        <div class="container mx-auto">
+            <h1 class="text-white text-xl md:text-3xl font-bold tracking-tight shadow-sm">{{ tenant.name }}</h1>
+            <div class="flex items-center gap-3 mt-1">
+                <p class="text-white/90 text-xs md:text-sm flex items-center gap-1.5 font-medium">
+                    <span class="flex h-2 w-2">
+                        <span class="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-green-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                    </span>
+                    Aberto agora
+                </p>
+                <span class="text-white/40">•</span>
+                <p class="text-white/90 text-xs md:text-sm font-medium">
+                    Entrega 30-45 min
+                </p>
+            </div>
         </div>
-        {% empty %}
-        <p>Nenhum produto cadastrado no momento.</p>
+    </div>
+</div>
+
+<div class="container mx-auto px-4 py-8">
+    
+    <div class="flex gap-4 overflow-x-auto no-scrollbar pb-4 mb-8">
+        {% for category in categories %}
+        <a href="#cat-{{ category.id }}" 
+           class="whitespace-nowrap px-6 py-2 rounded-full border border-gray-200 bg-white hover:border-primary hover:text-primary transition font-medium shadow-sm">
+            {{ category.name }}
+        </a>
         {% endfor %}
     </div>
-</body>
-</html>
+
+    <div class="space-y-12">
+        {% for category in categories %}
+        <section id="cat-{{ category.id }}">
+            <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
+                {{ category.name }}
+                <div class="h-1 flex-grow bg-gray-100 rounded-full"></div>
+            </h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {% for product in category.prefetched_products %}
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow flex overflow-hidden">
+                    <div class="flex-grow p-4 flex flex-col">
+                        <h3 class="font-semibold text-gray-800 mb-1 line-clamp-1">{{ product.name }}</h3>
+                        <p class="text-gray-500 text-xs mb-3 line-clamp-2">{{ product.description }}</p>
+
+                        <div class="flex items-center justify-between mt-auto">
+                            <span class="text-primary font-bold text-lg">R$ {{ product.price }}</span>
+
+                            <!-- Botão AJAX para adicionar ao carrinho -->
+                            <button 
+                                type="button"
+                                class="add-to-cart-btn bg-gray-50 hover:bg-primary/10 text-primary p-2 rounded-lg transition flex items-center justify-center"
+                                data-product-id="{{ product.id }}">
+                                <!-- Ícone + -->
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    {% if product.image %}
+                    <div class="w-32 h-32 flex-shrink-0">
+                        <img src="{{ product.image.url }}" class="w-full h-full object-cover">
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    function updateBadge(count) {
+        const badge = document.getElementById('cart-count');
+        if (badge) {
+            badge.textContent = count;
+            if (count > 0) {
+                badge.style.display = 'inline-block';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+    }
+
+    function showToast(message) {
+        const toast = document.createElement('div');
+        toast.className = 'fixed bottom-24 right-6 bg-black/80 text-white px-4 py-2 rounded-md shadow z-50';
+        toast.style.zIndex = 9999;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transition = 'opacity .3s';
+        }, 1800);
+        setTimeout(() => toast.remove(), 2300);
+    }
+
+    async function handleAddToCartClick(e) {
+        const btn = e.currentTarget;
+        const productId = btn.dataset.productId;
+        if (!productId) {
+            showToast("Produto inválido.");
+            return;
+        }
+
+        const originalHTML = btn.innerHTML;
+        btn.disabled = true;
+        btn.classList.add('opacity-60', 'pointer-events-none');
+        btn.innerHTML = '<svg class="animate-spin h-4 w-4 text-primary" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/></svg>';
+
+        try {
+            const response = await fetch("{% url 'checkout:add_to_cart' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                },
+                body: new URLSearchParams({
+                    'product_id': productId,
+                    'quantity': '1'
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                updateBadge(data.cart_count);
+                showToast(data.message);
+            } else {
+                showToast(data.message || 'Erro desconhecido');
+            }
+        } catch (err) {
+            console.error(err);
+            showToast('Falha na conexão.');
+        } finally {
+            btn.disabled = false;
+            btn.classList.remove('opacity-60', 'pointer-events-none');
+            btn.innerHTML = originalHTML;
+        }
+    }
+
+    document.querySelectorAll('.add-to-cart-btn').forEach(btn => {
+        btn.addEventListener('click', handleAddToCartClick);
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,72 @@
+/* static/css/custom.css */
+
+/* Cards de Produto */
+.product-card {
+  transition: transform .12s ease, box-shadow .12s ease;
+  background-color: theme('colors.background'); /* Fundo dinâmico */
+  color: theme('colors.textBase'); /* Texto dinâmico */
+}
+.product-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,.08);
+}
+
+.object-fit-cover {
+  object-fit: cover;
+  width: 100%;
+  height: 160px;
+}
+
+/* Botão Flutuante WhatsApp */
+.whatsapp-float {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  background: #25D366; /* Mantém verde do WhatsApp fixo */
+  color: #fff;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 20px rgba(37,211,102,0.2);
+  z-index: 1050;
+  font-size: 22px;
+}
+.whatsapp-float:hover {
+  transform: translateY(-3px);
+  text-decoration: none;
+  color: #fff;
+}
+
+/* Botão Primário Customizado */
+.btn-primary {
+  background-color: theme('colors.primary');
+  border-color: theme('colors.primary');
+  color: white;
+}
+.btn-primary:hover {
+  background-color: theme('colors.accent');
+  border-color: theme('colors.accent');
+}
+
+/* Texto com Cor Principal */
+.text-primary {
+  color: theme('colors.primary');
+}
+
+/* Fundo Secundário Suave */
+.bg-secondary-light {
+  background-color: color-mix(in srgb, theme('colors.secondary'), transparent 95%);
+}
+
+/* Badge de Destaque */
+.badge-accent {
+  background-color: theme('colors.accent');
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-weight: bold;
+  font-size: 0.75rem;
+}

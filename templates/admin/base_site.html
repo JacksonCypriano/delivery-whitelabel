@@ -6,7 +6,7 @@
     {% if tenant_brand.logo %}
       <img src="{{ tenant_brand.logo.url }}" alt="{{ tenant_brand.tenant.name }}" style="height:48px;">
     {% else %}
-      <h1>{{ tenant_brand.tenant.name if tenant_brand else site_header }}</h1>
+      <h1>{{ tenant_brand.tenant.name|default:site_header }}</h1>
     {% endif %}
   </div>
 {% endblock %}

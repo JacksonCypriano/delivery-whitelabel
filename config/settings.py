@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     'apps.whatsapp',
     'apps.ml_engine',
     'apps.branding',
+    'apps.landing_pages',
 ]
 
 MIDDLEWARE = [
@@ -104,3 +105,6 @@ REST_FRAMEWORK = {
 }
 
 AUTH_USER_MODEL = 'accounts.User'
+
+# Em settings.py
+WHATSAPP_WEBHOOK_TOKEN = "meu-token-secreto"

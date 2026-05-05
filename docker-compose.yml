@@ -71,7 +71,8 @@ services:
       - "80:80"
     volumes:
       - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
-      - static_volume:/app/static
+      - ./staticfiles:/app/staticfiles
+      - ./media:/app/media
     depends_on:
       - web
     networks:

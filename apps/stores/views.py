@@ -1,6 +1,6 @@
 from django.views.generic import ListView
-from apps.stores.models import Product
-from django.shortcuts import get_object_or_404
+from django.db.models import Prefetch
+from apps.stores.models import Category, Product
 
 class CatalogoView(ListView):
     model = Product
@@ -15,6 +15,19 @@ class CatalogoView(ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['tenant'] = getattr(self.request, 'tenant', None)
+        tenant = getattr(self.request, 'tenant', None)
+        context['tenant'] = tenant
 
+        if tenant:
+            categories = Category.objects.filter(tenant=tenant).prefetch_related(
+                Prefetch(
+                    'products',
+                    queryset=Product.objects.filter(tenant=tenant, is_available=True),
+                    to_attr='prefetched_products'
+                )
+            )
+        else:
+            categories = Category.objects.none()
+
+        context['categories'] = categories
         return context

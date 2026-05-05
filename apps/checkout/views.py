@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import Sum
 
 from apps.stores.models import Product
 from apps.orders.models import Cart, CartItem, Order, OrderItem
@@ -37,11 +38,11 @@ def add_to_cart(request):
 
         cart = get_or_create_cart(request)
         
-        # Atualizar ou criar item
+        # Atualizar ou criar item (SEM passar tenant para CartItem)
         cart_item, created = CartItem.objects.get_or_create(
             cart=cart,
             product=product,
-            defaults={'quantity': quantity, 'tenant': request.tenant}
+            defaults={'quantity': quantity}  # Removido tenant aqui
         )
         if not created:
             cart_item.quantity += quantity
@@ -49,7 +50,7 @@ def add_to_cart(request):
 
         # Calcular total de itens no carrinho
         total_items = cart.items.aggregate(
-            total=models.Sum('quantity')
+            total=Sum('quantity')
         )['total'] or 0
 
         return JsonResponse({
@@ -63,8 +64,8 @@ def remove_from_cart(request, product_id):
     cart = get_or_create_cart(request)
     CartItem.objects.filter(
         cart=cart, 
-        product_id=product_id,
-        cart__tenant=request.tenant
+        product_id=product_id
+        # Removido cart__tenant=request.tenant pois já filtramos pelo cart
     ).delete()
     
     # Recalcular totais
@@ -86,8 +87,8 @@ def update_cart_quantity(request, product_id):
     try:
         cart_item = CartItem.objects.get(
             cart=cart,
-            product_id=product_id,
-            cart__tenant=request.tenant
+            product_id=product_id
+            # Removido cart__tenant=request.tenant pois já filtramos pelo cart
         )
         
         if quantity <= 0:

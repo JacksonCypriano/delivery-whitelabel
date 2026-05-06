@@ -3,70 +3,92 @@
 /* Cards de Produto */
 .product-card {
   transition: transform .12s ease, box-shadow .12s ease;
-  background-color: theme('colors.background'); /* Fundo dinâmico */
-  color: theme('colors.textBase'); /* Texto dinâmico */
+  background-color: #ffffff;
+  color: #0f172a;
+  border-radius: 1rem;
 }
 .product-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 8px 24px rgba(0,0,0,.08);
 }
 
-.object-fit-cover {
-  object-fit: cover;
-  width: 100%;
-  height: 160px;
-}
-
-/* Botão Flutuante WhatsApp */
-.whatsapp-float {
-  position: fixed;
-  right: 18px;
-  bottom: 18px;
-  background: #25D366; /* Mantém verde do WhatsApp fixo */
-  color: #fff;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  display: flex;
+/* Meio-a-Meio badge/icon */
+.meio-meio-badge {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 20px rgba(37,211,102,0.2);
-  z-index: 1050;
-  font-size: 22px;
-}
-.whatsapp-float:hover {
-  transform: translateY(-3px);
-  text-decoration: none;
-  color: #fff;
-}
-
-/* Botão Primário Customizado */
-.btn-primary {
-  background-color: theme('colors.primary');
-  border-color: theme('colors.primary');
-  color: white;
-}
-.btn-primary:hover {
-  background-color: theme('colors.accent');
-  border-color: theme('colors.accent');
-}
-
-/* Texto com Cor Principal */
-.text-primary {
-  color: theme('colors.primary');
-}
-
-/* Fundo Secundário Suave */
-.bg-secondary-light {
-  background-color: color-mix(in srgb, theme('colors.secondary'), transparent 95%);
-}
-
-/* Badge de Destaque */
-.badge-accent {
-  background-color: theme('colors.accent');
-  color: white;
-  padding: 0.25rem 0.75rem;
   border-radius: 9999px;
-  font-weight: bold;
-  font-size: 0.75rem;
+  border: 1px solid rgba(15,23,42,0.04);
+  background: white;
+  width: 36px;
+  height: 36px;
+  box-shadow: 0 4px 10px rgba(2,6,23,0.06);
+}
+
+/* half-choose-btn (dinâmico) */
+.half-choose-btn {
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity .16s ease, transform .16s ease;
+  pointer-events: none;
+}
+.product-card.half-selectable:hover .half-choose-btn,
+.product-card .half-choose-btn:focus {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* Drawer (half-half inline) */
+#half-half-inline {
+  transition: transform .22s ease, opacity .18s ease;
+  padding-left: env(safe-area-inset-left, 12px);
+  padding-right: env(safe-area-inset-right, 12px);
+}
+#half-half-inline.hidden { opacity: 0; transform: translateY(20px); pointer-events: none; }
+#half-half-inline.open { opacity: 1; transform: translateY(0); pointer-events: auto; }
+
+/* Modal half-half */
+#half-half-modal { transition: opacity .18s ease; }
+#half-half-modal .scale-95 { transform: scale(.95); }
+#half-half-modal .scale-100 { transform: scale(1); }
+
+/* Spinner inline */
+.spinner-inline {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgba(255,255,255,0.15);
+  border-top-color: currentColor;
+  border-radius: 9999px;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Toasts */
+.toast-notification {
+  border-radius: .75rem;
+  box-shadow: 0 8px 24px rgba(15,23,42,0.12);
+  padding: .6rem .9rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  pointer-events: auto;
+  transform-origin: right bottom;
+}
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translateY(12px) scale(.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-fade-in-up { animation: toastSlideIn 320ms cubic-bezier(.2,.9,.3,1) forwards; }
+
+/* Accessibility focus outlines */
+.btn-start-half:focus,
+.add-to-cart-btn:focus,
+.half-choose-btn:focus,
+.increase-qty:focus,
+.decrease-qty:focus,
+.remove-item:focus {
+  outline: 3px solid rgba(99,102,241,0.16);
+  outline-offset: 2px;
 }

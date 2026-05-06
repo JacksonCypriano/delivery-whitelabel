@@ -1,16 +1,17 @@
-# apps/checkout/views.py
 import json
+from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.db.models import Sum
-from django.http import JsonResponse
+from django.db.models import Q, Sum
+from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.translation import gettext as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods, require_POST
 
-from apps.orders.models import Cart, CartItem, Order, OrderItem
+from apps.orders.models import Cart, CartItem, CombinationPricingRule, Order, OrderItem
 from apps.stores.models import Product
 
 User = get_user_model()
@@ -33,103 +34,181 @@ def get_or_create_cart(request):
         )
     return cart
 
+@require_POST
 def add_to_cart(request):
-    if request.method == 'POST':
-        product_id = request.POST.get('product_id')
-        quantity = int(request.POST.get('quantity', 1))
-        product = get_object_or_404(Product, id=product_id, tenant=request.tenant)
+    """
+    Aceita:
+    - form POST (product_id, quantity) para item simples
+    - JSON POST com { is_half: true, product_ids: [id1, id2], quantity: x } para meio-a-meio
+    Retorna JSON com success, message e cart_count.
+    """
+    # parse JSON body se vier JSON
+    data = {}
+    if request.content_type == 'application/json':
+        try:
+            data = json.loads(request.body.decode('utf-8') or '{}')
+        except Exception:
+            return JsonResponse({'success': False, 'error': 'JSON inválido'}, status=400)
+    else:
+        data = request.POST
 
-        cart = get_or_create_cart(request)
-        
-        # Atualizar ou criar item (SEM passar tenant para CartItem)
+    is_half = data.get('is_half') in (True, 'true', 'True', '1', 1)
+    quantity = int(data.get('quantity', 1))
+
+    cart = get_or_create_cart(request)
+
+    if is_half:
+        product_ids = data.get('product_ids') or []
+        # aceitar string csv também
+        if isinstance(product_ids, str):
+            product_ids = [p.strip() for p in product_ids.split(',') if p.strip()]
+        if not isinstance(product_ids, (list, tuple)) or len(product_ids) != 2:
+            return JsonResponse({'success': False, 'error': 'É preciso escolher exatamente 2 sabores'}, status=400)
+
+        # buscar produtos garantindo tenant e disponibilidade
+        try:
+            p1 = Product.objects.get(id=product_ids[0], tenant=request.tenant, is_available=True)
+            p2 = Product.objects.get(id=product_ids[1], tenant=request.tenant, is_available=True)
+        except Product.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Um dos sabores não encontrado'}, status=404)
+
+        # determinar método de cálculo de preço
+        try:
+            rule = CombinationPricingRule.objects.get(tenant=request.tenant, combination_type='half_half')
+            method = rule.price_calculation_method
+        except CombinationPricingRule.DoesNotExist:
+            method = 'max_price'  # fallback
+
+        price_a = p1.sale_price if p1.sale_price else p1.price
+        price_b = p2.sale_price if p2.sale_price else p2.price
+
+        if method == 'max_price':
+            unit_price = max(price_a, price_b)
+        elif method == 'average':
+            unit_price = (Decimal(price_a) + Decimal(price_b)) / Decimal(2)
+        elif method == 'sum_halved':
+            unit_price = (Decimal(price_a) + Decimal(price_b)) / Decimal(2)
+        else:
+            unit_price = max(price_a, price_b)
+
+        # product_key order-insensitive (garante unicidade independentemente da ordem)
+        ids_sorted = sorted([str(p1.id), str(p2.id)], key=int)
+        product_key = f"half:{ids_sorted[0]}:{ids_sorted[1]}"
+
+        name = f"{p1.name} / {p2.name}"
+
+        images = [p1.get_primary_image(), p2.get_primary_image()]
+        combination_details = {
+            'product_ids': ids_sorted,
+            'names': [p1.name, p2.name],
+            'images': images,
+        }
+
+        cart_item, created = CartItem.objects.get_or_create(
+            cart=cart,
+            product_key=product_key,
+            defaults={
+                'name': name,
+                'price': unit_price,
+                'quantity': quantity,
+                'combination_details': combination_details,
+            }
+        )
+        if not created:
+            cart_item.quantity += quantity
+            # opcional: atualizar price (se a regra de preço muda)
+            cart_item.price = unit_price
+            cart_item.save()
+
+        product_label = name
+
+    else:
+        product_id = data.get('product_id')
+        if not product_id:
+            return JsonResponse({'success': False, 'error': 'product_id ausente'}, status=400)
+        product = get_object_or_404(Product, id=product_id, tenant=request.tenant, is_available=True)
+        unit_price = product.sale_price if product.sale_price else product.price
+
         cart_item, created = CartItem.objects.get_or_create(
             cart=cart,
             product=product,
-            defaults={'quantity': quantity, 'name': product.name, 'price': product.price}
+            defaults={
+                'name': product.name,
+                'price': unit_price,
+                'quantity': quantity,
+            }
         )
         if not created:
             cart_item.quantity += quantity
             cart_item.save()
+        product_label = product.name
 
-        # Calcular total de itens no carrinho
-        total_items = cart.items.aggregate(
-            total=Sum('quantity')
-        )['total'] or 0
+    total_items = cart.items.aggregate(total=Sum('quantity'))['total'] or 0
 
-        return JsonResponse({
-            'success': True,
-            'message': f'{product.name} adicionado!',
-            'cart_count': total_items
-        })
+    return JsonResponse({
+        'success': True,
+        'message': f'{product_label} adicionado!',
+        'cart_count': int(total_items)
+    })
+
+
+def cart_view(request):
+    cart = get_or_create_cart(request)
+    items = cart.items.select_related('product').all()
+    total = sum((item.get_total_price() for item in items), Decimal('0.00'))
+    context = {
+        'cart_items': items,
+        'total': float(total),
+    }
+    return render(request, 'checkout/cart.html', context)
+
 
 @require_POST
-def remove_from_cart(request, product_id):
+def remove_from_cart(request, cart_item_id):
     cart = get_or_create_cart(request)
-    CartItem.objects.filter(
-        cart=cart, 
-        product_id=product_id
-    ).delete()
-    
-    # Recalcular totais
-    items = cart.items.select_related('product')
-    total = sum(item.get_total_price() for item in items)
+    CartItem.objects.filter(cart=cart, id=cart_item_id).delete()
+    items = cart.items.select_related('product').all()
+    total = sum((item.get_total_price() for item in items), Decimal('0.00'))
     total_items = sum(item.quantity for item in items)
-    
     return JsonResponse({
         'success': True,
         'total': f'R$ {total:.2f}'.replace('.', ','),
-        'cart_count': total_items
+        'cart_count': int(total_items)
     })
 
+
 @require_POST
-def update_cart_quantity(request, product_id):
+def update_cart_quantity(request, cart_item_id):
     cart = get_or_create_cart(request)
-    quantity = int(request.POST.get('quantity', 0))
-    
+    quantity = 0
+    # suportar JSON ou form
+    if request.content_type == 'application/json':
+        try:
+            data = json.loads(request.body.decode('utf-8') or '{}')
+            quantity = int(data.get('quantity', 0))
+        except Exception:
+            return JsonResponse({'success': False, 'error': 'JSON inválido'}, status=400)
+    else:
+        quantity = int(request.POST.get('quantity', 0))
+
     try:
-        cart_item = CartItem.objects.get(
-            cart=cart,
-            product_id=product_id
-        )
-        
+        cart_item = CartItem.objects.get(cart=cart, id=cart_item_id)
         if quantity <= 0:
             cart_item.delete()
         else:
             cart_item.quantity = quantity
             cart_item.save()
-        
-        # Recalcular totais
-        items = cart.items.select_related('product')
-        total = sum(item.get_total_price() for item in items)
+
+        items = cart.items.select_related('product').all()
+        total = sum((item.get_total_price() for item in items), Decimal('0.00'))
         total_items = sum(item.quantity for item in items)
-        
         return JsonResponse({
             'success': True,
             'total': f'R$ {total:.2f}'.replace('.', ','),
-            'cart_count': total_items
+            'cart_count': int(total_items)
         })
     except CartItem.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Item não encontrado'})
-
-def cart_view(request):
-    cart = get_or_create_cart(request)
-    items = cart.items.select_related('product')
-    total = sum(item.get_total_price() for item in items)
-    
-    context = {
-        'cart_items': [
-            {
-                'id': item.product.id if item.product else None,
-                'name': item.name,
-                'price': float(item.price),
-                'quantity': item.quantity,
-                'total_price': float(item.get_total_price())
-            }
-            for item in items
-        ],
-        'total': float(total)
-    }
-    return render(request, 'checkout/cart.html', context)
+        return JsonResponse({'success': False, 'error': 'Item não encontrado'}, status=404)
 
 @transaction.atomic
 def checkout_step_one(request):
@@ -195,73 +274,117 @@ def checkout_step_one(request):
 def order_success(request):
     return render(request, 'checkout/order_success.html')
 
-
-@require_http_methods(["POST"])
-def add_half_half_to_cart(request):
+@require_POST
+def add_half_half(request):
+    """
+    Adiciona um item meio-a-meio ao Cart (usando os modelos Cart e CartItem),
+    garantindo que o carrinho usado pelo template seja o mesmo que foi atualizado.
+    Espera JSON com {"product_ids": [id1, id2], "quantity": 1} ou form-POST.
+    """
+    # parse payload (JSON ou form)
     try:
-        # Tentar ler como JSON primeiro
-        try:
-            data = json.loads(request.body)
-            product_ids = data.get('product_ids', [])
-            quantity = int(data.get('quantity', 1))
-        except:
-            # Se não for JSON, tentar como FormData
-            product_ids = request.POST.getlist('product_ids[]')
-            quantity = int(request.POST.get('quantity', 1))
-        
-        if len(product_ids) != 2:
-            return JsonResponse({'success': False, 'error': 'Selecione exatamente 2 produtos'})
-        
-        # Obter os produtos com verificação de tenant
-        products = []
-        for pid in product_ids:
-            try:
-                product = Product.objects.get(id=pid, tenant=request.tenant)
-                products.append(product)
-            except Product.DoesNotExist:
-                return JsonResponse({'success': False, 'error': f'Produto com ID {pid} não encontrado'})
-        
-        # Criar nome combinado
-        combined_name = f"½ {products[0].name} + ½ {products[1].name}"
-        
-        # Preço é o da pizza mais cara
-        max_price = max(float(products[0].price), float(products[1].price))
-        
-        # Obter ou criar carrinho
-        cart = get_or_create_cart(request)
-        
-        # Criar item especial para meio a meio
-        cart_item = CartItem.objects.create(
-            cart=cart,
-            name=combined_name,
-            price=max_price,
-            quantity=quantity,
-            combination_details={
-                'type': 'half_half',
-                'products': [
-                    {'id': str(p.id), 'name': p.name, 'price': str(p.price)} 
-                    for p in products
-                ]
-            }
-        )
-        
-        # Calcular total de itens no carrinho
-        total_items = cart.items.aggregate(
-            total=Sum('quantity')
-        )['total'] or 0
-        
-        return JsonResponse({
-            'success': True,
-            'message': 'Pizza meio a meio adicionada ao carrinho!',
-            'cart_count': total_items
-        })
-        
-    except Exception as e:
-        import traceback
-        error_msg = f"Erro ao adicionar meio a meio: {str(e)}"
-        print(f"ERRO MEIO A MEIO: {error_msg}")
-        print(traceback.format_exc())
-        return JsonResponse({
-            'success': False,
-            'error': 'Erro interno do servidor'
-        })
+        payload = json.loads(request.body.decode('utf-8')) if request.content_type == 'application/json' else request.POST
+    except Exception:
+        payload = request.POST
+
+    product_ids = payload.get('product_ids') or payload.getlist('product_ids[]') if hasattr(payload, 'getlist') else payload.get('product_ids[]') or payload.get('product_ids')
+    quantity = payload.get('quantity', 1)
+
+    # normalizar product_ids/quantity
+    if isinstance(product_ids, str):
+        # aceitar "1,2" ou "['1','2']"
+        product_ids = [p.strip() for p in product_ids.split(',') if p.strip()]
+
+    try:
+        quantity = int(quantity)
+        if quantity < 1:
+            quantity = 1
+    except Exception:
+        quantity = 1
+
+    if not product_ids or not isinstance(product_ids, (list, tuple)) or len(product_ids) != 2:
+        return JsonResponse({'success': False, 'error': _('É necessário fornecer exatamente dois sabores.')}, status=400)
+
+    if str(product_ids[0]) == str(product_ids[1]):
+        return JsonResponse({'success': False, 'error': _('Escolha dois sabores diferentes para montar meio a meio.')}, status=400)
+
+    # buscar produtos validando tenant e disponibilidade
+    try:
+        p1 = Product.objects.get(pk=product_ids[0], tenant=request.tenant, is_available=True)
+        p2 = Product.objects.get(pk=product_ids[1], tenant=request.tenant, is_available=True)
+    except Product.DoesNotExist:
+        return JsonResponse({'success': False, 'error': _('Um dos produtos não foi encontrado.')}, status=404)
+
+    # determinar preço unitário (usar mesma lógica que add_to_cart)
+    try:
+        rule = CombinationPricingRule.objects.get(tenant=request.tenant, combination_type='half_half')
+        method = rule.price_calculation_method
+    except CombinationPricingRule.DoesNotExist:
+        method = 'max_price'
+
+    price_a = p1.sale_price if p1.sale_price else p1.price
+    price_b = p2.sale_price if p2.sale_price else p2.price
+
+    try:
+        # garantir Decimal quando necessário
+        if method == 'max_price':
+            unit_price = max(Decimal(price_a), Decimal(price_b))
+        elif method in ('average', 'sum_halved'):
+            unit_price = (Decimal(price_a) + Decimal(price_b)) / Decimal(2)
+        else:
+            unit_price = max(Decimal(price_a), Decimal(price_b))
+    except Exception:
+        unit_price = max(Decimal(str(price_a)), Decimal(str(price_b)))
+
+    # identificar item de forma order-insensitive
+    ids_sorted = sorted([str(p1.id), str(p2.id)], key=int)
+    product_key = f"half:{ids_sorted[0]}:{ids_sorted[1]}"
+
+    name = f"{p1.name} / {p2.name} (Meio a meio)"
+    images = [p1.get_primary_image(), p2.get_primary_image()]
+    combination_details = {
+        'product_ids': ids_sorted,
+        'names': [p1.name, p2.name],
+        'images': images,
+    }
+
+    # pegar/criar cart no DB (mesmo comportamento do add_to_cart)
+    cart = get_or_create_cart(request)
+
+    # criar/atualizar CartItem
+    cart_item, created = CartItem.objects.get_or_create(
+        cart=cart,
+        product_key=product_key,
+        defaults={
+            'name': name,
+            'price': unit_price,
+            'quantity': quantity,
+            'combination_details': combination_details,
+        }
+    )
+    if not created:
+        cart_item.quantity = cart_item.quantity + quantity
+        cart_item.price = unit_price  # atualizar preço caso a regra mude
+        cart_item.save()
+
+    # recalcular totais
+    total_items = cart.items.aggregate(total=Sum('quantity'))['total'] or 0
+    cart_total = sum((item.price * item.quantity) for item in cart.items.all())  # Decimal
+
+    msg = (
+        f"Pizza meio a meio adicionada. Será cobrado {format_currency(unit_price)} "
+        f"por unidade (preço baseado na pizza mais cara)."
+    )
+
+    return JsonResponse({
+        'success': True,
+        'added': True,
+        'message': msg,
+        'cart_count': int(total_items),
+        'cart_total': str(cart_total),
+    })
+
+def format_currency(value: Decimal):
+    q = (value.quantize(Decimal('0.01')))
+    s = f"{q:.2f}"
+    return "R$ " + s.replace('.', ',')

@@ -1,14 +1,17 @@
 # apps/checkout/views.py
+import json
+
 from django.contrib import messages
-from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, redirect, render
-from django.views.decorators.http import require_POST
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Sum
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods, require_POST
 
-from apps.stores.models import Product
 from apps.orders.models import Cart, CartItem, Order, OrderItem
+from apps.stores.models import Product
 
 User = get_user_model()
 
@@ -42,7 +45,7 @@ def add_to_cart(request):
         cart_item, created = CartItem.objects.get_or_create(
             cart=cart,
             product=product,
-            defaults={'quantity': quantity}  # Removido tenant aqui
+            defaults={'quantity': quantity, 'name': product.name, 'price': product.price}
         )
         if not created:
             cart_item.quantity += quantity
@@ -65,7 +68,6 @@ def remove_from_cart(request, product_id):
     CartItem.objects.filter(
         cart=cart, 
         product_id=product_id
-        # Removido cart__tenant=request.tenant pois já filtramos pelo cart
     ).delete()
     
     # Recalcular totais
@@ -88,7 +90,6 @@ def update_cart_quantity(request, product_id):
         cart_item = CartItem.objects.get(
             cart=cart,
             product_id=product_id
-            # Removido cart__tenant=request.tenant pois já filtramos pelo cart
         )
         
         if quantity <= 0:
@@ -118,9 +119,9 @@ def cart_view(request):
     context = {
         'cart_items': [
             {
-                'id': item.product.id,
-                'name': item.product.name,
-                'price': float(item.product.price),
+                'id': item.product.id if item.product else None,
+                'name': item.name,
+                'price': float(item.price),
                 'quantity': item.quantity,
                 'total_price': float(item.get_total_price())
             }
@@ -158,7 +159,6 @@ def checkout_step_one(request):
             tenant=request.tenant,
             customer_phone=phone,
             total=total,
-            # Você pode adicionar mais campos aqui conforme necessário
         )
 
         # Criar itens do pedido
@@ -179,9 +179,9 @@ def checkout_step_one(request):
     context = {
         'cart_items': [
             {
-                'id': item.product.id,
-                'name': item.product.name,
-                'price': float(item.product.price),
+                'id': item.product.id if item.product else None,
+                'name': item.name,
+                'price': float(item.price),
                 'quantity': item.quantity,
                 'total_price': float(item.get_total_price())
             }
@@ -194,3 +194,74 @@ def checkout_step_one(request):
 
 def order_success(request):
     return render(request, 'checkout/order_success.html')
+
+
+@require_http_methods(["POST"])
+def add_half_half_to_cart(request):
+    try:
+        # Tentar ler como JSON primeiro
+        try:
+            data = json.loads(request.body)
+            product_ids = data.get('product_ids', [])
+            quantity = int(data.get('quantity', 1))
+        except:
+            # Se não for JSON, tentar como FormData
+            product_ids = request.POST.getlist('product_ids[]')
+            quantity = int(request.POST.get('quantity', 1))
+        
+        if len(product_ids) != 2:
+            return JsonResponse({'success': False, 'error': 'Selecione exatamente 2 produtos'})
+        
+        # Obter os produtos com verificação de tenant
+        products = []
+        for pid in product_ids:
+            try:
+                product = Product.objects.get(id=pid, tenant=request.tenant)
+                products.append(product)
+            except Product.DoesNotExist:
+                return JsonResponse({'success': False, 'error': f'Produto com ID {pid} não encontrado'})
+        
+        # Criar nome combinado
+        combined_name = f"½ {products[0].name} + ½ {products[1].name}"
+        
+        # Preço é o da pizza mais cara
+        max_price = max(float(products[0].price), float(products[1].price))
+        
+        # Obter ou criar carrinho
+        cart = get_or_create_cart(request)
+        
+        # Criar item especial para meio a meio
+        cart_item = CartItem.objects.create(
+            cart=cart,
+            name=combined_name,
+            price=max_price,
+            quantity=quantity,
+            combination_details={
+                'type': 'half_half',
+                'products': [
+                    {'id': str(p.id), 'name': p.name, 'price': str(p.price)} 
+                    for p in products
+                ]
+            }
+        )
+        
+        # Calcular total de itens no carrinho
+        total_items = cart.items.aggregate(
+            total=Sum('quantity')
+        )['total'] or 0
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Pizza meio a meio adicionada ao carrinho!',
+            'cart_count': total_items
+        })
+        
+    except Exception as e:
+        import traceback
+        error_msg = f"Erro ao adicionar meio a meio: {str(e)}"
+        print(f"ERRO MEIO A MEIO: {error_msg}")
+        print(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': 'Erro interno do servidor'
+        })

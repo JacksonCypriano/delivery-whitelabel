@@ -1,0 +1,385 @@
+<!-- templates/stores/_half_half_selector.html -->
+<div id="half-half-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden opacity-0 pointer-events-none transition-opacity duration-200">
+    <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4 relative transform scale-95 transition-transform duration-200 ease-out" id="half-half-modal-content">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold text-gray-800">Monte sua Pizza Meio a Meio</h3>
+            <button type="button" id="close-half-half-modal" class="text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/20 rounded-full p-1 transition-colors">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        
+        <div class="mb-6">
+            <p class="text-gray-600 mb-4 text-sm">Selecione dois sabores diferentes para sua pizza:</p>
+            
+            <div class="grid grid-cols-2 gap-3 max-h-64 overflow-y-auto p-2" id="pizza-options-container">
+                {% for product in pizza_products %}
+                <div class="border border-gray-200 rounded-lg p-3 cursor-pointer half-half-option hover:border-primary hover:bg-primary/5 transition-all duration-200 transform hover:scale-105"
+                     data-product-id="{{ product.id }}"
+                     data-product-name="{{ product.name|escapejs }}"
+                     data-product-price="{{ product.price }}">
+                    <div class="font-medium text-sm text-gray-800 truncate">{{ product.name }}</div>
+                    <div class="text-xs text-gray-500 mt-1">R$ {{ product.price|floatformat:2 }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- Visual Selection Area - Interface Profissional -->
+        <div class="mb-6 p-4 bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl border border-primary/20">
+            <div class="text-center mb-3">
+                <h4 class="font-semibold text-gray-700">Sua Escolha</h4>
+                <p class="text-xs text-gray-500">Selecione dois sabores diferentes</p>
+            </div>
+            
+            <div class="flex items-center justify-center mb-4">
+                <div class="relative w-full max-w-xs">
+                    <!-- Pizza Visualization -->
+                    <div class="relative h-32 mx-auto">
+                        <!-- Pizza Base -->
+                        <div class="absolute inset-0 rounded-full border-4 border-primary/20 flex items-center justify-center">
+                            <div class="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                                <div class="text-xs text-primary font-medium">½ + ½</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Left Half -->
+                        <div class="absolute left-0 top-0 w-1/2 h-full overflow-hidden rounded-l-full">
+                            <div class="w-full h-full rounded-l-full flex items-center justify-center bg-white/80 border-r border-primary/30" id="left-half-preview">
+                                <div class="text-center px-2">
+                                    <div class="text-xs text-gray-500 mb-1">Metade 1</div>
+                                    <div class="text-sm font-medium text-gray-700 truncate" id="left-half-name">Escolha...</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Right Half -->
+                        <div class="absolute right-0 top-0 w-1/2 h-full overflow-hidden rounded-r-full">
+                            <div class="w-full h-full rounded-r-full flex items-center justify-center bg-white/80 border-l border-primary/30" id="right-half-preview">
+                                <div class="text-center px-2">
+                                    <div class="text-xs text-gray-500 mb-1">Metade 2</div>
+                                    <div class="text-sm font-medium text-gray-700 truncate" id="right-half-name">Escolha...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-center">
+                <div class="text-2xl font-bold text-primary mb-1" id="half-half-price-display">R$ 0,00</div>
+                <div class="text-sm text-gray-600">Preço da pizza mais cara</div>
+            </div>
+        </div>
+        
+        <div class="flex gap-3">
+            <button type="button" id="cancel-half-half-modal" class="flex-1 py-3 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors">
+                Cancelar
+            </button>
+            <button type="button" id="add-half-half-btn" class="flex-1 py-3 px-4 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 font-medium transition-all duration-200 shadow-md hover:shadow-lg" disabled>
+                Adicionar ao Carrinho
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+let selectedProducts = [];
+
+function openHalfHalfModal() {
+    const modal = document.getElementById('half-half-modal');
+    const modalContent = document.getElementById('half-half-modal-content');
+    
+    modal.classList.remove('hidden', 'opacity-0', 'pointer-events-none');
+    modal.classList.add('opacity-100');
+    
+    // Pequeno delay para animação
+    setTimeout(() => {
+        modalContent.classList.remove('scale-95');
+        modalContent.classList.add('scale-100');
+    }, 10);
+    
+    selectedProducts = [];
+    updateVisualSelection();
+    updatePriceDisplay();
+}
+
+function closeHalfHalfModal() {
+    const modal = document.getElementById('half-half-modal');
+    const modalContent = document.getElementById('half-half-modal-content');
+    
+    modalContent.classList.remove('scale-100');
+    modalContent.classList.add('scale-95');
+    
+    modal.classList.remove('opacity-100');
+    modal.classList.add('opacity-0');
+    
+    // Esperar animação terminar para esconder completamente
+    setTimeout(() => {
+        modal.classList.add('hidden', 'pointer-events-none');
+        selectedProducts = [];
+    }, 200);
+}
+
+// Configurar eventos
+document.addEventListener('DOMContentLoaded', function() {
+    // Botão X (fechar)
+    const closeBtn = document.getElementById('close-half-half-modal');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeHalfHalfModal();
+        });
+    }
+    
+    // Botão Cancelar
+    const cancelBtn = document.getElementById('cancel-half-half-modal');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeHalfHalfModal();
+        });
+    }
+    
+    // Clicar fora do modal
+    const modal = document.getElementById('half-half-modal');
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                closeHalfHalfModal();
+            }
+        });
+    }
+    
+    // ESC key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('half-half-modal');
+            if (modal && !modal.classList.contains('hidden')) {
+                closeHalfHalfModal();
+            }
+        }
+    });
+    
+    // Seleção de produtos
+    const optionsContainer = document.getElementById('pizza-options-container');
+    if (optionsContainer) {
+        optionsContainer.addEventListener('click', function(e) {
+            const option = e.target.closest('.half-half-option');
+            if (option) {
+                const productId = option.dataset.productId;
+                const productName = option.dataset.productName;
+                const productPrice = parseFloat(option.dataset.productPrice);
+                
+                selectHalfHalfProduct(productId, productName, productPrice);
+            }
+        });
+    }
+    
+    // Botão Adicionar
+    const addBtn = document.getElementById('add-half-half-btn');
+    if (addBtn) {
+        addBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            addToCartHalfHalf();
+        });
+    }
+});
+
+function selectHalfHalfProduct(productId, productName, productPrice) {
+    const index = selectedProducts.findIndex(p => p.id === productId);
+    
+    if (index > -1) {
+        // Remover seleção
+        selectedProducts.splice(index, 1);
+    } else {
+        // Adicionar seleção (limite de 2)
+        if (selectedProducts.length < 2) {
+            selectedProducts.push({
+                id: productId,
+                name: productName,
+                price: productPrice
+            });
+        } else {
+            // Substituir o primeiro selecionado
+            selectedProducts.shift();
+            selectedProducts.push({
+                id: productId,
+                name: productName,
+                price: productPrice
+            });
+        }
+    }
+    
+    updateVisualSelection();
+    updatePriceDisplay();
+    
+    // Atualizar estilo dos produtos
+    document.querySelectorAll('.half-half-option').forEach(option => {
+        const id = option.dataset.productId;
+        const isSelected = selectedProducts.some(p => p.id === id);
+        if (isSelected) {
+            option.classList.add('border-primary', 'bg-primary/10', 'ring-2', 'ring-primary/30');
+        } else {
+            option.classList.remove('border-primary', 'bg-primary/10', 'ring-2', 'ring-primary/30');
+        }
+    });
+}
+
+function updateVisualSelection() {
+    // Reset previews
+    const leftName = document.getElementById('left-half-name');
+    const rightName = document.getElementById('right-half-name');
+    
+    if (leftName) leftName.textContent = 'Escolha...';
+    if (rightName) rightName.textContent = 'Escolha...';
+    
+    // Preencher previews selecionados
+    selectedProducts.forEach((product, index) => {
+        const element = index === 0 ? leftName : rightName;
+        if (element) {
+            element.textContent = product.name;
+            element.title = product.name; // Tooltip
+        }
+    });
+}
+
+function updatePriceDisplay() {
+    const priceDisplay = document.getElementById('half-half-price-display');
+    const addButton = document.getElementById('add-half-half-btn');
+    
+    if (selectedProducts.length === 2) {
+        const maxPrice = Math.max(...selectedProducts.map(p => p.price));
+        if (priceDisplay) {
+            priceDisplay.textContent = `R$ ${maxPrice.toFixed(2).replace('.', ',')}`;
+        }
+        if (addButton) {
+            addButton.disabled = false;
+            addButton.classList.remove('disabled:opacity-50');
+        }
+    } else {
+        if (priceDisplay) {
+            priceDisplay.textContent = 'R$ 0,00';
+        }
+        if (addButton) {
+            addButton.disabled = true;
+            addButton.classList.add('disabled:opacity-50');
+        }
+    }
+}
+
+async function addToCartHalfHalf() {
+    if (selectedProducts.length !== 2) return;
+    
+    const btn = document.getElementById('add-half-half-btn');
+    const originalText = btn.innerHTML;
+    const originalClasses = btn.className;
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="flex items-center justify-center"><svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Adicionando...</span>';
+    btn.className = originalClasses + ' opacity-90';
+    
+    try {
+        const response = await fetch('/checkout/add-half-half/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            },
+            body: JSON.stringify({
+                product_ids: selectedProducts.map(p => p.id),
+                quantity: 1
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Atualizar badge do carrinho
+            const badge = document.getElementById('cart-count');
+            if (badge) {
+                badge.textContent = data.cart_count;
+                badge.classList.remove('hidden');
+            }
+            
+            // Mostrar notificação
+            if (typeof showToast === 'function') {
+                showToast(data.message, 'success');
+            } else {
+                // Notificação básica se showToast não existir
+                showBasicNotification(data.message, 'success');
+            }
+            
+            closeHalfHalfModal();
+        } else {
+            if (typeof showToast === 'function') {
+                showToast(data.error || 'Erro ao adicionar ao carrinho', 'error');
+            } else {
+                showBasicNotification(data.error || 'Erro ao adicionar ao carrinho', 'error');
+            }
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        const errorMsg = error.message || 'Erro de conexão';
+        if (typeof showToast === 'function') {
+            showToast(errorMsg, 'error');
+        } else {
+            showBasicNotification(errorMsg, 'error');
+        }
+    } finally {
+        setTimeout(() => {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+            btn.className = originalClasses;
+        }, 500);
+    }
+}
+
+function getCSRFToken() {
+    // Primeiro tenta pegar do input hidden
+    const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (csrfInput) {
+        return csrfInput.value;
+    }
+    
+    // Fallback para cookie
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'csrftoken') {
+            return value;
+        }
+    }
+    return '';
+}
+
+// Notificação básica caso showToast não exista
+function showBasicNotification(message, type) {
+    // Criar elemento de notificação
+    const notification = document.createElement('div');
+    notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm ${
+        type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+    }`;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    // Remover após 3 segundos
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 3000);
+}
+</script>

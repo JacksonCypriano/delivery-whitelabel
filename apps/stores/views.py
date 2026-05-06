@@ -1,6 +1,7 @@
 from django.views.generic import ListView
 from django.db.models import Prefetch
-from apps.stores.models import Category, Product
+from apps.stores.models import Category, Product, HalfProduct
+
 
 class CatalogoView(ListView):
     model = Product
@@ -19,15 +20,41 @@ class CatalogoView(ListView):
         context['tenant'] = tenant
 
         if tenant:
-            categories = Category.objects.filter(tenant=tenant).prefetch_related(
-                Prefetch(
-                    'products',
-                    queryset=Product.objects.filter(tenant=tenant, is_available=True),
-                    to_attr='prefetched_products'
+            products_qs = Product.objects.filter(tenant=tenant, is_available=True).order_by('name')
+
+            categories = (
+                Category.objects
+                .filter(products__tenant=tenant)
+                .distinct()
+                .order_by('name')
+                .prefetch_related(
+                    Prefetch('products', queryset=products_qs, to_attr='prefetched_products')
                 )
             )
         else:
             categories = Category.objects.none()
 
         context['categories'] = categories
+
+        pizza_cat = None
+        if tenant:
+            pizza_cat = categories.filter(name__iexact='Pizzas').first()
+
+        if tenant:
+            if pizza_cat:
+                half_qs = HalfProduct.objects.filter(
+                    product__tenant=tenant,
+                    product__category=pizza_cat,
+                    is_active=True
+                ).select_related('product')
+            else:
+                half_qs = HalfProduct.objects.filter(
+                    product__tenant=tenant,
+                    is_active=True
+                ).select_related('product')
+        else:
+            half_qs = HalfProduct.objects.none()
+
+        context['half_products'] = half_qs
+
         return context

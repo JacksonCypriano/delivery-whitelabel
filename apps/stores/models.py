@@ -7,8 +7,8 @@ from django.utils.text import slugify
 
 from apps.core.models import TenantModel
 
-MIN_IMAGE_WIDTH = 800
-MIN_IMAGE_HEIGHT = 800
+MIN_IMAGE_WIDTH = 500
+MIN_IMAGE_HEIGHT = 500
 
 def validate_image_resolution(image):
     if not image:

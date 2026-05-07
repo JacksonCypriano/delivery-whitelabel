@@ -16,6 +16,101 @@ from apps.stores.models import Product
 
 User = get_user_model()
 
+
+def get_image_url_from_product(product):
+    """
+    Retorna uma URL string da imagem principal de `product`, tentando:
+    - chamar product.get_primary_image() se for chamável
+    - usar .url se for FileField
+    - verificar atributos comuns (image, primary_image, thumbnail)
+    Retorna '' se não encontrar.
+    """
+    if not product:
+        return ''
+
+    # tentar método/atributo get_primary_image primeiro
+    try:
+        getter = getattr(product, 'get_primary_image', None)
+        if callable(getter):
+            val = getter()
+        else:
+            val = getter
+        if isinstance(val, str) and val:
+            return val
+        if hasattr(val, 'url'):
+            return val.url
+    except Exception:
+        pass
+
+    # tentar campos comuns
+    for attr in ('image', 'primary_image', 'thumbnail'):
+        try:
+            val = getattr(product, attr, None)
+            if not val:
+                continue
+            if isinstance(val, str) and val:
+                return val
+            if hasattr(val, 'url'):
+                return val.url
+        except Exception:
+            continue
+
+    return ''
+
+def populate_combination_images_for_items(items, tenant=None, persist=False):
+    """
+    Para cada CartItem em items, se existir combination_details e images vazias,
+    tenta preencher images usando product_ids ou names.
+    Se persist=True, salva item.combination_details de volta no DB.
+    """
+    for item in items:
+        combo = getattr(item, 'combination_details', None)
+        if not combo or not isinstance(combo, dict):
+            continue
+
+        images = combo.get('images') or []
+        # se já tem pelo menos uma imagem não vazia, ignora
+        if images and any(str(i).strip() for i in images):
+            continue
+
+        new_images = []
+        ids = combo.get('product_ids') or []
+        names = combo.get('names') or []
+
+        # tentar preencher por product_ids
+        if ids:
+            for pid in ids:
+                try:
+                    prod = Product.objects.get(pk=pid, tenant=tenant) if tenant else Product.objects.get(pk=pid)
+                    new_images.append(get_image_url_from_product(prod) or '')
+                except Product.DoesNotExist:
+                    new_images.append('')
+        else:
+            # tentar preencher por nomes
+            for name in names:
+                if not name:
+                    new_images.append('')
+                    continue
+                prod = Product.objects.filter(name__iexact=name, tenant=tenant).first() if tenant else Product.objects.filter(name__iexact=name).first()
+                new_images.append(get_image_url_from_product(prod) if prod else '')
+
+        # garantir pelo menos 2 posições (mantém layout)
+        if len(new_images) == 1:
+            new_images.append('')
+
+        combo['images'] = new_images
+        # atualizar in-memory para o template
+        item.combination_details = combo
+
+        # opcional: persistir no DB
+        if persist:
+            try:
+                item.combination_details = combo
+                item.save(update_fields=['combination_details'])
+            except Exception:
+                # não quebrar renderização se falhar ao salvar
+                pass
+
 def get_or_create_cart(request):
     """Obtém ou cria carrinho para usuário anônimo ou logado"""
     if request.user.is_authenticated:
@@ -97,7 +192,7 @@ def add_to_cart(request):
 
         name = f"{p1.name} / {p2.name}"
 
-        images = [p1.get_primary_image(), p2.get_primary_image()]
+        images = [get_image_url_from_product(p1), get_image_url_from_product(p2)]
         combination_details = {
             'product_ids': ids_sorted,
             'names': [p1.name, p2.name],
@@ -154,7 +249,11 @@ def add_to_cart(request):
 
 def cart_view(request):
     cart = get_or_create_cart(request)
-    items = cart.items.select_related('product').all()
+    items_qs = cart.items.select_related('product').all()
+    items = list(items_qs)
+
+    populate_combination_images_for_items(items, tenant=request.tenant, persist=False)
+
     total = sum((item.get_total_price() for item in items), Decimal('0.00'))
     context = {
         'cart_items': items,
@@ -162,16 +261,23 @@ def cart_view(request):
     }
     return render(request, 'checkout/cart.html', context)
 
-
 @require_POST
-def remove_from_cart(request, cart_item_id):
+def remove_from_cart(request, cart_item_id=None, product_id=None):
+    cid = cart_item_id or product_id
+
+    if not cid:
+        return JsonResponse({'success': False, 'error': 'cart_item_id ausente'}, status=400)
+
     cart = get_or_create_cart(request)
-    CartItem.objects.filter(cart=cart, id=cart_item_id).delete()
+    deleted_count, _ = CartItem.objects.filter(cart=cart, id=cid).delete()
+
     items = cart.items.select_related('product').all()
     total = sum((item.get_total_price() for item in items), Decimal('0.00'))
     total_items = sum(item.quantity for item in items)
+
     return JsonResponse({
         'success': True,
+        'deleted': int(deleted_count),
         'total': f'R$ {total:.2f}'.replace('.', ','),
         'cart_count': int(total_items)
     })
@@ -341,7 +447,7 @@ def add_half_half(request):
     product_key = f"half:{ids_sorted[0]}:{ids_sorted[1]}"
 
     name = f"{p1.name} / {p2.name} (Meio a meio)"
-    images = [p1.get_primary_image(), p2.get_primary_image()]
+    images = [get_image_url_from_product(p1), get_image_url_from_product(p2)]
     combination_details = {
         'product_ids': ids_sorted,
         'names': [p1.name, p2.name],

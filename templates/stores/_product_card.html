@@ -28,11 +28,13 @@
       <button
         type="button"
         class="add-to-cart-btn bg-primary text-white text-sm px-3 py-1.5 rounded-lg hover:bg-opacity-90 transition"
-        data-product-id="{{ product.id }}">
+        data-product-id="{{ product.id }}"
+        data-product-name="{{ product.name|escapejs }}"
+        data-product-price="{{ product.price|floatformat:2 }}">
         Adicionar
       </button>
 
-      <!-- NOVO: Botão claro e legível para iniciar modo meio a meio -->
+      <!-- Botão para iniciar meio a meio (mantive como estava) -->
       <button
         type="button"
         class="btn-start-half inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium bg-amber-500 text-white hover:bg-amber-600 focus:outline-none"

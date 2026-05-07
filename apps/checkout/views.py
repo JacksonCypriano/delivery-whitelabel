@@ -1,4 +1,5 @@
 import json
+import logging
 from decimal import Decimal
 
 from django.contrib import messages
@@ -8,12 +9,12 @@ from django.db.models import Q, Sum
 from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.orders.models import Cart, CartItem, CombinationPricingRule, Order, OrderItem
 from apps.stores.models import Product
 
+logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
@@ -56,6 +57,7 @@ def get_image_url_from_product(product):
             continue
 
     return ''
+
 
 def populate_combination_images_for_items(items, tenant=None, persist=False):
     """
@@ -111,6 +113,7 @@ def populate_combination_images_for_items(items, tenant=None, persist=False):
                 # não quebrar renderização se falhar ao salvar
                 pass
 
+
 def get_or_create_cart(request):
     """Obtém ou cria carrinho para usuário anônimo ou logado"""
     if request.user.is_authenticated:
@@ -122,19 +125,49 @@ def get_or_create_cart(request):
         # Usuário anônimo
         if not request.session.session_key:
             request.session.create()
-        
+
         cart, created = Cart.objects.get_or_create(
             tenant=request.tenant,
             session_key=request.session.session_key
         )
     return cart
 
+
+@require_POST
+def update_cart_item_notes(request, cart_item_id):
+    """
+    Atualiza o campo notes (observação) de um CartItem.
+    """
+    # Antes: Cart.get_or_create_cart_for_request(request) -> esse método não existe no Cart
+    # Usar a função local get_or_create_cart(request)
+    try:
+        cart = get_or_create_cart(request)
+    except Exception:
+        cart = None
+
+    if cart:
+        cart_item = get_object_or_404(CartItem, pk=cart_item_id, cart=cart)
+    else:
+        cart_item = get_object_or_404(CartItem, pk=cart_item_id)
+
+    notes = request.POST.get('notes', '').strip()
+
+    try:
+        cart_item.notes = notes
+        cart_item.save(update_fields=['notes'])
+    except Exception as exc:
+        logger.exception("Erro ao salvar observação do cart_item %s: %s", cart_item_id, exc)
+        return JsonResponse({"success": False, "error": "erro_salvar"}, status=500)
+
+    return JsonResponse({"success": True, "notes": cart_item.notes})
+
+
 @require_POST
 def add_to_cart(request):
     """
     Aceita:
-    - form POST (product_id, quantity) para item simples
-    - JSON POST com { is_half: true, product_ids: [id1, id2], quantity: x } para meio-a-meio
+    - form POST (product_id, quantity, notes) para item simples
+    - JSON POST com { is_half: true, product_ids: [id1, id2], quantity: x, notes: "..." } para meio-a-meio
     Retorna JSON com success, message e cart_count.
     """
     # parse JSON body se vier JSON
@@ -148,7 +181,13 @@ def add_to_cart(request):
         data = request.POST
 
     is_half = data.get('is_half') in (True, 'true', 'True', '1', 1)
-    quantity = int(data.get('quantity', 1))
+    try:
+        quantity = int(data.get('quantity', 1))
+    except Exception:
+        quantity = 1
+
+    # pegar notes (tanto em JSON quanto em form)
+    notes = (data.get('notes') or '').strip()
 
     cart = get_or_create_cart(request)
 
@@ -199,21 +238,29 @@ def add_to_cart(request):
             'images': images,
         }
 
+        defaults = {
+            'name': name,
+            'price': unit_price,
+            'quantity': quantity,
+            'combination_details': combination_details,
+        }
+        if notes:
+            defaults['notes'] = notes
+
         cart_item, created = CartItem.objects.get_or_create(
             cart=cart,
             product_key=product_key,
-            defaults={
-                'name': name,
-                'price': unit_price,
-                'quantity': quantity,
-                'combination_details': combination_details,
-            }
+            defaults=defaults
         )
         if not created:
+            # atualizar campos relevantes
             cart_item.quantity += quantity
-            # opcional: atualizar price (se a regra de preço muda)
             cart_item.price = unit_price
-            cart_item.save()
+            update_fields = ['quantity', 'price']
+            if notes:
+                cart_item.notes = notes
+                update_fields.append('notes')
+            cart_item.save(update_fields=update_fields)
 
         product_label = name
 
@@ -224,18 +271,27 @@ def add_to_cart(request):
         product = get_object_or_404(Product, id=product_id, tenant=request.tenant, is_available=True)
         unit_price = product.sale_price if product.sale_price else product.price
 
+        defaults = {
+            'name': product.name,
+            'price': unit_price,
+            'quantity': quantity,
+        }
+        if notes:
+            defaults['notes'] = notes
+
         cart_item, created = CartItem.objects.get_or_create(
             cart=cart,
             product=product,
-            defaults={
-                'name': product.name,
-                'price': unit_price,
-                'quantity': quantity,
-            }
+            defaults=defaults
         )
         if not created:
             cart_item.quantity += quantity
-            cart_item.save()
+            cart_item.price = unit_price
+            update_fields = ['quantity', 'price']
+            if notes:
+                cart_item.notes = notes
+                update_fields.append('notes')
+            cart_item.save(update_fields=update_fields)
         product_label = product.name
 
     total_items = cart.items.aggregate(total=Sum('quantity'))['total'] or 0
@@ -260,6 +316,7 @@ def cart_view(request):
         'total': float(total),
     }
     return render(request, 'checkout/cart.html', context)
+
 
 @require_POST
 def remove_from_cart(request, cart_item_id=None, product_id=None):
@@ -316,11 +373,12 @@ def update_cart_quantity(request, cart_item_id):
     except CartItem.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Item não encontrado'}, status=404)
 
+
 @transaction.atomic
 def checkout_step_one(request):
     cart = get_or_create_cart(request)
     cart_items = cart.items.select_related('product')
-    
+
     if not cart_items.exists():
         messages.warning(request, "Seu carrinho está vazio.")
         return redirect('stores:menu')
@@ -377,15 +435,16 @@ def checkout_step_one(request):
     }
     return render(request, 'checkout/checkout.html', context)
 
+
 def order_success(request):
     return render(request, 'checkout/order_success.html')
+
 
 @require_POST
 def add_half_half(request):
     """
     Adiciona um item meio-a-meio ao Cart (usando os modelos Cart e CartItem),
-    garantindo que o carrinho usado pelo template seja o mesmo que foi atualizado.
-    Espera JSON com {"product_ids": [id1, id2], "quantity": 1} ou form-POST.
+    esperando JSON com {"product_ids": [id1, id2], "quantity": 1, "notes": "..."} ou form-POST.
     """
     # parse payload (JSON ou form)
     try:
@@ -395,6 +454,9 @@ def add_half_half(request):
 
     product_ids = payload.get('product_ids') or payload.getlist('product_ids[]') if hasattr(payload, 'getlist') else payload.get('product_ids[]') or payload.get('product_ids')
     quantity = payload.get('quantity', 1)
+
+    # pegar notes
+    notes = (payload.get('notes') or '').strip()
 
     # normalizar product_ids/quantity
     if isinstance(product_ids, str):
@@ -457,21 +519,29 @@ def add_half_half(request):
     # pegar/criar cart no DB (mesmo comportamento do add_to_cart)
     cart = get_or_create_cart(request)
 
+    defaults = {
+        'name': name,
+        'price': unit_price,
+        'quantity': quantity,
+        'combination_details': combination_details,
+    }
+    if notes:
+        defaults['notes'] = notes
+
     # criar/atualizar CartItem
     cart_item, created = CartItem.objects.get_or_create(
         cart=cart,
         product_key=product_key,
-        defaults={
-            'name': name,
-            'price': unit_price,
-            'quantity': quantity,
-            'combination_details': combination_details,
-        }
+        defaults=defaults
     )
     if not created:
         cart_item.quantity = cart_item.quantity + quantity
         cart_item.price = unit_price  # atualizar preço caso a regra mude
-        cart_item.save()
+        update_fields = ['quantity', 'price']
+        if notes:
+            cart_item.notes = notes
+            update_fields.append('notes')
+        cart_item.save(update_fields=update_fields)
 
     # recalcular totais
     total_items = cart.items.aggregate(total=Sum('quantity'))['total'] or 0

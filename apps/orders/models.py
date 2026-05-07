@@ -54,6 +54,7 @@ class CartItem(models.Model):
     price = models.DecimalField(max_digits=10, decimal_places=2)
     quantity = models.PositiveIntegerField(default=1)
     combination_details = models.JSONField(null=True, blank=True)
+    notes = models.TextField(blank=True, null=True, help_text="Observações do cliente para o item")
 
     def get_total_price(self):
         return self.price * self.quantity

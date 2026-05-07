@@ -24,7 +24,6 @@
                                             <div class="w-12 h-12 bg-gray-100 rounded-md border border-gray-100"></div>
                                         {% endif %}
                                     {% endfor %}
-                                    {# Se só veio 1 imagem no array, acrescenta placeholder para a segunda para manter layout #}
                                     {% if item.combination_details.images|length == 1 %}
                                         <div class="w-12 h-12 bg-gray-100 rounded-md border border-gray-100"></div>
                                     {% endif %}
@@ -53,6 +52,7 @@
                                     <span class="qty-display w-10 h-8 flex items-center justify-center text-sm font-medium">{{ item.quantity }}</span>
                                     <button class="increase-qty w-8 h-8 flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-gray-600 transition" data-cart-item-id="{{ item.id }}">+</button>
                                 </div>
+
                                 <button class="remove-item text-red-500 text-sm ml-4 hover:underline font-medium transition" data-cart-item-id="{{ item.id }}">Remover</button>
                             </div>
                         </div>

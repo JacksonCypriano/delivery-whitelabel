@@ -1,3 +1,4 @@
+import uuid
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
@@ -84,7 +85,6 @@ class Product(TenantModel):
         ]
         indexes = [
             models.Index(fields=['tenant', 'slug']),
-            models.Index(fields=['slug']),
             models.Index(fields=['name']),
         ]
 
@@ -103,18 +103,21 @@ class Product(TenantModel):
             raise ValidationError({'category': "A categoria deve pertencer ao mesmo tenant do produto."})
 
     def save(self, *args, **kwargs):
+        self.full_clean()
+
         if not self.slug:
             base_slug = slugify(self.name)[:150]
             slug = base_slug
-
             n = 1
-            while Product.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+
+            while Product.objects.filter(slug=slug, tenant=self.tenant).exclude(pk=self.pk).exists():
                 slug = f"{base_slug}-{n}"
                 n += 1
             self.slug = slug
 
         if not self.sku:
-            self.sku = f"P{int(self.pk or Product.objects.count() + 1)}"
+            self.sku = f"P{uuid.uuid4().hex[:8].upper()}"
+
         super().save(*args, **kwargs)
 
     def get_primary_image(self):
@@ -146,7 +149,7 @@ class ProductImage(TenantModel):
         verbose_name = "Imagem de produto"
 
     def save(self, *args, **kwargs):
-        if self.product and getattr(self.product, 'tenant_id', None):
+        if self.product and not self.tenant_id:
             self.tenant_id = self.product.tenant_id
         super().save(*args, **kwargs)
         if self.is_primary:
@@ -167,6 +170,6 @@ class HalfProduct(TenantModel):
         return f"Meia {self.product.name}"
     
     def save(self, *args, **kwargs):
-        if self.product and getattr(self.product, 'tenant_id', None):
+        if self.product and not self.tenant_id:
             self.tenant_id = self.product.tenant_id
         super().save(*args, **kwargs)

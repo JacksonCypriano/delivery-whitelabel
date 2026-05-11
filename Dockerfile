@@ -10,22 +10,28 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Instala dependências primeiro (cache inteligente)
+# Instala dependências (melhor cache)
 COPY requirements.txt .
-
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
-# Copia apenas o necessário
+# Copia o projeto
 COPY . .
 
-# Ajustes finais em uma camada
-RUN chmod +x /entrypoint.sh \
-    && useradd -m appuser \
-    && chown -R appuser:appuser /app
+# Cria diretórios necessários antes de mudar usuário
+RUN mkdir -p /app/staticfiles /app/media
+
+# Cria usuário
+RUN useradd -m -d /home/appuser appuser
+
+# Ajusta permissões
+RUN chown -R appuser:appuser /app
+
+# Garante permissão do entrypoint
+RUN chmod +x /app/entrypoint.sh
 
 USER appuser
 
 EXPOSE 8000
 
-CMD ["/entrypoint.sh"]
+CMD ["/app/entrypoint.sh"]

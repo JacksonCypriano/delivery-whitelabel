@@ -21,7 +21,6 @@ services:
 
   web:
     build: .
-    command: /entrypoint.sh
     env_file: .env
     environment:
       - DATABASE_HOST=db

@@ -25,7 +25,7 @@ echo "✅ Database is up!"
 export DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE:-config.settings}
 
 echo "📦 Running migrations..."
-python manage.py migrate --noinput
+# python manage.py migrate --noinput
 
 echo "📁 Preparing static/media directories..."
 mkdir -p /app/staticfiles /app/media

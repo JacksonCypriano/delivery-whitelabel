@@ -12,17 +12,12 @@ services:
       - pgdata:/var/lib/postgresql/data
     networks:
       - appnet
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
 
   redis:
     image: redis:7-alpine
     restart: always
     networks:
       - appnet
-    dns:
-      - 8.8.8.8
 
   web:
     build: .
@@ -32,7 +27,8 @@ services:
       - DATABASE_HOST=db
       - DATABASE_PORT=5432
     volumes:
-      - ./:/app:rw
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
     ports:
       - "8000:8000"
     depends_on:
@@ -41,9 +37,6 @@ services:
     networks:
       - appnet
     restart: always
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
 
   nginx:
     image: nginx:stable-alpine
@@ -51,19 +44,18 @@ services:
       - "80:80"
     volumes:
       - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./staticfiles:/app/staticfiles
-      - ./media:/app/media
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
     depends_on:
       - web
     networks:
       - appnet
     restart: always
-    dns:
-      - 8.8.8.8
 
 volumes:
   pgdata:
   static_volume:
+  media_volume:
 
 networks:
   appnet:

@@ -3,27 +3,29 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
+# Dependências do sistema
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential git libpq-dev curl netcat-openbsd \
+    libpq-dev curl netcat-openbsd \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY requirements.txt /app/requirements.txt
-RUN pip install --upgrade pip && pip install -r /app/requirements.txt
+# Instala dependências primeiro (cache inteligente)
+COPY requirements.txt .
 
-COPY . /app
+RUN pip install --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
 
-# Copiar e ajustar permissões ANTES de trocar de usuário
-COPY ./entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Copia apenas o necessário
+COPY . .
 
-# Criar usuário e ajustar permissões
-RUN useradd -m -d /home/appuser appuser || true
-RUN chown -R appuser:appuser /app
+# Ajustes finais em uma camada
+RUN chmod +x /entrypoint.sh \
+    && useradd -m appuser \
+    && chown -R appuser:appuser /app
+
 USER appuser
 
 EXPOSE 8000
-ENV PORT=8000
 
 CMD ["/entrypoint.sh"]

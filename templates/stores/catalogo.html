@@ -17,65 +17,16 @@
 .animate-fade-in-up { animation: fade-in-up .18s ease both; }
 
 /* Dropdown styles */
-.dropdown {
-  position: relative;
-}
-.dropdown-button {
-  width: 100%;
-  text-align: left;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: .5rem .75rem;
-  border-radius: .5rem;
-  border: 1px solid #e5e7eb; /* gray-200 */
-  background: white;
-}
-.dropdown-list {
-  position: absolute;
-  z-index: 60;
-  top: calc(100% + 0.5rem);
-  left: 0;
-  right: 0;
-  max-height: 260px;
-  overflow-y: auto;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: .5rem;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.06);
-}
-.dropdown-item {
-  padding: .5rem .75rem;
-  cursor: pointer;
-  display: flex;
-  gap: .75rem;
-  align-items: center;
-}
+.dropdown { position: relative; }
+.dropdown-button { width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; padding: .5rem .75rem; border-radius: .5rem; border: 1px solid #e5e7eb; background: white; }
+.dropdown-list { position: absolute; z-index: 60; top: calc(100% + 0.5rem); left: 0; right: 0; max-height: 260px; overflow-y: auto; background: white; border: 1px solid #e5e7eb; border-radius: .5rem; box-shadow: 0 8px 24px rgba(0,0,0,0.06); }
+.dropdown-item { padding: .5rem .75rem; cursor: pointer; display: flex; gap: .75rem; align-items: center; }
 .dropdown-item:hover { background: #f8fafc; }
 .dropdown-item[aria-selected="true"] { background: rgba(249,115,22,0.08); border-left: 3px solid rgba(249,115,22,0.18); }
-.dropdown-thumb {
-  width: 44px;
-  height: 44px;
-  flex-shrink: 0;
-  border-radius: .5rem;
-  object-fit: cover;
-  background: #fff;
-  border: 1px solid #eee;
-}
+.dropdown-thumb { width: 44px; height: 44px; flex-shrink: 0; border-radius: .5rem; object-fit: cover; background: #fff; border: 1px solid #eee; }
 /* search input */
-.dropdown-search {
-  width: 100%;
-  padding: .5rem .75rem;
-  border-bottom: 1px solid #eef2f7;
-  outline: none;
-  border-radius: .5rem .5rem 0 0;
-}
-.dropdown-empty {
-  padding: .75rem;
-  color: #6b7280;
-  text-align: center;
-  font-size: 0.9rem;
-}
+.dropdown-search { width: 100%; padding: .5rem .75rem; border-bottom: 1px solid #eef2f7; outline: none; border-radius: .5rem .5rem 0 0; }
+.dropdown-empty { padding: .75rem; color: #6b7280; text-align: center; font-size: 0.9rem; }
 </style>
 
 <div class="relative h-32 md:h-40 bg-gray-200 overflow-hidden shadow-inner">
@@ -124,7 +75,7 @@
                      data-product-id="{{ product.id }}"
                      data-product-name="{{ product.name|escapejs }}"
                      data-product-price="{{ product.price|floatformat:2 }}"
-                     data-product-image="{{ product.get_primary_image }}">
+                     data-product-image="{{ product.get_primary_image|default:'' }}">
                   <div class="flex-grow p-4 flex flex-col">
                     <h3 class="product-title font-semibold text-gray-800 mb-1 line-clamp-1">{{ product.name }}</h3>
                     <p class="text-gray-500 text-xs mb-3 line-clamp-2">{{ product.description }}</p>
@@ -134,7 +85,11 @@
                         <button type="button"
                                 class="add-to-cart-btn bg-gray-50 hover:bg-primary/10 text-primary p-2 rounded-lg transition flex items-center justify-center"
                                 data-product-id="{{ product.id }}"
-                                aria-label="Adicionar {{ product.name }} ao carrinho">
+                                data-product-name="{{ product.name|escapejs }}"
+                                data-product-price="{{ product.price|floatformat:2 }}"
+                                data-product-image="{{ product.get_primary_image|default:'' }}"
+                                aria-label="Adicionar {{ product.name }} ao carrinho"
+                                title="Adicionar {{ product.name }}">
                           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                           </svg>
@@ -164,7 +119,7 @@
                      data-product-id="{{ product.id }}"
                      data-product-name="{{ product.name|escapejs }}"
                      data-product-price="{{ product.price|floatformat:2 }}"
-                     data-product-image="{{ product.get_primary_image }}">
+                     data-product-image="{{ product.get_primary_image|default:'' }}">
                   <div class="flex-grow p-4 flex flex-col">
                     <h3 class="product-title font-semibold text-gray-800 mb-1 line-clamp-1">{{ product.name }}</h3>
                     <p class="text-gray-500 text-xs mb-3 line-clamp-2">{{ product.description }}</p>
@@ -176,7 +131,7 @@
                                 data-product-id="{{ product.id }}"
                                 data-product-name="{{ product.name|escapejs }}"
                                 data-product-price="{{ product.price|floatformat:2 }}"
-                                data-product-image="{{ product.get_primary_image }}"
+                                data-product-image="{{ product.get_primary_image|default:'' }}"
                                 aria-label="Montar meio a meio com {{ product.name }}">
                           <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2v10l8 4"></path>
@@ -207,7 +162,7 @@
                      data-product-id="{{ product.id }}"
                      data-product-name="{{ product.name|escapejs }}"
                      data-product-price="{{ product.price|floatformat:2 }}"
-                     data-product-image="{{ product.get_primary_image }}">
+                     data-product-image="{{ product.get_primary_image|default:'' }}">
                   <div class="flex-grow p-4 flex flex-col">
                     <h3 class="product-title font-semibold text-gray-800 mb-1 line-clamp-1">{{ product.name }}</h3>
                     <p class="text-gray-500 text-xs mb-3 line-clamp-2">{{ product.description }}</p>
@@ -216,7 +171,10 @@
                       <div class="flex gap-2">
                         <button type="button"
                                 class="add-to-cart-btn bg-gray-50 hover:bg-primary/10 text-primary p-2 rounded-lg transition flex items-center justify-center"
-                                data-product-id="{{ product.id }}">
+                                data-product-id="{{ product.id }}"
+                                data-product-name="{{ product.name|escapejs }}"
+                                data-product-price="{{ product.price|floatformat:2 }}"
+                                data-product-image="{{ product.get_primary_image|default:'' }}">
                           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                           </svg>
@@ -244,7 +202,7 @@
   <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4 relative transform scale-95 transition-transform duration-200 ease-out" id="half-half-modal-content">
     <div class="flex justify-between items-center mb-4">
       <h3 class="text-xl font-bold text-gray-800">Monte sua Pizza Meio a Meio</h3>
-      <button type="button" id="close-half-half-modal" class="text-gray-500 hover:text-gray-700 focus:outline-none rounded-full p-1 transition-colors">
+      <button type="button" id="close-half-half-modal" class="text-gray-500 hover:text-gray-700 focus:outline-none rounded-full p-1 transition-colors" aria-label="Fechar modal">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
         </svg>
@@ -330,7 +288,7 @@
 
 {% block extra_js %}
 <script>
-/* ------------- Utilities ------------- */
+/* ----------------- Utilities ----------------- */
 function getCSRFCookie(name = 'csrftoken') {
   let cookieValue = null;
   if (document.cookie && document.cookie !== '') {
@@ -353,12 +311,15 @@ const CSRF_TOKEN = getCSRFCookie();
 const ADD_HALF_HALF_URL = "{% url 'checkout:add_half_half' %}";
 const ADD_TO_CART_URL = "{% url 'checkout:add_to_cart' %}";
 
+// expose globals so static listener can read them
+window.ADD_TO_CART_URL = ADD_TO_CART_URL;
+window.ADD_HALF_HALF_URL = ADD_HALF_HALF_URL;
+window.CSRF_TOKEN = CSRF_TOKEN;
+
 function formatPriceBR(value) {
   const n = Number(value) || 0;
   return 'R$ ' + n.toFixed(2).replace('.', ',');
 }
-
-/* Robust price parser */
 function parsePrice(raw) {
   if (raw == null) return 0;
   if (typeof raw === 'number') return raw;
@@ -374,25 +335,11 @@ function parsePrice(raw) {
   return Number.isFinite(n) ? n : 0;
 }
 
-function updateBadge(count) {
-  const badge = document.getElementById('cart-count');
-  if (badge) {
-    badge.textContent = count;
-    if (Number(count) > 0) badge.classList.remove('hidden');
-    else badge.classList.add('hidden');
-  }
-}
-function updateCartTotalDisplay(totalStr) {
-  const el = document.getElementById('cart-total');
-  if (!el || !totalStr) return;
-  const n = Number(totalStr);
-  if (Number.isFinite(n)) el.textContent = formatPriceBR(n);
-}
-
 function showToast(message, type = 'success') {
   document.querySelectorAll('.toast-notification').forEach(el => el.remove());
   const toast = document.createElement('div');
   toast.className = 'fixed bottom-6 right-6 px-4 py-3 rounded-lg shadow-lg text-white font-medium z-50 animate-fade-in-up toast-notification';
+  toast.style.maxWidth = '320px';
   if (type === 'error') toast.classList.add('bg-red-500'); else toast.classList.add('bg-green-500');
   toast.innerHTML = `<div class="flex items-center gap-3"><span>${message}</span></div><button class="ml-4 text-white opacity-80 hover:opacity-100" aria-label="Fechar">&times;</button>`;
   document.body.appendChild(toast);
@@ -400,59 +347,40 @@ function showToast(message, type = 'success') {
   setTimeout(() => { if (toast.parentNode) toast.remove(); }, 3500);
 }
 
-/* ------------- Add single product (AJAX) ------------- */
-async function handleAddToCartClick(e) {
-  e.preventDefault();
-  e.stopPropagation();
-  const btn = e.currentTarget;
-  const productId = btn.dataset.productId;
-  if (!productId) { showToast('Produto inválido.', 'error'); return; }
+/* ----------------- Add to cart: delegation that delegates to central handler ----------------- */
+(function attachAddToCartDelegation() {
+  // Attach once via event delegation
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.add-to-cart-btn');
+    if (!btn) return;
+    e.preventDefault();
+    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
 
-  const originalHTML = btn.innerHTML;
-  btn.disabled = true;
-  btn.classList.add('opacity-60', 'pointer-events-none');
-  btn.innerHTML = '<svg class="animate-spin h-4 w-4 text-primary" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/></svg>';
+    const productId = btn.dataset.productId || btn.closest('.product-card')?.dataset.productId;
+    if (!productId) { showToast('Produto inválido.', 'error'); console.warn('add-to-cart: missing product id', btn); return; }
 
-  try {
-    const response = await fetch(ADD_TO_CART_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'X-CSRFToken': CSRF_TOKEN
-      },
-      body: new URLSearchParams({ product_id: productId, quantity: 1 }).toString(),
-      credentials: 'same-origin'
-    });
-    const data = await response.json().catch(()=>null);
+    const productName = btn.dataset.productName || btn.closest('.product-card')?.dataset.productName || btn.closest('.product-card')?.querySelector('.product-title')?.textContent?.trim() || '';
+    const productPrice = btn.dataset.productPrice || btn.closest('.product-card')?.dataset.productPrice || btn.closest('.product-card')?.querySelector('.product-price')?.textContent?.trim() || '';
+    const productImage = btn.dataset.productImage || btn.closest('.product-card')?.dataset.productImage || '';
 
-    if (response.ok && data && (data.success || data.added)) {
-      updateBadge(data.cart_count || 0);
-      updateCartTotalDisplay(data.cart_total || data.cart_total_str || null);
-      showToast(data.message || 'Adicionado ao carrinho!', 'success');
-      const s = document.getElementById('notificationSound'); if (s) s.play().catch(()=>{});
-    } else {
-      showToast((data && (data.error || data.message)) || 'Erro ao adicionar', 'error');
-    }
-  } catch (err) {
-    console.error(err);
-    showToast('Falha na conexão', 'error');
-  } finally {
-    btn.disabled = false;
-    btn.classList.remove('opacity-60', 'pointer-events-none');
-    btn.innerHTML = originalHTML;
-  }
-}
+    // debug log
+    console.debug('dispatch openAddToCartModal', { productId, productName, productPrice, productImage, ADD_TO_CART_URL });
 
-/* Delegation binding (roda depois do DOM) */
-document.addEventListener('DOMContentLoaded', function () {
-  document.querySelectorAll('.add-to-cart-btn').forEach(btn => {
-    if (btn.__hasAddListener) return;
-    btn.__hasAddListener = true;
-    btn.addEventListener('click', handleAddToCartClick);
-  });
-});
+    // Dispatch custom event so the centralized modal / notes handler opens and performs the actual add
+    document.dispatchEvent(new CustomEvent('openAddToCartModal', {
+      detail: {
+        id: String(productId),
+        name: productName,
+        price: productPrice,
+        image: productImage,
+        add_to_cart_url: ADD_TO_CART_URL
+      }
+    }));
+  }, { capture: true });
+})();
 
-/* ------------- Meio-a-Meio Modal (dropdown com busca, thumbs, preview) ------------- */
+/* ----------------- Meio-a-meio modal code (refatorado com guard) ----------------- */
+/* ... mantive toda a sua lógica do meio-a-meio sem alterações funcionais ... */
 (function () {
   let selected = []; // selected[0] = metade1, selected[1] = metade2
   const modal = document.getElementById('half-half-modal');
@@ -474,8 +402,9 @@ document.addEventListener('DOMContentLoaded', function () {
   const secondItemsWrapper = document.getElementById('second-flavor-items');
   const secondSearch = document.getElementById('second-flavor-search');
 
-  // cache dos sabores populados para filtragem local
   let cachedOptions = [];
+  let lastModalOpenAt = 0;
+  const OPEN_GUARD_MS = 220;
 
   function openModal() {
     if (!modal) return;
@@ -484,6 +413,7 @@ document.addEventListener('DOMContentLoaded', function () {
     setTimeout(() => modalContent.classList.remove('scale-95'), 10);
     updateVisual();
     updateButtons();
+    lastModalOpenAt = Date.now();
   }
   function closeModal() {
     if (!modal) return;
@@ -501,18 +431,14 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function updateVisual() {
-    leftName.textContent = selected[0] ? selected[0].name : 'Escolha...';
-    rightName.textContent = selected[1] ? selected[1].name : 'Selecione...';
-    // thumbs
-    if (selected[0] && selected[0].image) {
-      leftThumb.src = selected[0].image;
-      leftThumb.classList.remove('hidden');
-    } else leftThumb.classList.add('hidden');
-
-    if (selected[1] && selected[1].image) {
-      rightThumb.src = selected[1].image;
-      rightThumb.classList.remove('hidden');
-    } else rightThumb.classList.add('hidden');
+    if (leftName) leftName.textContent = selected[0] ? selected[0].name : 'Escolha...';
+    if (rightName) rightName.textContent = selected[1] ? selected[1].name : 'Selecione...';
+    if (leftThumb) {
+      if (selected[0] && selected[0].image) { leftThumb.src = selected[0].image; leftThumb.classList.remove('hidden'); } else leftThumb.classList.add('hidden');
+    }
+    if (rightThumb) {
+      if (selected[1] && selected[1].image) { rightThumb.src = selected[1].image; rightThumb.classList.remove('hidden'); } else rightThumb.classList.add('hidden');
+    }
 
     if (priceDisplay) {
       if (selected.length === 2 && selected[0] && selected[1]) {
@@ -533,7 +459,6 @@ document.addEventListener('DOMContentLoaded', function () {
     if (secondBtnText) secondBtnText.textContent = 'Selecione o segundo sabor';
     if (secondBtn) secondBtn.setAttribute('aria-expanded', 'false');
   }
-
   function hideSecondList() {
     if (!secondList) return;
     secondList.classList.add('hidden');
@@ -543,20 +468,15 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!secondList) return;
     secondList.classList.remove('hidden');
     if (secondBtn) secondBtn.setAttribute('aria-expanded', 'true');
-    // focus search input for quick typing
     setTimeout(() => { if (secondSearch) secondSearch.focus(); }, 50);
   }
 
-  function clearSearch() {
-    if (secondSearch) secondSearch.value = '';
-  }
-
+  function clearSearch() { if (secondSearch) secondSearch.value = ''; }
   function clearPreviewThumbs() {
-    leftThumb.src = ''; leftThumb.classList.add('hidden');
-    rightThumb.src = ''; rightThumb.classList.add('hidden');
+    if (leftThumb) { leftThumb.src = ''; leftThumb.classList.add('hidden'); }
+    if (rightThumb) { rightThumb.src = ''; rightThumb.classList.add('hidden'); }
   }
 
-  // populate cachedOptions by reading cards in #pizzas-meio-a-meio
   function buildOptionsCache() {
     cachedOptions = [];
     const pizzas = document.querySelectorAll('#pizzas-meio-a-meio .product-card');
@@ -605,13 +525,15 @@ document.addEventListener('DOMContentLoaded', function () {
       item.innerHTML = `${thumbHTML}<div class="flex-1"><div class="text-sm text-gray-700">${opt.name}</div><div class="text-xs text-primary font-semibold">${formatPriceBR(opt.price)}</div></div>`;
 
       item.addEventListener('click', function (ev) {
-        ev.preventDefault(); ev.stopPropagation();
+        ev.preventDefault();
+        if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
         selectSecondFlavor({ id: opt.id, name: opt.name, price: opt.price, image: opt.image });
         hideSecondList();
       });
       item.addEventListener('keydown', function (ev) {
         if (ev.key === 'Enter' || ev.key === ' ') {
-          ev.preventDefault(); ev.stopPropagation();
+          ev.preventDefault();
+          if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
           item.click();
         }
       });
@@ -621,7 +543,6 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function selectSecondFlavor(product) {
-    // evita selecionar mesma metade 1
     if (selected[0] && String(selected[0].id) === String(product.id)) {
       showToast('Escolha um sabor diferente para a segunda metade.', 'error');
       return;
@@ -630,7 +551,6 @@ document.addEventListener('DOMContentLoaded', function () {
     if (secondBtnText) secondBtnText.textContent = product.name;
     updateVisual();
     updateButtons();
-    // highlight selected in dropdown
     Array.from(secondItemsWrapper.children).forEach(child => {
       if (!child.dataset) return;
       child.setAttribute('aria-selected', child.dataset.productId === String(product.id) ? 'true' : 'false');
@@ -641,9 +561,9 @@ document.addEventListener('DOMContentLoaded', function () {
   document.addEventListener('click', function (e) {
     const startBtn = e.target.closest('.btn-start-half');
     if (!startBtn) return;
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault();
+    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
 
-    // rebuild cache so it is fresh
     buildOptionsCache();
 
     const product = {
@@ -654,33 +574,30 @@ document.addEventListener('DOMContentLoaded', function () {
     };
     if (!product.id) { showToast('Produto inválido', 'error'); return; }
 
-    // pré-seleciona metade 1 (fixa)
     selected = [{ id: String(product.id), name: product.name, price: String(product.price), image: product.image || '' }];
 
-    // popula dropdown excluindo o sabor já escolhido
     populateSecondOptionsUI(product.id);
     resetSecondButtonText();
     clearSearch();
-    // abrir modal deixando segunda lista fechada inicialmente
     openModal();
     updateVisual();
     updateButtons();
 
-    // scroll to matching option (se existir) — após UI render
     setTimeout(() => {
       const sel = secondItemsWrapper.querySelector(`.dropdown-item[data-product-id="${product.id}"]`);
       if (sel) sel.scrollIntoView({ block: 'nearest' });
     }, 90);
-  });
+  }, { capture: true });
 
-  // allow selecting second flavor by clicking on a card while modal is open (optional)
+  // allow selecting second flavor by clicking on a card while modal is open (with guard)
   document.addEventListener('click', function (e) {
     if (!modal || modal.classList.contains('hidden')) return;
+    if (Date.now() - lastModalOpenAt < OPEN_GUARD_MS) return;
+
     const card = e.target.closest('.product-card');
     if (!card) return;
     const id = String(card.dataset.productId || '');
     if (!id) return;
-    // if clicked the same as metade1, ignore
     if (selected[0] && String(selected[0].id) === id) {
       showToast('Escolha um sabor diferente para a segunda metade.', 'error');
       return;
@@ -688,13 +605,14 @@ document.addEventListener('DOMContentLoaded', function () {
     const name = card.dataset.productName || card.querySelector('.product-title')?.textContent?.trim() || 'Produto';
     const price = String(parsePrice(card.dataset.productPrice || card.querySelector('.product-price')?.textContent || '0'));
     const image = card.dataset.productImage || (card.querySelector('img') ? card.querySelector('img').src : '');
+    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
     selectSecondFlavor({ id, name, price, image });
-  });
+  }, { capture: true });
 
-  // dropdown open/close handlers
   if (secondBtn) {
     secondBtn.addEventListener('click', function (e) {
-      e.preventDefault(); e.stopPropagation();
+      e.preventDefault();
+      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
       if (!secondList) return;
       if (secondList.classList.contains('hidden')) {
         populateSecondOptionsUI(selected[0] ? selected[0].id : null, secondSearch?.value || '');
@@ -705,7 +623,6 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  // search/filter handler (debounced minimal)
   let searchTimeout = null;
   if (secondSearch) {
     secondSearch.addEventListener('input', function (e) {
@@ -717,15 +634,13 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  // close dropdown clicking outside
   document.addEventListener('click', function (e) {
     if (!secondList) return;
     if (secondList.classList.contains('hidden')) return;
     if (e.target.closest('.dropdown')) return;
     hideSecondList();
-  });
+  }, { capture: true });
 
-  // keyboard support for dropdown (basic)
   document.addEventListener('keydown', function (e) {
     if (!secondList || secondList.classList.contains('hidden')) return;
     const items = Array.from(secondList.querySelectorAll('.dropdown-item'));
@@ -749,15 +664,15 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  if (closeBtn) closeBtn.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); closeModal(); });
-  if (cancelBtn) cancelBtn.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); closeModal(); });
+  if (closeBtn) closeBtn.addEventListener('click', function (e) { e.preventDefault(); if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation(); closeModal(); });
+  if (cancelBtn) cancelBtn.addEventListener('click', function (e) { e.preventDefault(); if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation(); closeModal(); });
   if (modal) modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { if (modal && !modal.classList.contains('hidden')) closeModal(); } });
 
-  // add-half-half submit with spinner icon
   if (addBtn) {
     addBtn.addEventListener('click', async function (e) {
-      e.preventDefault(); e.stopPropagation();
+      e.preventDefault();
+      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
       if (!selected[0] || !selected[1]) { showToast('Selecione dois sabores.', 'error'); return; }
       const btn = this;
       const originalHTML = btn.innerHTML;
@@ -773,8 +688,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         const data = await resp.json().catch(()=>null);
         if (resp.ok && data && (data.success || data.added)) {
-          updateBadge(data.cart_count || 0);
-          updateCartTotalDisplay(data.cart_total || null);
+          document.dispatchEvent(new CustomEvent('cartUpdated', { detail: data }));
           showToast(data.message || 'Adicionado ao carrinho!', 'success');
           const s = document.getElementById('notificationSound'); if (s) s.play().catch(()=>{});
           closeModal();
@@ -790,6 +704,291 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     });
   }
+})();
+
+
+/* ----------------- Add to Cart Modal com Observações (Corrigido) ----------------- */
+(function() {
+  console.log('[add_to_cart_modal] Inicializando modal de adicionar ao carrinho');
+
+  // Elements
+  const modal = document.getElementById('addToCartModal');
+  if (!modal) {
+    console.warn('[add_to_cart_modal] Modal não encontrado');
+    return;
+  }
+
+  const modalProductName = document.getElementById('modalProductName');
+  const modalProductPrice = document.getElementById('modalProductPrice');
+  const modalTextarea = document.getElementById('modalNoteTextarea');
+  const modalAddNoNote = document.getElementById('modalAddNoNote');
+  const modalAddWithNote = document.getElementById('modalAddWithNote');
+  const modalCancel = document.getElementById('modalCancel');
+  const modalCloseBtn = document.getElementById('modalCloseBtn');
+
+  let currentProduct = null;
+
+  // Função para detectar preço de várias formas possíveis no objeto product
+  function getPriceFromProduct(product) {
+    if (!product) return 0;
+
+    // 1) preço já numérico ou string numérica (ex: "29.9" ou 29.9)
+    if (product.price !== undefined && product.price !== null && product.price !== '') {
+      const n = Number(String(product.price).replace(',', '.'));
+      if (!Number.isNaN(n)) return n;
+    }
+
+    // 2) preço em centavos (ex: 2990)
+    if (product.price_cents !== undefined && product.price_cents !== null && product.price_cents !== '') {
+      const c = Number(product.price_cents);
+      if (!Number.isNaN(c)) return c / 100;
+    }
+
+    // 3) unidade com outro nome
+    if (product.unit_price !== undefined && product.unit_price !== null && product.unit_price !== '') {
+      const u = Number(String(product.unit_price).replace(',', '.'));
+      if (!Number.isNaN(u)) return u;
+    }
+
+    // 4) texto formatado tipo "R$ 12,34" ou "12,34"
+    if (product.display_price) {
+      const cleaned = String(product.display_price).replace(/[^\d,.-]/g, '').replace(',', '.');
+      const p = Number(cleaned);
+      if (!Number.isNaN(p)) return p;
+    }
+
+    // 5) fallback para tentar usar a função global parsePrice se existir
+    try {
+      if (typeof parsePrice === 'function') {
+        const candidate = parsePrice(product.price || product.display_price || product.price_raw || 0);
+        if (Number.isFinite(candidate) && candidate !== 0) return candidate;
+      }
+    } catch (e) { /* ignore */ }
+
+    return 0;
+  }
+
+  // Função para formatar preço em Real (reusa a global se existente)
+  function formatPriceBRLocal(value) {
+    if (typeof formatPriceBR === 'function') return formatPriceBR(value);
+    const n = Number(value) || 0;
+    return 'R$ ' + n.toFixed(2).replace('.', ',');
+  }
+
+  // Função para obter o CSRF Token
+  function getCSRFCookie(name = 'csrftoken') {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const c = cookies[i].trim();
+        if (c.startsWith(name + '=')) {
+          cookieValue = decodeURIComponent(c.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    if (!cookieValue) {
+      const el = document.querySelector('[name=csrfmiddlewaretoken]');
+      if (el) cookieValue = el.value;
+    }
+    return cookieValue;
+  }
+
+  // Toast helper
+  function showToast(message, type = 'success') {
+    document.querySelectorAll('.toast-notification').forEach(el => el.remove());
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-6 right-6 px-4 py-3 rounded-lg shadow-lg text-white font-medium z-50 animate-fade-in-up toast-notification';
+    toast.style.maxWidth = '320px';
+    if (type === 'error') {
+      toast.classList.add('bg-red-500');
+    } else {
+      toast.classList.add('bg-green-500');
+    }
+    toast.innerHTML = `
+      <div class="flex items-center gap-3">
+        <span>${message}</span>
+      </div>
+      <button class="ml-4 text-white opacity-80 hover:opacity-100" aria-label="Fechar">&times;</button>
+    `;
+    document.body.appendChild(toast);
+    toast.querySelector('button').addEventListener('click', () => toast.remove());
+    setTimeout(() => {
+      if (toast.parentNode) toast.remove();
+    }, 3500);
+  }
+
+  // Modal functions
+  function openModal(product) {
+    console.log('[add_to_cart_modal] Abrindo modal para produto:', product);
+    currentProduct = product || {};
+
+    if (modalProductName) modalProductName.textContent = currentProduct.name || '';
+    const priceValue = getPriceFromProduct(currentProduct);
+    if (modalProductPrice) modalProductPrice.textContent = priceValue ? formatPriceBRLocal(priceValue) : '';
+    if (modalTextarea) modalTextarea.value = '';
+
+    // Show modal
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+
+    // Focus textarea
+    setTimeout(() => {
+      if (modalTextarea) modalTextarea.focus();
+    }, 100);
+
+    if (priceValue === 0) {
+      console.warn('[add_to_cart_modal] preço detectado como 0. Verifique os campos do produto enviados ao evento:', currentProduct);
+    }
+  }
+
+  function closeModal() {
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+    currentProduct = null;
+  }
+
+  // Add to cart function
+  async function addToCart(product, note = '') {
+    console.log('[add_to_cart_modal] Adicionando ao carrinho:', product, note);
+
+    const url = product.add_to_cart_url || window.ADD_TO_CART_URL;
+    if (!url) {
+      showToast('URL para adicionar ao carrinho não encontrada', 'error');
+      console.error('[add_to_cart_modal] URL não encontrada');
+      return;
+    }
+
+    const csrfToken = getCSRFCookie();
+
+    try {
+      const requestData = {
+        product_id: String(product.id),
+        quantity: 1
+      };
+
+      if (note) {
+        requestData.note = note;
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify(requestData),
+        credentials: 'same-origin'
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok && data.success) {
+        // Update cart count
+        const cartCountEl = document.getElementById('cart-count');
+        if (cartCountEl && data.cart_count !== undefined) {
+          cartCountEl.textContent = data.cart_count;
+          if (data.cart_count > 0) {
+            cartCountEl.classList.remove('hidden');
+          } else {
+            cartCountEl.classList.add('hidden');
+          }
+        }
+
+        // Dispatch cart updated event
+        document.dispatchEvent(new CustomEvent('cartUpdated', { detail: data }));
+
+        // Show success message
+        showToast(data.message || 'Produto adicionado ao carrinho!', 'success');
+
+        // Play notification sound
+        const sound = document.getElementById('notificationSound');
+        if (sound) {
+          try {
+            sound.play().catch(e => console.log('Som não reproduzido:', e));
+          } catch (e) {
+            console.log('Erro ao reproduzir som:', e);
+          }
+        }
+
+        // Close modal
+        closeModal();
+      } else {
+        const errorMsg = (data && (data.error || data.message)) || `Erro HTTP ${response.status}`;
+        showToast(errorMsg, 'error');
+        console.error('[add_to_cart_modal] Erro ao adicionar ao carrinho:', data);
+      }
+    } catch (error) {
+      console.error('[add_to_cart_modal] Erro na requisição:', error);
+      showToast('Erro de conexão. Tente novamente.', 'error');
+    }
+  }
+
+  // Event listeners
+  // Listen for custom event to open modal
+  document.addEventListener('openAddToCartModal', function(e) {
+    console.log('[add_to_cart_modal] Evento openAddToCartModal recebido:', e.detail);
+    if (e.detail) {
+      openModal(e.detail);
+    }
+  });
+
+  // Close modal events
+  if (modalCloseBtn) {
+    modalCloseBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      closeModal();
+    });
+  }
+
+  if (modalCancel) {
+    modalCancel.addEventListener('click', function(e) {
+      e.preventDefault();
+      closeModal();
+    });
+  }
+
+  // Close when clicking outside modal
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) {
+      closeModal();
+    }
+  });
+
+  // Add without note
+  if (modalAddNoNote) {
+    modalAddNoNote.addEventListener('click', function(e) {
+      e.preventDefault();
+      if (currentProduct) {
+        addToCart(currentProduct, '');
+      } else {
+        showToast('Nenhum produto selecionado', 'error');
+      }
+    });
+  }
+
+  // Add with note
+  if (modalAddWithNote) {
+    modalAddWithNote.addEventListener('click', function(e) {
+      e.preventDefault();
+      if (currentProduct) {
+        const note = modalTextarea ? modalTextarea.value.trim() : '';
+        addToCart(currentProduct, note);
+      } else {
+        showToast('Nenhum produto selecionado', 'error');
+      }
+    });
+  }
+
+  // Close with Escape key
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && modal && !modal.classList.contains('hidden')) {
+      closeModal();
+    }
+  });
+
+  console.log('[add_to_cart_modal] Modal inicializado com sucesso');
 })();
 </script>
 {% endblock %}

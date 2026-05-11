@@ -23,13 +23,29 @@ def validate_image_resolution(image):
         )
 
 
-class Category(models.Model):
+class Category(TenantModel):
     name = models.CharField(max_length=200)
-    slug = models.SlugField(max_length=200, unique=True, blank=True)
+    slug = models.SlugField(max_length=200, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'slug'], name='unique_category_slug_per_tenant')
+        ]
+        indexes = [
+            models.Index(fields=['tenant', 'slug']),
+            models.Index(fields=['name']),
+        ]
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.name)[:200]
+            base_slug = slugify(self.name)[:200]
+            slug = base_slug
+            n = 1
+
+            while Category.objects.filter(slug=slug, tenant=self.tenant).exclude(pk=self.pk).exists():
+                slug = f"{base_slug}-{n}"
+                n += 1
+            self.slug = slug
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -38,9 +54,9 @@ class Category(models.Model):
 
 class Product(TenantModel):
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='products')
-    sku = models.CharField(max_length=64, unique=True, null=True, blank=True)
+    sku = models.CharField(max_length=64, null=True, blank=True)
     name = models.CharField(max_length=150)
-    slug = models.SlugField(max_length=160, unique=True, blank=True)
+    slug = models.SlugField(max_length=160, blank=True)
     description = models.TextField(blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     sale_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
@@ -62,7 +78,12 @@ class Product(TenantModel):
 
     class Meta:
         ordering = ['-is_featured', 'name']
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'slug'], name='unique_product_slug_per_tenant'),
+            models.UniqueConstraint(fields=['tenant', 'sku'], name='unique_product_sku_per_tenant'),
+        ]
         indexes = [
+            models.Index(fields=['tenant', 'slug']),
             models.Index(fields=['slug']),
             models.Index(fields=['name']),
         ]
@@ -78,6 +99,8 @@ class Product(TenantModel):
             raise ValidationError({'stock': "Estoque não pode ser negativo."})
         if self.max_order_qty and self.max_order_qty < self.min_order_qty:
             raise ValidationError({'max_order_qty': "Quantidade máxima não pode ser menor que a mínima."})
+        if self.category and self.category.tenant_id != self.tenant_id:
+            raise ValidationError({'category': "A categoria deve pertencer ao mesmo tenant do produto."})
 
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -111,7 +134,7 @@ class Product(TenantModel):
         return self.name
 
 
-class ProductImage(models.Model):
+class ProductImage(TenantModel):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images')
     image = models.ImageField(upload_to='products/images/%Y/%m/%d/', validators=[validate_image_resolution])
     alt_text = models.CharField(max_length=200, blank=True)
@@ -123,15 +146,15 @@ class ProductImage(models.Model):
         verbose_name = "Imagem de produto"
 
     def save(self, *args, **kwargs):
+        if self.product and getattr(self.product, 'tenant_id', None):
+            self.tenant_id = self.product.tenant_id
         super().save(*args, **kwargs)
-
         if self.is_primary:
             if self.product.primary_image != self.image:
                 self.product.primary_image = self.image
                 self.product.save(update_fields=['primary_image'])
 
-
-class HalfProduct(models.Model):
+class HalfProduct(TenantModel):
     product = models.OneToOneField(Product, on_delete=models.CASCADE, related_name='half_variant')
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -142,3 +165,8 @@ class HalfProduct(models.Model):
 
     def __str__(self):
         return f"Meia {self.product.name}"
+    
+    def save(self, *args, **kwargs):
+        if self.product and getattr(self.product, 'tenant_id', None):
+            self.tenant_id = self.product.tenant_id
+        super().save(*args, **kwargs)

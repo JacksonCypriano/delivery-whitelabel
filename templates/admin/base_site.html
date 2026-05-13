@@ -1,19 +1,19 @@
 {% extends "admin/base_site.html" %}
-{% block title %}{{ tenant_brand.tenant.name|default:site_title }}{% endblock %}
+{% block title %}{{ tenant.name|default:site_title }}{% endblock %}
 
 {% block branding %}
   <div id="branding">
-    {% if tenant_brand.logo %}
-      <img src="{{ tenant_brand.logo.url }}" alt="{{ tenant_brand.tenant.name }}" style="height:48px;">
+    {% if tenant_brand and tenant_brand.logo %}
+      <img src="{{ tenant_brand.logo.url }}" alt="{{ tenant.name }}" style="height:48px;">
     {% else %}
-      <h1>{{ tenant_brand.tenant.name|default:site_header }}</h1>
+      <h1>{{ tenant.name|default:site_header }}</h1>
     {% endif %}
   </div>
 {% endblock %}
 
 {% block extrahead %}
   {{ block.super }}
-  {% if tenant_brand %}
+  {% if tenant_brand and tenant_brand.primary_color %}
     <style>
       :root {
         --primary: {{ tenant_brand.primary_color }};

@@ -173,3 +173,5 @@ class HalfProduct(TenantModel):
         if self.product and not self.tenant_id:
             self.tenant_id = self.product.tenant_id
         super().save(*args, **kwargs)
+
+from .models_intelligence import StoreIntelligence, KnowledgeChunk

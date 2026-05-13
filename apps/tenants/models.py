@@ -10,8 +10,6 @@ from .utils import validate_whatsapp_number
 class Tenant(models.Model):
     name = models.CharField(max_length=255)
     slug = models.SlugField(unique=True)
-    whatsapp_instance_key = models.CharField(max_length=255, blank=True, null=True)
-    whatsapp_api_key = models.CharField(max_length=255, blank=True, null=True)
     whatsapp_number = models.CharField(max_length=13, unique=True, validators=[validate_whatsapp_number], help_text="Formato: 5511999999999")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

@@ -1,38 +1,59 @@
-# apps/whatsapp/views.py
-from django.http import JsonResponse
+import json
+import logging
+from django.http import HttpResponse, JsonResponse
 from django.views import View
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
-import json
-import logging
 
-from .services import processar_mensagem
+from .selectors import get_config_by_phone_number_id
+from .services import processar_mensagem_oficial
 
 logger = logging.getLogger(__name__)
 
 @method_decorator(csrf_exempt, name='dispatch')
-class WebhookView(View):
-    def post(self, request):
-        try:
-            payload = json.loads(request.body)
-        except json.JSONDecodeError:
-            logger.error("Falha ao decodificar JSON no webhook.")
-            return JsonResponse({'error': 'Invalid JSON'}, status=400)
-        logger.warning(f"payload: {payload}")
+class WhatsAppWebhookView(View):
+    def get(self, request, *args, **kwargs):
+        mode = request.GET.get('hub.mode')
+        token = request.GET.get('hub.verify_token')
+        challenge = request.GET.get('hub.challenge')
 
-        # tenant = getattr(request, 'tenant', None)
-        # if not tenant:
-        #     logger.warning("Tenant não encontrado no request.")
-        #     return JsonResponse({'error': 'Tenant not found'}, status=400)
+        verify_token = getattr(settings, 'WHATSAPP_WEBHOOK_VERIFY_TOKEN', None)
 
-        # logger.info(f"[{tenant.slug}] Recebendo mensagem via webhook: {payload}")
+        if mode == 'subscribe' and token == verify_token:
+            logger.info("Webhook validado com sucesso!")
+            return HttpResponse(challenge)
         
-        # logger.warning(f"payload: {payload}")
-        # try:
-        #     processar_mensagem(payload, tenant)
-        # except Exception as e:
-        #     logger.exception(f"[{tenant.slug}] Erro ao processar mensagem: {e}")
-        #     return JsonResponse({'error': 'Internal processing error'}, status=500)
+        logger.warning(f"Falha na validação do webhook. Recebido: {token}")
+        return HttpResponse("Token de verificação inválido", status=403)
 
-        return JsonResponse({'status': 'ok'})
+    def post(self, request, *args, **kwargs):
+        try:
+            payload = json.loads(request.body.decode('utf-8'))
+        except Exception as e:
+            return JsonResponse({"status": "error", "message": "Invalid JSON"}, status=400)
+
+        entry = payload.get('entry', [{}])[0]
+        changes = entry.get('changes', [{}])[0]
+        value = changes.get('value', {})
+        metadata = value.get('metadata', {})
+        phone_number_id = metadata.get('phone_number_id')
+
+        if not phone_number_id:
+            return JsonResponse({"status": "ignored", "reason": "no_phone_number_id"})
+
+        config = get_config_by_phone_number_id(phone_number_id)
+        if not config or not config.tenant:
+            logger.error(f"Configuração não encontrada para phone_number_id: {phone_number_id}")
+            return JsonResponse({"status": "error", "reason": "tenant_not_found"}, status=404)
+
+        messages = value.get('messages')
+        if messages:
+            for message in messages:
+                processar_mensagem_oficial(
+                    tenant=config.tenant,
+                    config=config,
+                    payload=message
+                )
+
+        return JsonResponse({"status": "success"})

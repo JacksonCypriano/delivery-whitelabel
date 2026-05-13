@@ -8,7 +8,7 @@ urlpatterns = [
     path('', include('apps.stores.urls')),
     path('admin/', tenant_admin_site.urls),
     path('checkout/', include('apps.checkout.urls', namespace='checkout')),
-    path('api/whatsapp/', include('apps.whatsapp.urls')),
+    path('webhooks/whatsapp/', include('apps.whatsapp.urls')),
     path('api/tenants/', include('apps.tenants.urls')),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),

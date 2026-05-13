@@ -8,6 +8,11 @@ class TenantMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        # Ignora lógica de tenant para admin e webhooks
+        if request.path.startswith('/admin') or request.path.startswith('/webhooks'):
+            request.tenant = None
+            return self.get_response(request)
+
         host = request.META.get('HTTP_HOST', '')
         subdomain = host.split('.')[0]
 

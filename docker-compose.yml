@@ -51,10 +51,45 @@ services:
       - appnet
     restart: always
 
+  celery:
+    build: .
+    env_file: .env
+    environment:
+      - DATABASE_HOST=db
+      - DATABASE_PORT=5432
+    command: celery -A config worker --loglevel=info
+    volumes:
+      - .:/app
+      - media_volume:/app/media
+      - huggingface_cache:/root/.cache/huggingface
+    depends_on:
+      - db
+      - redis
+    networks:
+      - appnet
+    restart: always
+
+  celery-beat:
+    build: .
+    env_file: .env
+    environment:
+      - DATABASE_HOST=db
+      - DATABASE_PORT=5432
+    command: celery -A config beat --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - redis
+    networks:
+      - appnet
+    restart: always
+
 volumes:
   pgdata:
   static_volume:
   media_volume:
+  huggingface_cache:
 
 networks:
   appnet:

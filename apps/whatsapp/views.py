@@ -8,6 +8,7 @@ from django.conf import settings
 
 from .selectors import get_config_by_phone_number_id
 from .services import processar_mensagem_oficial
+from .tasks import processar_mensagem_task
 
 logger = logging.getLogger(__name__)
 
@@ -50,10 +51,10 @@ class WhatsAppWebhookView(View):
         messages = value.get('messages')
         if messages:
             for message in messages:
-                processar_mensagem_oficial(
-                    tenant=config.tenant,
-                    config=config,
-                    payload=message
+                processar_mensagem_task.delay(
+                    config.tenant.id,
+                    config.id,
+                    message
                 )
 
         return JsonResponse({"status": "success"})

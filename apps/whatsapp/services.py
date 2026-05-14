@@ -5,6 +5,7 @@ from django.conf import settings
 from .clients import WhatsAppClient
 from .selectors import get_whatsapp_config_for_tenant
 from apps.ml_engine.classifier import classificar
+from apps.ml_engine.engine import AISemanticEngine
 
 logger = logging.getLogger(__name__)
 
@@ -67,10 +68,33 @@ def _resposta_fallback(tenant):
     )
 
 
+def _resposta_semantica(tenant, text_body):
+    """
+    Busca semântica nos KnowledgeChunks do tenant.
+    Retorna uma resposta baseada no conteúdo mais relevante encontrado.
+    """
+    engine = AISemanticEngine()
+    results = engine.search(tenant, text_body, limit=2)
+
+    if results:
+        best_chunk, score = results[0]
+        logger.info(f"[{tenant.slug}] Busca semântica → Score: {score:.2f} | Chunk: {best_chunk.content[:60]}")
+
+        if score > 0.35:
+            return (
+                f"Encontrei isso para você:\n\n"
+                f"👉 {best_chunk.content}\n\n"
+                f"Para ver o cardápio completo e fazer seu pedido:\n"
+                f"{get_store_link(tenant)}"
+            )
+
+    # Fallback semântico: não encontrou nada relevante
+    return _resposta_pedido(tenant)
+
+
 # Mapa de intenção → função de resposta
 RESPOSTAS = {
     "saudacao": _resposta_saudacao,
-    "pedido": _resposta_pedido,
     "reclamacao": _resposta_reclamacao,
     "fallback": _resposta_fallback,
 }
@@ -91,9 +115,13 @@ def processar_mensagem_oficial(tenant, config, payload):
         intencao, confianca = classificar(text_body)
         logger.info(f"[{tenant.slug}] Mensagem: '{text_body}' → Intenção: {intencao} ({confianca:.2f})")
 
-        # Buscar função de resposta ou usar fallback
-        fn_resposta = RESPOSTAS.get(intencao, _resposta_fallback)
-        resposta = fn_resposta(tenant)
+        if intencao == 'pedido':
+            # Usa busca semântica para responder com dados reais do banco
+            resposta = _resposta_semantica(tenant, text_body)
+        else:
+            # Usa resposta fixa para saudação, reclamação e fallback
+            fn_resposta = RESPOSTAS.get(intencao, _resposta_fallback)
+            resposta = fn_resposta(tenant)
 
     else:
         logger.info(f"[{tenant.slug}] Mensagem do tipo '{message_type}' recebida — respondendo com fallback.")

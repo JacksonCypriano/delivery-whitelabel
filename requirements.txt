@@ -21,3 +21,4 @@ ipython>=8.0.0
 pytest>=8.0.0
 black>=24.0.0
 python-decouple
+django-celery-beat

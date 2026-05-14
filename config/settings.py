@@ -118,3 +118,10 @@ WHATSAPP_WEBHOOK_VERIFY_TOKEN = config('WHATSAPP_WEBHOOK_VERIFY_TOKEN')
 
 # Dominio
 DOMAIN = config('DOMAIN')
+
+# Celery
+CELERY_BROKER_URL="redis://redis:6379/0"
+CELERY_RESULT_BACKEND="redis://redis:6379/0"
+
+# Importa configurações de agendamento do Celery
+from celery_schedule import CELERY_BEAT_SCHEDULE

@@ -1,0 +1,55 @@
+{% extends 'dashboard/base.html' %}
+
+{% block content %}
+<div class="md:flex md:items-center md:justify-between">
+    <div class="min-w-0 flex-1">
+        <h2 class="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
+            Bem-vindo, {{ request.user.username }}
+        </h2>
+    </div>
+</div>
+
+<div class="mt-8">
+    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <!-- Card Produtos -->
+        <div class="overflow-hidden rounded-lg bg-white shadow">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 bg-slate-900 rounded-md p-3">
+                        <i class="fa-solid fa-utensils text-white"></i>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="truncate text-sm font-medium text-gray-500">Produtos Ativos</dt>
+                            <dd class="text-lg font-medium text-gray-900">{{ stats.produtos }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-gray-50 px-5 py-3">
+                <a href="/dashboard/produtos/" class="text-sm font-medium text-slate-700 hover:text-slate-900">Ver todos</a>
+            </div>
+        </div>
+
+        <!-- Card Categorias -->
+        <div class="overflow-hidden rounded-lg bg-white shadow">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 bg-slate-900 rounded-md p-3">
+                        <i class="fa-solid fa-list text-white"></i>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="truncate text-sm font-medium text-gray-500">Categorias</dt>
+                            <dd class="text-lg font-medium text-gray-900">{{ stats.categorias }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-gray-50 px-5 py-3">
+                <a href="/dashboard/categorias/" class="text-sm font-medium text-slate-700 hover:text-slate-900">Gerenciar</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

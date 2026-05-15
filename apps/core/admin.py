@@ -1,7 +1,6 @@
-# core/admin.py (ou utils)
-from django.contrib import admin
+from unfold.admin import ModelAdmin
 
-class TenantModelAdmin(admin.ModelAdmin):
+class TenantModelAdmin(ModelAdmin):
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         if request.user.is_superuser:

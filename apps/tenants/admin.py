@@ -1,19 +1,32 @@
-from django.contrib import admin
-from .models import Tenant, BrandConfig
-from .admin_site import tenant_admin_site
+from unfold.admin import ModelAdmin
 
-@admin.register(Tenant, site=tenant_admin_site)
-class TenantAdmin(admin.ModelAdmin):
+from .admin_site import tenant_admin_site, super_admin_site
+from .models import BrandConfig, Tenant
+
+
+# ── Admin Global (só Tenant) ──────────────────────────────────────────────────
+class TenantAdmin(ModelAdmin):
     list_display = ('name', 'slug', 'is_active', 'created_at')
     search_fields = ('name', 'slug')
     prepopulated_fields = {'slug': ('name',)}
 
-@admin.register(BrandConfig, site=tenant_admin_site)
-class BrandConfigAdmin(admin.ModelAdmin):
+
+super_admin_site.register(Tenant, TenantAdmin)
+
+
+# ── Admin do Lojista (BrandConfig) ───────────────────────────────────────────
+class TenantBrandConfigAdmin(ModelAdmin):
     list_display = ('tenant', 'primary_color', 'secondary_color')
+    readonly_fields = ('tenant',)
+
+    fieldsets = (
+        ('Cores', {'fields': ('primary_color', 'secondary_color')}),
+        ('Mídia', {'fields': ('logo',)}),
+        ('Domínio', {'fields': ('custom_domain',)}),
+    )
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).filter(tenant=request.tenant)
 
 
-from django.contrib import admin as dj_admin
-
-dj_admin.site.register(Tenant, TenantAdmin)
-dj_admin.site.register(BrandConfig, BrandConfigAdmin)
+tenant_admin_site.register(BrandConfig, TenantBrandConfigAdmin)

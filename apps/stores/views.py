@@ -1,6 +1,13 @@
-from django.views.generic import ListView
 from django.db.models import Prefetch
-from apps.stores.models import Category, Product, HalfProduct
+from django.shortcuts import render
+from django.utils.decorators import method_decorator
+from django.views import View
+from django.views.generic import ListView
+
+from apps.accounts.decorators import dashboard_auth_required
+from apps.stores.models import Category, HalfProduct, Product
+
+from .models import Category, Product
 
 
 class CatalogoView(ListView):
@@ -58,3 +65,21 @@ class CatalogoView(ListView):
         context['half_products'] = half_qs
 
         return context
+
+
+class DashboardHomeView(View):
+    @method_decorator(dashboard_auth_required)
+    def get(self, request):
+        total_produtos = Product.objects.filter(tenant=request.tenant).count()
+        total_categorias = Category.objects.filter(tenant=request.tenant).count()
+        
+        context = {
+            'stats': {
+                'produtos': total_produtos,
+                'categorias': total_categorias,
+            }
+        }
+        return render(request, 'dashboard/home.html', context)
+
+def dashboard_login_page(request):
+    return render(request, 'dashboard/login.html')

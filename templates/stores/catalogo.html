@@ -1,994 +1,289 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block content %}
-<form id="csrf-form" style="display:none">{% csrf_token %}</form>
+{% block page_name %}catalog{% endblock %}
 
+{% block extra_head %}
 <style>
-/* destaque visual para cards selecionados como metade */
-.selected-half {
-  box-shadow: 0 0 0 4px rgba(249,115,22,0.12);
-  outline: 2px solid rgba(249,115,22,0.12);
-  transform: translateY(-2px);
-  transition: transform .12s ease, box-shadow .12s ease;
-}
-/* toast animation (fallback) */
-@keyframes fade-in-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-.animate-fade-in-up { animation: fade-in-up .18s ease both; }
-
-/* Dropdown styles */
-.dropdown { position: relative; }
-.dropdown-button { width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; padding: .5rem .75rem; border-radius: .5rem; border: 1px solid #e5e7eb; background: white; }
-.dropdown-list { position: absolute; z-index: 60; top: calc(100% + 0.5rem); left: 0; right: 0; max-height: 260px; overflow-y: auto; background: white; border: 1px solid #e5e7eb; border-radius: .5rem; box-shadow: 0 8px 24px rgba(0,0,0,0.06); }
-.dropdown-item { padding: .5rem .75rem; cursor: pointer; display: flex; gap: .75rem; align-items: center; }
-.dropdown-item:hover { background: #f8fafc; }
-.dropdown-item[aria-selected="true"] { background: rgba(249,115,22,0.08); border-left: 3px solid rgba(249,115,22,0.18); }
-.dropdown-thumb { width: 44px; height: 44px; flex-shrink: 0; border-radius: .5rem; object-fit: cover; background: #fff; border: 1px solid #eee; }
-/* search input */
-.dropdown-search { width: 100%; padding: .5rem .75rem; border-bottom: 1px solid #eef2f7; outline: none; border-radius: .5rem .5rem 0 0; }
-.dropdown-empty { padding: .75rem; color: #6b7280; text-align: center; font-size: 0.9rem; }
+  .selected-half {
+    box-shadow: 0 0 0 4px rgba(249,115,22,0.12);
+    outline: 2px solid rgba(249,115,22,0.12);
+    transform: translateY(-2px);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .dropdown { position: relative; }
+  .dropdown-button { width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; padding: .5rem .75rem; border-radius: .5rem; border: 1px solid #e5e7eb; background: white; }
+  .dropdown-list { position: absolute; z-index: 60; top: calc(100% + 0.5rem); left: 0; right: 0; max-height: 260px; overflow-y: auto; background: white; border: 1px solid #e5e7eb; border-radius: .5rem; box-shadow: 0 8px 24px rgba(0,0,0,0.06); }
+  .dropdown-item { padding: .5rem .75rem; cursor: pointer; display: flex; gap: .75rem; align-items: center; }
+  .dropdown-item:hover { background: #f8fafc; }
+  .dropdown-item[aria-selected="true"] { background: rgba(249,115,22,0.08); border-left: 3px solid rgba(249,115,22,0.18); }
+  .dropdown-thumb { width: 44px; height: 44px; flex-shrink: 0; border-radius: .5rem; object-fit: cover; background: #fff; border: 1px solid #eee; }
+  .dropdown-search { width: 100%; padding: .5rem .75rem; border-bottom: 1px solid #eef2f7; outline: none; border-radius: .5rem .5rem 0 0; }
+  .dropdown-empty { padding: .75rem; color: #6b7280; text-align: center; font-size: 0.9rem; }
 </style>
+{% endblock %}
 
+{% block content %}
+
+<!-- Banner -->
 <div class="relative h-32 md:h-40 bg-gray-200 overflow-hidden shadow-inner">
-    {% if tenant.brand_config.banner %}
-        <img src="{{ tenant.brand_config.banner.url }}" class="w-full h-full object-cover" alt="banner">
-    {% else %}
-        <div class="w-full h-full bg-gradient-to-r from-primary via-primary/90 to-red-800 opacity-95"></div>
-    {% endif %}
-    <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent p-4 md:p-5">
-        <div class="container mx-auto">
-            <h1 class="text-white text-xl md:text-3xl font-bold tracking-tight shadow-sm">{{ tenant.name }}</h1>
-            <div class="flex items-center gap-3 mt-1">
-                <p class="text-white/90 text-xs md:text-sm flex items-center gap-1.5 font-medium">
-                    <span class="flex h-2 w-2">
-                        <span class="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-green-400 opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                    </span>
-                    Aberto agora
-                </p>
-                <span class="text-white/40">•</span>
-                <p class="text-white/90 text-xs md:text-sm font-medium">Entrega 30-45 min</p>
-            </div>
-        </div>
+  {% if tenant.brand_config.banner %}
+    <img src="{{ tenant.brand_config.banner.url }}" class="w-full h-full object-cover" alt="banner">
+  {% else %}
+    <div class="w-full h-full bg-gradient-to-r from-primary via-primary/90 to-red-800 opacity-95"></div>
+  {% endif %}
+  <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent p-4 md:p-5">
+    <div class="container mx-auto">
+      <h1 class="text-white text-xl md:text-3xl font-bold tracking-tight shadow-sm">{{ tenant.name }}</h1>
+      <div class="flex items-center gap-3 mt-1">
+        <p class="text-white/90 text-xs md:text-sm flex items-center gap-1.5 font-medium">
+          <span class="flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-green-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+          </span>
+          Aberto agora
+        </p>
+        <span class="text-white/40">•</span>
+        <p class="text-white/90 text-xs md:text-sm font-medium">Entrega 30-45 min</p>
+      </div>
     </div>
+  </div>
 </div>
 
+<!-- Categorias -->
 <div class="container mx-auto px-4 py-8">
-    <div class="flex gap-4 overflow-x-auto no-scrollbar pb-4 mb-8">
-        {% for category in categories %}
-        <a href="#cat-{{ category.id }}" 
-           class="whitespace-nowrap px-6 py-2 rounded-full border border-gray-200 bg-white hover:border-primary hover:text-primary transition font-medium shadow-sm">
-            {{ category.name }}
-        </a>
-        {% endfor %}
-    </div>
+  <div class="flex gap-4 overflow-x-auto no-scrollbar pb-4 mb-8">
+    {% for category in categories %}
+    <a href="#cat-{{ category.id }}"
+       class="whitespace-nowrap px-6 py-2 rounded-full border border-gray-200 bg-white hover:border-primary hover:text-primary transition font-medium shadow-sm">
+      {{ category.name }}
+    </a>
+    {% endfor %}
+  </div>
 
-    <div class="space-y-12">
-        {% for category in categories %}
-            {% if category.name == "Pizzas" %}
-            <!-- PIZZAS INTEIRAS -->
-            <section id="pizzas-inteiras" class="mb-10">
-              <h2 class="text-2xl font-bold mb-4">Pizzas inteiras</h2>
-              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {% for product in category.prefetched_products %}
-                <div class="product-card bg-white rounded-2xl border border-gray-100 shadow-sm flex overflow-hidden relative"
-                     data-product-id="{{ product.id }}"
-                     data-product-name="{{ product.name|escapejs }}"
-                     data-product-price="{{ product.price|floatformat:2 }}"
-                     data-product-image="{{ product.get_primary_image|default:'' }}">
-                  <div class="flex-grow p-4 flex flex-col">
-                    <h3 class="product-title font-semibold text-gray-800 mb-1 line-clamp-1">{{ product.name }}</h3>
-                    <p class="text-gray-500 text-xs mb-3 line-clamp-2">{{ product.description }}</p>
-                    <div class="flex items-center justify-between mt-auto">
-                      <span class="product-price text-primary font-bold text-lg">R$ {{ product.price }}</span>
-                      <div class="flex gap-2">
-                        <button type="button"
-                                class="add-to-cart-btn bg-gray-50 hover:bg-primary/10 text-primary p-2 rounded-lg transition flex items-center justify-center"
-                                data-product-id="{{ product.id }}"
-                                data-product-name="{{ product.name|escapejs }}"
-                                data-product-price="{{ product.price|floatformat:2 }}"
-                                data-product-image="{{ product.get_primary_image|default:'' }}"
-                                aria-label="Adicionar {{ product.name }} ao carrinho"
-                                title="Adicionar {{ product.name }}">
-                          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+  <div class="space-y-12">
+    {% for category in categories %}
 
-                  {% if product.get_primary_image %}
-                  <div class="w-32 h-32 flex-shrink-0">
-                    <img src="{{ product.get_primary_image }}" class="w-full h-full object-cover" alt="{{ product.name }}">
-                  </div>
-                  {% endif %}
-                </div>
-                {% endfor %}
+      {% if category.name == "Pizzas" %}
+
+      <!-- Pizzas Inteiras -->
+      <section id="pizzas-inteiras" class="mb-10">
+        <h2 class="text-2xl font-bold mb-4">Pizzas inteiras</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {% for product in category.prefetched_products %}
+          <div class="product-card bg-white rounded-2xl border border-gray-100 shadow-sm flex overflow-hidden relative"
+               data-product-id="{{ product.id }}"
+               data-product-name="{{ product.name|escapejs }}"
+               data-product-price="{{ product.price|stringformat:".2f" }}"
+               data-product-image="{{ product.get_primary_image|default:'' }}">
+            <div class="flex-grow p-4 flex flex-col">
+              <h3 class="product-title font-semibold text-gray-800 mb-1 line-clamp-1">{{ product.name }}</h3>
+              <p class="text-gray-500 text-xs mb-3 line-clamp-2">{{ product.description }}</p>
+              <div class="flex items-center justify-between mt-auto">
+                <span class="product-price text-primary font-bold text-lg">R$ {{ product.price }}</span>
+                <button type="button"
+                        data-action="add-to-cart"
+                        data-product-id="{{ product.id }}"
+                        data-product-name="{{ product.name|escapejs }}"
+                        data-product-price="{{ product.price|stringformat:".2f" }}"
+                        data-product-image="{{ product.get_primary_image|default:'' }}"
+                        data-requires-modal="true"
+                        class="bg-gray-50 hover:bg-primary/10 text-primary p-2 rounded-lg transition flex items-center justify-center"
+                        aria-label="Adicionar {{ product.name }} ao carrinho">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
               </div>
-            </section>
-
-            <!-- PIZZAS MEIO A MEIO -->
-            <section id="pizzas-meio-a-meio" class="mb-12 mt-8">
-              <h2 class="text-2xl font-bold mb-4">Pizzas meio a meio</h2>
-              <p class="text-sm text-gray-600 mb-4">Escolha dois sabores diferentes — clique em "Montar" em uma pizza para começar.</p>
-
-              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {% for product in category.prefetched_products %}
-                <div class="product-card bg-white rounded-2xl border border-gray-100 shadow-sm flex overflow-hidden relative"
-                     data-product-id="{{ product.id }}"
-                     data-product-name="{{ product.name|escapejs }}"
-                     data-product-price="{{ product.price|floatformat:2 }}"
-                     data-product-image="{{ product.get_primary_image|default:'' }}">
-                  <div class="flex-grow p-4 flex flex-col">
-                    <h3 class="product-title font-semibold text-gray-800 mb-1 line-clamp-1">{{ product.name }}</h3>
-                    <p class="text-gray-500 text-xs mb-3 line-clamp-2">{{ product.description }}</p>
-                    <div class="flex items-center justify-between mt-auto">
-                      <span class="product-price text-primary font-bold text-lg">R$ {{ product.price }}</span>
-                      <div class="flex gap-2">
-                        <button type="button"
-                                class="btn-start-half inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium bg-amber-500 text-white hover:bg-amber-600 transition"
-                                data-product-id="{{ product.id }}"
-                                data-product-name="{{ product.name|escapejs }}"
-                                data-product-price="{{ product.price|floatformat:2 }}"
-                                data-product-image="{{ product.get_primary_image|default:'' }}"
-                                aria-label="Montar meio a meio com {{ product.name }}">
-                          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2v10l8 4"></path>
-                          </svg>
-                          <span class="hidden sm:inline">Montar</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {% if product.get_primary_image %}
-                  <div class="w-32 h-32 flex-shrink-0">
-                    <img src="{{ product.get_primary_image }}" class="w-full h-full object-cover" alt="{{ product.name }}">
-                  </div>
-                  {% endif %}
-                </div>
-                {% endfor %}
-              </div>
-            </section>
-
-            {% else %}
-            <!-- Categoria padrão para outras categorias -->
-            <section id="cat-{{ category.id }}">
-              <h2 class="text-xl font-bold mb-6 flex items-center gap-2">{{ category.name }}</h2>
-              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {% for product in category.prefetched_products %}
-                <div class="product-card bg-white rounded-2xl border border-gray-100 shadow-sm flex overflow-hidden relative"
-                     data-product-id="{{ product.id }}"
-                     data-product-name="{{ product.name|escapejs }}"
-                     data-product-price="{{ product.price|floatformat:2 }}"
-                     data-product-image="{{ product.get_primary_image|default:'' }}">
-                  <div class="flex-grow p-4 flex flex-col">
-                    <h3 class="product-title font-semibold text-gray-800 mb-1 line-clamp-1">{{ product.name }}</h3>
-                    <p class="text-gray-500 text-xs mb-3 line-clamp-2">{{ product.description }}</p>
-                    <div class="flex items-center justify-between mt-auto">
-                      <span class="product-price text-primary font-bold text-lg">R$ {{ product.price }}</span>
-                      <div class="flex gap-2">
-                        <button type="button"
-                                class="add-to-cart-btn bg-gray-50 hover:bg-primary/10 text-primary p-2 rounded-lg transition flex items-center justify-center"
-                                data-product-id="{{ product.id }}"
-                                data-product-name="{{ product.name|escapejs }}"
-                                data-product-price="{{ product.price|floatformat:2 }}"
-                                data-product-image="{{ product.get_primary_image|default:'' }}">
-                          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {% if product.get_primary_image %}
-                  <div class="w-32 h-32 flex-shrink-0">
-                    <img src="{{ product.get_primary_image }}" class="w-full h-full object-cover" alt="{{ product.name }}">
-                  </div>
-                  {% endif %}
-                </div>
-                {% endfor %}
-              </div>
-            </section>
+            </div>
+            {% if product.get_primary_image %}
+            <div class="w-32 h-32 flex-shrink-0">
+              <img src="{{ product.get_primary_image }}" class="w-full h-full object-cover" alt="{{ product.name }}">
+            </div>
             {% endif %}
-        {% endfor %}
-    </div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <!-- Pizzas Meio a Meio -->
+      <section id="pizzas-meio-a-meio" class="mb-12 mt-8">
+        <h2 class="text-2xl font-bold mb-4">Pizzas meio a meio</h2>
+        <p class="text-sm text-gray-600 mb-4">Escolha dois sabores — clique em "Montar" para começar.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {% for product in category.prefetched_products %}
+          <div class="product-card bg-white rounded-2xl border border-gray-100 shadow-sm flex overflow-hidden relative"
+               data-product-id="{{ product.id }}"
+               data-product-name="{{ product.name|escapejs }}"
+               data-product-price="{{ product.price|stringformat:".2f" }}"
+               data-product-image="{{ product.get_primary_image|default:'' }}">
+            <div class="flex-grow p-4 flex flex-col">
+              <h3 class="product-title font-semibold text-gray-800 mb-1 line-clamp-1">{{ product.name }}</h3>
+              <p class="text-gray-500 text-xs mb-3 line-clamp-2">{{ product.description }}</p>
+              <div class="flex items-center justify-between mt-auto">
+                <span class="product-price text-primary font-bold text-lg">R$ {{ product.price }}</span>
+                <button type="button"
+                        data-action="start-half-half"
+                        data-product-id="{{ product.id }}"
+                        data-product-name="{{ product.name|escapejs }}"
+                        data-product-price="{{ product.price|stringformat:".2f" }}"
+                        data-product-image="{{ product.get_primary_image|default:'' }}"
+                        class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium bg-amber-500 text-white hover:bg-amber-600 transition"
+                        aria-label="Montar meio a meio com {{ product.name }}">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2v10l8 4"/>
+                  </svg>
+                  <span class="hidden sm:inline">Montar</span>
+                </button>
+              </div>
+            </div>
+            {% if product.get_primary_image %}
+            <div class="w-32 h-32 flex-shrink-0">
+              <img src="{{ product.get_primary_image }}" class="w-full h-full object-cover" alt="{{ product.name }}">
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      {% else %}
+
+      <!-- Categoria padrão -->
+      <section id="cat-{{ category.id }}">
+        <h2 class="text-xl font-bold mb-6">{{ category.name }}</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {% for product in category.prefetched_products %}
+          <div class="product-card bg-white rounded-2xl border border-gray-100 shadow-sm flex overflow-hidden relative"
+               data-product-id="{{ product.id }}"
+               data-product-name="{{ product.name|escapejs }}"
+               data-product-price="{{ product.price|stringformat:".2f" }}"
+               data-product-image="{{ product.get_primary_image|default:'' }}">
+            <div class="flex-grow p-4 flex flex-col">
+              <h3 class="product-title font-semibold text-gray-800 mb-1 line-clamp-1">{{ product.name }}</h3>
+              <p class="text-gray-500 text-xs mb-3 line-clamp-2">{{ product.description }}</p>
+              <div class="flex items-center justify-between mt-auto">
+                <span class="product-price text-primary font-bold text-lg">R$ {{ product.price }}</span>
+                <button type="button"
+                        data-action="add-to-cart"
+                        data-product-id="{{ product.id }}"
+                        data-product-name="{{ product.name|escapejs }}"
+                        data-product-price="{{ product.price|stringformat:".2f" }}"
+                        data-product-image="{{ product.get_primary_image|default:'' }}"
+                        data-requires-modal="true"
+                        class="bg-gray-50 hover:bg-primary/10 text-primary p-2 rounded-lg transition flex items-center justify-center"
+                        aria-label="Adicionar {{ product.name }} ao carrinho">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            {% if product.get_primary_image %}
+            <div class="w-32 h-32 flex-shrink-0">
+              <img src="{{ product.get_primary_image }}" class="w-full h-full object-cover" alt="{{ product.name }}">
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      {% endif %}
+    {% endfor %}
+  </div>
 </div>
 
-{# Modal meio-a-meio com thumbnails, dropdown com busca e preview de imagens #}
-<div id="half-half-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden opacity-0 pointer-events-none transition-opacity duration-200">
-  <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4 relative transform scale-95 transition-transform duration-200 ease-out" id="half-half-modal-content">
+<!-- Modal Meio a Meio -->
+<div data-modal="half-half"
+     class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4">
+
+  <div data-modal-overlay class="absolute inset-0"></div>
+
+  <div class="relative bg-white rounded-xl p-6 max-w-md w-full mx-4 z-10 transform transition-transform duration-200"
+       id="half-half-modal-content">
+
     <div class="flex justify-between items-center mb-4">
       <h3 class="text-xl font-bold text-gray-800">Monte sua Pizza Meio a Meio</h3>
-      <button type="button" id="close-half-half-modal" class="text-gray-500 hover:text-gray-700 focus:outline-none rounded-full p-1 transition-colors" aria-label="Fechar modal">
+      <button type="button" data-modal-close="half-half"
+              class="text-gray-500 hover:text-gray-700 rounded-full p-1 transition-colors" aria-label="Fechar modal">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
         </svg>
       </button>
     </div>
 
+    <!-- Dropdown segundo sabor -->
     <div class="mb-4">
       <p class="text-gray-600 mb-2 text-sm font-medium">Selecione o segundo sabor:</p>
-
-      <!-- Dropdown component -->
-      <div class="dropdown">
-        <button type="button" id="second-flavor-button" class="dropdown-button" aria-haspopup="listbox" aria-expanded="false">
-          <span id="second-flavor-button-text">Selecione o segundo sabor</span>
-          <svg class="w-4 h-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
+      <div class="dropdown" data-half-half-dropdown>
+        <button type="button" data-half-half-dropdown-btn
+                class="dropdown-button" aria-haspopup="listbox" aria-expanded="false">
+          <span data-half-half-dropdown-text>Selecione o segundo sabor</span>
+          <svg class="w-4 h-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
+          </svg>
         </button>
-
-        <div id="second-flavor-list" class="dropdown-list hidden" role="listbox" tabindex="-1" aria-label="Lista de sabores">
-          <input id="second-flavor-search" class="dropdown-search" placeholder="Buscar sabor..." type="search" aria-label="Pesquisar sabores">
-          <div id="second-flavor-items">
-            <!-- itens inseridos dinamicamente -->
-          </div>
+        <div data-half-half-dropdown-list class="dropdown-list hidden" role="listbox">
+          <input data-half-half-search class="dropdown-search" placeholder="Buscar sabor..." type="search">
+          <div data-half-half-items></div>
         </div>
       </div>
-
     </div>
 
+    <!-- Preview visual -->
     <div class="mb-6 p-4 bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl border border-primary/20">
       <div class="text-center mb-3">
         <h4 class="font-semibold text-gray-700">Sua Escolha</h4>
         <p class="text-xs text-gray-500">Metade 1 (fixa) — Metade 2 (selecionável)</p>
       </div>
-
-      <div class="flex items-center justify-center mb-4">
-        <div class="relative w-full max-w-xs">
-          <div class="relative h-32 mx-auto">
-            <div class="absolute inset-0 rounded-full border-4 border-primary/20 flex items-center justify-center">
-              <div class="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-                <div class="text-xs text-primary font-medium">½ + ½</div>
-              </div>
+      <div class="relative h-32 mx-auto max-w-xs">
+        <div class="absolute inset-0 rounded-full border-4 border-primary/20 flex items-center justify-center">
+          <div class="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+            <div class="text-xs text-primary font-medium">½ + ½</div>
+          </div>
+        </div>
+        <!-- Metade esquerda -->
+        <div class="absolute left-0 top-0 w-1/2 h-full overflow-hidden rounded-l-full">
+          <div class="w-full h-full rounded-l-full flex items-center justify-center bg-white/80 border-r border-primary/30">
+            <div class="text-center px-2">
+              <img data-half-left-thumb src="" alt="" class="w-14 h-14 rounded-md object-cover mb-1 mx-auto hidden">
+              <div class="text-xs text-gray-500 mb-1">Metade 1</div>
+              <div class="text-sm font-medium text-gray-700 truncate" data-half-left-name>Escolha...</div>
             </div>
-
-            <div class="absolute left-0 top-0 w-1/2 h-full overflow-hidden rounded-l-full">
-              <div class="w-full h-full rounded-l-full flex items-center justify-center bg-white/80 border-r border-primary/30" id="left-half-preview">
-                <div class="text-center px-2">
-                  <img id="left-half-thumb" src="" alt="" class="w-14 h-14 rounded-md object-cover mb-1 mx-auto hidden">
-                  <div class="text-xs text-gray-500 mb-1">Metade 1</div>
-                  <div class="text-sm font-medium text-gray-700 truncate" id="left-half-name">Escolha...</div>
-                </div>
-              </div>
+          </div>
+        </div>
+        <!-- Metade direita -->
+        <div class="absolute right-0 top-0 w-1/2 h-full overflow-hidden rounded-r-full">
+          <div class="w-full h-full rounded-r-full flex items-center justify-center bg-white/80 border-l border-primary/30">
+            <div class="text-center px-2">
+              <img data-half-right-thumb src="" alt="" class="w-14 h-14 rounded-md object-cover mb-1 mx-auto hidden">
+              <div class="text-xs text-gray-500 mb-1">Metade 2</div>
+              <div class="text-sm font-medium text-gray-700 truncate" data-half-right-name>Selecione...</div>
             </div>
-
-            <div class="absolute right-0 top-0 w-1/2 h-full overflow-hidden rounded-r-full">
-              <div class="w-full h-full rounded-r-full flex items-center justify-center bg-white/80 border-l border-primary/30" id="right-half-preview">
-                <div class="text-center px-2">
-                  <img id="right-half-thumb" src="" alt="" class="w-14 h-14 rounded-md object-cover mb-1 mx-auto hidden">
-                  <div class="text-xs text-gray-500 mb-1">Metade 2</div>
-                  <div class="text-sm font-medium text-gray-700 truncate" id="right-half-name">Selecione...</div>
-                </div>
-              </div>
-            </div>
-
           </div>
         </div>
       </div>
-
-      <div class="text-center">
-        <div class="text-2xl font-bold text-primary mb-1" id="half-half-price-display">R$ 0,00</div>
+      <div class="text-center mt-4">
+        <div class="text-2xl font-bold text-primary mb-1" data-half-price>R$ 0,00</div>
         <div class="text-sm text-gray-600">Preço da pizza mais cara</div>
       </div>
     </div>
 
+    <!-- Ações -->
     <div class="flex gap-3">
-      <button type="button" id="cancel-half-half-modal" class="flex-1 py-3 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors">
+      <button type="button" data-modal-close="half-half"
+              class="flex-1 py-3 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors">
         Cancelar
       </button>
-      <button type="button" id="add-half-half-btn" class="flex-1 py-3 px-4 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 font-medium transition-all duration-200 shadow-md hover:shadow-lg" disabled>
+      <button type="button" data-half-half-submit
+              disabled
+              class="flex-1 py-3 px-4 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 font-medium transition-all shadow-md hover:shadow-lg">
         Adicionar ao Carrinho
       </button>
     </div>
+
   </div>
 </div>
-{% endblock %}
 
-{% block extra_js %}
-<script>
-/* ----------------- Utilities ----------------- */
-function getCSRFCookie(name = 'csrftoken') {
-  let cookieValue = null;
-  if (document.cookie && document.cookie !== '') {
-    const cookies = document.cookie.split(';');
-    for (let i = 0; i < cookies.length; i++) {
-      const c = cookies[i].trim();
-      if (c.startsWith(name + '=')) {
-        cookieValue = decodeURIComponent(c.substring(name.length + 1));
-        break;
-      }
-    }
-  }
-  if (!cookieValue) {
-    const el = document.querySelector('[name=csrfmiddlewaretoken]');
-    if (el) cookieValue = el.value;
-  }
-  return cookieValue;
-}
-const CSRF_TOKEN = getCSRFCookie();
-const ADD_HALF_HALF_URL = "{% url 'checkout:add_half_half' %}";
-const ADD_TO_CART_URL = "{% url 'checkout:add_to_cart' %}";
-
-// expose globals so static listener can read them
-window.ADD_TO_CART_URL = ADD_TO_CART_URL;
-window.ADD_HALF_HALF_URL = ADD_HALF_HALF_URL;
-window.CSRF_TOKEN = CSRF_TOKEN;
-
-function formatPriceBR(value) {
-  const n = Number(value) || 0;
-  return 'R$ ' + n.toFixed(2).replace('.', ',');
-}
-function parsePrice(raw) {
-  if (raw == null) return 0;
-  if (typeof raw === 'number') return raw;
-  let v = String(raw).trim();
-  if (v === '') return 0;
-  v = v.replace(/[^\d\.,-]/g, '');
-  if (v.indexOf('.') > -1 && v.indexOf(',') > -1) {
-    v = v.replace(/\./g, '').replace(',', '.');
-  } else if (v.indexOf(',') > -1) {
-    v = v.replace(',', '.');
-  }
-  const n = parseFloat(v);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function showToast(message, type = 'success') {
-  document.querySelectorAll('.toast-notification').forEach(el => el.remove());
-  const toast = document.createElement('div');
-  toast.className = 'fixed bottom-6 right-6 px-4 py-3 rounded-lg shadow-lg text-white font-medium z-50 animate-fade-in-up toast-notification';
-  toast.style.maxWidth = '320px';
-  if (type === 'error') toast.classList.add('bg-red-500'); else toast.classList.add('bg-green-500');
-  toast.innerHTML = `<div class="flex items-center gap-3"><span>${message}</span></div><button class="ml-4 text-white opacity-80 hover:opacity-100" aria-label="Fechar">&times;</button>`;
-  document.body.appendChild(toast);
-  toast.querySelector('button').addEventListener('click', () => toast.remove());
-  setTimeout(() => { if (toast.parentNode) toast.remove(); }, 3500);
-}
-
-/* ----------------- Add to cart: delegation that delegates to central handler ----------------- */
-(function attachAddToCartDelegation() {
-  // Attach once via event delegation
-  document.addEventListener('click', function (e) {
-    const btn = e.target.closest('.add-to-cart-btn');
-    if (!btn) return;
-    e.preventDefault();
-    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-
-    const productId = btn.dataset.productId || btn.closest('.product-card')?.dataset.productId;
-    if (!productId) { showToast('Produto inválido.', 'error'); console.warn('add-to-cart: missing product id', btn); return; }
-
-    const productName = btn.dataset.productName || btn.closest('.product-card')?.dataset.productName || btn.closest('.product-card')?.querySelector('.product-title')?.textContent?.trim() || '';
-    const productPrice = btn.dataset.productPrice || btn.closest('.product-card')?.dataset.productPrice || btn.closest('.product-card')?.querySelector('.product-price')?.textContent?.trim() || '';
-    const productImage = btn.dataset.productImage || btn.closest('.product-card')?.dataset.productImage || '';
-
-    // debug log
-    console.debug('dispatch openAddToCartModal', { productId, productName, productPrice, productImage, ADD_TO_CART_URL });
-
-    // Dispatch custom event so the centralized modal / notes handler opens and performs the actual add
-    document.dispatchEvent(new CustomEvent('openAddToCartModal', {
-      detail: {
-        id: String(productId),
-        name: productName,
-        price: productPrice,
-        image: productImage,
-        add_to_cart_url: ADD_TO_CART_URL
-      }
-    }));
-  }, { capture: true });
-})();
-
-/* ----------------- Meio-a-meio modal code (refatorado com guard) ----------------- */
-/* ... mantive toda a sua lógica do meio-a-meio sem alterações funcionais ... */
-(function () {
-  let selected = []; // selected[0] = metade1, selected[1] = metade2
-  const modal = document.getElementById('half-half-modal');
-  const modalContent = document.getElementById('half-half-modal-content');
-  const closeBtn = document.getElementById('close-half-half-modal');
-  const cancelBtn = document.getElementById('cancel-half-half-modal');
-  const addBtn = document.getElementById('add-half-half-btn');
-
-  const leftName = document.getElementById('left-half-name');
-  const rightName = document.getElementById('right-half-name');
-  const priceDisplay = document.getElementById('half-half-price-display');
-  const leftThumb = document.getElementById('left-half-thumb');
-  const rightThumb = document.getElementById('right-half-thumb');
-
-  // dropdown elements
-  const secondBtn = document.getElementById('second-flavor-button');
-  const secondBtnText = document.getElementById('second-flavor-button-text');
-  const secondList = document.getElementById('second-flavor-list');
-  const secondItemsWrapper = document.getElementById('second-flavor-items');
-  const secondSearch = document.getElementById('second-flavor-search');
-
-  let cachedOptions = [];
-  let lastModalOpenAt = 0;
-  const OPEN_GUARD_MS = 220;
-
-  function openModal() {
-    if (!modal) return;
-    modal.classList.remove('hidden', 'opacity-0', 'pointer-events-none');
-    modal.classList.add('opacity-100');
-    setTimeout(() => modalContent.classList.remove('scale-95'), 10);
-    updateVisual();
-    updateButtons();
-    lastModalOpenAt = Date.now();
-  }
-  function closeModal() {
-    if (!modal) return;
-    modalContent.classList.add('scale-95');
-    modal.classList.remove('opacity-100');
-    modal.classList.add('opacity-0');
-    setTimeout(() => {
-      modal.classList.add('hidden', 'pointer-events-none');
-      selected = [];
-      hideSecondList();
-      resetSecondButtonText();
-      clearSearch();
-      clearPreviewThumbs();
-    }, 200);
-  }
-
-  function updateVisual() {
-    if (leftName) leftName.textContent = selected[0] ? selected[0].name : 'Escolha...';
-    if (rightName) rightName.textContent = selected[1] ? selected[1].name : 'Selecione...';
-    if (leftThumb) {
-      if (selected[0] && selected[0].image) { leftThumb.src = selected[0].image; leftThumb.classList.remove('hidden'); } else leftThumb.classList.add('hidden');
-    }
-    if (rightThumb) {
-      if (selected[1] && selected[1].image) { rightThumb.src = selected[1].image; rightThumb.classList.remove('hidden'); } else rightThumb.classList.add('hidden');
-    }
-
-    if (priceDisplay) {
-      if (selected.length === 2 && selected[0] && selected[1]) {
-        const p0 = parsePrice(selected[0].price);
-        const p1 = parsePrice(selected[1].price);
-        priceDisplay.textContent = formatPriceBR(Math.max(p0, p1));
-      } else {
-        priceDisplay.textContent = 'R$ 0,00';
-      }
-    }
-  }
-
-  function updateButtons() {
-    if (addBtn) addBtn.disabled = !(selected[0] && selected[1]);
-  }
-
-  function resetSecondButtonText() {
-    if (secondBtnText) secondBtnText.textContent = 'Selecione o segundo sabor';
-    if (secondBtn) secondBtn.setAttribute('aria-expanded', 'false');
-  }
-  function hideSecondList() {
-    if (!secondList) return;
-    secondList.classList.add('hidden');
-    if (secondBtn) secondBtn.setAttribute('aria-expanded', 'false');
-  }
-  function showSecondList() {
-    if (!secondList) return;
-    secondList.classList.remove('hidden');
-    if (secondBtn) secondBtn.setAttribute('aria-expanded', 'true');
-    setTimeout(() => { if (secondSearch) secondSearch.focus(); }, 50);
-  }
-
-  function clearSearch() { if (secondSearch) secondSearch.value = ''; }
-  function clearPreviewThumbs() {
-    if (leftThumb) { leftThumb.src = ''; leftThumb.classList.add('hidden'); }
-    if (rightThumb) { rightThumb.src = ''; rightThumb.classList.add('hidden'); }
-  }
-
-  function buildOptionsCache() {
-    cachedOptions = [];
-    const pizzas = document.querySelectorAll('#pizzas-meio-a-meio .product-card');
-    pizzas.forEach(p => {
-      const id = String(p.dataset.productId || '');
-      if (!id) return;
-      const name = p.dataset.productName || p.querySelector('.product-title')?.textContent?.trim() || 'Produto';
-      const rawPrice = p.dataset.productPrice || p.querySelector('.product-price')?.textContent || '0';
-      const priceNum = parsePrice(rawPrice);
-      const image = p.dataset.productImage || (p.querySelector('img') ? p.querySelector('img').src : '') || '';
-      cachedOptions.push({ id, name, price: String(priceNum), image });
-    });
-  }
-
-  function populateSecondOptionsUI(excludeId = null, filter = '') {
-    if (!secondItemsWrapper) return;
-    secondItemsWrapper.innerHTML = '';
-    const f = String(filter || '').trim().toLowerCase();
-
-    const list = cachedOptions.filter(opt => {
-      if (!opt || !opt.id) return false;
-      if (excludeId && String(excludeId) === String(opt.id)) return false;
-      if (!f) return true;
-      return (opt.name || '').toLowerCase().indexOf(f) > -1;
-    });
-
-    if (!list.length) {
-      const empty = document.createElement('div');
-      empty.className = 'dropdown-empty';
-      empty.textContent = 'Nenhum sabor encontrado.';
-      secondItemsWrapper.appendChild(empty);
-      return;
-    }
-
-    list.forEach(opt => {
-      const item = document.createElement('div');
-      item.className = 'dropdown-item';
-      item.setAttribute('role', 'option');
-      item.tabIndex = 0;
-      item.dataset.productId = opt.id;
-      item.dataset.productName = opt.name;
-      item.dataset.productPrice = opt.price;
-      item.dataset.productImage = opt.image || '';
-
-      const thumbHTML = `<img src="${opt.image || ''}" class="dropdown-thumb" alt="${opt.name}">`;
-      item.innerHTML = `${thumbHTML}<div class="flex-1"><div class="text-sm text-gray-700">${opt.name}</div><div class="text-xs text-primary font-semibold">${formatPriceBR(opt.price)}</div></div>`;
-
-      item.addEventListener('click', function (ev) {
-        ev.preventDefault();
-        if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
-        selectSecondFlavor({ id: opt.id, name: opt.name, price: opt.price, image: opt.image });
-        hideSecondList();
-      });
-      item.addEventListener('keydown', function (ev) {
-        if (ev.key === 'Enter' || ev.key === ' ') {
-          ev.preventDefault();
-          if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
-          item.click();
-        }
-      });
-
-      secondItemsWrapper.appendChild(item);
-    });
-  }
-
-  function selectSecondFlavor(product) {
-    if (selected[0] && String(selected[0].id) === String(product.id)) {
-      showToast('Escolha um sabor diferente para a segunda metade.', 'error');
-      return;
-    }
-    selected[1] = { id: String(product.id), name: product.name, price: String(product.price), image: product.image || '' };
-    if (secondBtnText) secondBtnText.textContent = product.name;
-    updateVisual();
-    updateButtons();
-    Array.from(secondItemsWrapper.children).forEach(child => {
-      if (!child.dataset) return;
-      child.setAttribute('aria-selected', child.dataset.productId === String(product.id) ? 'true' : 'false');
-    });
-  }
-
-  // When user clicks "Montar" on a card
-  document.addEventListener('click', function (e) {
-    const startBtn = e.target.closest('.btn-start-half');
-    if (!startBtn) return;
-    e.preventDefault();
-    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-
-    buildOptionsCache();
-
-    const product = {
-      id: startBtn.dataset.productId || startBtn.closest('.product-card')?.dataset.productId,
-      name: (startBtn.dataset.productName || startBtn.closest('.product-card')?.dataset.productName || startBtn.closest('.product-card')?.querySelector('.product-title')?.textContent?.trim()),
-      price: parsePrice(startBtn.dataset.productPrice || startBtn.closest('.product-card')?.dataset.productPrice || startBtn.closest('.product-card')?.querySelector('.product-price')?.textContent || '0'),
-      image: startBtn.dataset.productImage || startBtn.closest('.product-card')?.dataset.productImage || (startBtn.closest('.product-card')?.querySelector('img') ? startBtn.closest('.product-card')?.querySelector('img').src : '')
-    };
-    if (!product.id) { showToast('Produto inválido', 'error'); return; }
-
-    selected = [{ id: String(product.id), name: product.name, price: String(product.price), image: product.image || '' }];
-
-    populateSecondOptionsUI(product.id);
-    resetSecondButtonText();
-    clearSearch();
-    openModal();
-    updateVisual();
-    updateButtons();
-
-    setTimeout(() => {
-      const sel = secondItemsWrapper.querySelector(`.dropdown-item[data-product-id="${product.id}"]`);
-      if (sel) sel.scrollIntoView({ block: 'nearest' });
-    }, 90);
-  }, { capture: true });
-
-  // allow selecting second flavor by clicking on a card while modal is open (with guard)
-  document.addEventListener('click', function (e) {
-    if (!modal || modal.classList.contains('hidden')) return;
-    if (Date.now() - lastModalOpenAt < OPEN_GUARD_MS) return;
-
-    const card = e.target.closest('.product-card');
-    if (!card) return;
-    const id = String(card.dataset.productId || '');
-    if (!id) return;
-    if (selected[0] && String(selected[0].id) === id) {
-      showToast('Escolha um sabor diferente para a segunda metade.', 'error');
-      return;
-    }
-    const name = card.dataset.productName || card.querySelector('.product-title')?.textContent?.trim() || 'Produto';
-    const price = String(parsePrice(card.dataset.productPrice || card.querySelector('.product-price')?.textContent || '0'));
-    const image = card.dataset.productImage || (card.querySelector('img') ? card.querySelector('img').src : '');
-    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-    selectSecondFlavor({ id, name, price, image });
-  }, { capture: true });
-
-  if (secondBtn) {
-    secondBtn.addEventListener('click', function (e) {
-      e.preventDefault();
-      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-      if (!secondList) return;
-      if (secondList.classList.contains('hidden')) {
-        populateSecondOptionsUI(selected[0] ? selected[0].id : null, secondSearch?.value || '');
-        showSecondList();
-      } else {
-        hideSecondList();
-      }
-    });
-  }
-
-  let searchTimeout = null;
-  if (secondSearch) {
-    secondSearch.addEventListener('input', function (e) {
-      clearTimeout(searchTimeout);
-      const q = e.target.value;
-      searchTimeout = setTimeout(() => {
-        populateSecondOptionsUI(selected[0] ? selected[0].id : null, q);
-      }, 120);
-    });
-  }
-
-  document.addEventListener('click', function (e) {
-    if (!secondList) return;
-    if (secondList.classList.contains('hidden')) return;
-    if (e.target.closest('.dropdown')) return;
-    hideSecondList();
-  }, { capture: true });
-
-  document.addEventListener('keydown', function (e) {
-    if (!secondList || secondList.classList.contains('hidden')) return;
-    const items = Array.from(secondList.querySelectorAll('.dropdown-item'));
-    if (!items.length) return;
-    const active = document.activeElement;
-    let idx = items.indexOf(active);
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      idx = idx < items.length - 1 ? idx + 1 : 0;
-      items[idx].focus();
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      idx = idx > 0 ? idx - 1 : items.length - 1;
-      items[idx].focus();
-    } else if (e.key === 'Escape') {
-      hideSecondList();
-      secondBtn.focus();
-    } else if (e.key === 'Enter' && document.activeElement.classList.contains('dropdown-item')) {
-      e.preventDefault();
-      document.activeElement.click();
-    }
-  });
-
-  if (closeBtn) closeBtn.addEventListener('click', function (e) { e.preventDefault(); if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation(); closeModal(); });
-  if (cancelBtn) cancelBtn.addEventListener('click', function (e) { e.preventDefault(); if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation(); closeModal(); });
-  if (modal) modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { if (modal && !modal.classList.contains('hidden')) closeModal(); } });
-
-  if (addBtn) {
-    addBtn.addEventListener('click', async function (e) {
-      e.preventDefault();
-      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-      if (!selected[0] || !selected[1]) { showToast('Selecione dois sabores.', 'error'); return; }
-      const btn = this;
-      const originalHTML = btn.innerHTML;
-      btn.disabled = true;
-      btn.innerHTML = '<svg class="animate-spin inline-block mr-2 w-5 h-5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/></svg> Adicionando...';
-
-      try {
-        const resp = await fetch(ADD_HALF_HALF_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
-          body: JSON.stringify({ product_ids: [selected[0].id, selected[1].id], quantity: 1 }),
-          credentials: 'same-origin'
-        });
-        const data = await resp.json().catch(()=>null);
-        if (resp.ok && data && (data.success || data.added)) {
-          document.dispatchEvent(new CustomEvent('cartUpdated', { detail: data }));
-          showToast(data.message || 'Adicionado ao carrinho!', 'success');
-          const s = document.getElementById('notificationSound'); if (s) s.play().catch(()=>{});
-          closeModal();
-        } else {
-          showToast((data && (data.error || data.message)) || `Erro HTTP ${resp.status}`, 'error');
-        }
-      } catch (err) {
-        console.error('Erro meio-a-meio:', err);
-        showToast(err.message || 'Erro de conexão', 'error');
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalHTML;
-      }
-    });
-  }
-})();
-
-
-/* ----------------- Add to Cart Modal com Observações (Corrigido) ----------------- */
-(function() {
-  console.log('[add_to_cart_modal] Inicializando modal de adicionar ao carrinho');
-
-  // Elements
-  const modal = document.getElementById('addToCartModal');
-  if (!modal) {
-    console.warn('[add_to_cart_modal] Modal não encontrado');
-    return;
-  }
-
-  const modalProductName = document.getElementById('modalProductName');
-  const modalProductPrice = document.getElementById('modalProductPrice');
-  const modalTextarea = document.getElementById('modalNoteTextarea');
-  const modalAddNoNote = document.getElementById('modalAddNoNote');
-  const modalAddWithNote = document.getElementById('modalAddWithNote');
-  const modalCancel = document.getElementById('modalCancel');
-  const modalCloseBtn = document.getElementById('modalCloseBtn');
-
-  let currentProduct = null;
-
-  // Função para detectar preço de várias formas possíveis no objeto product
-  function getPriceFromProduct(product) {
-    if (!product) return 0;
-
-    // 1) preço já numérico ou string numérica (ex: "29.9" ou 29.9)
-    if (product.price !== undefined && product.price !== null && product.price !== '') {
-      const n = Number(String(product.price).replace(',', '.'));
-      if (!Number.isNaN(n)) return n;
-    }
-
-    // 2) preço em centavos (ex: 2990)
-    if (product.price_cents !== undefined && product.price_cents !== null && product.price_cents !== '') {
-      const c = Number(product.price_cents);
-      if (!Number.isNaN(c)) return c / 100;
-    }
-
-    // 3) unidade com outro nome
-    if (product.unit_price !== undefined && product.unit_price !== null && product.unit_price !== '') {
-      const u = Number(String(product.unit_price).replace(',', '.'));
-      if (!Number.isNaN(u)) return u;
-    }
-
-    // 4) texto formatado tipo "R$ 12,34" ou "12,34"
-    if (product.display_price) {
-      const cleaned = String(product.display_price).replace(/[^\d,.-]/g, '').replace(',', '.');
-      const p = Number(cleaned);
-      if (!Number.isNaN(p)) return p;
-    }
-
-    // 5) fallback para tentar usar a função global parsePrice se existir
-    try {
-      if (typeof parsePrice === 'function') {
-        const candidate = parsePrice(product.price || product.display_price || product.price_raw || 0);
-        if (Number.isFinite(candidate) && candidate !== 0) return candidate;
-      }
-    } catch (e) { /* ignore */ }
-
-    return 0;
-  }
-
-  // Função para formatar preço em Real (reusa a global se existente)
-  function formatPriceBRLocal(value) {
-    if (typeof formatPriceBR === 'function') return formatPriceBR(value);
-    const n = Number(value) || 0;
-    return 'R$ ' + n.toFixed(2).replace('.', ',');
-  }
-
-  // Função para obter o CSRF Token
-  function getCSRFCookie(name = 'csrftoken') {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-      const cookies = document.cookie.split(';');
-      for (let i = 0; i < cookies.length; i++) {
-        const c = cookies[i].trim();
-        if (c.startsWith(name + '=')) {
-          cookieValue = decodeURIComponent(c.substring(name.length + 1));
-          break;
-        }
-      }
-    }
-    if (!cookieValue) {
-      const el = document.querySelector('[name=csrfmiddlewaretoken]');
-      if (el) cookieValue = el.value;
-    }
-    return cookieValue;
-  }
-
-  // Toast helper
-  function showToast(message, type = 'success') {
-    document.querySelectorAll('.toast-notification').forEach(el => el.remove());
-    const toast = document.createElement('div');
-    toast.className = 'fixed bottom-6 right-6 px-4 py-3 rounded-lg shadow-lg text-white font-medium z-50 animate-fade-in-up toast-notification';
-    toast.style.maxWidth = '320px';
-    if (type === 'error') {
-      toast.classList.add('bg-red-500');
-    } else {
-      toast.classList.add('bg-green-500');
-    }
-    toast.innerHTML = `
-      <div class="flex items-center gap-3">
-        <span>${message}</span>
-      </div>
-      <button class="ml-4 text-white opacity-80 hover:opacity-100" aria-label="Fechar">&times;</button>
-    `;
-    document.body.appendChild(toast);
-    toast.querySelector('button').addEventListener('click', () => toast.remove());
-    setTimeout(() => {
-      if (toast.parentNode) toast.remove();
-    }, 3500);
-  }
-
-  // Modal functions
-  function openModal(product) {
-    console.log('[add_to_cart_modal] Abrindo modal para produto:', product);
-    currentProduct = product || {};
-
-    if (modalProductName) modalProductName.textContent = currentProduct.name || '';
-    const priceValue = getPriceFromProduct(currentProduct);
-    if (modalProductPrice) modalProductPrice.textContent = priceValue ? formatPriceBRLocal(priceValue) : '';
-    if (modalTextarea) modalTextarea.value = '';
-
-    // Show modal
-    modal.classList.remove('hidden');
-    modal.style.display = 'flex';
-
-    // Focus textarea
-    setTimeout(() => {
-      if (modalTextarea) modalTextarea.focus();
-    }, 100);
-
-    if (priceValue === 0) {
-      console.warn('[add_to_cart_modal] preço detectado como 0. Verifique os campos do produto enviados ao evento:', currentProduct);
-    }
-  }
-
-  function closeModal() {
-    modal.classList.add('hidden');
-    modal.style.display = 'none';
-    currentProduct = null;
-  }
-
-  // Add to cart function
-  async function addToCart(product, note = '') {
-    console.log('[add_to_cart_modal] Adicionando ao carrinho:', product, note);
-
-    const url = product.add_to_cart_url || window.ADD_TO_CART_URL;
-    if (!url) {
-      showToast('URL para adicionar ao carrinho não encontrada', 'error');
-      console.error('[add_to_cart_modal] URL não encontrada');
-      return;
-    }
-
-    const csrfToken = getCSRFCookie();
-
-    try {
-      const requestData = {
-        product_id: String(product.id),
-        quantity: 1
-      };
-
-      if (note) {
-        requestData.note = note;
-      }
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': csrfToken
-        },
-        body: JSON.stringify(requestData),
-        credentials: 'same-origin'
-      });
-
-      const data = await response.json().catch(() => ({}));
-
-      if (response.ok && data.success) {
-        // Update cart count
-        const cartCountEl = document.getElementById('cart-count');
-        if (cartCountEl && data.cart_count !== undefined) {
-          cartCountEl.textContent = data.cart_count;
-          if (data.cart_count > 0) {
-            cartCountEl.classList.remove('hidden');
-          } else {
-            cartCountEl.classList.add('hidden');
-          }
-        }
-
-        // Dispatch cart updated event
-        document.dispatchEvent(new CustomEvent('cartUpdated', { detail: data }));
-
-        // Show success message
-        showToast(data.message || 'Produto adicionado ao carrinho!', 'success');
-
-        // Play notification sound
-        const sound = document.getElementById('notificationSound');
-        if (sound) {
-          try {
-            sound.play().catch(e => console.log('Som não reproduzido:', e));
-          } catch (e) {
-            console.log('Erro ao reproduzir som:', e);
-          }
-        }
-
-        // Close modal
-        closeModal();
-      } else {
-        const errorMsg = (data && (data.error || data.message)) || `Erro HTTP ${response.status}`;
-        showToast(errorMsg, 'error');
-        console.error('[add_to_cart_modal] Erro ao adicionar ao carrinho:', data);
-      }
-    } catch (error) {
-      console.error('[add_to_cart_modal] Erro na requisição:', error);
-      showToast('Erro de conexão. Tente novamente.', 'error');
-    }
-  }
-
-  // Event listeners
-  // Listen for custom event to open modal
-  document.addEventListener('openAddToCartModal', function(e) {
-    console.log('[add_to_cart_modal] Evento openAddToCartModal recebido:', e.detail);
-    if (e.detail) {
-      openModal(e.detail);
-    }
-  });
-
-  // Close modal events
-  if (modalCloseBtn) {
-    modalCloseBtn.addEventListener('click', function(e) {
-      e.preventDefault();
-      closeModal();
-    });
-  }
-
-  if (modalCancel) {
-    modalCancel.addEventListener('click', function(e) {
-      e.preventDefault();
-      closeModal();
-    });
-  }
-
-  // Close when clicking outside modal
-  modal.addEventListener('click', function(e) {
-    if (e.target === modal) {
-      closeModal();
-    }
-  });
-
-  // Add without note
-  if (modalAddNoNote) {
-    modalAddNoNote.addEventListener('click', function(e) {
-      e.preventDefault();
-      if (currentProduct) {
-        addToCart(currentProduct, '');
-      } else {
-        showToast('Nenhum produto selecionado', 'error');
-      }
-    });
-  }
-
-  // Add with note
-  if (modalAddWithNote) {
-    modalAddWithNote.addEventListener('click', function(e) {
-      e.preventDefault();
-      if (currentProduct) {
-        const note = modalTextarea ? modalTextarea.value.trim() : '';
-        addToCart(currentProduct, note);
-      } else {
-        showToast('Nenhum produto selecionado', 'error');
-      }
-    });
-  }
-
-  // Close with Escape key
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && modal && !modal.classList.contains('hidden')) {
-      closeModal();
-    }
-  });
-
-  console.log('[add_to_cart_modal] Modal inicializado com sucesso');
-})();
-</script>
 {% endblock %}

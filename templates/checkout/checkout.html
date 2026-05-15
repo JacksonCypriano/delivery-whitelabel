@@ -1,262 +1,175 @@
 {% extends "base.html" %}
+{% load static %}
+
+{% block page_name %}checkout{% endblock %}
+
+{% block title %}Finalizar Pedido - {{ tenant.name }}{% endblock %}
 
 {% block content %}
 <div class="container mx-auto px-4 py-10">
-    <div class="flex flex-col lg:flex-row gap-8">
-        
-        <!-- Lado Esquerdo: Formulário de Entrega e Pagamento -->
-        <form method="POST" class="lg:w-2/3 space-y-6" id="checkout-form">
-            {% csrf_token %}
-            
-            <h1 class="text-2xl font-bold mb-6">Finalizar Pedido</h1>
+  <div class="flex flex-col lg:flex-row gap-8">
 
-            <!-- Seção 1: Identificação -->
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <div class="flex items-center gap-3 mb-4 text-primary">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                    <h2 class="text-lg font-semibold text-gray-800">Seus Dados</h2>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <input type="text" name="full_name" placeholder="Nome Completo" required class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
-                    <input type="tel" name="phone" placeholder="WhatsApp / Telefone" required class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
-                </div>
+    <!-- Formulário -->
+    <form method="POST" id="checkout-form" class="lg:w-2/3 space-y-6">
+      {% csrf_token %}
+      <h1 class="text-2xl font-bold mb-6">Finalizar Pedido</h1>
+
+      <!-- Identificação -->
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div class="flex items-center gap-3 mb-4 text-primary">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+          <h2 class="text-lg font-semibold text-gray-800">Seus Dados</h2>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <input type="text" name="full_name" placeholder="Nome Completo" required
+                 class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
+          <input type="tel" name="phone" placeholder="WhatsApp / Telefone" required
+                 class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
+        </div>
+      </div>
+
+      <!-- Endereço -->
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div class="flex items-center gap-3 mb-4 text-primary">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <h2 class="text-lg font-semibold text-gray-800">Onde entregamos?</h2>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <input type="text" name="cep" placeholder="CEP" required
+                 class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
+          <input type="text" name="address" placeholder="Rua / Logradouro" required
+                 class="md:col-span-2 w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
+          <input type="text" name="number" placeholder="Número" required
+                 class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
+          <input type="text" name="neighborhood" placeholder="Bairro" required
+                 class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
+          <input type="text" name="complement" placeholder="Complemento (opcional)"
+                 class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
+        </div>
+      </div>
+
+      <!-- Pagamento -->
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div class="flex items-center gap-3 mb-4 text-primary">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+          </svg>
+          <h2 class="text-lg font-semibold text-gray-800">Forma de Pagamento</h2>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <label class="payment-option relative flex flex-col items-center justify-center p-4 border rounded-2xl cursor-pointer hover:bg-gray-50 transition border-primary bg-primary/5 text-primary"
+                 data-value="pix">
+            <input type="radio" name="payment_method" value="pix" class="hidden" checked>
+            <span class="text-sm font-medium">Pix</span>
+          </label>
+          <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition"
+                 data-value="card_delivery">
+            <input type="radio" name="payment_method" value="card_delivery" class="hidden">
+            <span class="text-sm font-medium">Cartão de Débito</span>
+          </label>
+          <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition"
+                 data-value="card_credit">
+            <input type="radio" name="payment_method" value="card_credit" class="hidden">
+            <span class="text-sm font-medium">Cartão de Crédito</span>
+          </label>
+          <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition"
+                 data-value="cash">
+            <input type="radio" name="payment_method" value="cash" class="hidden">
+            <span class="text-sm font-medium">Dinheiro</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Troco (aparece só quando "Dinheiro" selecionado) -->
+      <div id="troco-field" class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hidden">
+        <div class="flex items-center gap-3 mb-4 text-primary">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <h2 class="text-lg font-semibold text-gray-800">Precisa de Troco?</h2>
+        </div>
+        <input type="text" name="change_amount"
+               placeholder="Para quanto precisa de troco? (ex: 50,00)"
+               class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
+      </div>
+
+      <button type="submit" id="submit-button"
+              class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/30 transition-all transform hover:scale-[1.02] active:scale-[0.98]">
+        {% if tenant.sale_mode == 'whatsapp' %}
+          Enviar Pedido via WhatsApp
+        {% else %}
+          Confirmar Pedido
+        {% endif %}
+      </button>
+    </form>
+
+    <!-- Resumo -->
+    <div class="lg:w-1/3">
+      <div class="bg-white p-6 rounded-3xl shadow-lg border border-gray-100 sticky top-24">
+        <h2 class="text-xl font-bold mb-6">Seu Carrinho</h2>
+
+        <div class="space-y-4 mb-6">
+          {% for item in cart_items %}
+          <div class="flex justify-between items-center text-sm">
+            <div class="flex gap-3">
+              <span class="font-bold text-primary">{{ item.quantity }}x</span>
+              <span class="text-gray-700">{{ item.name }}</span>
             </div>
-
-            <!-- Seção 2: Endereço -->
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <div class="flex items-center gap-3 mb-4 text-primary">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <h2 class="text-lg font-semibold text-gray-800">Onde entregamos?</h2>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <input type="text" name="cep" placeholder="CEP" required class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
-                    <input type="text" name="address" placeholder="Rua / Logradouro" required class="md:col-span-2 w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
-                    <input type="text" name="number" placeholder="Número" required class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
-                    <input type="text" name="neighborhood" placeholder="Bairro" required class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
-                    <input type="text" name="complement" placeholder="Complemento (opcional)" class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
-                </div>
-            </div>
-
-            <!-- Seção 3: Pagamento -->
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <div class="flex items-center gap-3 mb-4 text-primary">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                    </svg>
-                    <h2 class="text-lg font-semibold text-gray-800">Forma de Pagamento</h2>
-                </div>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <label class="relative flex flex-col items-center justify-center p-4 border rounded-2xl cursor-pointer hover:bg-gray-50 transition payment-option" data-value="pix">
-                        <input type="radio" name="payment_method" value="pix" class="hidden" checked>
-                        <span class="text-sm font-medium">Pix</span>
-                    </label>
-                    <label class="relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition payment-option" data-value="card_delivery">
-                        <input type="radio" name="payment_method" value="card_delivery" class="hidden">
-                        <span class="text-sm font-medium">Cartão de Débito</span>
-                    </label>
-                    <label class="relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition payment-option" data-value="card_delivery">
-                        <input type="radio" name="payment_method" value="card_delivery" class="hidden">
-                        <span class="text-sm font-medium">Cartão de Crédito</span>
-                    </label>
-                    <label class="relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition payment-option" data-value="cash">
-                        <input type="radio" name="payment_method" value="cash" class="hidden">
-                        <span class="text-sm font-medium">Dinheiro</span>
-                    </label>
-                </div>
-            </div>
-
-            <!-- Campo de Troco -->
-            <div id="troco-field" class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hidden">
-                <div class="flex items-center gap-3 mb-4 text-primary">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <h2 class="text-lg font-semibold text-gray-800">Precisa de Troco?</h2>
-                </div>
-                <input type="text" name="change_amount" placeholder="Para quanto precisa de troco? (ex: 50,00)" class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
-            </div>
-
-            <button type="submit" class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/30 transition-all transform hover:scale-[1.02] active:scale-[0.98]" id="submit-button">
-                {% if tenant.sale_mode == 'whatsapp' %}
-                    Enviar Pedido via WhatsApp
-                {% else %}
-                    Confirmar Pedido
-                {% endif %}
-            </button>
-
-        </form>
-
-        <!-- Lado Direito: Resumo do Pedido -->
-        <div class="lg:w-1/3">
-            <div class="bg-white p-6 rounded-3xl shadow-lg border border-gray-100 sticky top-24">
-                <h2 class="text-xl font-bold mb-6">Seu Carrinho</h2>
-                
-                <div class="space-y-4 mb-6">
-                    {% for item in cart_items %}
-                    <div class="flex justify-between items-center text-sm">
-                        <div class="flex gap-3">
-                            <span class="font-bold text-primary">{{ item.quantity }}x</span>
-                            <span class="text-gray-700">{{ item.name }}</span>
-                        </div>
-                        <span class="font-semibold">R$ {{ item.price|floatformat:2 }}</span>
-                    </div>
-                    {% endfor %}
-                </div>
-
-                <div class="border-t border-dashed border-gray-200 pt-4 space-y-2">
-                    <div class="flex justify-between text-gray-500">
-                        <span>Subtotal</span>
-                        <span>R$ {{ subtotal|floatformat:2 }}</span>
-                    </div>
-                    <div class="flex justify-between text-gray-500">
-                        <span>Taxa de entrega</span>
-                        <span class="text-green-600 font-medium">Grátis</span>
-                    </div>
-                    <div class="flex justify-between text-xl font-bold pt-2 text-gray-900 border-t border-gray-100 mt-2">
-                        <span>Total</span>
-                        <span>R$ {{ total|floatformat:2 }}</span>
-                    </div>
-                </div>
-
-                <p class="text-center text-[10px] text-gray-400 mt-4 uppercase tracking-widest font-bold">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-3-3H6a2 2 0 00-3 3v6a2 2 0 003 3z" />
-                    </svg>
-                    {% if tenant.sale_mode == 'whatsapp' %}
-                        Pedido enviado via WhatsApp
-                    {% else %}
-                        Pagamento 100% Seguro
-                    {% endif %}
-                </p>
-            </div>
+            <span class="font-semibold">R$ {{ item.price|floatformat:2 }}</span>
+          </div>
+          {% endfor %}
         </div>
 
-    </div>
-</div>
-{% endblock %}
+        <div class="border-t border-dashed border-gray-200 pt-4 space-y-2">
+          <div class="flex justify-between text-gray-500">
+            <span>Subtotal</span>
+            <span>R$ {{ subtotal|floatformat:2 }}</span>
+          </div>
+          <div class="flex justify-between text-gray-500">
+            <span>Taxa de entrega</span>
+            <span class="text-green-600 font-medium">Grátis</span>
+          </div>
+          <div class="flex justify-between text-xl font-bold pt-2 text-gray-900 border-t border-gray-100 mt-2">
+            <span>Total</span>
+            <span>R$ {{ total|floatformat:2 }}</span>
+          </div>
+        </div>
 
-{% block extra_js %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Verificar se é modo whatsapp
-    const isWhatsappMode = "{{ tenant.sale_mode }}" === "whatsapp";
-    
-    // Elementos do formulário
-    const paymentMethods = document.querySelectorAll('input[name="payment_method"]');
-    const trocoField = document.getElementById('troco-field');
-    
-    // Função para atualizar campo de troco
-    function updateTrocoField() {
-        const selectedPayment = document.querySelector('input[name="payment_method"]:checked');
-        if (selectedPayment && selectedPayment.value === 'cash') {
-            trocoField.classList.remove('hidden');
-        } else {
-            trocoField.classList.add('hidden');
-        }
-    }
-    
-    // Adicionar listeners para métodos de pagamento
-    paymentMethods.forEach(method => {
-        method.addEventListener('change', updateTrocoField);
-    });
-    
-    // Inicializar estado do campo de troco
-    updateTrocoField();
-    
-    // Se for modo whatsapp, interceptar submit
-    if (isWhatsappMode) {
-        const form = document.getElementById('checkout-form');
-        
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            // Coletar dados do formulário
-            const formData = new FormData(form);
-            const data = {};
-            for (let [key, value] of formData.entries()) {
-                data[key] = value;
-            }
-            
-            // Obter método de pagamento selecionado
-            const paymentMethod = data.payment_method;
-            let paymentMethodLabel = '';
-            switch(paymentMethod) {
-                case 'pix':
-                    paymentMethodLabel = 'Pix (via WhatsApp)';
-                    break;
-                case 'card_delivery':
-                    paymentMethodLabel = 'Cartão na Entrega';
-                    break;
-                case 'cash':
-                    paymentMethodLabel = 'Dinheiro';
-                    break;
-                case 'pix_entrega':
-                    paymentMethodLabel = 'Pix na Entrega';
-                    break;
-                default:
-                    paymentMethodLabel = paymentMethod;
-            }
-            
-            // Construir mensagem do WhatsApp sem emojis para evitar problemas de codificação
-            let message = "*NOVO PEDIDO*\n\n";
-            message += "*ITENS DO PEDIDO*\n";
-            {% for item in cart_items %}
-            message += "- {{ item.quantity }}x {{ item.name }} - R$ {{ item.price|floatformat:2 }}\n";
-            {% endfor %}
-            message += "\n*TOTAL: R$ {{ total|floatformat:2 }}*\n\n";
-            
-            message += "*DADOS DO CLIENTE*\n";
-            message += `Nome: ${data.full_name}\n`;
-            message += `Telefone: ${data.phone}\n\n`;
-            
-            message += "*ENDEREÇO DE ENTREGA*\n";
-            message += `${data.address}, ${data.number}\n`;
-            message += `${data.neighborhood}\n`;
-            if (data.complement) {
-                message += `Complemento: ${data.complement}\n`;
-            }
-            message += `CEP: ${data.cep}\n\n`;
-            
-            message += "*FORMA DE PAGAMENTO*\n";
-            message += `${paymentMethodLabel}\n`;
-            
-            if (data.change_amount && paymentMethod === 'cash') {
-                message += `\n*TROCO*\n`;
-                message += `Precisa de troco para: R$ ${data.change_amount}\n`;
-            }
-            
-            // Codificar mensagem para URL
-            const encodedMessage = encodeURIComponent(message);
-            const whatsappNumber = "{{ tenant.whatsapp_number|default:'5511999999999' }}";
-            
-            // Abrir WhatsApp
-            window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, '_blank');
-            
-            // Opcional: Mostrar mensagem de sucesso
-            alert('Pedido enviado com sucesso! Aguarde o contato no WhatsApp.');
-        });
-    }
-    
-    // Adicionar efeito visual aos métodos de pagamento
-    const paymentOptions = document.querySelectorAll('.payment-option');
-    paymentOptions.forEach(option => {
-        option.addEventListener('click', function() {
-            // Remover classe ativa de todos
-            paymentOptions.forEach(opt => {
-                opt.classList.remove('border-primary', 'bg-primary/5', 'text-primary');
-                opt.classList.add('border-gray-200');
-            });
-            
-            // Adicionar classe ativa ao selecionado
-            this.classList.remove('border-gray-200');
-            this.classList.add('border-primary', 'bg-primary/5', 'text-primary');
-        });
-    });
-});
-</script>
+        <!-- Itens do pedido para o JS do WhatsApp -->
+        <script type="application/json" id="checkout-order-data">
+          {
+            "items": [
+              {% for item in cart_items %}
+              {
+                "quantity": {{ item.quantity }},
+                "name": "{{ item.name|escapejs }}",
+                "price": "{{ item.price|floatformat:2 }}"
+              }{% if not forloop.last %},{% endif %}
+              {% endfor %}
+            ],
+            "total": "{{ total|floatformat:2 }}",
+            "subtotal": "{{ subtotal|floatformat:2 }}"
+          }
+        </script>
+
+        <p class="text-center text-[10px] text-gray-400 mt-4 uppercase tracking-widest font-bold">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-3-3H6a2 2 0 00-3 3v6a2 2 0 003 3z" />
+          </svg>
+          {% if tenant.sale_mode == 'whatsapp' %}
+            Pedido enviado via WhatsApp
+          {% else %}
+            Pagamento 100% Seguro
+          {% endif %}
+        </p>
+      </div>
+    </div>
+
+  </div>
+</div>
 {% endblock %}

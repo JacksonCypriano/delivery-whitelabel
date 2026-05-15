@@ -1,353 +1,116 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_name %}cart{% endblock %}
 
 {% block title %}Carrinho - {{ tenant.name }}{% endblock %}
 
 {% block content %}
 {% csrf_token %}
 <div class="container mx-auto px-4 py-8 max-w-4xl">
-    <h1 class="text-2xl font-bold mb-6">Seu Carrinho</h1>
+  <h1 class="text-2xl font-bold mb-6">Seu Carrinho</h1>
 
-    {% if cart_items %}
-        <div class="space-y-4" id="cart-items-container">
-            {% for item in cart_items %}
-                <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex justify-between items-center cart-item" data-cart-item-id="{{ item.id }}">
-                    <div class="flex items-center gap-4">
-                        <!-- imagens: se combinação, mostrar as duas miniaturas (prioridade para combination_details) -->
-                        <div class="w-20 h-20 rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden border">
-                            {% if item.combination_details %}
-                                {# combination_details.images esperado como lista de URLs #}
-                                <div class="flex items-center gap-1">
-                                    {% for img in item.combination_details.images %}
-                                        {% if img %}
-                                            <img src="{{ img }}" alt="{{ item.combination_details.names|default:''|join:' / ' }}" class="w-12 h-12 object-cover rounded-md border border-gray-100">
-                                        {% else %}
-                                            <div class="w-12 h-12 bg-gray-100 rounded-md border border-gray-100"></div>
-                                        {% endif %}
-                                    {% endfor %}
-                                    {% if item.combination_details.images|length == 1 %}
-                                        <div class="w-12 h-12 bg-gray-100 rounded-md border border-gray-100"></div>
-                                    {% endif %}
-                                </div>
-                            {% elif item.product %}
-                                {% if item.product.get_primary_image %}
-                                    <img src="{{ item.product.get_primary_image }}" alt="{{ item.product.name }}" class="w-full h-full object-cover">
-                                {% else %}
-                                    <div class="w-full h-full bg-gray-100"></div>
-                                {% endif %}
-                            {% else %}
-                                <div class="w-full h-full bg-gray-100"></div>
-                            {% endif %}
-                        </div>
+  {% if cart_items %}
+  <div class="space-y-4" id="cart-items-container">
+    {% for item in cart_items %}
+    <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex justify-between items-center cart-item"
+         data-cart-item-id="{{ item.id }}">
 
-                        <div>
-                            <h3 class="font-semibold text-gray-800">
-                                {{ item.name }}
-                            </h3>
-                            {% if item.combination_details %}
-                                <p class="text-xs text-gray-500 mt-1">{{ item.combination_details.names.0 }} / {{ item.combination_details.names.1 }}</p>
-                            {% endif %}
-                            <div class="flex items-center mt-3">
-                                <div class="flex border border-gray-200 rounded-lg overflow-hidden">
-                                    <button class="decrease-qty w-8 h-8 flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-gray-600 transition" data-cart-item-id="{{ item.id }}">−</button>
-                                    <span class="qty-display w-10 h-8 flex items-center justify-center text-sm font-medium">{{ item.quantity }}</span>
-                                    <button class="increase-qty w-8 h-8 flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-gray-600 transition" data-cart-item-id="{{ item.id }}">+</button>
-                                </div>
-
-                                <button class="remove-item text-red-500 text-sm ml-4 hover:underline font-medium transition" data-cart-item-id="{{ item.id }}">Remover</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="text-right">
-                        <span class="font-bold text-primary price-display" data-price="{{ item.price|floatformat:2 }}">R$ {{ item.price|floatformat:2 }}</span><br>
-                        <span class="text-sm text-gray-500">Subtotal: R$ {{ item.get_total_price|floatformat:2 }}</span>
-                    </div>
-                </div>
-            {% endfor %}
-        </div>
-
-        <div class="mt-8 text-right">
-            <p class="text-xl font-bold">Total: <span id="cart-total" class="text-primary">R$ {{ total|floatformat:2 }}</span></p>
-            <a href="{% url 'checkout:checkout_step_one' %}" class="mt-4 inline-block bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-xl font-medium transition transform hover:scale-[1.02] active:scale-[0.98] shadow-md">
-                Finalizar Pedido
-            </a>
-        </div>
-    {% else %}
-        <div id="empty-cart-placeholder" class="text-center py-12">
-            <div class="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
+      <div class="flex items-center gap-4">
+        <!-- Imagem -->
+        <div class="w-20 h-20 rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden border">
+          {% if item.combination_details %}
+            <div class="flex items-center gap-1">
+              {% for img in item.combination_details.images %}
+                {% if img %}
+                  <img src="{{ img }}" alt="" class="w-12 h-12 object-cover rounded-md border border-gray-100">
+                {% else %}
+                  <div class="w-12 h-12 bg-gray-100 rounded-md border border-gray-100"></div>
+                {% endif %}
+              {% endfor %}
+              {% if item.combination_details.images|length == 1 %}
+                <div class="w-12 h-12 bg-gray-100 rounded-md border border-gray-100"></div>
+              {% endif %}
             </div>
-            <p class="text-gray-500 mb-4">Seu carrinho está vazio.</p>
-            <a href="{% url 'stores:catalogo' %}" class="inline-block text-primary font-medium hover:underline">← Voltar ao cardápio</a>
+          {% elif item.product %}
+            {% if item.product.get_primary_image %}
+              <img src="{{ item.product.get_primary_image }}" alt="{{ item.product.name }}" class="w-full h-full object-cover">
+            {% else %}
+              <div class="w-full h-full bg-gray-100"></div>
+            {% endif %}
+          {% else %}
+            <div class="w-full h-full bg-gray-100"></div>
+          {% endif %}
         </div>
-    {% endif %}
+
+        <!-- Info -->
+        <div>
+          <h3 class="font-semibold text-gray-800">{{ item.name }}</h3>
+          {% if item.combination_details %}
+            <p class="text-xs text-gray-500 mt-1">
+              {{ item.combination_details.names.0 }} / {{ item.combination_details.names.1 }}
+            </p>
+          {% endif %}
+
+          <!-- Controles de quantidade -->
+          <div class="flex items-center mt-3">
+            <div class="flex border border-gray-200 rounded-lg overflow-hidden">
+              <button type="button"
+                      data-action="decrease-qty"
+                      data-cart-item-id="{{ item.id }}"
+                      class="w-8 h-8 flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-gray-600 transition">−</button>
+              <span data-qty-display
+                    class="w-10 h-8 flex items-center justify-center text-sm font-medium">{{ item.quantity }}</span>
+              <button type="button"
+                      data-action="increase-qty"
+                      data-cart-item-id="{{ item.id }}"
+                      class="w-8 h-8 flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-gray-600 transition">+</button>
+            </div>
+            <button type="button"
+                    data-action="remove-item"
+                    data-cart-item-id="{{ item.id }}"
+                    class="text-red-500 text-sm ml-4 hover:underline font-medium transition">Remover</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Preço -->
+      <div class="text-right">
+        <span class="font-bold text-primary"
+              data-price-display
+              data-price="{{ item.price|floatformat:2 }}">
+          R$ {{ item.price|floatformat:2 }}
+        </span><br>
+        <span class="text-sm text-gray-500">
+          Subtotal: R$ {{ item.get_total_price|floatformat:2 }}
+        </span>
+      </div>
+
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="mt-8 text-right">
+    <p class="text-xl font-bold">
+      Total: <span id="cart-total" class="text-primary">R$ {{ total|floatformat:2 }}</span>
+    </p>
+    <a href="{% url 'checkout:checkout_step_one' %}"
+       class="mt-4 inline-block bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-xl font-medium transition transform hover:scale-[1.02] active:scale-[0.98] shadow-md">
+      Finalizar Pedido
+    </a>
+  </div>
+
+  {% else %}
+  <div id="empty-cart-placeholder" class="text-center py-12">
+    <div class="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+      </svg>
+    </div>
+    <p class="text-gray-500 mb-4">Seu carrinho está vazio.</p>
+    <a href="{% url 'stores:catalogo' %}" class="inline-block text-primary font-medium hover:underline">← Voltar ao cardápio</a>
+  </div>
+  {% endif %}
+
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const sound = document.getElementById('notificationSound');
-
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
-    }
-
-    function getCsrfToken() {
-        const el = document.querySelector('[name=csrfmiddlewaretoken]');
-        if (el && el.value) return el.value;
-        return getCookie('csrftoken');
-    }
-
-    async function sendAjaxRequest(url, data = {}) {
-        const formData = new FormData();
-        for (let key in data) {
-            if (Object.prototype.hasOwnProperty.call(data, key)) {
-                formData.append(key, data[key]);
-            }
-        }
-
-        const csrfToken = getCsrfToken();
-        if (csrfToken) formData.append('csrfmiddlewaretoken', csrfToken);
-
-        try {
-            const resp = await fetch(url, {
-                method: 'POST',
-                body: formData,
-                headers: csrfToken ? { 'X-CSRFToken': csrfToken } : {},
-                credentials: 'same-origin'
-            });
-
-            if (!resp.ok) {
-                const text = await resp.text().catch(()=>null);
-                return { success: false, error: `HTTP ${resp.status}`, detail: text };
-            }
-
-            const json = await resp.json().catch(() => null);
-            if (!json) return { success: false, error: 'Invalid JSON response' };
-            return json;
-        } catch (err) {
-            console.error('Erro na requisição AJAX:', err);
-            return { success: false, error: 'network_error' };
-        }
-    }
-
-    function parsePriceFromElement(priceEl) {
-        const dp = priceEl.getAttribute('data-price');
-        if (dp) return parseFloat(String(dp).replace(',', '.')) || 0;
-        const txt = priceEl.textContent || '';
-        const num = txt.replace(/[^\d,.-]/g, '').replace(',', '.');
-        return parseFloat(num) || 0;
-    }
-
-    function formatCurrency(number) {
-        return 'R$ ' + number.toFixed(2).replace('.', ',');
-    }
-
-    function updateCartBadge(count) {
-        const badge = document.getElementById('cart-count');
-        if (badge) {
-            badge.textContent = count;
-            if (count > 0) badge.classList.remove('hidden');
-            else badge.classList.add('hidden');
-        }
-    }
-
-    function recalcCartTotalsFromDOM() {
-        const items = document.querySelectorAll('.cart-item');
-        let total = 0;
-        let totalItems = 0;
-        items.forEach(item => {
-            const qty = parseInt(item.querySelector('.qty-display').textContent) || 0;
-            const priceEl = item.querySelector('.price-display');
-            const price = parsePriceFromElement(priceEl);
-            total += qty * price;
-            totalItems += qty;
-        });
-        const cartTotalEl = document.getElementById('cart-total');
-        if (cartTotalEl) cartTotalEl.textContent = formatCurrency(total);
-        updateCartBadge(totalItems);
-        return { total, totalItems };
-    }
-
-    function showEmptyCartPlaceholder() {
-        const container = document.getElementById('cart-items-container');
-        if (container) {
-            container.innerHTML = `
-                <div id="empty-cart-dynamic" class="text-center py-12">
-                    <div class="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                    </div>
-                    <p class="text-gray-500 mb-4">Seu carrinho está vazio.</p>
-                    <a href="{% url 'stores:catalogo' %}" class="inline-block text-primary font-medium hover:underline">← Voltar ao cardápio</a>
-                </div>
-            `;
-        }
-    }
-
-    function showToast(message, type = 'success') {
-        document.querySelectorAll('.toast-notification').forEach(el => el.remove());
-        const toast = document.createElement('div');
-        toast.className = 'fixed bottom-6 right-6 px-4 py-3 rounded-lg shadow-lg text-white font-medium z-50 animate-fade-in-up toast-notification';
-        toast.style.zIndex = '9999';
-
-        toast.style.display = 'flex';
-        toast.style.alignItems = 'center';
-        toast.style.justifyContent = 'space-between';
-        toast.style.minWidth = '220px';
-
-        if (type === 'error') {
-            toast.classList.add('bg-red-500');
-        } else {
-            toast.classList.add('bg-green-500');
-        }
-
-        toast.innerHTML = `
-            <div class="flex items-center gap-3">
-                <span>${message}</span>
-            </div>
-            <button class="ml-4 text-white opacity-70 hover:opacity-100">&times;</button>
-        `;
-
-        document.body.appendChild(toast);
-
-        setTimeout(() => {
-            if (toast.parentNode) {
-                toast.style.opacity = '0';
-                toast.style.transition = 'opacity 0.3s ease-out';
-                setTimeout(() => { if (toast.parentNode) toast.remove(); }, 300);
-            }
-        }, 3000);
-
-        toast.querySelector('button').addEventListener('click', () => {
-            if (toast.parentNode) toast.remove();
-        });
-    }
-
-    if (!document.querySelector('#toast-styles')) {
-        const style = document.createElement('style');
-        style.id = 'toast-styles';
-        style.innerHTML = `
-            @keyframes fadeInUp {
-                from { opacity: 0; transform: translateY(10px); }
-                to { opacity: 1; transform: translateY(0); }
-            }
-            .animate-fade-in-up { animation: fadeInUp 0.28s ease-out forwards; }
-        `;
-        document.head.appendChild(style);
-    }
-
-    /* Increase qty */
-    document.querySelectorAll('.increase-qty').forEach(btn => {
-        btn.addEventListener('click', async function () {
-            const cartItemId = this.dataset.cartItemId;
-            const container = this.closest('.cart-item');
-            const qtyDisplay = container.querySelector('.qty-display');
-            let qty = parseInt(qtyDisplay.textContent) || 0;
-            qty++;
-
-            const response = await sendAjaxRequest(`/checkout/update_quantity/${cartItemId}/`, { quantity: qty });
-
-            if (response && response.success) {
-                qtyDisplay.textContent = qty;
-                if (response.total !== undefined) {
-                    const cartTotalEl = document.getElementById('cart-total');
-                    if (cartTotalEl) cartTotalEl.textContent = response.total.startsWith('R$') ? response.total : formatCurrency(parseFloat(String(response.total).replace(',', '.')));
-                } else {
-                    recalcCartTotalsFromDOM();
-                }
-                if (response.cart_count !== undefined) updateCartBadge(response.cart_count);
-                else recalcCartTotalsFromDOM();
-                if (sound) sound.play();
-                showToast("Quantidade atualizada", "success");
-            } else {
-                showToast("Erro ao atualizar quantidade", "error");
-            }
-        });
-    });
-
-    /* Decrease qty */
-    document.querySelectorAll('.decrease-qty').forEach(btn => {
-        btn.addEventListener('click', async function () {
-            const cartItemId = this.dataset.cartItemId;
-            const container = this.closest('.cart-item');
-            const qtyDisplay = container.querySelector('.qty-display');
-            let qty = parseInt(qtyDisplay.textContent) || 0;
-            if (qty <= 1) return;
-
-            qty--;
-
-            const response = await sendAjaxRequest(`/checkout/update_quantity/${cartItemId}/`, { quantity: qty });
-
-            if (response && response.success) {
-                qtyDisplay.textContent = qty;
-                if (response.total !== undefined) {
-                    const cartTotalEl = document.getElementById('cart-total');
-                    if (cartTotalEl) cartTotalEl.textContent = response.total.startsWith('R$') ? response.total : formatCurrency(parseFloat(String(response.total).replace(',', '.')));
-                } else {
-                    recalcCartTotalsFromDOM();
-                }
-                if (response.cart_count !== undefined) updateCartBadge(response.cart_count);
-                else recalcCartTotalsFromDOM();
-                if (sound) sound.play();
-                showToast("Quantidade atualizada", "success");
-            } else {
-                showToast("Erro ao atualizar quantidade", "error");
-            }
-        });
-    });
-
-    /* Remove item */
-    document.querySelectorAll('.remove-item').forEach(btn => {
-        btn.addEventListener('click', async function () {
-            const cartItemId = this.dataset.cartItemId;
-            const container = this.closest('.cart-item');
-
-            if (!confirm('Remover este item do carrinho?')) return;
-
-            const response = await sendAjaxRequest(`/checkout/remove/${cartItemId}/`, {});
-
-            if (response && response.success) {
-                container.remove();
-                if (response.total !== undefined) {
-                    const cartTotalEl = document.getElementById('cart-total');
-                    if (cartTotalEl) cartTotalEl.textContent = response.total.startsWith('R$') ? response.total : formatCurrency(parseFloat(String(response.total).replace(',', '.')));
-                } else {
-                    recalcCartTotalsFromDOM();
-                }
-
-                if (response.cart_count !== undefined) updateCartBadge(response.cart_count);
-                else recalcCartTotalsFromDOM();
-
-                showToast("Item removido do carrinho", "success");
-                if (sound) sound.play();
-
-                if (document.querySelectorAll('.cart-item').length === 0) {
-                    showEmptyCartPlaceholder();
-                }
-            } else {
-                showToast("Erro ao remover item", "error");
-            }
-        });
-    });
-
-    /* Inicial */
-    recalcCartTotalsFromDOM();
-});
-</script>
 {% endblock %}

@@ -8,8 +8,8 @@ class TenantMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        # Ignora lógica de tenant para admin e webhooks
-        if request.path.startswith('/admin') or request.path.startswith('/webhooks'):
+        logger.warning(f"Processing request for path: {request.path} with host: {request.META.get('HTTP_HOST', '')}")
+        if request.path.startswith('/superadmin'):
             request.tenant = None
             return self.get_response(request)
 

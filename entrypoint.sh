@@ -1,55 +1,89 @@
 #!/usr/bin/env bash
 set -e
+echo "⚙️ DJANGO_SETTINGS_MODULE=$DJANGO_SETTINGS_MODULE"
+echo "⚙️ DEBUG=$DJANGO_DEBUG"
 
-host="${DATABASE_HOST:-db}"
-port="${DATABASE_PORT:-5432}"
+ROLE="${1:-web}"
 
-echo "⏳ Waiting for $host:$port..."
+DB_HOST="${DATABASE_HOST:-db}"
+DB_PORT="${DATABASE_PORT:-5432}"
+REDIS_HOST="${REDIS_HOST:-redis}"
+REDIS_PORT="${REDIS_PORT:-6379}"
 
-until python - << END
+wait_for_port() {
+  local host="$1"
+  local port="$2"
+  local name="$3"
+
+  echo "⏳ Waiting for ${name} at ${host}:${port}..."
+
+  until python - <<PY
 import socket
 import sys
+
+host = "${host}"
+port = int("${port}")
+
 s = socket.socket()
+s.settimeout(2)
+
 try:
-    s.connect(("$host", int($port)))
+    s.connect((host, port))
     s.close()
 except Exception:
     sys.exit(1)
-END
-do
-  sleep 0.5
-done
+PY
+  do
+    sleep 1
+  done
 
-echo "✅ Database is up!"
+  echo "✅ ${name} is up!"
+}
 
-export DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE:-config.settings}
+export DJANGO_SETTINGS_MODULE="${DJANGO_SETTINGS_MODULE:-config.settings}"
 
-echo "📦 Running migrations..."
-# python manage.py migrate --noinput
+wait_for_port "$DB_HOST" "$DB_PORT" "database"
 
-echo "📁 Preparing static/media directories..."
-mkdir -p /app/staticfiles /app/media
-
-# 🔥 IMPORTANTE: isso resolve problema de volume
-chmod -R 775 /app/staticfiles /app/media || true
-
-echo "🎯 Collecting static files..."
-python manage.py collectstatic --noinput
-
-# Celery opcional
-if [ "${CELERY_WORKER:-false}" = "true" ]; then
-  echo "🚀 Starting Celery worker..."
-  exec celery -A config worker -l info
+if [ "$ROLE" = "celery" ] || [ "$ROLE" = "beat" ]; then
+  wait_for_port "$REDIS_HOST" "$REDIS_PORT" "redis"
 fi
 
-if [ "${CELERY_BEAT:-false}" = "true" ]; then
-  echo "⏰ Starting Celery beat..."
-  exec celery -A config beat -l info
-fi
+case "$ROLE" in
+  web)
+    echo "📁 Preparing static/media directories..."
+    mkdir -p /app/staticfiles /app/media
 
-echo "🌐 Starting Gunicorn..."
-exec gunicorn config.asgi:application \
-  -k uvicorn.workers.UvicornWorker \
-  --bind 0.0.0.0:${PORT:-8000} \
-  --workers ${GUNICORN_WORKERS:-3} \
-  --log-level info
+    if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
+      echo "📦 Running migrations..."
+      python manage.py migrate --noinput
+    fi
+
+    if [ "${COLLECTSTATIC:-true}" = "true" ]; then
+      echo "🎯 Collecting static files..."
+      python manage.py collectstatic --noinput
+    fi
+
+    echo "🌐 Starting Gunicorn..."
+    exec gunicorn config.asgi:application \
+      -k uvicorn.workers.UvicornWorker \
+      --bind 0.0.0.0:${PORT:-8000} \
+      --workers ${GUNICORN_WORKERS:-3} \
+      --log-level info \
+      --timeout ${GUNICORN_TIMEOUT:-120}
+    ;;
+
+  celery)
+    echo "🚀 Starting Celery worker..."
+    exec celery -A config worker --loglevel=info
+    ;;
+
+  beat)
+    echo "⏰ Starting Celery beat..."
+    exec celery -A config beat --loglevel=info
+    ;;
+
+  *)
+    echo "❌ Unknown role: $ROLE"
+    exit 1
+    ;;
+esac

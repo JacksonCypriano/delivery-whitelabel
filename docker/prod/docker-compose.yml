@@ -1,0 +1,64 @@
+services:
+  web:
+    build:
+      context: ../../
+    env_file:
+      - .env
+    environment:
+      RUN_MIGRATIONS: "true"
+      COLLECTSTATIC: "true"
+    depends_on:
+      - db
+      - redis
+    restart: always
+
+  db:
+    image: postgres:15
+    env_file:
+      - .env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+
+  celery:
+    build:
+      context: ../../
+    env_file:
+      - .env
+    command: ["celery"]
+    depends_on:
+      - db
+      - redis
+    restart: always
+
+  celery-beat:
+    build:
+      context: ../../
+    env_file:
+      - .env
+    command: ["beat"]
+    depends_on:
+      - db
+      - redis
+    restart: always
+
+  nginx:
+    image: nginx:stable-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx:/etc/nginx/conf.d:ro
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    depends_on:
+      - web
+    restart: always
+
+volumes:
+  pgdata:
+  static_volume:
+  media_volume:

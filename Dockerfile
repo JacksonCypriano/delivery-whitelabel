@@ -1,37 +1,20 @@
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
-
-# Dependências do sistema
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq-dev curl netcat-openbsd \
-  && rm -rf /var/lib/apt/lists/*
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
 
-# Instala dependências (melhor cache)
 COPY requirements.txt .
-RUN pip install --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
 
-# Copia o projeto
+RUN pip install --upgrade pip setuptools wheel \
+    && pip install -r requirements.txt
+
 COPY . .
 
-# Cria diretórios necessários antes de mudar usuário
-RUN mkdir -p /app/staticfiles /app/media
+RUN mkdir -p /app/staticfiles /app/media \
+    && chmod +x /app/entrypoint.sh
 
-# Cria usuário
-RUN useradd -m -d /home/appuser appuser
-
-# Ajusta permissões
-RUN chown -R appuser:appuser /app
-
-# Garante permissão do entrypoint
-RUN chmod +x /app/entrypoint.sh
-
-USER appuser
-
-EXPOSE 8000
-
-CMD ["/app/entrypoint.sh"]
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["web"]

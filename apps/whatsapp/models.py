@@ -23,5 +23,3 @@ class WhatsAppConfig(models.Model):
 
     def __str__(self):
         return f"{self.tenant} — {self.display_phone_number}"
-
-from .models_ai import AIConsultation, TrainingExample

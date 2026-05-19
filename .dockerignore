@@ -9,12 +9,15 @@ __pycache__/
 
 .mypy_cache/
 .pytest_cache/
+.coverage
+htmlcov/
 
 .env
 .env.*
 
 media/
 staticfiles/
+pgdata/
 
 node_modules/
 
@@ -25,4 +28,12 @@ node_modules/
 .idea/
 
 Dockerfile
-docker-compose.yml
+docker-compose*.yml
+
+README.md
+docs/
+
+# Python virtual envs
+.venv/
+venv/
+env/

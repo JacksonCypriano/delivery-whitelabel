@@ -1,6 +1,7 @@
+from django.contrib import admin
 from unfold.admin import ModelAdmin
 
-from .admin_site import tenant_admin_site, super_admin_site
+from .admin_site import super_admin_site, tenant_admin_site
 from .models import BrandConfig, Tenant
 
 
@@ -34,6 +35,11 @@ class TenantBrandConfigAdmin(ModelAdmin):
 
         return qs.filter(tenant=tenant)
     
+    def save_model(self, request, obj, form, change):
+        if not obj.tenant_id:
+            obj.tenant = getattr(request, "tenant", None)
+        super().save_model(request, obj, form, change)
+
     def has_module_permission(self, request):
         return True
 

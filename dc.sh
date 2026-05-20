@@ -46,8 +46,7 @@ case "$COMMAND" in
     ;;
 
   shell)
-    echo "Opening shell in $SERVICE ($ENV)..."
-    $DC exec "$SERVICE" sh
+    ./scripts/shell.sh "$ENV"
     ;;
 
   makemigrations)

@@ -46,8 +46,8 @@ class ProductAdmin(TenantModelAdmin):
     create_half_for_selected.short_description = "Criar HalfProduct para produtos selecionados"
 
 
-@admin.register(HalfProduct, site=tenant_admin_site)
-class HalfProductAdmin(TenantModelAdmin):
-    list_display = ('product', 'is_active', 'created_at')
-    search_fields = ('product__name',)
-    list_filter = ('is_active',)
+# @admin.register(HalfProduct, site=tenant_admin_site)
+# class HalfProductAdmin(TenantModelAdmin):
+#     list_display = ('product', 'is_active', 'created_at')
+#     search_fields = ('product__name',)
+#     list_filter = ('is_active',)

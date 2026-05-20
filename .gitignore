@@ -226,6 +226,9 @@ node_modules/
 tailwind.config.js
 postcss.config.js
 
+#Media files
+media/
+
 # Logs
 logs/
 *.log

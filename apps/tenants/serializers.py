@@ -5,7 +5,7 @@ from apps.branding.models import BrandConfig
 class BrandConfigSerializer(serializers.ModelSerializer):
     class Meta:
         model = BrandConfig
-        fields = ['logo', 'primary_color', 'secondary_color', 'custom_domain']
+        fields = ['logo', 'primary_color', 'secondary_color', 'accent_color', 'background_color', 'text_color', 'dark_mode_primary', 'dark_mode_background', 'dark_mode_text']
 
 class TenantCreateSerializer(serializers.ModelSerializer):
     brand = BrandConfigSerializer()

@@ -20,9 +20,8 @@ class TenantBrandConfigAdmin(ModelAdmin):
     readonly_fields = ("tenant",)
 
     fieldsets = (
-        ("Cores", {"fields": ("primary_color", "secondary_color")}),
-        ("Mídia", {"fields": ("logo",)}),
-        ("Domínio", {"fields": ("custom_domain",)}),
+        ("Cores", {"fields": ("primary_color", "secondary_color", "accent_color", "background_color", "text_color", "dark_mode_primary", "dark_mode_background", "dark_mode_text")}),
+        ("Mídia", {"fields": ("logo", "favicon", "banner")}),
     )
 
     def get_queryset(self, request):
@@ -39,6 +38,15 @@ class TenantBrandConfigAdmin(ModelAdmin):
         return True
 
     def has_view_permission(self, request, obj=None):
+        return True
+
+    def has_change_permission(self, request, obj=None):
+        return True
+
+    def has_add_permission(self, request):
+        return True
+
+    def has_delete_permission(self, request, obj=None):
         return True
 
 

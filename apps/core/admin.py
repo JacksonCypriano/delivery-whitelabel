@@ -23,3 +23,18 @@ class TenantModelAdmin(ModelAdmin):
         if tenant and db_field.name in ('tenant', 'category', 'product'):
             field.queryset = field.queryset.filter(tenant=tenant)
         return field
+
+    def has_module_permission(self, request):
+        return True
+
+    def has_view_permission(self, request, obj=None):
+        return True
+
+    def has_change_permission(self, request, obj=None):
+        return True
+
+    def has_add_permission(self, request):
+        return True
+
+    def has_delete_permission(self, request, obj=None):
+        return True

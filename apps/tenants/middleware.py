@@ -4,6 +4,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 class TenantMiddleware:
+    logger.warning("TenantMiddleware initialized")
     def __init__(self, get_response):
         self.get_response = get_response
 
@@ -14,7 +15,9 @@ class TenantMiddleware:
             return self.get_response(request)
 
         host = request.META.get('HTTP_HOST', '')
+        logger.warning(f"Extracted host: {host}")
         subdomain = host.split('.')[0]
+        subdomain = subdomain.split('.')[0]
 
         try:
             tenant = Tenant.objects.get(slug=subdomain)
@@ -23,4 +26,5 @@ class TenantMiddleware:
 
         request.tenant = tenant
         response = self.get_response(request)
+        logger.warning(f"Finished processing request for path: {request.path} with tenant: {tenant}")
         return response

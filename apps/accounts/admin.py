@@ -52,5 +52,3 @@ class TenantUserAdmin(ModelAdmin, BaseUserAdmin):
         if not obj.pk:
             obj.tenant = request.tenant
         super().save_model(request, obj, form, change)
-
-tenant_admin_site.register(User, TenantUserAdmin)

@@ -29,8 +29,14 @@ class Category(TenantModel):
     slug = models.SlugField(max_length=200, blank=True)
 
     class Meta:
+        verbose_name = "Categoria"
+        verbose_name_plural = "Categorias"
+
         constraints = [
-            models.UniqueConstraint(fields=['tenant', 'slug'], name='unique_category_slug_per_tenant')
+            models.UniqueConstraint(
+                fields=['tenant', 'slug'],
+                name='unique_category_slug_per_tenant'
+            )
         ]
         indexes = [
             models.Index(fields=['tenant', 'slug']),
@@ -78,10 +84,20 @@ class Product(TenantModel):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        verbose_name = "Produto"
+        verbose_name_plural = "Produtos"
+
         ordering = ['-is_featured', 'name']
+
         constraints = [
-            models.UniqueConstraint(fields=['tenant', 'slug'], name='unique_product_slug_per_tenant'),
-            models.UniqueConstraint(fields=['tenant', 'sku'], name='unique_product_sku_per_tenant'),
+            models.UniqueConstraint(
+                fields=['tenant', 'slug'],
+                name='unique_product_slug_per_tenant'
+            ),
+            models.UniqueConstraint(
+                fields=['tenant', 'sku'],
+                name='unique_product_sku_per_tenant'
+            ),
         ]
         indexes = [
             models.Index(fields=['tenant', 'slug']),
@@ -145,8 +161,9 @@ class ProductImage(TenantModel):
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
-        ordering = ['order']
         verbose_name = "Imagem de produto"
+        verbose_name_plural = "Imagens de produto"
+        ordering = ['order']
 
     def save(self, *args, **kwargs):
         if self.product and not self.tenant_id:
@@ -163,8 +180,8 @@ class HalfProduct(TenantModel):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name = "Sabor para Meio a Meio"
-        verbose_name_plural = "Sabores para Meio a Meio"
+        verbose_name = "Sabor para meio a meio"
+        verbose_name_plural = "Sabores para meio a meio"
 
     def __str__(self):
         return f"Meia {self.product.name}"

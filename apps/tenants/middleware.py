@@ -17,7 +17,6 @@ class TenantMiddleware:
         host = request.META.get('HTTP_HOST', '')
         logger.warning(f"Extracted host: {host}")
         subdomain = host.split('.')[0]
-        subdomain = subdomain.split('.')[0]
 
         try:
             tenant = Tenant.objects.get(slug=subdomain)

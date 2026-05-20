@@ -40,7 +40,6 @@ class TenantAdminSite(UnfoldAdminSite):
         if not user.is_active or not user.is_staff:
             return False
 
-        # 🔴 bloqueia superuser no tenant admin
         if user.is_superuser:
             return False
 

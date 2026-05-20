@@ -34,6 +34,12 @@ class TenantBrandConfigAdmin(ModelAdmin):
             return qs.none()
 
         return qs.filter(tenant=tenant)
+    
+    def has_module_permission(self, request):
+        return True
+
+    def has_view_permission(self, request, obj=None):
+        return True
 
 
 tenant_admin_site.register(BrandConfig, TenantBrandConfigAdmin)

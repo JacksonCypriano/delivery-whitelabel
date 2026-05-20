@@ -23,6 +23,11 @@ class Tenant(models.Model):
     def save(self, *args, **kwargs):
         self.whatsapp_number = re.sub(r'\D', '', self.whatsapp_number)
         super().save(*args, **kwargs)
+    
+    class Meta:
+        verbose_name = "Loja"
+        verbose_name_plural = "Lojas"
+        ordering = ["name"]
 
 class BrandConfig(models.Model):
     tenant = models.OneToOneField(Tenant, on_delete=models.CASCADE, related_name='brand_config')
@@ -45,3 +50,8 @@ class BrandConfig(models.Model):
 
     def __str__(self):
         return f"Config de Branding - {self.tenant.name}"
+
+    class Meta:
+        verbose_name = "Configuração de Marca"
+        verbose_name_plural = "Configurações de Marca"
+        ordering = ["tenant__name"]

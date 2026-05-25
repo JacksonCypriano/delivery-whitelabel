@@ -7,6 +7,7 @@ from django.db import models
 from django.utils.text import slugify
 
 from apps.core.models import TenantModel
+from .choices import ApplyToChoices
 
 MIN_IMAGE_WIDTH = 500
 MIN_IMAGE_HEIGHT = 500
@@ -190,3 +191,44 @@ class HalfProduct(TenantModel):
         if self.product and not self.tenant_id:
             self.tenant_id = self.product.tenant_id
         super().save(*args, **kwargs)
+
+
+class CustomizationGroup(TenantModel):
+    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='customization_groups')
+    name = models.CharField(max_length=100, help_text="Ex: Escolha sua Borda, Adicionais")
+    apply_to = models.CharField(max_length=10, choices=ApplyToChoices.choices, default=ApplyToChoices.WHOLE, help_text="Onde esse grupo aparecerá na modal")
+    min_options = models.PositiveIntegerField(default=0, help_text="Mínimo de opções (0 para opcional)")
+    max_options = models.PositiveIntegerField(default=1, help_text="Máximo de opções permitidas")
+    is_active = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Grupo de Personalização"
+        verbose_name_plural = "Grupos de Personalização"
+        ordering = ['order', 'name']
+
+    def __str__(self):
+        return f"{self.name} ({self.category.name})"
+
+
+class CustomizationOption(TenantModel):
+    group = models.ForeignKey(CustomizationGroup, on_delete=models.CASCADE, related_name='options')
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    image = models.ImageField(upload_to='customizations/%Y/%m/%d/', null=True, blank=True, validators=[validate_image_resolution])
+    is_available = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Opção de Personalização"
+        verbose_name_plural = "Opções de Personalização"
+        ordering = ['order', 'name']
+
+    def save(self, *args, **kwargs):
+        if self.group and not self.tenant_id:
+            self.tenant_id = self.group.tenant_id
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.name} (+R$ {self.price})"

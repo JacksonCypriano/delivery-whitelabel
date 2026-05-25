@@ -2,7 +2,7 @@ from django.contrib import admin, messages
 from apps.core.admin import TenantModelAdmin
 from apps.tenants.admin_site import tenant_admin_site
 
-from .models import Category, Product, ProductImage, HalfProduct
+from .models import Category, CustomizationGroup, CustomizationOption, HalfProduct, Product, ProductImage
 
 
 class ProductImageInline(admin.TabularInline):
@@ -30,9 +30,6 @@ class ProductAdmin(TenantModelAdmin):
     actions = ['create_half_for_selected']
 
     def create_half_for_selected(self, request, queryset):
-        """
-        Action do admin para criar HalfProduct para products selecionados que ainda não têm.
-        """
         created_count = 0
         for product in queryset:
             half, created = HalfProduct.objects.get_or_create(product=product)
@@ -42,12 +39,45 @@ class ProductAdmin(TenantModelAdmin):
             self.message_user(request, f"{created_count} meio(s) criado(s).", messages.SUCCESS)
         else:
             self.message_user(request, "Nenhum meio criado (já existiam para os produtos selecionados).", messages.INFO)
-    
+
     create_half_for_selected.short_description = "Criar HalfProduct para produtos selecionados"
 
 
-# @admin.register(HalfProduct, site=tenant_admin_site)
-# class HalfProductAdmin(TenantModelAdmin):
-#     list_display = ('product', 'is_active', 'created_at')
-#     search_fields = ('product__name',)
-#     list_filter = ('is_active',)
+# ── Customizações ─────────────────────────────────────────────────────────────
+
+class CustomizationOptionInline(admin.TabularInline):
+    model = CustomizationOption
+    extra = 1
+    fields = ('name', 'description', 'price', 'image', 'is_available', 'order')
+    ordering = ('order',)
+
+
+@admin.register(CustomizationGroup, site=tenant_admin_site)
+class CustomizationGroupAdmin(TenantModelAdmin):
+    list_display = ('name', 'category', 'apply_to_display', 'min_options', 'max_options', 'is_active', 'order')
+    list_filter = ('category', 'apply_to', 'is_active')
+    search_fields = ('name',)
+    ordering = ('category', 'order')
+    inlines = [CustomizationOptionInline]
+
+    fieldsets = (
+        (None, {
+            'fields': ('category', 'name', 'apply_to', 'is_active', 'order')
+        }),
+        ('Limites de seleção', {
+            'description': 'Defina quantas opções o cliente pode/deve escolher neste grupo.',
+            'fields': ('min_options', 'max_options'),
+        }),
+    )
+
+    def apply_to_display(self, obj):
+        return obj.get_apply_to_display()
+    apply_to_display.short_description = 'Aplica-se a'
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        field = super().formfield_for_foreignkey(db_field, request, **kwargs)
+        if db_field.name == 'category':
+            tenant = getattr(request, 'tenant', None)
+            if tenant:
+                field.queryset = field.queryset.filter(tenant=tenant)
+        return field

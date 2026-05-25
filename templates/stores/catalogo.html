@@ -20,6 +20,10 @@
   .dropdown-thumb { width: 44px; height: 44px; flex-shrink: 0; border-radius: .5rem; object-fit: cover; background: #fff; border: 1px solid #eee; }
   .dropdown-search { width: 100%; padding: .5rem .75rem; border-bottom: 1px solid #eef2f7; outline: none; border-radius: .5rem .5rem 0 0; }
   .dropdown-empty { padding: .75rem; color: #6b7280; text-align: center; font-size: 0.9rem; }
+
+  /* Customizações */
+  .customization-group { border-top: 1px solid #f3f4f6; padding-top: 1rem; }
+  .customization-group:first-child { border-top: none; padding-top: 0; }
 </style>
 {% endblock %}
 
@@ -194,91 +198,160 @@
   </div>
 </div>
 
-<!-- Modal Meio a Meio -->
-<div data-modal="half-half"
+<!-- ===================== MODAL ADD TO CART ===================== -->
+<div data-modal="add-to-cart"
      class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4">
 
   <div data-modal-overlay class="absolute inset-0"></div>
 
-  <div class="relative bg-white rounded-xl p-6 max-w-md w-full mx-4 z-10 transform transition-transform duration-200"
-       id="half-half-modal-content">
+  <div class="relative bg-white rounded-xl shadow-xl max-w-md w-full mx-4 z-10 max-h-[90vh] flex flex-col">
 
-    <div class="flex justify-between items-center mb-4">
-      <h3 class="text-xl font-bold text-gray-800">Monte sua Pizza Meio a Meio</h3>
-      <button type="button" data-modal-close="half-half"
-              class="text-gray-500 hover:text-gray-700 rounded-full p-1 transition-colors" aria-label="Fechar modal">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <!-- Header -->
+    <div class="flex justify-between items-center p-5 border-b border-gray-100">
+      <div>
+        <h3 class="text-lg font-bold text-gray-800" data-modal-product-name></h3>
+        <p class="text-primary font-semibold text-sm mt-0.5" data-modal-product-price></p>
+      </div>
+      <button type="button" data-modal-close="add-to-cart"
+              class="text-gray-400 hover:text-gray-600 rounded-full p-1 transition-colors" aria-label="Fechar">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
         </svg>
       </button>
     </div>
 
-    <!-- Dropdown segundo sabor -->
-    <div class="mb-4">
-      <p class="text-gray-600 mb-2 text-sm font-medium">Selecione o segundo sabor:</p>
-      <div class="dropdown" data-half-half-dropdown>
-        <button type="button" data-half-half-dropdown-btn
-                class="dropdown-button" aria-haspopup="listbox" aria-expanded="false">
-          <span data-half-half-dropdown-text>Selecione o segundo sabor</span>
-          <svg class="w-4 h-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
-          </svg>
+    <!-- Corpo com scroll -->
+    <form data-add-to-cart-form class="flex flex-col flex-1 overflow-hidden">
+      <input type="hidden" data-modal-product-id>
+
+      <div class="overflow-y-auto flex-1 p-5 space-y-4">
+
+        <!-- Customizações (preenchido via JS) -->
+        <div data-customizations-container class="space-y-1"></div>
+
+        <!-- Observação -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Observação <span class="text-gray-400 font-normal">(opcional)</span></label>
+          <textarea data-modal-note
+                    rows="2"
+                    placeholder="Ex: sem cebola, bem passado..."
+                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition"></textarea>
+        </div>
+
+      </div>
+
+      <!-- Footer fixo -->
+      <div class="p-5 border-t border-gray-100 flex gap-3">
+        <button type="button" data-modal-close="add-to-cart"
+                class="flex-1 py-2.5 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors text-sm">
+          Cancelar
         </button>
-        <div data-half-half-dropdown-list class="dropdown-list hidden" role="listbox">
-          <input data-half-half-search class="dropdown-search" placeholder="Buscar sabor..." type="search">
-          <div data-half-half-items></div>
-        </div>
+        <button type="submit"
+                class="flex-1 py-2.5 px-4 bg-primary text-white rounded-lg hover:bg-primary/90 font-medium transition-all shadow-sm hover:shadow-md text-sm">
+          Adicionar
+        </button>
       </div>
-    </div>
+    </form>
 
-    <!-- Preview visual -->
-    <div class="mb-6 p-4 bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl border border-primary/20">
-      <div class="text-center mb-3">
-        <h4 class="font-semibold text-gray-700">Sua Escolha</h4>
-        <p class="text-xs text-gray-500">Metade 1 (fixa) — Metade 2 (selecionável)</p>
-      </div>
-      <div class="relative h-32 mx-auto max-w-xs">
-        <div class="absolute inset-0 rounded-full border-4 border-primary/20 flex items-center justify-center">
-          <div class="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-            <div class="text-xs text-primary font-medium">½ + ½</div>
-          </div>
-        </div>
-        <!-- Metade esquerda -->
-        <div class="absolute left-0 top-0 w-1/2 h-full overflow-hidden rounded-l-full">
-          <div class="w-full h-full rounded-l-full flex items-center justify-center bg-white/80 border-r border-primary/30">
-            <div class="text-center px-2">
-              <img data-half-left-thumb src="" alt="" class="w-14 h-14 rounded-md object-cover mb-1 mx-auto hidden">
-              <div class="text-xs text-gray-500 mb-1">Metade 1</div>
-              <div class="text-sm font-medium text-gray-700 truncate" data-half-left-name>Escolha...</div>
-            </div>
-          </div>
-        </div>
-        <!-- Metade direita -->
-        <div class="absolute right-0 top-0 w-1/2 h-full overflow-hidden rounded-r-full">
-          <div class="w-full h-full rounded-r-full flex items-center justify-center bg-white/80 border-l border-primary/30">
-            <div class="text-center px-2">
-              <img data-half-right-thumb src="" alt="" class="w-14 h-14 rounded-md object-cover mb-1 mx-auto hidden">
-              <div class="text-xs text-gray-500 mb-1">Metade 2</div>
-              <div class="text-sm font-medium text-gray-700 truncate" data-half-right-name>Selecione...</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="text-center mt-4">
-        <div class="text-2xl font-bold text-primary mb-1" data-half-price>R$ 0,00</div>
-        <div class="text-sm text-gray-600">Preço da pizza mais cara</div>
-      </div>
-    </div>
+  </div>
+</div>
 
-    <!-- Ações -->
-    <div class="flex gap-3">
+<!-- ===================== MODAL MEIO A MEIO ===================== -->
+<div data-modal="half-half"
+     class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4">
+
+  <div data-modal-overlay class="absolute inset-0"></div>
+
+  <div class="relative bg-white rounded-xl shadow-xl max-w-md w-full mx-4 z-10 max-h-[90vh] flex flex-col"
+       id="half-half-modal-content">
+
+    <!-- Header -->
+    <div class="flex justify-between items-center p-5 border-b border-gray-100">
+      <h3 class="text-lg font-bold text-gray-800">Monte sua Pizza Meio a Meio</h3>
       <button type="button" data-modal-close="half-half"
-              class="flex-1 py-3 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors">
+              class="text-gray-400 hover:text-gray-600 rounded-full p-1 transition-colors" aria-label="Fechar modal">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Corpo com scroll -->
+    <div class="overflow-y-auto flex-1 p-5 space-y-4">
+
+      <!-- Dropdown segundo sabor -->
+      <div>
+        <p class="text-gray-600 mb-2 text-sm font-medium">Selecione o segundo sabor:</p>
+        <div class="dropdown" data-half-half-dropdown>
+          <button type="button" data-half-half-dropdown-btn
+                  class="dropdown-button" aria-haspopup="listbox" aria-expanded="false">
+            <span data-half-half-dropdown-text>Selecione o segundo sabor</span>
+            <svg class="w-4 h-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
+            </svg>
+          </button>
+          <div data-half-half-dropdown-list class="dropdown-list hidden" role="listbox">
+            <input data-half-half-search class="dropdown-search" placeholder="Buscar sabor..." type="search">
+            <div data-half-half-items></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Preview visual -->
+      <div class="p-4 bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl border border-primary/20">
+        <div class="text-center mb-3">
+          <h4 class="font-semibold text-gray-700">Sua Escolha</h4>
+          <p class="text-xs text-gray-500">Metade 1 (fixa) — Metade 2 (selecionável)</p>
+        </div>
+        <div class="relative h-32 mx-auto max-w-xs">
+          <div class="absolute inset-0 rounded-full border-4 border-primary/20 flex items-center justify-center">
+            <div class="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+              <div class="text-xs text-primary font-medium">½ + ½</div>
+            </div>
+          </div>
+          <!-- Metade esquerda -->
+          <div class="absolute left-0 top-0 w-1/2 h-full overflow-hidden rounded-l-full">
+            <div class="w-full h-full rounded-l-full flex items-center justify-center bg-white/80 border-r border-primary/30">
+              <div class="text-center px-2">
+                <img data-half-left-thumb src="" alt="" class="w-14 h-14 rounded-md object-cover mb-1 mx-auto hidden">
+                <div class="text-xs text-gray-500 mb-1">Metade 1</div>
+                <div class="text-sm font-medium text-gray-700 truncate" data-half-left-name>Escolha...</div>
+              </div>
+            </div>
+          </div>
+          <!-- Metade direita -->
+          <div class="absolute right-0 top-0 w-1/2 h-full overflow-hidden rounded-r-full">
+            <div class="w-full h-full rounded-r-full flex items-center justify-center bg-white/80 border-l border-primary/30">
+              <div class="text-center px-2">
+                <img data-half-right-thumb src="" alt="" class="w-14 h-14 rounded-md object-cover mb-1 mx-auto hidden">
+                <div class="text-xs text-gray-500 mb-1">Metade 2</div>
+                <div class="text-sm font-medium text-gray-700 truncate" data-half-right-name>Selecione...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="text-center mt-4">
+          <div class="text-2xl font-bold text-primary mb-1" data-half-price>R$ 0,00</div>
+          <div class="text-sm text-gray-600">Preço total (pizza + adicionais)</div>
+        </div>
+      </div>
+
+      <!-- Seção de customizações (aparece após selecionar os dois sabores) -->
+      <div id="half-customizations-section" class="hidden space-y-4">
+        <!-- Preenchido dinamicamente pelo half-half.js -->
+      </div>
+
+    </div>
+
+    <!-- Footer fixo -->
+    <div class="p-5 border-t border-gray-100 flex gap-3">
+      <button type="button" data-modal-close="half-half"
+              class="flex-1 py-2.5 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors text-sm">
         Cancelar
       </button>
       <button type="button" data-half-half-submit
               disabled
-              class="flex-1 py-3 px-4 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 font-medium transition-all shadow-md hover:shadow-lg">
+              class="flex-1 py-2.5 px-4 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 font-medium transition-all shadow-sm hover:shadow-md text-sm">
         Adicionar ao Carrinho
       </button>
     </div>

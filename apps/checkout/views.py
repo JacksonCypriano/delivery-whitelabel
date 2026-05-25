@@ -1,6 +1,7 @@
+import hashlib
 import json
 import logging
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
@@ -16,6 +17,64 @@ from apps.stores.models import Product
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
+
+
+def to_decimal(value, default='0.00'):
+    try:
+        if value is None or value == '':
+            return Decimal(default)
+        if isinstance(value, Decimal):
+            return value
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return Decimal(default)
+
+
+def get_notes_from_payload(data):
+    return (data.get('notes') or data.get('note') or '').strip()
+
+
+def normalize_customization_list(raw_list):
+    """
+    Normaliza a lista vinda do frontend para um formato consistente e seguro.
+    """
+    if not isinstance(raw_list, (list, tuple)):
+        return []
+
+    normalized = []
+
+    for item in raw_list:
+        if not isinstance(item, dict):
+            continue
+
+        price = to_decimal(item.get('price', 0))
+        normalized.append({
+            'group_id': str(item.get('group_id', '') or ''),
+            'group_name': str(item.get('group_name', '') or ''),
+            'option_id': str(item.get('option_id', '') or ''),
+            'option_name': str(item.get('option_name', '') or ''),
+            'price': str(price),
+        })
+
+    return normalized
+
+
+def sum_customizations_price(customizations):
+    total = Decimal('0.00')
+    for item in customizations:
+        if not isinstance(item, dict):
+            continue
+        total += to_decimal(item.get('price', 0))
+    return total
+
+
+def build_cart_item_key(prefix, payload):
+    """
+    Gera uma chave estável e curta para diferenciar itens com customizações distintas.
+    """
+    raw = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+    digest = hashlib.sha1(raw.encode('utf-8')).hexdigest()[:16]
+    return f'{prefix}:{digest}'
 
 
 def get_image_url_from_product(product):
@@ -138,8 +197,6 @@ def update_cart_item_notes(request, cart_item_id):
     """
     Atualiza o campo notes (observação) de um CartItem.
     """
-    # Antes: Cart.get_or_create_cart_for_request(request) -> esse método não existe no Cart
-    # Usar a função local get_or_create_cart(request)
     try:
         cart = get_or_create_cart(request)
     except Exception:
@@ -167,7 +224,10 @@ def add_to_cart(request):
     """
     Aceita:
     - form POST (product_id, quantity, notes) para item simples
-    - JSON POST com { is_half: true, product_ids: [id1, id2], quantity: x, notes: "..." } para meio-a-meio
+    - JSON POST com { is_half: true, product_ids: [id1, id2], quantity: x, notes: "..."} para meio-a-meio
+    - customizações no payload:
+      - produto simples: customizations
+      - meio a meio: customizations_whole, customizations_half1, customizations_half2
     Retorna JSON com success, message e cart_count.
     """
     # parse JSON body se vier JSON
@@ -186,49 +246,54 @@ def add_to_cart(request):
     except Exception:
         quantity = 1
 
-    # pegar notes (tanto em JSON quanto em form)
-    notes = (data.get('notes') or '').strip()
-
+    notes = get_notes_from_payload(data)
     cart = get_or_create_cart(request)
 
     if is_half:
         product_ids = data.get('product_ids') or []
-        # aceitar string csv também
         if isinstance(product_ids, str):
             product_ids = [p.strip() for p in product_ids.split(',') if p.strip()]
+
         if not isinstance(product_ids, (list, tuple)) or len(product_ids) != 2:
             return JsonResponse({'success': False, 'error': 'É preciso escolher exatamente 2 sabores'}, status=400)
 
-        # buscar produtos garantindo tenant e disponibilidade
         try:
             p1 = Product.objects.get(id=product_ids[0], tenant=request.tenant, is_available=True)
             p2 = Product.objects.get(id=product_ids[1], tenant=request.tenant, is_available=True)
         except Product.DoesNotExist:
             return JsonResponse({'success': False, 'error': 'Um dos sabores não encontrado'}, status=404)
 
-        # determinar método de cálculo de preço
         try:
             rule = CombinationPricingRule.objects.get(tenant=request.tenant, combination_type='half_half')
             method = rule.price_calculation_method
         except CombinationPricingRule.DoesNotExist:
-            method = 'max_price'  # fallback
+            method = 'max_price'
 
-        price_a = p1.sale_price if p1.sale_price else p1.price
-        price_b = p2.sale_price if p2.sale_price else p2.price
+        price_a = to_decimal(p1.sale_price if p1.sale_price else p1.price)
+        price_b = to_decimal(p2.sale_price if p2.sale_price else p2.price)
 
         if method == 'max_price':
             unit_price = max(price_a, price_b)
         elif method == 'average':
-            unit_price = (Decimal(price_a) + Decimal(price_b)) / Decimal(2)
+            unit_price = (price_a + price_b) / Decimal(2)
         elif method == 'sum_halved':
-            unit_price = (Decimal(price_a) + Decimal(price_b)) / Decimal(2)
+            unit_price = (price_a + price_b) / Decimal(2)
         else:
             unit_price = max(price_a, price_b)
 
-        # product_key order-insensitive (garante unicidade independentemente da ordem)
-        ids_sorted = sorted([str(p1.id), str(p2.id)], key=int)
-        product_key = f"half:{ids_sorted[0]}:{ids_sorted[1]}"
+        customizations_whole = normalize_customization_list(data.get('customizations_whole') or [])
+        customizations_half1 = normalize_customization_list(data.get('customizations_half1') or [])
+        customizations_half2 = normalize_customization_list(data.get('customizations_half2') or [])
 
+        extras_total = (
+            sum_customizations_price(customizations_whole)
+            + sum_customizations_price(customizations_half1)
+            + sum_customizations_price(customizations_half2)
+        )
+
+        unit_price = unit_price + extras_total
+
+        ids_sorted = sorted([str(p1.id), str(p2.id)], key=int)
         name = f"{p1.name} / {p2.name}"
 
         images = [get_image_url_from_product(p1), get_image_url_from_product(p2)]
@@ -236,7 +301,20 @@ def add_to_cart(request):
             'product_ids': ids_sorted,
             'names': [p1.name, p2.name],
             'images': images,
+            'customizations_whole': customizations_whole,
+            'customizations_half1': customizations_half1,
+            'customizations_half2': customizations_half2,
         }
+
+        key_payload = {
+            'type': 'half_half',
+            'product_ids': ids_sorted,
+            'customizations_whole': customizations_whole,
+            'customizations_half1': customizations_half1,
+            'customizations_half2': customizations_half2,
+            'notes': notes,
+        }
+        product_key = build_cart_item_key(f'half:{ids_sorted[0]}:{ids_sorted[1]}', key_payload)
 
         defaults = {
             'name': name,
@@ -253,13 +331,14 @@ def add_to_cart(request):
             defaults=defaults
         )
         if not created:
-            # atualizar campos relevantes
             cart_item.quantity += quantity
             cart_item.price = unit_price
             update_fields = ['quantity', 'price']
             if notes:
                 cart_item.notes = notes
                 update_fields.append('notes')
+            cart_item.combination_details = combination_details
+            update_fields.append('combination_details')
             cart_item.save(update_fields=update_fields)
 
         product_label = name
@@ -268,38 +347,62 @@ def add_to_cart(request):
         product_id = data.get('product_id')
         if not product_id:
             return JsonResponse({'success': False, 'error': 'product_id ausente'}, status=400)
+
         product = get_object_or_404(Product, id=product_id, tenant=request.tenant, is_available=True)
-        unit_price = product.sale_price if product.sale_price else product.price
+
+        base_price = to_decimal(product.sale_price if product.sale_price else product.price)
+        customizations = normalize_customization_list(data.get('customizations') or [])
+        extras_total = sum_customizations_price(customizations)
+        unit_price = base_price + extras_total
+
+        combination_details = {}
+        if customizations:
+            combination_details['customizations'] = customizations
+
+        key_payload = {
+            'type': 'single_product',
+            'product_id': str(product.id),
+            'customizations': customizations,
+            'notes': notes,
+        }
+        product_key = build_cart_item_key(f'product:{product.id}', key_payload)
 
         defaults = {
+            'product': product,
             'name': product.name,
             'price': unit_price,
             'quantity': quantity,
+            'product_key': product_key,
+            'combination_details': combination_details,
         }
         if notes:
             defaults['notes'] = notes
 
         cart_item, created = CartItem.objects.get_or_create(
             cart=cart,
-            product=product,
+            product_key=product_key,
             defaults=defaults
         )
         if not created:
             cart_item.quantity += quantity
             cart_item.price = unit_price
-            update_fields = ['quantity', 'price']
+            cart_item.combination_details = combination_details
+            update_fields = ['quantity', 'price', 'combination_details']
             if notes:
                 cart_item.notes = notes
                 update_fields.append('notes')
             cart_item.save(update_fields=update_fields)
+
         product_label = product.name
 
     total_items = cart.items.aggregate(total=Sum('quantity'))['total'] or 0
+    cart_total = sum((item.get_total_price() for item in cart.items.all()), Decimal('0.00'))
 
     return JsonResponse({
         'success': True,
         'message': f'{product_label} adicionado!',
-        'cart_count': int(total_items)
+        'cart_count': int(total_items),
+        'cart_total': str(cart_total),
     })
 
 
@@ -344,7 +447,6 @@ def remove_from_cart(request, cart_item_id=None, product_id=None):
 def update_cart_quantity(request, cart_item_id):
     cart = get_or_create_cart(request)
     quantity = 0
-    # suportar JSON ou form
     if request.content_type == 'application/json':
         try:
             data = json.loads(request.body.decode('utf-8') or '{}')
@@ -387,7 +489,6 @@ def checkout_step_one(request):
     total = subtotal
 
     if request.method == 'POST':
-        # Coletar dados do formulário
         full_name = request.POST.get('full_name')
         phone = request.POST.get('phone')
         cep = request.POST.get('cep')
@@ -397,14 +498,12 @@ def checkout_step_one(request):
         complement = request.POST.get('complement')
         payment_method = request.POST.get('payment_method')
 
-        # Criar o pedido
         order = Order.objects.create(
             tenant=request.tenant,
             customer_phone=phone,
             total=total,
         )
 
-        # Criar itens do pedido
         for item in cart_items:
             OrderItem.objects.create(
                 order=order,
@@ -412,13 +511,11 @@ def checkout_step_one(request):
                 quantity=item.quantity
             )
 
-        # APENAS AGORA apagar o carrinho após criar o pedido
         cart.delete()
 
         messages.success(request, "Pedido realizado com sucesso!")
         return redirect('checkout:order_success')
 
-    # Para requisições GET, mostrar o formulário
     context = {
         'cart_items': [
             {
@@ -444,23 +541,30 @@ def order_success(request):
 def add_half_half(request):
     """
     Adiciona um item meio-a-meio ao Cart (usando os modelos Cart e CartItem),
-    esperando JSON com {"product_ids": [id1, id2], "quantity": 1, "notes": "..."} ou form-POST.
+    esperando JSON com:
+    {
+      "product_ids": [id1, id2],
+      "quantity": 1,
+      "notes": "...",
+      "customizations_whole": [...],
+      "customizations_half1": [...],
+      "customizations_half2": [...]
+    }
     """
-    # parse payload (JSON ou form)
     try:
         payload = json.loads(request.body.decode('utf-8')) if request.content_type == 'application/json' else request.POST
     except Exception:
         payload = request.POST
 
-    product_ids = payload.get('product_ids') or payload.getlist('product_ids[]') if hasattr(payload, 'getlist') else payload.get('product_ids[]') or payload.get('product_ids')
+    if hasattr(payload, 'getlist'):
+        product_ids = payload.get('product_ids') or payload.getlist('product_ids[]') or payload.getlist('product_ids')
+    else:
+        product_ids = payload.get('product_ids') or payload.get('product_ids[]')
+
     quantity = payload.get('quantity', 1)
+    notes = get_notes_from_payload(payload)
 
-    # pegar notes
-    notes = (payload.get('notes') or '').strip()
-
-    # normalizar product_ids/quantity
     if isinstance(product_ids, str):
-        # aceitar "1,2" ou "['1','2']"
         product_ids = [p.strip() for p in product_ids.split(',') if p.strip()]
 
     try:
@@ -476,37 +580,50 @@ def add_half_half(request):
     if str(product_ids[0]) == str(product_ids[1]):
         return JsonResponse({'success': False, 'error': _('Escolha dois sabores diferentes para montar meio a meio.')}, status=400)
 
-    # buscar produtos validando tenant e disponibilidade
     try:
         p1 = Product.objects.get(pk=product_ids[0], tenant=request.tenant, is_available=True)
         p2 = Product.objects.get(pk=product_ids[1], tenant=request.tenant, is_available=True)
     except Product.DoesNotExist:
         return JsonResponse({'success': False, 'error': _('Um dos produtos não foi encontrado.')}, status=404)
 
-    # determinar preço unitário (usar mesma lógica que add_to_cart)
     try:
         rule = CombinationPricingRule.objects.get(tenant=request.tenant, combination_type='half_half')
         method = rule.price_calculation_method
     except CombinationPricingRule.DoesNotExist:
         method = 'max_price'
 
-    price_a = p1.sale_price if p1.sale_price else p1.price
-    price_b = p2.sale_price if p2.sale_price else p2.price
+    price_a = to_decimal(p1.sale_price if p1.sale_price else p1.price)
+    price_b = to_decimal(p2.sale_price if p2.sale_price else p2.price)
 
-    try:
-        # garantir Decimal quando necessário
-        if method == 'max_price':
-            unit_price = max(Decimal(price_a), Decimal(price_b))
-        elif method in ('average', 'sum_halved'):
-            unit_price = (Decimal(price_a) + Decimal(price_b)) / Decimal(2)
-        else:
-            unit_price = max(Decimal(price_a), Decimal(price_b))
-    except Exception:
-        unit_price = max(Decimal(str(price_a)), Decimal(str(price_b)))
+    if method == 'max_price':
+        unit_price = max(price_a, price_b)
+    elif method in ('average', 'sum_halved'):
+        unit_price = (price_a + price_b) / Decimal(2)
+    else:
+        unit_price = max(price_a, price_b)
 
-    # identificar item de forma order-insensitive
+    customizations_whole = normalize_customization_list(payload.get('customizations_whole') or [])
+    customizations_half1 = normalize_customization_list(payload.get('customizations_half1') or [])
+    customizations_half2 = normalize_customization_list(payload.get('customizations_half2') or [])
+
+    extras_total = (
+        sum_customizations_price(customizations_whole)
+        + sum_customizations_price(customizations_half1)
+        + sum_customizations_price(customizations_half2)
+    )
+    unit_price = unit_price + extras_total
+
     ids_sorted = sorted([str(p1.id), str(p2.id)], key=int)
-    product_key = f"half:{ids_sorted[0]}:{ids_sorted[1]}"
+
+    key_payload = {
+        'type': 'half_half',
+        'product_ids': ids_sorted,
+        'customizations_whole': customizations_whole,
+        'customizations_half1': customizations_half1,
+        'customizations_half2': customizations_half2,
+        'notes': notes,
+    }
+    product_key = build_cart_item_key(f'half:{ids_sorted[0]}:{ids_sorted[1]}', key_payload)
 
     name = f"{p1.name} / {p2.name} (Meio a meio)"
     images = [get_image_url_from_product(p1), get_image_url_from_product(p2)]
@@ -514,9 +631,11 @@ def add_half_half(request):
         'product_ids': ids_sorted,
         'names': [p1.name, p2.name],
         'images': images,
+        'customizations_whole': customizations_whole,
+        'customizations_half1': customizations_half1,
+        'customizations_half2': customizations_half2,
     }
 
-    # pegar/criar cart no DB (mesmo comportamento do add_to_cart)
     cart = get_or_create_cart(request)
 
     defaults = {
@@ -524,11 +643,11 @@ def add_half_half(request):
         'price': unit_price,
         'quantity': quantity,
         'combination_details': combination_details,
+        'product_key': product_key,
     }
     if notes:
         defaults['notes'] = notes
 
-    # criar/atualizar CartItem
     cart_item, created = CartItem.objects.get_or_create(
         cart=cart,
         product_key=product_key,
@@ -536,20 +655,20 @@ def add_half_half(request):
     )
     if not created:
         cart_item.quantity = cart_item.quantity + quantity
-        cart_item.price = unit_price  # atualizar preço caso a regra mude
-        update_fields = ['quantity', 'price']
+        cart_item.price = unit_price
+        cart_item.combination_details = combination_details
+        update_fields = ['quantity', 'price', 'combination_details']
         if notes:
             cart_item.notes = notes
             update_fields.append('notes')
         cart_item.save(update_fields=update_fields)
 
-    # recalcular totais
     total_items = cart.items.aggregate(total=Sum('quantity'))['total'] or 0
-    cart_total = sum((item.price * item.quantity) for item in cart.items.all())  # Decimal
+    cart_total = sum((item.price * item.quantity) for item in cart.items.all())
 
     msg = (
         f"Pizza meio a meio adicionada. Será cobrado {format_currency(unit_price)} "
-        f"por unidade (preço baseado na pizza mais cara)."
+        f"por unidade."
     )
 
     return JsonResponse({
@@ -560,7 +679,8 @@ def add_half_half(request):
         'cart_total': str(cart_total),
     })
 
+
 def format_currency(value: Decimal):
-    q = (value.quantize(Decimal('0.01')))
+    q = value.quantize(Decimal('0.01'))
     s = f"{q:.2f}"
     return "R$ " + s.replace('.', ',')

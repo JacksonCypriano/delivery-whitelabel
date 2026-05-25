@@ -1,8 +1,10 @@
 import { postJSON } from '../core/http.js';
 import { getConfig } from '../core/config.js';
 import { EVENTS, emit } from '../core/events.js';
+import { fetchCustomizations, renderCustomizationGroups, collectSelectedOptions, validateRequiredGroups } from './customizations.js';
 
 let selectedProduct = null;
+let currentGroups = [];
 
 function getAddToCartUrl(trigger) {
   return (
@@ -12,7 +14,7 @@ function getAddToCartUrl(trigger) {
   );
 }
 
-function fillModal(product) {
+async function fillModal(product) {
   selectedProduct = product;
 
   const nameEl = document.querySelector('[data-modal-product-name]');
@@ -22,11 +24,11 @@ function fillModal(product) {
   const quantityInput = document.querySelector('[data-modal-quantity]');
 
   if (nameEl) nameEl.textContent = product.name || '';
-  
+
   if (priceEl) {
     const rawPrice = String(product.price).replace(',', '.');
     const priceNum = parseFloat(rawPrice);
-    
+
     if (!isNaN(priceNum)) {
       priceEl.textContent = `R$ ${priceNum.toFixed(2).replace('.', ',')}`;
     } else {
@@ -37,6 +39,14 @@ function fillModal(product) {
   if (idInput) idInput.value = product.id || '';
   if (noteInput) noteInput.value = '';
   if (quantityInput) quantityInput.value = 1;
+
+  // Buscar e renderizar customizações
+  const container = document.querySelector('[data-customizations-container]');
+  if (container) {
+    container.innerHTML = '<p class="text-sm text-gray-400">Carregando opções...</p>';
+    currentGroups = await fetchCustomizations(product.id);
+    renderCustomizationGroups(container, currentGroups, null);
+  }
 }
 
 async function sendToCart(url, payload) {
@@ -78,9 +88,28 @@ async function submitModal(note = '') {
     return;
   }
 
+  // Validar grupos obrigatórios
+  const container = document.querySelector('[data-customizations-container]');
+  if (container && currentGroups.length) {
+    const missing = validateRequiredGroups(container, currentGroups);
+    if (missing) {
+      emit(EVENTS.TOAST_SHOW, { message: `Escolha uma opção em: ${missing}`, type: 'warning' });
+      return;
+    }
+  }
+
+  // Coletar customizações selecionadas
+  const customizations = container ? collectSelectedOptions(container) : [];
+
+  // Calcular preço extra das customizações
+  const extra = customizations.reduce((sum, c) => sum + parseFloat(c.price || 0), 0);
+  const basePrice = parseFloat(String(selectedProduct.price).replace(',', '.')) || 0;
+  const finalPrice = (basePrice + extra).toFixed(2);
+
   const payload = {
     product_id: String(selectedProduct.id),
     quantity: 1,
+    customizations,
     ...(note ? { note } : {}),
   };
 
@@ -89,7 +118,7 @@ async function submitModal(note = '') {
 
 export function initAddToCart() {
   // Clique no botão de adicionar (abre modal)
-  document.addEventListener('click', (event) => {
+  document.addEventListener('click', async (event) => {
     const trigger = event.target.closest('[data-action="add-to-cart"]');
     if (!trigger) return;
 
@@ -103,7 +132,7 @@ export function initAddToCart() {
       addUrl: trigger.dataset.addUrl || getConfig('addToCartUrl') || '',
     };
 
-    fillModal(product);
+    await fillModal(product);
     emit(EVENTS.MODAL_OPEN, { name: 'add-to-cart' });
   });
 

@@ -1,11 +1,13 @@
 import { postJSON } from '../core/http.js';
 import { getConfig } from '../core/config.js';
 import { EVENTS, emit, on } from '../core/events.js';
+import { fetchCustomizations, renderCustomizationGroups, collectSelectedOptions, validateRequiredGroups } from './customizations.js';
 
 // Estado interno
 let selected = [null, null]; // [metade1, metade2]
 let cachedOptions = [];
 let searchTimeout = null;
+let halfHalfGroups = [];
 const OPEN_GUARD_MS = 220;
 let lastOpenAt = 0;
 
@@ -32,8 +34,22 @@ function getDropdownText() { return document.querySelector('[data-half-half-drop
 function getDropdownItems() { return document.querySelector('[data-half-half-items]'); }
 function getSearchInput() { return document.querySelector('[data-half-half-search]'); }
 function getSubmitBtn() { return document.querySelector('[data-half-half-submit]'); }
+function getCustomizationsSection() { return document.getElementById('half-customizations-section'); }
+function getBordaContainer() { return document.querySelector('[data-borda-container]'); }
+function getHalf1Container() { return document.querySelector('[data-half1-addons-container]'); }
+function getHalf2Container() { return document.querySelector('[data-half2-addons-container]'); }
 
-// Atualiza preview visual
+// Calcula preço extra das customizações selecionadas
+function sumCustomizationsPrice(container) {
+  if (!container) return 0;
+  let total = 0;
+  container.querySelectorAll('input[type="radio"]:checked, input[type="checkbox"]:checked').forEach(input => {
+    total += parseFloat(input.dataset.optionPrice || 0);
+  });
+  return total;
+}
+
+// Atualiza preview visual (incluindo preço com customizações)
 function updatePreview() {
   const leftName = document.querySelector('[data-half-left-name]');
   const rightName = document.querySelector('[data-half-right-name]');
@@ -55,8 +71,11 @@ function updatePreview() {
 
   if (priceEl) {
     if (selected[0] && selected[1]) {
-      const max = Math.max(parsePrice(selected[0].price), parsePrice(selected[1].price));
-      priceEl.textContent = formatPrice(max);
+      const base = Math.max(parsePrice(selected[0].price), parsePrice(selected[1].price));
+      const extra = sumCustomizationsPrice(getBordaContainer())
+        + sumCustomizationsPrice(getHalf1Container())
+        + sumCustomizationsPrice(getHalf2Container());
+      priceEl.textContent = formatPrice(base + extra);
     } else {
       priceEl.textContent = 'R$ 0,00';
     }
@@ -64,6 +83,69 @@ function updatePreview() {
 
   const submitBtn = getSubmitBtn();
   if (submitBtn) submitBtn.disabled = !(selected[0] && selected[1]);
+}
+
+// Busca e renderiza customizações quando os dois sabores estão selecionados
+async function onBothSelected() {
+  const section = getCustomizationsSection();
+  if (!section) return;
+
+  section.innerHTML = '<p class="text-sm text-gray-400 py-2">Carregando opções...</p>';
+  section.classList.remove('hidden');
+
+  halfHalfGroups = await fetchCustomizations(selected[0].id);
+
+  if (!halfHalfGroups.length) {
+    section.classList.add('hidden');
+    return;
+  }
+
+  // Grupos de borda/inteiro (WHOLE ou BOTH)
+  const wholeGroups = halfHalfGroups.filter(g => g.apply_to === 'WHOLE' || g.apply_to === 'BOTH');
+  // Grupos de metade (HALF ou BOTH)
+  const halfGroups = halfHalfGroups.filter(g => g.apply_to === 'HALF' || g.apply_to === 'BOTH');
+
+  let html = '';
+
+  if (wholeGroups.length) {
+    html += `
+      <div class="mb-4">
+        <h4 class="font-semibold text-gray-700 text-sm mb-2">🍕 Borda</h4>
+        <div data-borda-container class="space-y-2"></div>
+      </div>`;
+  }
+
+  if (halfGroups.length) {
+    html += `
+      <div class="mb-4">
+        <h4 data-half1-title class="font-semibold text-gray-700 text-sm mb-2">Adicionais: ${selected[0].name}</h4>
+        <div data-half1-addons-container class="space-y-2"></div>
+      </div>
+      <div class="mb-4">
+        <h4 data-half2-title class="font-semibold text-gray-700 text-sm mb-2">Adicionais: ${selected[1].name}</h4>
+        <div data-half2-addons-container class="space-y-2"></div>
+      </div>`;
+  }
+
+  section.innerHTML = html;
+
+  // Renderizar nos containers recém-criados
+  const bordaContainer = getBordaContainer();
+  const half1Container = getHalf1Container();
+  const half2Container = getHalf2Container();
+
+  if (bordaContainer && wholeGroups.length) {
+    renderCustomizationGroups(bordaContainer, wholeGroups, null);
+  }
+  if (half1Container && halfGroups.length) {
+    renderCustomizationGroups(half1Container, halfGroups, null);
+  }
+  if (half2Container && halfGroups.length) {
+    renderCustomizationGroups(half2Container, halfGroups, null);
+  }
+
+  // Atualizar preço ao mudar seleção
+  section.addEventListener('change', () => updatePreview());
 }
 
 // Constrói cache de opções a partir do DOM
@@ -146,11 +228,15 @@ function selectSecond(product) {
   });
 
   updatePreview();
+
+  // Busca e renderiza customizações
+  onBothSelected();
 }
 
 // Abre modal com metade 1 já definida
 function openHalfHalfModal(product) {
   selected = [{ ...product }, null];
+  halfHalfGroups = [];
   lastOpenAt = Date.now();
 
   buildCache();
@@ -165,6 +251,13 @@ function openHalfHalfModal(product) {
   const list = getDropdownList();
   if (list) list.classList.add('hidden');
 
+  // Esconde seção de customizações até selecionar o segundo sabor
+  const section = getCustomizationsSection();
+  if (section) {
+    section.innerHTML = '';
+    section.classList.add('hidden');
+  }
+
   updatePreview();
   emit(EVENTS.MODAL_OPEN, { name: 'half-half' });
 }
@@ -174,6 +267,17 @@ async function submitHalfHalf() {
   if (!selected[0] || !selected[1]) {
     emit(EVENTS.TOAST_SHOW, { message: 'Selecione dois sabores.', type: 'warning' });
     return;
+  }
+
+  // Validar grupos obrigatórios (borda)
+  const bordaContainer = getBordaContainer();
+  const wholeGroups = halfHalfGroups.filter(g => g.apply_to === 'WHOLE' || g.apply_to === 'BOTH');
+  if (bordaContainer && wholeGroups.length) {
+    const missing = validateRequiredGroups(bordaContainer, wholeGroups);
+    if (missing) {
+      emit(EVENTS.TOAST_SHOW, { message: `Escolha uma opção em: ${missing}`, type: 'warning' });
+      return;
+    }
   }
 
   const url = getConfig('addHalfHalfUrl') || '';
@@ -191,9 +295,17 @@ async function submitHalfHalf() {
       </svg> Adicionando...`;
   }
 
+  // Coletar customizações
+  const customizations_whole = bordaContainer ? collectSelectedOptions(bordaContainer) : [];
+  const customizations_half1 = getHalf1Container() ? collectSelectedOptions(getHalf1Container()) : [];
+  const customizations_half2 = getHalf2Container() ? collectSelectedOptions(getHalf2Container()) : [];
+
   const result = await postJSON(url, {
     product_ids: [selected[0].id, selected[1].id],
     quantity: 1,
+    customizations_whole,
+    customizations_half1,
+    customizations_half2,
   });
 
   if (submitBtn) {
@@ -315,10 +427,13 @@ export function initHalfHalf() {
   on(EVENTS.MODAL_CLOSE, (event) => {
     if (event.detail?.name !== 'half-half') return;
     selected = [null, null];
+    halfHalfGroups = [];
     const text = getDropdownText();
     if (text) text.textContent = 'Selecione o segundo sabor';
     const search = getSearchInput();
     if (search) search.value = '';
+    const section = getCustomizationsSection();
+    if (section) { section.innerHTML = ''; section.classList.add('hidden'); }
     updatePreview();
   });
 }

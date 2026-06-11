@@ -68,7 +68,7 @@
   <div class="space-y-12">
     {% for category in categories %}
 
-      {% if category.name == "Pizzas" %}
+      {% if category.name|lower == "pizza" or category.name|lower == "pizzas" %}
 
       <!-- Pizzas Inteiras -->
       <section id="pizzas-inteiras" class="mb-10">

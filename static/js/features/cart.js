@@ -145,7 +145,9 @@ async function removeItem(cartItemId) {
 export function initCart() {
   // Aumentar quantidade
   document.addEventListener('click', async (event) => {
+    console.log('clique detectado', event.target);
     const btn = event.target.closest('[data-action="increase-qty"]');
+    console.log('botão remove:', btn);
     if (!btn) return;
 
     const id = btn.dataset.cartItemId;

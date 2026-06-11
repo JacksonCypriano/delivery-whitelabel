@@ -46,10 +46,51 @@
         <!-- Info -->
         <div>
           <h3 class="font-semibold text-gray-800">{{ item.name }}</h3>
+  
           {% if item.combination_details %}
             <p class="text-xs text-gray-500 mt-1">
               {{ item.combination_details.names.0 }} / {{ item.combination_details.names.1 }}
             </p>
+
+            {% if item.combination_details.customizations_whole %}
+              <div class="mt-1">
+                <p class="text-xs text-gray-400 font-medium">Toda a pizza:</p>
+                {% for c in item.combination_details.customizations_whole %}
+                  <p class="text-xs text-gray-500">• {{ c.option_name }} {% if c.price != '0.00' %}(+R$ {{ c.price }}){% endif %}</p>
+                {% endfor %}
+              </div>
+            {% endif %}
+
+            {% if item.combination_details.customizations_half1 %}
+              <div class="mt-1">
+                <p class="text-xs text-gray-400 font-medium">{{ item.combination_details.names.0 }}:</p>
+                {% for c in item.combination_details.customizations_half1 %}
+                  <p class="text-xs text-gray-500">• {{ c.option_name }} {% if c.price != '0.00' %}(+R$ {{ c.price }}){% endif %}</p>
+                {% endfor %}
+              </div>
+            {% endif %}
+
+            {% if item.combination_details.customizations_half2 %}
+              <div class="mt-1">
+                <p class="text-xs text-gray-400 font-medium">{{ item.combination_details.names.1 }}:</p>
+                {% for c in item.combination_details.customizations_half2 %}
+                  <p class="text-xs text-gray-500">• {{ c.option_name }} {% if c.price != '0.00' %}(+R$ {{ c.price }}){% endif %}</p>
+                {% endfor %}
+              </div>
+            {% endif %}
+
+          {% endif %}
+
+          {% if item.combination_details.customizations %}
+            <div class="mt-1">
+              {% for c in item.combination_details.customizations %}
+                <p class="text-xs text-gray-500">• {{ c.option_name }} {% if c.price != '0.00' %}(+R$ {{ c.price }}){% endif %}</p>
+              {% endfor %}
+            </div>
+          {% endif %}
+
+          {% if item.notes %}
+            <p class="text-xs text-gray-400 mt-1 italic">Obs: {{ item.notes }}</p>
           {% endif %}
 
           <!-- Controles de quantidade -->

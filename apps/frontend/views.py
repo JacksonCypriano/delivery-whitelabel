@@ -1,8 +1,7 @@
 from django.http import JsonResponse
 from django.shortcuts import render
-from stores.models import Product
 
-from apps.stores.models import CustomizationGroup
+from apps.stores.models import CustomizationGroup, Product
 
 
 def catalog(request):

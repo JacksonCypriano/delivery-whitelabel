@@ -4,9 +4,12 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.core.files.images import get_image_dimensions
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 from django.utils.text import slugify
 
 from apps.core.models import TenantModel
+
 from .choices import ApplyToChoices
 
 MIN_IMAGE_WIDTH = 500
@@ -23,6 +26,16 @@ def validate_image_resolution(image):
         raise ValidationError(
             f"A imagem deve ter pelo menos {MIN_IMAGE_WIDTH}x{MIN_IMAGE_HEIGHT}px (atual: {width}x{height})."
         )
+
+DAYS_OF_WEEK = [
+    (0, 'Segunda-feira'),
+    (1, 'Terça-feira'),
+    (2, 'Quarta-feira'),
+    (3, 'Quinta-feira'),
+    (4, 'Sexta-feira'),
+    (5, 'Sábado'),
+    (6, 'Domingo'),
+]
 
 
 class Category(TenantModel):
@@ -80,7 +93,11 @@ class Product(TenantModel):
     min_order_qty = models.PositiveIntegerField(default=1)
     max_order_qty = models.PositiveIntegerField(null=True, blank=True)
     primary_image = models.ImageField(upload_to='products/%Y/%m/%d/', null=True, blank=True, validators=[validate_image_resolution])
-
+    available_days = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Dias da semana em que o produto aparece no cardápio. Deixe vazio para aparecer todos os dias."
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -232,3 +249,9 @@ class CustomizationOption(TenantModel):
 
     def __str__(self):
         return f"{self.name} (+R$ {self.price})"
+
+
+@receiver(post_save, sender=Product)
+def create_half_product(sender, instance, created, **kwargs):
+    if created:
+        HalfProduct.objects.get_or_create(product=instance)

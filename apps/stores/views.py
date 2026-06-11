@@ -1,5 +1,6 @@
 from django.db.models import Prefetch
 from django.shortcuts import render
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.generic import ListView
@@ -17,9 +18,18 @@ class CatalogoView(ListView):
 
     def get_queryset(self):
         tenant = getattr(self.request, 'tenant', None)
-        if tenant:
-            return Product.objects.filter(tenant=tenant, is_available=True)
-        return Product.objects.none()
+        if not tenant:
+            return Product.objects.none()
+        
+        today = timezone.localdate().weekday()
+        qs = Product.objects.filter(tenant=tenant, is_available=True)
+
+        filtered = [
+            p for p in qs
+            if not p.available_days or today in p.available_days
+        ]
+
+        return filtered
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -27,6 +37,8 @@ class CatalogoView(ListView):
         context['tenant'] = tenant
 
         if tenant:
+            today = timezone.localdate().weekday()
+
             products_qs = Product.objects.filter(tenant=tenant, is_available=True).order_by('name')
 
             categories = (
@@ -38,16 +50,15 @@ class CatalogoView(ListView):
                     Prefetch('products', queryset=products_qs, to_attr='prefetched_products')
                 )
             )
-        else:
-            categories = Category.objects.none()
 
-        context['categories'] = categories
-
-        pizza_cat = None
-        if tenant:
             pizza_cat = categories.filter(name__iexact='Pizzas').first()
 
-        if tenant:
+            for cat in categories:
+                cat.prefetched_products = [
+                    p for p in cat.prefetched_products
+                    if not p.available_days or today in p.available_days
+                ]
+
             if pizza_cat:
                 half_qs = HalfProduct.objects.filter(
                     product__tenant=tenant,
@@ -59,9 +70,12 @@ class CatalogoView(ListView):
                     product__tenant=tenant,
                     is_active=True
                 ).select_related('product')
+
         else:
+            categories = Category.objects.none()
             half_qs = HalfProduct.objects.none()
 
+        context['categories'] = categories
         context['half_products'] = half_qs
 
         return context

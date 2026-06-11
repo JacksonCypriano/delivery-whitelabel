@@ -100,10 +100,10 @@ async function onBothSelected() {
     return;
   }
 
-  // Grupos de borda/inteiro (WHOLE ou BOTH)
-  const wholeGroups = halfHalfGroups.filter(g => g.apply_to === 'WHOLE' || g.apply_to === 'BOTH');
-  // Grupos de metade (HALF ou BOTH)
-  const halfGroups = halfHalfGroups.filter(g => g.apply_to === 'HALF' || g.apply_to === 'BOTH');
+  // Grupos de borda/inteiro: whole ou both → aparecem UMA VEZ na seção Borda
+  const wholeGroups = halfHalfGroups.filter(g => g.apply_to === 'whole' || g.apply_to === 'both');
+  // Grupos de metade: APENAS half → aparecem separados por metade (both NÃO entra aqui)
+  const halfGroups = halfHalfGroups.filter(g => g.apply_to === 'half');
 
   let html = '';
 
@@ -271,7 +271,7 @@ async function submitHalfHalf() {
 
   // Validar grupos obrigatórios (borda)
   const bordaContainer = getBordaContainer();
-  const wholeGroups = halfHalfGroups.filter(g => g.apply_to === 'WHOLE' || g.apply_to === 'BOTH');
+  const wholeGroups = halfHalfGroups.filter(g => g.apply_to === 'whole' || g.apply_to === 'both');
   if (bordaContainer && wholeGroups.length) {
     const missing = validateRequiredGroups(bordaContainer, wholeGroups);
     if (missing) {

@@ -12,7 +12,9 @@ class TenantModelAdmin(ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         if not change and hasattr(obj, 'tenant') and not obj.tenant_id:
-            obj.tenant = request.tenant or request.user.tenant
+            tenant = getattr(request, 'tenant', None) or getattr(request.user, 'tenant', None)
+            if tenant:
+                obj.tenant = tenant
         super().save_model(request, obj, form, change)
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
@@ -21,7 +23,12 @@ class TenantModelAdmin(ModelAdmin):
             return field
         tenant = getattr(request, 'tenant', None)
         if tenant and db_field.name in ('tenant', 'category', 'product'):
-            field.queryset = field.queryset.filter(tenant=tenant)
+            related_model = field.queryset.model
+            has_tenant = hasattr(related_model, 'tenant') or 'tenant' in [
+                f.name for f in related_model._meta.get_fields()
+            ]
+            if has_tenant:
+                field.queryset = field.queryset.filter(tenant=tenant)
         return field
 
     def has_module_permission(self, request):

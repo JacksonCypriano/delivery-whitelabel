@@ -17,24 +17,22 @@
     </div>
   </a>
 
-  <!-- Ações: fora do <a> para evitar navegação ao clicar nos botões -->
   <div class="p-4 border-t border-gray-100 flex items-center justify-between gap-3">
     <div>
       <span class="product-price font-bold text-primary">R$ {{ product.price|floatformat:2 }}</span>
     </div>
 
     <div class="flex items-center gap-2">
-      <!-- Botão Adicionar ao carrinho (existing) -->
       <button
         type="button"
         class="add-to-cart-btn bg-primary text-white text-sm px-3 py-1.5 rounded-lg hover:bg-opacity-90 transition"
+        data-action="add-to-cart"
         data-product-id="{{ product.id }}"
         data-product-name="{{ product.name|escapejs }}"
         data-product-price="{{ product.price|stringformat:".2f" }}">
         Adicionar
       </button>
 
-      <!-- Botão para iniciar meio a meio (mantive como estava) -->
       <button
         type="button"
         class="btn-start-half inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium bg-amber-500 text-white hover:bg-amber-600 focus:outline-none"

@@ -1,12 +1,8 @@
 import { initToast } from './ui/toast.js';
 import { initModal } from './ui/modal.js';
 import { initCartBadge } from './ui/cart-badge.js';
-
-const PAGE_MODULES = {
-  catalog:  () => import('./pages/catalog.js').then(m => m.initCatalogPage()),
-  cart:     () => import('./pages/cart.js').then(m => m.initCartPage()),
-  checkout: () => import('./pages/checkout.js').then(m => m.initCheckoutPage()),
-};
+import { initCatalogPage } from './pages/catalog.js';
+import { initCartPage } from './pages/cart.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   initToast();
@@ -14,7 +10,13 @@ document.addEventListener('DOMContentLoaded', () => {
   initCartBadge();
 
   const page = document.body.dataset.page;
-  if (page && PAGE_MODULES[page]) {
-    PAGE_MODULES[page]().catch(console.error);
+  console.log('Iniciando página:', page);
+
+  if (page === 'catalog') {
+    initCatalogPage();
+  }
+
+  if (page === 'cart') {
+    initCartPage();
   }
 });

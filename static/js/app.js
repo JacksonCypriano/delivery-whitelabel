@@ -3,6 +3,7 @@ import { initModal } from './ui/modal.js';
 import { initCartBadge } from './ui/cart-badge.js';
 import { initCatalogPage } from './pages/catalog.js';
 import { initCartPage } from './pages/cart.js';
+import { initCheckoutPage } from './pages/checkout.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   initToast();
@@ -18,5 +19,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (page === 'cart') {
     initCartPage();
+  }
+
+  if (page === 'checkout') {
+    initCheckoutPage();
   }
 });

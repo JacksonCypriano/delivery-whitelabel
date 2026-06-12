@@ -1,6 +1,7 @@
 import hashlib
 import json
 import logging
+import urllib.parse
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
@@ -35,27 +36,20 @@ def get_notes_from_payload(data):
 
 
 def normalize_customization_list(raw_list):
-    """
-    Normaliza a lista vinda do frontend para um formato consistente e seguro.
-    """
     if not isinstance(raw_list, (list, tuple)):
         return []
-
     normalized = []
-
     for item in raw_list:
         if not isinstance(item, dict):
             continue
-
         price = to_decimal(item.get('price', 0))
         normalized.append({
-            'group_id': str(item.get('group_id', '') or ''),
+            'group_id':   str(item.get('group_id',   '') or ''),
             'group_name': str(item.get('group_name', '') or ''),
-            'option_id': str(item.get('option_id', '') or ''),
-            'option_name': str(item.get('option_name', '') or ''),
-            'price': str(price),
+            'option_id':  str(item.get('option_id',  '') or ''),
+            'option_name':str(item.get('option_name','') or ''),
+            'price':      str(price),
         })
-
     return normalized
 
 
@@ -69,40 +63,23 @@ def sum_customizations_price(customizations):
 
 
 def build_cart_item_key(prefix, payload):
-    """
-    Gera uma chave estável e curta para diferenciar itens com customizações distintas.
-    """
     raw = json.dumps(payload, sort_keys=True, ensure_ascii=False)
     digest = hashlib.sha1(raw.encode('utf-8')).hexdigest()[:16]
     return f'{prefix}:{digest}'
 
 
 def get_image_url_from_product(product):
-    """
-    Retorna uma URL string da imagem principal de `product`, tentando:
-    - chamar product.get_primary_image() se for chamável
-    - usar .url se for FileField
-    - verificar atributos comuns (image, primary_image, thumbnail)
-    Retorna '' se não encontrar.
-    """
     if not product:
         return ''
-
-    # tentar método/atributo get_primary_image primeiro
     try:
         getter = getattr(product, 'get_primary_image', None)
-        if callable(getter):
-            val = getter()
-        else:
-            val = getter
+        val = getter() if callable(getter) else getter
         if isinstance(val, str) and val:
             return val
         if hasattr(val, 'url'):
             return val.url
     except Exception:
         pass
-
-    # tentar campos comuns
     for attr in ('image', 'primary_image', 'thumbnail'):
         try:
             val = getattr(product, attr, None)
@@ -114,31 +91,20 @@ def get_image_url_from_product(product):
                 return val.url
         except Exception:
             continue
-
     return ''
 
 
 def populate_combination_images_for_items(items, tenant=None, persist=False):
-    """
-    Para cada CartItem em items, se existir combination_details e images vazias,
-    tenta preencher images usando product_ids ou names.
-    Se persist=True, salva item.combination_details de volta no DB.
-    """
     for item in items:
         combo = getattr(item, 'combination_details', None)
         if not combo or not isinstance(combo, dict):
             continue
-
         images = combo.get('images') or []
-        # se já tem pelo menos uma imagem não vazia, ignora
         if images and any(str(i).strip() for i in images):
             continue
-
         new_images = []
         ids = combo.get('product_ids') or []
         names = combo.get('names') or []
-
-        # tentar preencher por product_ids
         if ids:
             for pid in ids:
                 try:
@@ -147,68 +113,63 @@ def populate_combination_images_for_items(items, tenant=None, persist=False):
                 except Product.DoesNotExist:
                     new_images.append('')
         else:
-            # tentar preencher por nomes
             for name in names:
                 if not name:
                     new_images.append('')
                     continue
-                prod = Product.objects.filter(name__iexact=name, tenant=tenant).first() if tenant else Product.objects.filter(name__iexact=name).first()
+                prod = (
+                    Product.objects.filter(name__iexact=name, tenant=tenant).first()
+                    if tenant else
+                    Product.objects.filter(name__iexact=name).first()
+                )
                 new_images.append(get_image_url_from_product(prod) if prod else '')
-
-        # garantir pelo menos 2 posições (mantém layout)
         if len(new_images) == 1:
             new_images.append('')
-
         combo['images'] = new_images
-        # atualizar in-memory para o template
         item.combination_details = combo
-
-        # opcional: persistir no DB
         if persist:
             try:
-                item.combination_details = combo
                 item.save(update_fields=['combination_details'])
             except Exception:
-                # não quebrar renderização se falhar ao salvar
                 pass
 
 
 def get_or_create_cart(request):
-    """Obtém ou cria carrinho para usuário anônimo ou logado"""
     if request.user.is_authenticated:
-        cart, created = Cart.objects.get_or_create(
-            tenant=request.tenant,
-            user=request.user
-        )
+        cart, _ = Cart.objects.get_or_create(tenant=request.tenant, user=request.user)
     else:
-        # Usuário anônimo
         if not request.session.session_key:
             request.session.create()
-
-        cart, created = Cart.objects.get_or_create(
+        cart, _ = Cart.objects.get_or_create(
             tenant=request.tenant,
             session_key=request.session.session_key
         )
     return cart
 
 
+def format_currency(value: Decimal):
+    q = value.quantize(Decimal('0.01'))
+    return 'R$ ' + f'{q:.2f}'.replace('.', ',')
+
+
+# ---------------------------------------------------------------------------
+# Cart Notes
+# ---------------------------------------------------------------------------
+
 @require_POST
 def update_cart_item_notes(request, cart_item_id):
-    """
-    Atualiza o campo notes (observação) de um CartItem.
-    """
     try:
         cart = get_or_create_cart(request)
     except Exception:
         cart = None
 
-    if cart:
-        cart_item = get_object_or_404(CartItem, pk=cart_item_id, cart=cart)
-    else:
-        cart_item = get_object_or_404(CartItem, pk=cart_item_id)
+    cart_item = (
+        get_object_or_404(CartItem, pk=cart_item_id, cart=cart)
+        if cart else
+        get_object_or_404(CartItem, pk=cart_item_id)
+    )
 
     notes = request.POST.get('notes', '').strip()
-
     try:
         cart_item.notes = notes
         cart_item.save(update_fields=['notes'])
@@ -219,18 +180,12 @@ def update_cart_item_notes(request, cart_item_id):
     return JsonResponse({"success": True, "notes": cart_item.notes})
 
 
+# ---------------------------------------------------------------------------
+# Add to Cart (produto simples)
+# ---------------------------------------------------------------------------
+
 @require_POST
 def add_to_cart(request):
-    """
-    Aceita:
-    - form POST (product_id, quantity, notes) para item simples
-    - JSON POST com { is_half: true, product_ids: [id1, id2], quantity: x, notes: "..."} para meio-a-meio
-    - customizações no payload:
-      - produto simples: customizations
-      - meio a meio: customizations_whole, customizations_half1, customizations_half2
-    Retorna JSON com success, message e cart_count.
-    """
-    # parse JSON body se vier JSON
     data = {}
     if request.content_type == 'application/json':
         try:
@@ -247,7 +202,7 @@ def add_to_cart(request):
         quantity = 1
 
     notes = get_notes_from_payload(data)
-    cart = get_or_create_cart(request)
+    cart  = get_or_create_cart(request)
 
     if is_half:
         product_ids = data.get('product_ids') or []
@@ -264,81 +219,70 @@ def add_to_cart(request):
             return JsonResponse({'success': False, 'error': 'Um dos sabores não encontrado'}, status=404)
 
         try:
-            rule = CombinationPricingRule.objects.get(tenant=request.tenant, combination_type='half_half')
+            rule   = CombinationPricingRule.objects.get(tenant=request.tenant, combination_type='half_half')
             method = rule.price_calculation_method
         except CombinationPricingRule.DoesNotExist:
             method = 'max_price'
 
         price_a = to_decimal(p1.sale_price if p1.sale_price else p1.price)
         price_b = to_decimal(p2.sale_price if p2.sale_price else p2.price)
-
-        if method == 'max_price':
-            unit_price = max(price_a, price_b)
-        elif method == 'average':
-            unit_price = (price_a + price_b) / Decimal(2)
-        elif method == 'sum_halved':
-            unit_price = (price_a + price_b) / Decimal(2)
-        else:
-            unit_price = max(price_a, price_b)
+        unit_price = max(price_a, price_b) if method == 'max_price' else (price_a + price_b) / Decimal(2)
 
         customizations_whole = normalize_customization_list(data.get('customizations_whole') or [])
         customizations_half1 = normalize_customization_list(data.get('customizations_half1') or [])
         customizations_half2 = normalize_customization_list(data.get('customizations_half2') or [])
+        notes_half1 = (data.get('notes_half1') or '').strip()
+        notes_half2 = (data.get('notes_half2') or '').strip()
 
         extras_total = (
             sum_customizations_price(customizations_whole)
             + sum_customizations_price(customizations_half1)
             + sum_customizations_price(customizations_half2)
         )
-
-        unit_price = unit_price + extras_total
+        unit_price += extras_total
 
         ids_sorted = sorted([str(p1.id), str(p2.id)], key=int)
-        name = f"{p1.name} / {p2.name}"
+        name       = f"{p1.name} / {p2.name}"
+        images     = [get_image_url_from_product(p1), get_image_url_from_product(p2)]
 
-        images = [get_image_url_from_product(p1), get_image_url_from_product(p2)]
         combination_details = {
-            'product_ids': ids_sorted,
-            'names': [p1.name, p2.name],
-            'images': images,
+            'product_ids':          ids_sorted,
+            'names':                [p1.name, p2.name],
+            'images':               images,
             'customizations_whole': customizations_whole,
             'customizations_half1': customizations_half1,
             'customizations_half2': customizations_half2,
+            'notes_half1':          notes_half1,
+            'notes_half2':          notes_half2,
         }
-
         key_payload = {
-            'type': 'half_half',
-            'product_ids': ids_sorted,
+            'type':                 'half_half',
+            'product_ids':          ids_sorted,
             'customizations_whole': customizations_whole,
             'customizations_half1': customizations_half1,
             'customizations_half2': customizations_half2,
-            'notes': notes,
+            'notes_half1':          notes_half1,
+            'notes_half2':          notes_half2,
+            'notes':                notes,
         }
         product_key = build_cart_item_key(f'half:{ids_sorted[0]}:{ids_sorted[1]}', key_payload)
 
         defaults = {
-            'name': name,
-            'price': unit_price,
-            'quantity': quantity,
+            'name': name, 'price': unit_price, 'quantity': quantity,
             'combination_details': combination_details,
         }
         if notes:
             defaults['notes'] = notes
 
-        cart_item, created = CartItem.objects.get_or_create(
-            cart=cart,
-            product_key=product_key,
-            defaults=defaults
-        )
+        cart_item, created = CartItem.objects.get_or_create(cart=cart, product_key=product_key, defaults=defaults)
         if not created:
-            cart_item.quantity += quantity
-            cart_item.price = unit_price
-            update_fields = ['quantity', 'price']
+            cart_item.quantity            += quantity
+            cart_item.price               = unit_price
+            cart_item.combination_details = combination_details
+            update_fields = ['quantity', 'price', 'combination_details']
             if notes:
                 cart_item.notes = notes
                 update_fields.append('notes')
-            cart_item.combination_details = combination_details
-            update_fields.append('combination_details')
             cart_item.save(update_fields=update_fields)
 
         product_label = name
@@ -348,44 +292,26 @@ def add_to_cart(request):
         if not product_id:
             return JsonResponse({'success': False, 'error': 'product_id ausente'}, status=400)
 
-        product = get_object_or_404(Product, id=product_id, tenant=request.tenant, is_available=True)
-
+        product    = get_object_or_404(Product, id=product_id, tenant=request.tenant, is_available=True)
         base_price = to_decimal(product.sale_price if product.sale_price else product.price)
         customizations = normalize_customization_list(data.get('customizations') or [])
-        extras_total = sum_customizations_price(customizations)
-        unit_price = base_price + extras_total
+        unit_price = base_price + sum_customizations_price(customizations)
 
-        combination_details = {}
-        if customizations:
-            combination_details['customizations'] = customizations
-
-        key_payload = {
-            'type': 'single_product',
-            'product_id': str(product.id),
-            'customizations': customizations,
-            'notes': notes,
-        }
-        product_key = build_cart_item_key(f'product:{product.id}', key_payload)
+        combination_details = {'customizations': customizations} if customizations else {}
+        key_payload  = {'type': 'single_product', 'product_id': str(product.id), 'customizations': customizations, 'notes': notes}
+        product_key  = build_cart_item_key(f'product:{product.id}', key_payload)
 
         defaults = {
-            'product': product,
-            'name': product.name,
-            'price': unit_price,
-            'quantity': quantity,
-            'product_key': product_key,
-            'combination_details': combination_details,
+            'product': product, 'name': product.name, 'price': unit_price,
+            'quantity': quantity, 'product_key': product_key, 'combination_details': combination_details,
         }
         if notes:
             defaults['notes'] = notes
 
-        cart_item, created = CartItem.objects.get_or_create(
-            cart=cart,
-            product_key=product_key,
-            defaults=defaults
-        )
+        cart_item, created = CartItem.objects.get_or_create(cart=cart, product_key=product_key, defaults=defaults)
         if not created:
-            cart_item.quantity += quantity
-            cart_item.price = unit_price
+            cart_item.quantity            += quantity
+            cart_item.price               = unit_price
             cart_item.combination_details = combination_details
             update_fields = ['quantity', 'price', 'combination_details']
             if notes:
@@ -396,60 +322,62 @@ def add_to_cart(request):
         product_label = product.name
 
     total_items = cart.items.aggregate(total=Sum('quantity'))['total'] or 0
-    cart_total = sum((item.get_total_price() for item in cart.items.all()), Decimal('0.00'))
+    cart_total  = sum((item.get_total_price() for item in cart.items.all()), Decimal('0.00'))
 
     return JsonResponse({
-        'success': True,
-        'message': f'{product_label} adicionado!',
+        'success':    True,
+        'message':    f'{product_label} adicionado!',
         'cart_count': int(total_items),
         'cart_total': str(cart_total),
     })
 
 
+# ---------------------------------------------------------------------------
+# Cart View
+# ---------------------------------------------------------------------------
+
 def cart_view(request):
-    cart = get_or_create_cart(request)
+    cart     = get_or_create_cart(request)
     items_qs = cart.items.select_related('product').all()
-    items = list(items_qs)
+    items    = list(items_qs)
 
     populate_combination_images_for_items(items, tenant=request.tenant, persist=False)
 
     total = sum((item.get_total_price() for item in items), Decimal('0.00'))
-    context = {
-        'cart_items': items,
-        'total': float(total),
-    }
-    return render(request, 'checkout/cart.html', context)
+    return render(request, 'checkout/cart.html', {'cart_items': items, 'total': float(total)})
 
+
+# ---------------------------------------------------------------------------
+# Remove / Update quantity
+# ---------------------------------------------------------------------------
 
 @require_POST
 def remove_from_cart(request, cart_item_id=None, product_id=None):
     cid = cart_item_id or product_id
-
     if not cid:
         return JsonResponse({'success': False, 'error': 'cart_item_id ausente'}, status=400)
 
     cart = get_or_create_cart(request)
     deleted_count, _ = CartItem.objects.filter(cart=cart, id=cid).delete()
 
-    items = cart.items.select_related('product').all()
-    total = sum((item.get_total_price() for item in items), Decimal('0.00'))
+    items       = cart.items.select_related('product').all()
+    total       = sum((item.get_total_price() for item in items), Decimal('0.00'))
     total_items = sum(item.quantity for item in items)
 
     return JsonResponse({
-        'success': True,
-        'deleted': int(deleted_count),
-        'total': f'R$ {total:.2f}'.replace('.', ','),
-        'cart_count': int(total_items)
+        'success':    True,
+        'deleted':    int(deleted_count),
+        'total':      f'R$ {total:.2f}'.replace('.', ','),
+        'cart_count': int(total_items),
     })
 
 
 @require_POST
 def update_cart_quantity(request, cart_item_id):
     cart = get_or_create_cart(request)
-    quantity = 0
     if request.content_type == 'application/json':
         try:
-            data = json.loads(request.body.decode('utf-8') or '{}')
+            data     = json.loads(request.body.decode('utf-8') or '{}')
             quantity = int(data.get('quantity', 0))
         except Exception:
             return JsonResponse({'success': False, 'error': 'JSON inválido'}, status=400)
@@ -464,39 +392,57 @@ def update_cart_quantity(request, cart_item_id):
             cart_item.quantity = quantity
             cart_item.save()
 
-        items = cart.items.select_related('product').all()
-        total = sum((item.get_total_price() for item in items), Decimal('0.00'))
+        items       = cart.items.select_related('product').all()
+        total       = sum((item.get_total_price() for item in items), Decimal('0.00'))
         total_items = sum(item.quantity for item in items)
         return JsonResponse({
-            'success': True,
-            'total': f'R$ {total:.2f}'.replace('.', ','),
-            'cart_count': int(total_items)
+            'success':    True,
+            'total':      f'R$ {total:.2f}'.replace('.', ','),
+            'cart_count': int(total_items),
         })
     except CartItem.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Item não encontrado'}, status=404)
 
 
+# ---------------------------------------------------------------------------
+# Checkout
+# ---------------------------------------------------------------------------
+
 @transaction.atomic
 def checkout_step_one(request):
-    cart = get_or_create_cart(request)
+    cart       = get_or_create_cart(request)
     cart_items = cart.items.select_related('product')
 
     if not cart_items.exists():
         messages.warning(request, "Seu carrinho está vazio.")
-        return redirect('stores:menu')
+        return redirect('stores:catalogo')
 
     subtotal = sum(item.get_total_price() for item in cart_items)
-    total = subtotal
+    total    = subtotal
 
     if request.method == 'POST':
-        full_name = request.POST.get('full_name')
-        phone = request.POST.get('phone')
-        cep = request.POST.get('cep')
-        address = request.POST.get('address')
-        number = request.POST.get('number')
-        neighborhood = request.POST.get('neighborhood')
-        complement = request.POST.get('complement')
-        payment_method = request.POST.get('payment_method')
+        full_name      = request.POST.get('full_name', '')
+        phone          = request.POST.get('phone', '')
+        zip_code       = request.POST.get('cep', '')
+        address        = request.POST.get('address', '')
+        number         = request.POST.get('number', '')
+        neighborhood   = request.POST.get('neighborhood', '')
+        complement     = request.POST.get('complement', '')
+        payment_method = request.POST.get('payment_method', '')
+        change_for     = request.POST.get('change_for', '').strip()
+
+        payment_method_labels = {
+            'cash':        'Dinheiro',
+            'credit_card': 'Cartao de Credito',
+            'debit_card':  'Cartao de Debito',
+            'pix':         'PIX',
+        }
+        payment_label = payment_method_labels.get(payment_method, payment_method)
+        payment_info  = (
+            f"Dinheiro (troco para R$ {change_for})"
+            if payment_method == 'cash' and change_for
+            else payment_label
+        )
 
         order = Order.objects.create(
             tenant=request.tenant,
@@ -508,27 +454,128 @@ def checkout_step_one(request):
             OrderItem.objects.create(
                 order=order,
                 product=item.product,
-                quantity=item.quantity
+                name=item.name,
+                price=item.price,
+                quantity=item.quantity,
+                combination_details=item.combination_details,
             )
 
-        cart.delete()
+        def format_item_line(item):
+            combo     = item.combination_details or {}
+            names     = combo.get('names', [])
+            total_str = f"{item.get_total_price():.2f}".replace('.', ',')
 
-        messages.success(request, "Pedido realizado com sucesso!")
-        return redirect('checkout:order_success')
+            lines = [f"{item.quantity}x {item.name} — R$ {total_str}"]
+
+            # Borda / customizações gerais (toda a pizza)
+            for c in combo.get('customizations_whole', []):
+                price_dec = float(c.get('price', 0) or 0)
+                price_str = f" (+R$ {price_dec:.2f})".replace('.', ',') if price_dec > 0 else ''
+                lines.append(f"   🔸 Borda: {c.get('option_name', '')}{price_str}")
+
+            # Metade 1
+            name1 = names[0] if names else 'Metade 1'
+            if combo.get('customizations_half1') or combo.get('notes_half1'):
+                lines.append(f"   ½ {name1}")
+                for c in combo.get('customizations_half1', []):
+                    price_dec = float(c.get('price', 0) or 0)
+                    price_str = f" (+R$ {price_dec:.2f})".replace('.', ',') if price_dec > 0 else ''
+                    lines.append(f"      + {c.get('option_name', '')}{price_str}")
+                if combo.get('notes_half1'):
+                    lines.append(f"      Obs: {combo['notes_half1']}")
+
+            # Metade 2
+            name2 = names[1] if len(names) > 1 else 'Metade 2'
+            if combo.get('customizations_half2') or combo.get('notes_half2'):
+                lines.append(f"   ½ {name2}")
+                for c in combo.get('customizations_half2', []):
+                    price_dec = float(c.get('price', 0) or 0)
+                    price_str = f" (+R$ {price_dec:.2f})".replace('.', ',') if price_dec > 0 else ''
+                    lines.append(f"      + {c.get('option_name', '')}{price_str}")
+                if combo.get('notes_half2'):
+                    lines.append(f"      Obs: {combo['notes_half2']}")
+
+            # Produto simples: customizações
+            for c in combo.get('customizations', []):
+                price_dec = float(c.get('price', 0) or 0)
+                price_str = f" (+R$ {price_dec:.2f})".replace('.', ',') if price_dec > 0 else ''
+                lines.append(f"   + {c.get('group_name', '')}: {c.get('option_name', '')}{price_str}")
+
+            # Observação geral
+            if item.notes:
+                lines.append(f"   Obs: {item.notes}")
+
+            return '\n'.join(lines)
+
+        sep = '━' * 22
+        items_lines = f'\n{sep}\n'.join(format_item_line(item) for item in cart_items)
+
+        delivery_address = f"{address}, {number}"
+        if complement:
+            delivery_address += f", {complement}"
+        city_line = f"{neighborhood}, CEP {zip_code}"
+
+        total_str = f"{total:.2f}".replace('.', ',')
+
+        message = (
+            f"*Novo Pedido #{order.id}*\n"
+            f"{sep}\n\n"
+            f"*Cliente*\n"
+            f"Nome: {full_name}\n\n"
+            f"*Itens*\n\n"
+            f"{items_lines}\n\n"
+            f"{sep}\n"
+            f"*Total: R$ {total_str}*\n"
+            f"*Pagamento: {payment_info}*\n\n"
+            f"*Entrega*\n"
+            f"{delivery_address}\n"
+            f"{city_line}\n"
+            f"{sep}"
+        )
+
+        whatsapp_number = request.tenant.whatsapp_number
+        whatsapp_url    = f"https://wa.me/{whatsapp_number}?text={urllib.parse.quote(message, safe='')}"
+
+        cart.delete()
+        return redirect(whatsapp_url)
+
+    # ── GET: monta contexto para o template ──────────────────────────────────
+    def build_item_context(item):
+        combo = item.combination_details or {}
+        names = combo.get('names', [])
+
+        # customizações exibidas no resumo lateral (lista plana)
+        customizations = (
+            combo.get('customizations')
+            or (
+                combo.get('customizations_whole', [])
+                + combo.get('customizations_half1', [])
+                + combo.get('customizations_half2', [])
+            )
+        )
+
+        return {
+            'id':          item.product.id if item.product else None,
+            'name':        item.name,
+            'price':       float(item.price),
+            'quantity':    item.quantity,
+            'total_price': float(item.get_total_price()),
+            'notes':       item.notes or '',
+            'customizations': customizations,
+            # campos meio a meio
+            'is_half_half':         bool(combo.get('product_ids')),
+            'names':                names,
+            'customizations_whole': combo.get('customizations_whole', []),
+            'customizations_half1': combo.get('customizations_half1', []),
+            'customizations_half2': combo.get('customizations_half2', []),
+            'notes_half1':          combo.get('notes_half1', ''),
+            'notes_half2':          combo.get('notes_half2', ''),
+        }
 
     context = {
-        'cart_items': [
-            {
-                'id': item.product.id if item.product else None,
-                'name': item.name,
-                'price': float(item.price),
-                'quantity': item.quantity,
-                'total_price': float(item.get_total_price())
-            }
-            for item in cart_items
-        ],
-        'subtotal': float(subtotal),
-        'total': float(total)
+        'cart_items': [build_item_context(item) for item in cart_items],
+        'subtotal':   float(subtotal),
+        'total':      float(total),
     }
     return render(request, 'checkout/checkout.html', context)
 
@@ -537,20 +584,12 @@ def order_success(request):
     return render(request, 'checkout/order_success.html')
 
 
+# ---------------------------------------------------------------------------
+# Add Half-Half
+# ---------------------------------------------------------------------------
+
 @require_POST
 def add_half_half(request):
-    """
-    Adiciona um item meio-a-meio ao Cart (usando os modelos Cart e CartItem),
-    esperando JSON com:
-    {
-      "product_ids": [id1, id2],
-      "quantity": 1,
-      "notes": "...",
-      "customizations_whole": [...],
-      "customizations_half1": [...],
-      "customizations_half2": [...]
-    }
-    """
     try:
         payload = json.loads(request.body.decode('utf-8')) if request.content_type == 'application/json' else request.POST
     except Exception:
@@ -561,18 +600,17 @@ def add_half_half(request):
     else:
         product_ids = payload.get('product_ids') or payload.get('product_ids[]')
 
-    quantity = payload.get('quantity', 1)
-    notes = get_notes_from_payload(payload)
-
     if isinstance(product_ids, str):
         product_ids = [p.strip() for p in product_ids.split(',') if p.strip()]
 
     try:
-        quantity = int(quantity)
-        if quantity < 1:
-            quantity = 1
+        quantity = max(1, int(payload.get('quantity', 1)))
     except Exception:
         quantity = 1
+
+    notes       = get_notes_from_payload(payload)
+    notes_half1 = (payload.get('notes_half1') or '').strip()
+    notes_half2 = (payload.get('notes_half2') or '').strip()
 
     if not product_ids or not isinstance(product_ids, (list, tuple)) or len(product_ids) != 2:
         return JsonResponse({'success': False, 'error': _('É necessário fornecer exatamente dois sabores.')}, status=400)
@@ -587,75 +625,64 @@ def add_half_half(request):
         return JsonResponse({'success': False, 'error': _('Um dos produtos não foi encontrado.')}, status=404)
 
     try:
-        rule = CombinationPricingRule.objects.get(tenant=request.tenant, combination_type='half_half')
+        rule   = CombinationPricingRule.objects.get(tenant=request.tenant, combination_type='half_half')
         method = rule.price_calculation_method
     except CombinationPricingRule.DoesNotExist:
         method = 'max_price'
 
     price_a = to_decimal(p1.sale_price if p1.sale_price else p1.price)
     price_b = to_decimal(p2.sale_price if p2.sale_price else p2.price)
-
-    if method == 'max_price':
-        unit_price = max(price_a, price_b)
-    elif method in ('average', 'sum_halved'):
-        unit_price = (price_a + price_b) / Decimal(2)
-    else:
-        unit_price = max(price_a, price_b)
+    unit_price = max(price_a, price_b) if method == 'max_price' else (price_a + price_b) / Decimal(2)
 
     customizations_whole = normalize_customization_list(payload.get('customizations_whole') or [])
     customizations_half1 = normalize_customization_list(payload.get('customizations_half1') or [])
     customizations_half2 = normalize_customization_list(payload.get('customizations_half2') or [])
 
-    extras_total = (
+    unit_price += (
         sum_customizations_price(customizations_whole)
         + sum_customizations_price(customizations_half1)
         + sum_customizations_price(customizations_half2)
     )
-    unit_price = unit_price + extras_total
 
     ids_sorted = sorted([str(p1.id), str(p2.id)], key=int)
+    name       = f"{p1.name} / {p2.name} (Meio a meio)"
+    images     = [get_image_url_from_product(p1), get_image_url_from_product(p2)]
 
-    key_payload = {
-        'type': 'half_half',
-        'product_ids': ids_sorted,
+    combination_details = {
+        'product_ids':          ids_sorted,
+        'names':                [p1.name, p2.name],
+        'images':               images,
         'customizations_whole': customizations_whole,
         'customizations_half1': customizations_half1,
         'customizations_half2': customizations_half2,
-        'notes': notes,
+        'notes_half1':          notes_half1,
+        'notes_half2':          notes_half2,
+    }
+    key_payload = {
+        'type':                 'half_half',
+        'product_ids':          ids_sorted,
+        'customizations_whole': customizations_whole,
+        'customizations_half1': customizations_half1,
+        'customizations_half2': customizations_half2,
+        'notes_half1':          notes_half1,
+        'notes_half2':          notes_half2,
+        'notes':                notes,
     }
     product_key = build_cart_item_key(f'half:{ids_sorted[0]}:{ids_sorted[1]}', key_payload)
-
-    name = f"{p1.name} / {p2.name} (Meio a meio)"
-    images = [get_image_url_from_product(p1), get_image_url_from_product(p2)]
-    combination_details = {
-        'product_ids': ids_sorted,
-        'names': [p1.name, p2.name],
-        'images': images,
-        'customizations_whole': customizations_whole,
-        'customizations_half1': customizations_half1,
-        'customizations_half2': customizations_half2,
-    }
 
     cart = get_or_create_cart(request)
 
     defaults = {
-        'name': name,
-        'price': unit_price,
-        'quantity': quantity,
-        'combination_details': combination_details,
-        'product_key': product_key,
+        'name': name, 'price': unit_price, 'quantity': quantity,
+        'combination_details': combination_details, 'product_key': product_key,
     }
     if notes:
         defaults['notes'] = notes
 
-    cart_item, created = CartItem.objects.get_or_create(
-        cart=cart,
-        product_key=product_key,
-        defaults=defaults
-    )
+    cart_item, created = CartItem.objects.get_or_create(cart=cart, product_key=product_key, defaults=defaults)
     if not created:
-        cart_item.quantity = cart_item.quantity + quantity
-        cart_item.price = unit_price
+        cart_item.quantity            += quantity
+        cart_item.price               = unit_price
         cart_item.combination_details = combination_details
         update_fields = ['quantity', 'price', 'combination_details']
         if notes:
@@ -664,23 +691,12 @@ def add_half_half(request):
         cart_item.save(update_fields=update_fields)
 
     total_items = cart.items.aggregate(total=Sum('quantity'))['total'] or 0
-    cart_total = sum((item.price * item.quantity) for item in cart.items.all())
-
-    msg = (
-        f"Pizza meio a meio adicionada. Será cobrado {format_currency(unit_price)} "
-        f"por unidade."
-    )
+    cart_total  = sum((item.price * item.quantity) for item in cart.items.all())
 
     return JsonResponse({
-        'success': True,
-        'added': True,
-        'message': msg,
+        'success':    True,
+        'added':      True,
+        'message':    f"Pizza meio a meio adicionada. Sera cobrado {format_currency(unit_price)} por unidade.",
         'cart_count': int(total_items),
         'cart_total': str(cart_total),
     })
-
-
-def format_currency(value: Decimal):
-    q = value.quantize(Decimal('0.01'))
-    s = f"{q:.2f}"
-    return "R$ " + s.replace('.', ',')

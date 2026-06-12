@@ -2,7 +2,6 @@
 {% load static %}
 
 {% block page_name %}checkout{% endblock %}
-
 {% block title %}Finalizar Pedido - {{ tenant.name }}{% endblock %}
 
 {% block content %}
@@ -62,30 +61,26 @@
           <h2 class="text-lg font-semibold text-gray-800">Forma de Pagamento</h2>
         </div>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <label class="payment-option relative flex flex-col items-center justify-center p-4 border rounded-2xl cursor-pointer hover:bg-gray-50 transition border-primary bg-primary/5 text-primary"
-                 data-value="pix">
+          <label class="payment-option relative flex flex-col items-center justify-center p-4 border rounded-2xl cursor-pointer hover:bg-gray-50 transition border-primary bg-primary/5 text-primary" data-value="pix">
             <input type="radio" name="payment_method" value="pix" class="hidden" checked>
             <span class="text-sm font-medium">Pix</span>
           </label>
-          <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition"
-                 data-value="card_delivery">
-            <input type="radio" name="payment_method" value="card_delivery" class="hidden">
+          <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition" data-value="debit_card">
+            <input type="radio" name="payment_method" value="debit_card" class="hidden">
             <span class="text-sm font-medium">Cartão de Débito</span>
           </label>
-          <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition"
-                 data-value="card_credit">
-            <input type="radio" name="payment_method" value="card_credit" class="hidden">
+          <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition" data-value="credit_card">
+            <input type="radio" name="payment_method" value="credit_card" class="hidden">
             <span class="text-sm font-medium">Cartão de Crédito</span>
           </label>
-          <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition"
-                 data-value="cash">
+          <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition" data-value="cash">
             <input type="radio" name="payment_method" value="cash" class="hidden">
             <span class="text-sm font-medium">Dinheiro</span>
           </label>
         </div>
       </div>
 
-      <!-- Troco (aparece só quando "Dinheiro" selecionado) -->
+      <!-- Troco -->
       <div id="troco-field" class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hidden">
         <div class="flex items-center gap-3 mb-4 text-primary">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -93,34 +88,108 @@
           </svg>
           <h2 class="text-lg font-semibold text-gray-800">Precisa de Troco?</h2>
         </div>
-        <input type="text" name="change_amount"
+        <input type="text" name="change_for"
                placeholder="Para quanto precisa de troco? (ex: 50,00)"
                class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
       </div>
 
       <button type="submit" id="submit-button"
               class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/30 transition-all transform hover:scale-[1.02] active:scale-[0.98]">
-        {% if tenant.sale_mode == 'whatsapp' %}
-          Enviar Pedido via WhatsApp
-        {% else %}
-          Confirmar Pedido
-        {% endif %}
+        {% if tenant.sale_mode == 'whatsapp' %}Enviar Pedido via WhatsApp{% else %}Confirmar Pedido{% endif %}
       </button>
     </form>
 
-    <!-- Resumo -->
+    <!-- Resumo lateral -->
     <div class="lg:w-1/3">
       <div class="bg-white p-6 rounded-3xl shadow-lg border border-gray-100 sticky top-24">
         <h2 class="text-xl font-bold mb-6">Seu Carrinho</h2>
 
         <div class="space-y-4 mb-6">
           {% for item in cart_items %}
-          <div class="flex justify-between items-center text-sm">
-            <div class="flex gap-3">
-              <span class="font-bold text-primary">{{ item.quantity }}x</span>
-              <span class="text-gray-700">{{ item.name }}</span>
+          <div class="text-sm border-b border-gray-100 pb-3 last:border-0">
+
+            <!-- Nome + quantidade + preço -->
+            <div class="flex justify-between items-start">
+              <div class="flex gap-2">
+                <span class="font-bold text-primary">{{ item.quantity }}x</span>
+                <span class="text-gray-700 font-medium">{{ item.name }}</span>
+              </div>
+              <span class="font-semibold whitespace-nowrap ml-2">R$ {{ item.total_price|floatformat:2 }}</span>
             </div>
-            <span class="font-semibold">R$ {{ item.price|floatformat:2 }}</span>
+
+            {% if item.is_half_half %}
+
+              <!-- Borda / customizações gerais -->
+              {% if item.customizations_whole %}
+              <ul class="mt-1 ml-6 space-y-0.5">
+                {% for c in item.customizations_whole %}
+                <li class="text-gray-500 text-xs">
+                  Borda: {{ c.option_name }}
+                  {% if c.price and c.price != "0.00" %}<span class="text-primary">(+R$ {{ c.price }})</span>{% endif %}
+                </li>
+                {% endfor %}
+              </ul>
+              {% endif %}
+
+              <!-- Metade 1 -->
+              {% if item.customizations_half1 or item.notes_half1 %}
+              <div class="mt-1 ml-6">
+                <p class="text-xs text-gray-400 font-medium">{{ item.names.0 }}:</p>
+                <ul class="space-y-0.5">
+                  {% for c in item.customizations_half1 %}
+                  <li class="text-gray-500 text-xs">
+                    + {{ c.option_name }}
+                    {% if c.price and c.price != "0.00" %}<span class="text-primary">(+R$ {{ c.price }})</span>{% endif %}
+                  </li>
+                  {% endfor %}
+                </ul>
+                {% if item.notes_half1 %}
+                  <p class="text-xs text-amber-600 italic mt-0.5">Obs: {{ item.notes_half1 }}</p>
+                {% endif %}
+              </div>
+              {% endif %}
+
+              <!-- Metade 2 -->
+              {% if item.customizations_half2 or item.notes_half2 %}
+              <div class="mt-1 ml-6">
+                <p class="text-xs text-gray-400 font-medium">{{ item.names.1 }}:</p>
+                <ul class="space-y-0.5">
+                  {% for c in item.customizations_half2 %}
+                  <li class="text-gray-500 text-xs">
+                    + {{ c.option_name }}
+                    {% if c.price and c.price != "0.00" %}<span class="text-primary">(+R$ {{ c.price }})</span>{% endif %}
+                  </li>
+                  {% endfor %}
+                </ul>
+                {% if item.notes_half2 %}
+                  <p class="text-xs text-amber-600 italic mt-0.5">Obs: {{ item.notes_half2 }}</p>
+                {% endif %}
+              </div>
+              {% endif %}
+
+            {% else %}
+
+              <!-- Produto simples: customizações -->
+              {% if item.customizations %}
+              <ul class="mt-1 ml-6 space-y-0.5">
+                {% for c in item.customizations %}
+                <li class="text-gray-500 text-xs">
+                  + {{ c.group_name }}: {{ c.option_name }}
+                  {% if c.price and c.price != "0.00" and c.price != "0" %}
+                    <span class="text-primary">(+R$ {{ c.price }})</span>
+                  {% endif %}
+                </li>
+                {% endfor %}
+              </ul>
+              {% endif %}
+
+            {% endif %}
+
+            <!-- Observação geral -->
+            {% if item.notes %}
+              <p class="mt-1 ml-6 text-xs text-gray-400 italic">Obs: {{ item.notes }}</p>
+            {% endif %}
+
           </div>
           {% endfor %}
         </div>
@@ -132,7 +201,7 @@
           </div>
           <div class="flex justify-between text-gray-500">
             <span>Taxa de entrega</span>
-            <span class="text-green-600 font-medium">Grátis</span>
+            <span class="text-green-600 font-medium">Gratis</span>
           </div>
           <div class="flex justify-between text-xl font-bold pt-2 text-gray-900 border-t border-gray-100 mt-2">
             <span>Total</span>
@@ -140,36 +209,29 @@
           </div>
         </div>
 
-        <!-- Itens do pedido para o JS do WhatsApp -->
-        <script type="application/json" id="checkout-order-data">
-          {
-            "items": [
-              {% for item in cart_items %}
-              {
-                "quantity": {{ item.quantity }},
-                "name": "{{ item.name|escapejs }}",
-                "price": "{{ item.price|floatformat:2 }}"
-              }{% if not forloop.last %},{% endif %}
-              {% endfor %}
-            ],
-            "total": "{{ total|floatformat:2 }}",
-            "subtotal": "{{ subtotal|floatformat:2 }}"
-          }
-        </script>
-
         <p class="text-center text-[10px] text-gray-400 mt-4 uppercase tracking-widest font-bold">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-3-3H6a2 2 0 00-3 3v6a2 2 0 003 3z" />
           </svg>
-          {% if tenant.sale_mode == 'whatsapp' %}
-            Pedido enviado via WhatsApp
-          {% else %}
-            Pagamento 100% Seguro
-          {% endif %}
+          {% if tenant.sale_mode == 'whatsapp' %}Pedido enviado via WhatsApp{% else %}Pagamento 100% Seguro{% endif %}
         </p>
       </div>
     </div>
 
   </div>
 </div>
+
+<script>
+  document.querySelectorAll('.payment-option').forEach(function(label) {
+    label.addEventListener('click', function() {
+      document.querySelectorAll('.payment-option').forEach(function(l) {
+        l.classList.remove('border-primary', 'bg-primary/5', 'text-primary');
+        l.classList.add('border-gray-200');
+      });
+      this.classList.add('border-primary', 'bg-primary/5', 'text-primary');
+      this.classList.remove('border-gray-200');
+      document.getElementById('troco-field').classList.toggle('hidden', this.dataset.value !== 'cash');
+    });
+  });
+</script>
 {% endblock %}

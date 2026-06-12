@@ -27,17 +27,20 @@ function formatPrice(value) {
 }
 
 // Seletores do modal
-function getModal() { return document.querySelector('[data-modal="half-half"]'); }
-function getDropdownBtn() { return document.querySelector('[data-half-half-dropdown-btn]'); }
-function getDropdownList() { return document.querySelector('[data-half-half-dropdown-list]'); }
-function getDropdownText() { return document.querySelector('[data-half-half-dropdown-text]'); }
-function getDropdownItems() { return document.querySelector('[data-half-half-items]'); }
-function getSearchInput() { return document.querySelector('[data-half-half-search]'); }
-function getSubmitBtn() { return document.querySelector('[data-half-half-submit]'); }
-function getCustomizationsSection() { return document.getElementById('half-customizations-section'); }
-function getBordaContainer() { return document.querySelector('[data-borda-container]'); }
-function getHalf1Container() { return document.querySelector('[data-half1-addons-container]'); }
-function getHalf2Container() { return document.querySelector('[data-half2-addons-container]'); }
+function getModal()                  { return document.querySelector('[data-modal="half-half"]'); }
+function getDropdownBtn()            { return document.querySelector('[data-half-half-dropdown-btn]'); }
+function getDropdownList()           { return document.querySelector('[data-half-half-dropdown-list]'); }
+function getDropdownText()           { return document.querySelector('[data-half-half-dropdown-text]'); }
+function getDropdownItems()          { return document.querySelector('[data-half-half-items]'); }
+function getSearchInput()            { return document.querySelector('[data-half-half-search]'); }
+function getSubmitBtn()              { return document.querySelector('[data-half-half-submit]'); }
+function getCustomizationsSection()  { return document.getElementById('half-customizations-section'); }
+function getObservationsSection()    { return document.getElementById('half-observations-section'); }
+function getBordaContainer()         { return document.querySelector('[data-borda-container]'); }
+function getHalf1Container()         { return document.querySelector('[data-half1-addons-container]'); }
+function getHalf2Container()         { return document.querySelector('[data-half2-addons-container]'); }
+function getNotes1()                 { return document.getElementById('notes-half1'); }
+function getNotes2()                 { return document.getElementById('notes-half2'); }
 
 // Calcula preço extra das customizações selecionadas
 function sumCustomizationsPrice(container) {
@@ -51,13 +54,13 @@ function sumCustomizationsPrice(container) {
 
 // Atualiza preview visual (incluindo preço com customizações)
 function updatePreview() {
-  const leftName = document.querySelector('[data-half-left-name]');
+  const leftName  = document.querySelector('[data-half-left-name]');
   const rightName = document.querySelector('[data-half-right-name]');
   const leftThumb = document.querySelector('[data-half-left-thumb]');
   const rightThumb = document.querySelector('[data-half-right-thumb]');
-  const priceEl = document.querySelector('[data-half-price]');
+  const priceEl   = document.querySelector('[data-half-price]');
 
-  if (leftName) leftName.textContent = selected[0]?.name || 'Escolha...';
+  if (leftName)  leftName.textContent  = selected[0]?.name || 'Escolha...';
   if (rightName) rightName.textContent = selected[1]?.name || 'Selecione...';
 
   if (leftThumb) {
@@ -71,10 +74,10 @@ function updatePreview() {
 
   if (priceEl) {
     if (selected[0] && selected[1]) {
-      const base = Math.max(parsePrice(selected[0].price), parsePrice(selected[1].price));
+      const base  = Math.max(parsePrice(selected[0].price), parsePrice(selected[1].price));
       const extra = sumCustomizationsPrice(getBordaContainer())
-        + sumCustomizationsPrice(getHalf1Container())
-        + sumCustomizationsPrice(getHalf2Container());
+                  + sumCustomizationsPrice(getHalf1Container())
+                  + sumCustomizationsPrice(getHalf2Container());
       priceEl.textContent = formatPrice(base + extra);
     } else {
       priceEl.textContent = 'R$ 0,00';
@@ -83,6 +86,30 @@ function updatePreview() {
 
   const submitBtn = getSubmitBtn();
   if (submitBtn) submitBtn.disabled = !(selected[0] && selected[1]);
+}
+
+// Exibe/atualiza seção de observações por metade
+function updateObservationsSection() {
+  const section = getObservationsSection();
+  if (!section) return;
+
+  if (selected[0] && selected[1]) {
+    const label1 = document.getElementById('obs-label-half1');
+    const label2 = document.getElementById('obs-label-half2');
+    if (label1) label1.textContent = selected[0].name;
+    if (label2) label2.textContent = selected[1].name;
+    section.classList.remove('hidden');
+  } else {
+    section.classList.add('hidden');
+  }
+}
+
+// Reseta campos de observação
+function resetObservations() {
+  const section = getObservationsSection();
+  if (section) section.classList.add('hidden');
+  const n1 = getNotes1(); if (n1) n1.value = '';
+  const n2 = getNotes2(); if (n2) n2.value = '';
 }
 
 // Busca e renderiza customizações quando os dois sabores estão selecionados
@@ -97,55 +124,47 @@ async function onBothSelected() {
 
   if (!halfHalfGroups.length) {
     section.classList.add('hidden');
-    return;
+  } else {
+    // Grupos whole/both → seção Borda (uma vez)
+    const wholeGroups = halfHalfGroups.filter(g => g.apply_to === 'whole' || g.apply_to === 'both');
+    // Grupos half → separados por metade
+    const halfGroups  = halfHalfGroups.filter(g => g.apply_to === 'half');
+
+    let html = '';
+    if (wholeGroups.length) {
+      html += `
+        <div class="mb-4">
+          <h4 class="font-semibold text-gray-700 text-sm mb-2">Borda</h4>
+          <div data-borda-container class="space-y-2"></div>
+        </div>`;
+    }
+    if (halfGroups.length) {
+      html += `
+        <div class="mb-4">
+          <h4 data-half1-title class="font-semibold text-gray-700 text-sm mb-2">Adicionais: ${selected[0].name}</h4>
+          <div data-half1-addons-container class="space-y-2"></div>
+        </div>
+        <div class="mb-4">
+          <h4 data-half2-title class="font-semibold text-gray-700 text-sm mb-2">Adicionais: ${selected[1].name}</h4>
+          <div data-half2-addons-container class="space-y-2"></div>
+        </div>`;
+    }
+
+    section.innerHTML = html;
+
+    const bordaContainer = getBordaContainer();
+    const half1Container = getHalf1Container();
+    const half2Container = getHalf2Container();
+
+    if (bordaContainer && wholeGroups.length) renderCustomizationGroups(bordaContainer, wholeGroups, null);
+    if (half1Container && halfGroups.length)  renderCustomizationGroups(half1Container, halfGroups, null);
+    if (half2Container && halfGroups.length)  renderCustomizationGroups(half2Container, halfGroups, null);
+
+    section.addEventListener('change', () => updatePreview());
   }
 
-  // Grupos de borda/inteiro: whole ou both → aparecem UMA VEZ na seção Borda
-  const wholeGroups = halfHalfGroups.filter(g => g.apply_to === 'whole' || g.apply_to === 'both');
-  // Grupos de metade: APENAS half → aparecem separados por metade (both NÃO entra aqui)
-  const halfGroups = halfHalfGroups.filter(g => g.apply_to === 'half');
-
-  let html = '';
-
-  if (wholeGroups.length) {
-    html += `
-      <div class="mb-4">
-        <h4 class="font-semibold text-gray-700 text-sm mb-2">🍕 Borda</h4>
-        <div data-borda-container class="space-y-2"></div>
-      </div>`;
-  }
-
-  if (halfGroups.length) {
-    html += `
-      <div class="mb-4">
-        <h4 data-half1-title class="font-semibold text-gray-700 text-sm mb-2">Adicionais: ${selected[0].name}</h4>
-        <div data-half1-addons-container class="space-y-2"></div>
-      </div>
-      <div class="mb-4">
-        <h4 data-half2-title class="font-semibold text-gray-700 text-sm mb-2">Adicionais: ${selected[1].name}</h4>
-        <div data-half2-addons-container class="space-y-2"></div>
-      </div>`;
-  }
-
-  section.innerHTML = html;
-
-  // Renderizar nos containers recém-criados
-  const bordaContainer = getBordaContainer();
-  const half1Container = getHalf1Container();
-  const half2Container = getHalf2Container();
-
-  if (bordaContainer && wholeGroups.length) {
-    renderCustomizationGroups(bordaContainer, wholeGroups, null);
-  }
-  if (half1Container && halfGroups.length) {
-    renderCustomizationGroups(half1Container, halfGroups, null);
-  }
-  if (half2Container && halfGroups.length) {
-    renderCustomizationGroups(half2Container, halfGroups, null);
-  }
-
-  // Atualizar preço ao mudar seleção
-  section.addEventListener('change', () => updatePreview());
+  // Sempre atualiza observações após selecionar os dois sabores
+  updateObservationsSection();
 }
 
 // Constrói cache de opções a partir do DOM
@@ -156,7 +175,7 @@ function buildCache() {
     if (!id) return;
     cachedOptions.push({
       id,
-      name: card.dataset.productName || card.querySelector('.product-title')?.textContent?.trim() || 'Produto',
+      name:  card.dataset.productName  || card.querySelector('.product-title')?.textContent?.trim() || 'Produto',
       price: String(parsePrice(card.dataset.productPrice || '0')),
       image: card.dataset.productImage || card.querySelector('img')?.src || '',
     });
@@ -222,15 +241,12 @@ function selectSecond(product) {
   const list = getDropdownList();
   if (list) list.classList.add('hidden');
 
-  // Marca item selecionado
   getDropdownItems()?.querySelectorAll('[data-product-id]').forEach((el) => {
     el.setAttribute('aria-selected', el.dataset.productId === String(product.id) ? 'true' : 'false');
   });
 
   updatePreview();
-
-  // Busca e renderiza customizações
-  onBothSelected();
+  onBothSelected(); // carrega customizações + mostra observações
 }
 
 // Abre modal com metade 1 já definida
@@ -251,13 +267,10 @@ function openHalfHalfModal(product) {
   const list = getDropdownList();
   if (list) list.classList.add('hidden');
 
-  // Esconde seção de customizações até selecionar o segundo sabor
   const section = getCustomizationsSection();
-  if (section) {
-    section.innerHTML = '';
-    section.classList.add('hidden');
-  }
+  if (section) { section.innerHTML = ''; section.classList.add('hidden'); }
 
+  resetObservations();
   updatePreview();
   emit(EVENTS.MODAL_OPEN, { name: 'half-half' });
 }
@@ -269,7 +282,7 @@ async function submitHalfHalf() {
     return;
   }
 
-  // Validar grupos obrigatórios (borda)
+  // Valida grupos obrigatórios (borda)
   const bordaContainer = getBordaContainer();
   const wholeGroups = halfHalfGroups.filter(g => g.apply_to === 'whole' || g.apply_to === 'both');
   if (bordaContainer && wholeGroups.length) {
@@ -295,10 +308,9 @@ async function submitHalfHalf() {
       </svg> Adicionando...`;
   }
 
-  // Coletar customizações
-  const customizations_whole = bordaContainer ? collectSelectedOptions(bordaContainer) : [];
-  const customizations_half1 = getHalf1Container() ? collectSelectedOptions(getHalf1Container()) : [];
-  const customizations_half2 = getHalf2Container() ? collectSelectedOptions(getHalf2Container()) : [];
+  const customizations_whole = bordaContainer          ? collectSelectedOptions(bordaContainer)      : [];
+  const customizations_half1 = getHalf1Container()     ? collectSelectedOptions(getHalf1Container()) : [];
+  const customizations_half2 = getHalf2Container()     ? collectSelectedOptions(getHalf2Container()) : [];
 
   const result = await postJSON(url, {
     product_ids: [selected[0].id, selected[1].id],
@@ -306,6 +318,8 @@ async function submitHalfHalf() {
     customizations_whole,
     customizations_half1,
     customizations_half2,
+    notes_half1: getNotes1()?.value.trim() || '',
+    notes_half2: getNotes2()?.value.trim() || '',
   });
 
   if (submitBtn) {
@@ -334,12 +348,11 @@ export function initHalfHalf() {
   document.addEventListener('click', (event) => {
     const btn = event.target.closest('[data-action="start-half-half"]');
     if (!btn) return;
-
     event.preventDefault();
 
     const product = {
-      id: String(btn.dataset.productId || ''),
-      name: btn.dataset.productName || '',
+      id:    String(btn.dataset.productId || ''),
+      name:  btn.dataset.productName || '',
       price: String(parsePrice(btn.dataset.productPrice || '0')),
       image: btn.dataset.productImage || '',
     };
@@ -356,7 +369,6 @@ export function initHalfHalf() {
   document.addEventListener('click', async (event) => {
     const btn = event.target.closest('[data-half-half-submit]');
     if (!btn) return;
-
     event.preventDefault();
     await submitHalfHalf();
   });
@@ -365,8 +377,8 @@ export function initHalfHalf() {
   document.addEventListener('click', (event) => {
     const btn = event.target.closest('[data-half-half-dropdown-btn]');
     if (!btn) return;
-
     event.preventDefault();
+
     const list = getDropdownList();
     if (!list) return;
 
@@ -385,7 +397,6 @@ export function initHalfHalf() {
   document.addEventListener('input', (event) => {
     const input = event.target.closest('[data-half-half-search]');
     if (!input) return;
-
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {
       renderDropdownItems(selected[0]?.id, input.value);
@@ -408,7 +419,6 @@ export function initHalfHalf() {
 
     const items = Array.from(list.querySelectorAll('.dropdown-item'));
     if (!items.length) return;
-
     const idx = items.indexOf(document.activeElement);
 
     if (event.key === 'ArrowDown') {
@@ -428,12 +438,17 @@ export function initHalfHalf() {
     if (event.detail?.name !== 'half-half') return;
     selected = [null, null];
     halfHalfGroups = [];
+
     const text = getDropdownText();
     if (text) text.textContent = 'Selecione o segundo sabor';
+
     const search = getSearchInput();
     if (search) search.value = '';
+
     const section = getCustomizationsSection();
     if (section) { section.innerHTML = ''; section.classList.add('hidden'); }
+
+    resetObservations();
     updatePreview();
   });
 }

@@ -1,6 +1,6 @@
 <!-- templates/stores/_half_half_selector.html -->
 <div id="half-half-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden opacity-0 pointer-events-none transition-opacity duration-200">
-    <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4 relative transform scale-95 transition-transform duration-200 ease-out" id="half-half-modal-content">
+    <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4 relative transform scale-95 transition-transform duration-200 ease-out overflow-y-auto max-h-[90vh]" id="half-half-modal-content">
         <div class="flex justify-between items-center mb-4">
             <h3 class="text-xl font-bold text-gray-800">Monte sua Pizza Meio a Meio</h3>
             <button type="button" id="close-half-half-modal" class="text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/20 rounded-full p-1 transition-colors">
@@ -9,10 +9,9 @@
                 </svg>
             </button>
         </div>
-        
+
         <div class="mb-6">
             <p class="text-gray-600 mb-4 text-sm">Selecione dois sabores diferentes para sua pizza:</p>
-            
             <div class="grid grid-cols-2 gap-3 max-h-64 overflow-y-auto p-2" id="pizza-options-container">
                 {% for product in pizza_products %}
                 <div class="border border-gray-200 rounded-lg p-3 cursor-pointer half-half-option hover:border-primary hover:bg-primary/5 transition-all duration-200 transform hover:scale-105"
@@ -25,14 +24,13 @@
                 {% endfor %}
             </div>
         </div>
-        
+
         <!-- Visual Selection Area -->
         <div class="mb-6 p-4 bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl border border-primary/20">
             <div class="text-center mb-3">
                 <h4 class="font-semibold text-gray-700">Sua Escolha</h4>
                 <p class="text-xs text-gray-500">Selecione dois sabores diferentes</p>
             </div>
-            
             <div class="flex items-center justify-center mb-4">
                 <div class="relative w-full max-w-xs">
                     <div class="relative h-32 mx-auto">
@@ -41,8 +39,6 @@
                                 <div class="text-xs text-primary font-medium">½ + ½</div>
                             </div>
                         </div>
-                        
-                        <!-- Left Half -->
                         <div class="absolute left-0 top-0 w-1/2 h-full overflow-hidden rounded-l-full">
                             <div class="w-full h-full rounded-l-full flex items-center justify-center bg-white/80 border-r border-primary/30" id="left-half-preview">
                                 <div class="text-center px-2">
@@ -51,8 +47,6 @@
                                 </div>
                             </div>
                         </div>
-                        
-                        <!-- Right Half -->
                         <div class="absolute right-0 top-0 w-1/2 h-full overflow-hidden rounded-r-full">
                             <div class="w-full h-full rounded-r-full flex items-center justify-center bg-white/80 border-l border-primary/30" id="right-half-preview">
                                 <div class="text-center px-2">
@@ -64,13 +58,34 @@
                     </div>
                 </div>
             </div>
-            
             <div class="text-center">
                 <div class="text-2xl font-bold text-primary mb-1" id="half-half-price-display">R$ 0,00</div>
                 <div class="text-sm text-gray-600">Preço da pizza mais cara</div>
             </div>
         </div>
-        
+
+        <!-- ===== OBSERVAÇÕES POR METADE (aparece ao selecionar os dois sabores) ===== -->
+        <div id="half-observations-section" class="hidden mb-6 space-y-3">
+            <p class="text-sm font-medium text-gray-700">Observações <span class="text-gray-400 font-normal">(opcional)</span></p>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">
+                    Metade 1: <span id="obs-label-half1" class="font-medium text-gray-700">—</span>
+                </label>
+                <textarea id="notes-half1" rows="2"
+                    placeholder="Ex: sem cebola, borda recheada..."
+                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition"></textarea>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">
+                    Metade 2: <span id="obs-label-half2" class="font-medium text-gray-700">—</span>
+                </label>
+                <textarea id="notes-half2" rows="2"
+                    placeholder="Ex: sem cebola, borda recheada..."
+                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition"></textarea>
+            </div>
+        </div>
+        <!-- ===================================================================== -->
+
         <div class="flex gap-3">
             <button type="button" id="cancel-half-half-modal" class="flex-1 py-3 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors">
                 Cancelar
@@ -88,28 +103,48 @@ let selectedProducts = [];
 function openHalfHalfModal() {
     const modal = document.getElementById('half-half-modal');
     const modalContent = document.getElementById('half-half-modal-content');
-    
     modal.classList.remove('hidden', 'opacity-0', 'pointer-events-none');
     modal.classList.add('opacity-100');
     setTimeout(() => modalContent.classList.remove('scale-95'), 10);
-    
     selectedProducts = [];
     updateVisualSelection();
     updatePriceDisplay();
+    resetObservations();
 }
 
 function closeHalfHalfModal() {
     const modal = document.getElementById('half-half-modal');
     const modalContent = document.getElementById('half-half-modal-content');
-    
     modalContent.classList.add('scale-95');
     modal.classList.remove('opacity-100');
     modal.classList.add('opacity-0');
-    
     setTimeout(() => {
         modal.classList.add('hidden', 'pointer-events-none');
         selectedProducts = [];
+        resetObservations();
     }, 200);
+}
+
+function resetObservations() {
+    const section = document.getElementById('half-observations-section');
+    if (section) section.classList.add('hidden');
+    const n1 = document.getElementById('notes-half1');
+    const n2 = document.getElementById('notes-half2');
+    if (n1) n1.value = '';
+    if (n2) n2.value = '';
+}
+
+function updateObservationsSection() {
+    const section = document.getElementById('half-observations-section');
+    const label1 = document.getElementById('obs-label-half1');
+    const label2 = document.getElementById('obs-label-half2');
+    if (selectedProducts.length === 2) {
+        if (label1) label1.textContent = selectedProducts[0].name;
+        if (label2) label2.textContent = selectedProducts[1].name;
+        if (section) section.classList.remove('hidden');
+    } else {
+        if (section) section.classList.add('hidden');
+    }
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -122,17 +157,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const modal = document.getElementById('half-half-modal');
     if (modal) modal.addEventListener('click', function(e) { if (e.target === modal) closeHalfHalfModal(); });
 
-    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { const modal = document.getElementById('half-half-modal'); if (modal && !modal.classList.contains('hidden')) closeHalfHalfModal(); } });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('half-half-modal');
+            if (modal && !modal.classList.contains('hidden')) closeHalfHalfModal();
+        }
+    });
 
     const optionsContainer = document.getElementById('pizza-options-container');
     if (optionsContainer) {
         optionsContainer.addEventListener('click', function(e) {
             const option = e.target.closest('.half-half-option');
             if (option) {
-                const productId = option.dataset.productId;
-                const productName = option.dataset.productName;
-                const productPrice = parseFloat(option.dataset.productPrice);
-                selectHalfHalfProduct(productId, productName, productPrice);
+                selectHalfHalfProduct(
+                    option.dataset.productId,
+                    option.dataset.productName,
+                    parseFloat(option.dataset.productPrice)
+                );
             }
         });
     }
@@ -150,9 +191,9 @@ function selectHalfHalfProduct(productId, productName, productPrice) {
     }
     updateVisualSelection();
     updatePriceDisplay();
+    updateObservationsSection();
     document.querySelectorAll('.half-half-option').forEach(option => {
-        const id = option.dataset.productId;
-        const isSelected = selectedProducts.some(p => p.id === id);
+        const isSelected = selectedProducts.some(p => p.id === option.dataset.productId);
         option.classList.toggle('border-primary', isSelected);
         option.classList.toggle('bg-primary/10', isSelected);
         option.classList.toggle('ring-2', isSelected);
@@ -166,8 +207,8 @@ function updateVisualSelection() {
     if (leftName) leftName.textContent = 'Escolha...';
     if (rightName) rightName.textContent = 'Escolha...';
     selectedProducts.forEach((product, index) => {
-        const element = index === 0 ? leftName : rightName;
-        if (element) { element.textContent = product.name; element.title = product.name; }
+        const el = index === 0 ? leftName : rightName;
+        if (el) { el.textContent = product.name; el.title = product.name; }
     });
 }
 
@@ -186,6 +227,10 @@ function updatePriceDisplay() {
 
 async function addToCartHalfHalf() {
     if (selectedProducts.length !== 2) return;
+
+    const notesHalf1 = document.getElementById('notes-half1')?.value.trim() || '';
+    const notesHalf2 = document.getElementById('notes-half2')?.value.trim() || '';
+
     const btn = document.getElementById('add-half-half-btn');
     const originalText = btn.innerHTML;
     const originalClasses = btn.className;
@@ -194,10 +239,18 @@ async function addToCartHalfHalf() {
     btn.className = originalClasses + ' opacity-90';
 
     try {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+            || (document.cookie.split('; ').find(c => c.startsWith('csrftoken=')) || '').split('=')[1];
+
         const response = await fetch('/checkout/add-half-half/', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': (document.querySelector('[name=csrfmiddlewaretoken]') ? document.querySelector('[name=csrfmiddlewaretoken]').value : (document.cookie.split("; ").find(c => c.startsWith("csrftoken=")) || "").split("=")[1]) },
-            body: JSON.stringify({ product_ids: selectedProducts.map(p => p.id), quantity: 1 }),
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({
+                product_ids: selectedProducts.map(p => p.id),
+                quantity: 1,
+                notes_half1: notesHalf1,
+                notes_half2: notesHalf2,
+            }),
             credentials: 'same-origin'
         });
 
@@ -207,15 +260,17 @@ async function addToCartHalfHalf() {
         if (data.success) {
             const badge = document.getElementById('cart-count');
             if (badge) { badge.textContent = data.cart_count; badge.classList.remove('hidden'); }
-            if (typeof showToast === 'function') showToast(data.message, 'success'); else showBasicNotification(data.message, 'success');
+            if (typeof showToast === 'function') showToast(data.message, 'success');
+            else showBasicNotification(data.message, 'success');
             closeHalfHalfModal();
         } else {
-            if (typeof showToast === 'function') showToast(data.error || 'Erro ao adicionar ao carrinho', 'error'); else showBasicNotification(data.error || 'Erro ao adicionar ao carrinho', 'error');
+            if (typeof showToast === 'function') showToast(data.error || 'Erro ao adicionar ao carrinho', 'error');
+            else showBasicNotification(data.error || 'Erro ao adicionar ao carrinho', 'error');
         }
     } catch (error) {
         console.error('Erro:', error);
-        const errorMsg = error.message || 'Erro de conexão';
-        if (typeof showToast === 'function') showToast(errorMsg, 'error'); else showBasicNotification(errorMsg, 'error');
+        if (typeof showToast === 'function') showToast(error.message || 'Erro de conexão', 'error');
+        else showBasicNotification(error.message || 'Erro de conexão', 'error');
     } finally {
         setTimeout(() => { btn.disabled = false; btn.innerHTML = originalText; btn.className = originalClasses; }, 500);
     }
@@ -223,9 +278,12 @@ async function addToCartHalfHalf() {
 
 function showBasicNotification(message, type) {
     const notification = document.createElement('div');
-    notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm ${ type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white' }`;
+    notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm ${type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`;
     notification.textContent = message;
     document.body.appendChild(notification);
-    setTimeout(() => { notification.style.opacity = '0'; setTimeout(() => { if (notification.parentNode) notification.parentNode.removeChild(notification); }, 300); }, 3000);
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        setTimeout(() => { if (notification.parentNode) notification.parentNode.removeChild(notification); }, 300);
+    }, 3000);
 }
 </script>

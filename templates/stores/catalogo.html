@@ -341,6 +341,27 @@
         <!-- Preenchido dinamicamente pelo half-half.js -->
       </div>
 
+      <!-- Observações por metade (aparece após selecionar os dois sabores) -->
+      <div id="half-observations-section" class="hidden space-y-3 pt-1">
+        <p class="text-sm font-medium text-gray-700">Observações <span class="text-gray-400 font-normal">(opcional)</span></p>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">
+            Metade 1: <span id="obs-label-half1" class="font-medium text-gray-700">—</span>
+          </label>
+          <textarea id="notes-half1" rows="2"
+            placeholder="Ex: sem cebola, borda recheada..."
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition"></textarea>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">
+            Metade 2: <span id="obs-label-half2" class="font-medium text-gray-700">—</span>
+          </label>
+          <textarea id="notes-half2" rows="2"
+            placeholder="Ex: sem cebola, borda recheada..."
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition"></textarea>
+        </div>
+      </div>
+
     </div>
 
     <!-- Footer fixo -->

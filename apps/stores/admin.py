@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib import admin, messages
+from django.utils.html import format_html
 
 from apps.core.admin import TenantModelAdmin
 from apps.tenants.admin_site import tenant_admin_site
@@ -49,13 +50,38 @@ class CategoryAdmin(TenantModelAdmin):
 @admin.register(Product, site=tenant_admin_site)
 class ProductAdmin(TenantModelAdmin):
     form = ProductAdminForm
-    list_display = ('name', 'category', 'price', 'is_available', 'is_featured', 'available_days_display')
+    list_display = ('thumbnail', 'name', 'category', 'price', 'is_available', 'is_featured', 'available_days_display')
+    list_display_links = ('thumbnail', 'name')
+    list_editable = ('is_available', 'is_featured')
     search_fields = ('name', 'description', 'sku')
     list_filter = ('category', 'is_available', 'is_featured')
     inlines = [ProductImageInline]
     prepopulated_fields = {"slug": ("name",)}
     readonly_fields = ('created_at', 'updated_at')
-    actions = ['create_half_for_selected']
+    actions = ['create_half_for_selected', 'mark_as_available', 'mark_as_unavailable']
+
+    def thumbnail(self, obj):
+        url = obj.get_primary_image() if hasattr(obj, 'get_primary_image') else None
+        if url:
+            return format_html(
+                '<img src="{}" style="width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid #eee;">',
+                url,
+            )
+        return format_html(
+            '<div style="width:44px;height:44px;border-radius:8px;background:#f1f5f9;'
+            'display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px;">—</div>'
+        )
+    thumbnail.short_description = "Imagem"
+
+    def mark_as_available(self, request, queryset):
+        updated = queryset.update(is_available=True)
+        self.message_user(request, f"{updated} produto(s) marcado(s) como disponível.", messages.SUCCESS)
+    mark_as_available.short_description = "Marcar como disponível"
+
+    def mark_as_unavailable(self, request, queryset):
+        updated = queryset.update(is_available=False)
+        self.message_user(request, f"{updated} produto(s) marcado(s) como indisponível.", messages.SUCCESS)
+    mark_as_unavailable.short_description = "Marcar como indisponível"
 
     def create_half_for_selected(self, request, queryset):
         created_count = 0

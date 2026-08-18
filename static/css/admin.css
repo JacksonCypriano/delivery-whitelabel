@@ -1,0 +1,26 @@
+/* ===========================================================================
+   Ajustes visuais do painel administrativo (django-unfold)
+   Carregado via UNFOLD["STYLES"] em config/settings/base.py
+   =========================================================================== */
+
+/* Espaçamento mais confortável em tabelas de listagem */
+.unfold-table td,
+.unfold-table th {
+  vertical-align: middle;
+}
+
+/* Amostras de cor no admin de configuração de marca */
+input[type="color"] {
+  min-height: 2.25rem;
+  cursor: pointer;
+}
+
+/* Badges de status de pedido */
+.order-status-badge {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+}

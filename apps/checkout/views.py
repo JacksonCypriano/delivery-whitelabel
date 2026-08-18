@@ -343,8 +343,16 @@ def cart_view(request):
 
     populate_combination_images_for_items(items, tenant=request.tenant, persist=False)
 
-    total = sum((item.get_total_price() for item in items), Decimal('0.00'))
-    return render(request, 'checkout/cart.html', {'cart_items': items, 'total': float(total)})
+    subtotal     = sum((item.get_total_price() for item in items), Decimal('0.00'))
+    delivery_fee = to_decimal(getattr(request.tenant, 'delivery_fee', 0) or 0)
+    total        = subtotal + delivery_fee if items else Decimal('0.00')
+
+    return render(request, 'checkout/cart.html', {
+        'cart_items':   items,
+        'subtotal':     float(subtotal),
+        'delivery_fee': float(delivery_fee),
+        'total':        float(total),
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -360,9 +368,11 @@ def remove_from_cart(request, cart_item_id=None, product_id=None):
     cart = get_or_create_cart(request)
     deleted_count, _ = CartItem.objects.filter(cart=cart, id=cid).delete()
 
-    items       = cart.items.select_related('product').all()
-    total       = sum((item.get_total_price() for item in items), Decimal('0.00'))
-    total_items = sum(item.quantity for item in items)
+    items        = cart.items.select_related('product').all()
+    subtotal     = sum((item.get_total_price() for item in items), Decimal('0.00'))
+    delivery_fee = to_decimal(getattr(request.tenant, 'delivery_fee', 0) or 0)
+    total        = subtotal + delivery_fee if items else Decimal('0.00')
+    total_items  = sum(item.quantity for item in items)
 
     return JsonResponse({
         'success':    True,
@@ -392,9 +402,11 @@ def update_cart_quantity(request, cart_item_id):
             cart_item.quantity = quantity
             cart_item.save()
 
-        items       = cart.items.select_related('product').all()
-        total       = sum((item.get_total_price() for item in items), Decimal('0.00'))
-        total_items = sum(item.quantity for item in items)
+        items        = cart.items.select_related('product').all()
+        subtotal     = sum((item.get_total_price() for item in items), Decimal('0.00'))
+        delivery_fee = to_decimal(getattr(request.tenant, 'delivery_fee', 0) or 0)
+        total        = subtotal + delivery_fee if items else Decimal('0.00')
+        total_items  = sum(item.quantity for item in items)
         return JsonResponse({
             'success':    True,
             'total':      f'R$ {total:.2f}'.replace('.', ','),
@@ -417,8 +429,9 @@ def checkout_step_one(request):
         messages.warning(request, "Seu carrinho está vazio.")
         return redirect('stores:catalogo')
 
-    subtotal = sum(item.get_total_price() for item in cart_items)
-    total    = subtotal
+    subtotal     = sum(item.get_total_price() for item in cart_items)
+    delivery_fee = to_decimal(getattr(request.tenant, 'delivery_fee', 0) or 0)
+    total        = subtotal + delivery_fee
 
     if request.method == 'POST':
         full_name      = request.POST.get('full_name', '')
@@ -515,7 +528,14 @@ def checkout_step_one(request):
             delivery_address += f", {complement}"
         city_line = f"{neighborhood}, CEP {zip_code}"
 
-        total_str = f"{total:.2f}".replace('.', ',')
+        subtotal_str = f"{subtotal:.2f}".replace('.', ',')
+        total_str    = f"{total:.2f}".replace('.', ',')
+
+        totals_block = f"Subtotal: R$ {subtotal_str}\n"
+        if delivery_fee > 0:
+            fee_str = f"{delivery_fee:.2f}".replace('.', ',')
+            totals_block += f"Taxa de entrega: R$ {fee_str}\n"
+        totals_block += f"*Total: R$ {total_str}*"
 
         message = (
             f"*Novo Pedido #{order.id}*\n"
@@ -525,7 +545,7 @@ def checkout_step_one(request):
             f"*Itens*\n\n"
             f"{items_lines}\n\n"
             f"{sep}\n"
-            f"*Total: R$ {total_str}*\n"
+            f"{totals_block}\n"
             f"*Pagamento: {payment_info}*\n\n"
             f"*Entrega*\n"
             f"{delivery_address}\n"
@@ -573,9 +593,10 @@ def checkout_step_one(request):
         }
 
     context = {
-        'cart_items': [build_item_context(item) for item in cart_items],
-        'subtotal':   float(subtotal),
-        'total':      float(total),
+        'cart_items':   [build_item_context(item) for item in cart_items],
+        'subtotal':     float(subtotal),
+        'delivery_fee': float(delivery_fee),
+        'total':        float(total),
     }
     return render(request, 'checkout/checkout.html', context)
 

@@ -1,4 +1,5 @@
 import re
+from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -8,13 +9,33 @@ from .utils import validate_whatsapp_number
 
 
 class Tenant(models.Model):
-    name = models.CharField(max_length=255)
-    slug = models.SlugField(unique=True)
-    whatsapp_number = models.CharField(max_length=13, unique=True, validators=[validate_whatsapp_number], verbose_name="Formato: 5511999999999")
-    is_active = models.BooleanField(default=True)
+    name = models.CharField(max_length=255, verbose_name="Nome da loja")
+    slug = models.SlugField(unique=True, verbose_name="Identificador (subdomínio)")
+    whatsapp_number = models.CharField(max_length=13, unique=True, validators=[validate_whatsapp_number], verbose_name="WhatsApp (formato: 5511999999999)")
+    is_active = models.BooleanField(default=True, verbose_name="Loja ativa")
     created_at = models.DateTimeField(auto_now_add=True)
     sale_mode = models.CharField(max_length=20, choices=SaleMode.choices, default=SaleMode.WHATSAPP,
-        verbose_name="Define se a loja aceita pagamentos online ou apenas pedidos pelo WhatsApp."
+        verbose_name="Modo de venda",
+        help_text="Define se a loja aceita pagamentos online ou apenas pedidos pelo WhatsApp."
+    )
+
+    # ── Informações da loja (white-label) ───────────────────────────────────
+    address = models.CharField(
+        max_length=255, blank=True, verbose_name="Endereço da loja",
+        help_text="Endereço exibido no cardápio (opcional)."
+    )
+    business_hours = models.CharField(
+        max_length=255, blank=True, verbose_name="Horário de funcionamento",
+        help_text="Ex: Seg a Sáb, 18h às 23h."
+    )
+    delivery_fee = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal('0.00'),
+        verbose_name="Taxa de entrega",
+        help_text="Valor cobrado pela entrega. Deixe 0 para entrega grátis."
+    )
+    delivery_time_estimate = models.CharField(
+        max_length=60, blank=True, verbose_name="Tempo estimado de entrega",
+        help_text="Ex: 30-45 min."
     )
 
     def __str__(self):

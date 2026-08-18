@@ -33,13 +33,13 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
 
     # local apps
+    "apps.core",
     "apps.tenants",
     "apps.accounts",
     "apps.stores",
     "apps.orders",
-    "apps.whatsapp",
-    "apps.branding",
-    "apps.landing_pages",
+    "apps.checkout",
+    "apps.frontend",
 ]
 
 MIDDLEWARE = [
@@ -99,6 +99,8 @@ TEMPLATES = [
                 "django.template.context_processors.media",
                 "django.template.context_processors.static",
                 "django.contrib.messages.context_processors.messages",
+                # Disponibiliza `tenant` e `cart_count_global` em todos os templates
+                "apps.tenants.context_processors.tenant_brand",
             ],
         },
     },
@@ -164,10 +166,7 @@ UNFOLD = {
     #     "form": "app.forms.CustomLoginForm",
     # },
     "STYLES": [
-        "/static/css/style.css",
-    ],
-    "SCRIPTS": [
-        "/static/js/script.js",
+        lambda request: "/static/css/admin.css",
     ],
     "BORDER_RADIUS": "6px",
     "COLORS": {

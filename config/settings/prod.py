@@ -14,5 +14,10 @@ ALLOWED_HOSTS = [
     h.strip() for h in os.getenv("ALLOWED_HOSTS", "").split(",") if h.strip()
 ]
 
-SESSION_COOKIE_DOMAIN = ".seudominio.com"
-CSRF_COOKIE_DOMAIN = ".seudominio.com"
+# Domínio dos cookies compartilhado entre subdomínios (multi-tenant).
+# Configurável via variável de ambiente SESSION_COOKIE_DOMAIN (ex.: .meudominio.com).
+# Se não definido, o Django usa o comportamento padrão (cookie por host).
+_COOKIE_DOMAIN = os.getenv("SESSION_COOKIE_DOMAIN", "").strip() or None
+if _COOKIE_DOMAIN:
+    SESSION_COOKIE_DOMAIN = _COOKIE_DOMAIN
+    CSRF_COOKIE_DOMAIN = _COOKIE_DOMAIN

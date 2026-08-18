@@ -162,14 +162,33 @@
     {% endfor %}
   </div>
 
-  <div class="mt-8 text-right">
-    <p class="text-xl font-bold">
-      Total: <span id="cart-total" class="text-primary">R$ {{ total|floatformat:2 }}</span>
-    </p>
-    <a href="{% url 'checkout:checkout_step_one' %}"
-       class="mt-4 inline-block bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-xl font-medium transition transform hover:scale-[1.02] active:scale-[0.98] shadow-md">
-      Finalizar Pedido
-    </a>
+  <div class="mt-8 flex justify-end">
+    <div class="w-full max-w-xs bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+      <div class="flex justify-between text-sm text-gray-600 mb-2">
+        <span>Subtotal</span>
+        <span>R$ {{ subtotal|floatformat:2 }}</span>
+      </div>
+      {% if delivery_fee %}
+      <div class="flex justify-between text-sm text-gray-600 mb-2">
+        <span>Taxa de entrega</span>
+        <span>R$ {{ delivery_fee|floatformat:2 }}</span>
+      </div>
+      {% else %}
+      <div class="flex justify-between text-sm text-green-600 mb-2">
+        <span>Taxa de entrega</span>
+        <span class="font-medium">Grátis</span>
+      </div>
+      {% endif %}
+      <div class="border-t border-gray-100 my-2"></div>
+      <div class="flex justify-between items-center text-lg font-bold">
+        <span>Total</span>
+        <span id="cart-total" class="text-primary">R$ {{ total|floatformat:2 }}</span>
+      </div>
+      <a href="{% url 'checkout:checkout_step_one' %}"
+         class="mt-4 w-full inline-flex items-center justify-center bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-xl font-medium transition transform hover:scale-[1.02] active:scale-[0.98] shadow-md">
+        Finalizar Pedido
+      </a>
+    </div>
   </div>
 
   {% else %}

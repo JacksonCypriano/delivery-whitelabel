@@ -39,16 +39,25 @@
   <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent p-4 md:p-5">
     <div class="container mx-auto">
       <h1 class="text-white text-xl md:text-3xl font-bold tracking-tight shadow-sm">{{ tenant.name }}</h1>
-      <div class="flex items-center gap-3 mt-1">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
         <p class="text-white/90 text-xs md:text-sm flex items-center gap-1.5 font-medium">
           <span class="flex h-2 w-2">
             <span class="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-green-400 opacity-75"></span>
             <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
           </span>
-          Aberto agora
+          {{ tenant.business_hours|default:"Aberto agora" }}
         </p>
+        {% if tenant.delivery_time_estimate %}
         <span class="text-white/40">•</span>
-        <p class="text-white/90 text-xs md:text-sm font-medium">Entrega 30-45 min</p>
+        <p class="text-white/90 text-xs md:text-sm font-medium">Entrega {{ tenant.delivery_time_estimate }}</p>
+        {% endif %}
+        {% if tenant.address %}
+        <span class="text-white/40">•</span>
+        <p class="text-white/90 text-xs md:text-sm font-medium flex items-center gap-1">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          {{ tenant.address }}
+        </p>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -163,6 +172,12 @@
                data-product-name="{{ product.name|escapejs }}"
                data-product-price="{{ product.price|stringformat:".2f" }}"
                data-product-image="{{ product.get_primary_image|default:'' }}">
+            {% if product.is_featured %}
+            <span class="absolute top-2 left-2 z-10 inline-flex items-center gap-1 bg-accent text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow">
+              <svg class="w-3 h-3 fill-current" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.955a1 1 0 00.95.69h4.162c.969 0 1.371 1.24.588 1.81l-3.368 2.446a1 1 0 00-.364 1.118l1.287 3.955c.3.921-.755 1.688-1.54 1.118l-3.367-2.446a1 1 0 00-1.175 0l-3.367 2.446c-.784.57-1.838-.197-1.539-1.118l1.286-3.955a1 1 0 00-.363-1.118L2.076 9.372c-.783-.57-.38-1.81.588-1.81h4.163a1 1 0 00.95-.69l1.286-3.955z"/></svg>
+              Destaque
+            </span>
+            {% endif %}
             <div class="flex-grow p-4 flex flex-col">
               <h3 class="product-title font-semibold text-gray-800 mb-1 line-clamp-1">{{ product.name }}</h3>
               <p class="text-gray-500 text-xs mb-3 line-clamp-2">{{ product.description }}</p>

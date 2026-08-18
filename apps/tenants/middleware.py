@@ -4,18 +4,20 @@ import logging
 logger = logging.getLogger(__name__)
 
 class TenantMiddleware:
-    logger.warning("TenantMiddleware initialized")
+    """Resolve o tenant atual a partir do subdomínio da requisição.
+
+    Rotas iniciadas em /superadmin não pertencem a nenhum tenant (request.tenant = None).
+    """
+
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        logger.warning(f"Processing request for path: {request.path} with host: {request.META.get('HTTP_HOST', '')}")
         if request.path.startswith('/superadmin'):
             request.tenant = None
             return self.get_response(request)
 
         host = request.META.get('HTTP_HOST', '')
-        logger.warning(f"Extracted host: {host}")
         subdomain = host.split('.')[0]
 
         try:
@@ -24,6 +26,5 @@ class TenantMiddleware:
             tenant = None
 
         request.tenant = tenant
-        response = self.get_response(request)
-        logger.warning(f"Finished processing request for path: {request.path} with tenant: {tenant}")
-        return response
+        logger.debug("Requisição para %s resolvida para tenant: %s", request.path, tenant)
+        return self.get_response(request)

@@ -15,6 +15,7 @@ from .choices import ApplyToChoices
 MIN_IMAGE_WIDTH = 500
 MIN_IMAGE_HEIGHT = 500
 
+
 def validate_image_resolution(image):
     if not image:
         return
@@ -26,6 +27,7 @@ def validate_image_resolution(image):
         raise ValidationError(
             f"A imagem deve ter pelo menos {MIN_IMAGE_WIDTH}x{MIN_IMAGE_HEIGHT}px (atual: {width}x{height})."
         )
+
 
 DAYS_OF_WEEK = [
     (0, 'Segunda-feira'),
@@ -45,7 +47,6 @@ class Category(TenantModel):
     class Meta:
         verbose_name = "Categoria"
         verbose_name_plural = "Categorias"
-
         constraints = [
             models.UniqueConstraint(
                 fields=['tenant', 'slug'],
@@ -62,7 +63,6 @@ class Category(TenantModel):
             base_slug = slugify(self.name)[:200]
             slug = base_slug
             n = 1
-
             while Category.objects.filter(slug=slug, tenant=self.tenant).exclude(pk=self.pk).exists():
                 slug = f"{base_slug}-{n}"
                 n += 1
@@ -92,7 +92,12 @@ class Product(TenantModel):
     stock = models.IntegerField(null=True, blank=True, help_text="Quantidade em estoque (se aplicável)")
     min_order_qty = models.PositiveIntegerField(default=1)
     max_order_qty = models.PositiveIntegerField(null=True, blank=True)
-    primary_image = models.ImageField(upload_to='products/%Y/%m/%d/', null=True, blank=True, validators=[validate_image_resolution])
+    primary_image = models.ImageField(
+        upload_to='products/%Y/%m/%d/',
+        null=True,
+        blank=True,
+        validators=[validate_image_resolution]
+    )
     available_days = models.JSONField(
         default=list,
         blank=True,
@@ -104,9 +109,7 @@ class Product(TenantModel):
     class Meta:
         verbose_name = "Produto"
         verbose_name_plural = "Produtos"
-
         ordering = ['-is_featured', 'name']
-
         constraints = [
             models.UniqueConstraint(
                 fields=['tenant', 'slug'],
@@ -138,20 +141,16 @@ class Product(TenantModel):
 
     def save(self, *args, **kwargs):
         self.full_clean()
-
         if not self.slug:
             base_slug = slugify(self.name)[:150]
             slug = base_slug
             n = 1
-
             while Product.objects.filter(slug=slug, tenant=self.tenant).exclude(pk=self.pk).exists():
                 slug = f"{base_slug}-{n}"
                 n += 1
             self.slug = slug
-
         if not self.sku:
             self.sku = f"P{uuid.uuid4().hex[:8].upper()}"
-
         super().save(*args, **kwargs)
 
     def get_primary_image(self):
@@ -173,7 +172,10 @@ class Product(TenantModel):
 
 class ProductImage(TenantModel):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images')
-    image = models.ImageField(upload_to='products/images/%Y/%m/%d/', validators=[validate_image_resolution])
+    image = models.ImageField(
+        upload_to='products/images/%Y/%m/%d/',
+        validators=[validate_image_resolution]
+    )
     alt_text = models.CharField(max_length=200, blank=True)
     is_primary = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=0)
@@ -192,6 +194,7 @@ class ProductImage(TenantModel):
                 self.product.primary_image = self.image
                 self.product.save(update_fields=['primary_image'])
 
+
 class HalfProduct(TenantModel):
     product = models.OneToOneField(Product, on_delete=models.CASCADE, related_name='half_variant')
     is_active = models.BooleanField(default=True)
@@ -203,44 +206,117 @@ class HalfProduct(TenantModel):
 
     def __str__(self):
         return f"Meia {self.product.name}"
-    
+
     def save(self, *args, **kwargs):
         if self.product and not self.tenant_id:
             self.tenant_id = self.product.tenant_id
         super().save(*args, **kwargs)
 
 
+class CustomizationGroupLabel(TenantModel):
+    """
+    Rótulos reutilizáveis para grupos de personalização.
+    Ex: 'Adicionais', 'Bordas', 'Molhos'.
+    Crie uma vez e reutilize em qualquer grupo.
+    """
+    name = models.CharField(
+        max_length=100,
+        verbose_name="Nome",
+        help_text="Ex: Adicionais, Bordas, Molhos"
+    )
+
+    class Meta:
+        verbose_name = "Rótulo de Grupo de Personalização"
+        verbose_name_plural = "Rótulos de Grupos de Personalização"
+        ordering = ['name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tenant', 'name'],
+                name='unique_label_name_per_tenant'
+            )
+        ]
+
+    def save(self, *args, **kwargs):
+        self.name = self.name.strip()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
 class CustomizationGroup(TenantModel):
-    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='customization_groups')
-    name = models.CharField(max_length=100, help_text="Ex: Escolha sua Borda, Adicionais")
-    apply_to = models.CharField(max_length=10, choices=ApplyToChoices.choices, default=ApplyToChoices.WHOLE, help_text="Onde esse grupo aparecerá na modal")
-    min_options = models.PositiveIntegerField(default=0, help_text="Mínimo de opções (0 para opcional)")
-    max_options = models.PositiveIntegerField(default=1, help_text="Máximo de opções permitidas")
-    is_active = models.BooleanField(default=True)
-    order = models.PositiveIntegerField(default=0)
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.CASCADE,
+        related_name='customization_groups',
+        verbose_name="Categoria"
+    )
+    label = models.ForeignKey(
+        CustomizationGroupLabel,
+        on_delete=models.SET_NULL,   # SET_NULL em vez de PROTECT (compatível com null=True)
+        null=True,
+        blank=True,
+        related_name='groups',
+        verbose_name="Nome do grupo",
+        help_text="Selecione um rótulo existente ou crie um novo (ex: Adicionais, Bordas)"
+    )
+    apply_to = models.CharField(
+        max_length=10,
+        choices=ApplyToChoices.choices,
+        default=ApplyToChoices.WHOLE,
+        verbose_name="Aplicar a",
+        help_text="Onde esse grupo aparecerá na modal"
+    )
+    min_options = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Mínimo de opções",
+        help_text="Mínimo de opções (0 para opcional)"
+    )
+    max_options = models.PositiveIntegerField(
+        default=1,
+        verbose_name="Máximo de opções",
+        help_text="Máximo de opções permitidas"
+    )
+    is_active = models.BooleanField(default=True, verbose_name="Ativo")
 
     class Meta:
         verbose_name = "Grupo de Personalização"
         verbose_name_plural = "Grupos de Personalização"
-        ordering = ['order', 'name']
+        ordering = ['label__name']
+
+    @property
+    def name(self):
+        """Compatibilidade: acessa o nome via label."""
+        return self.label.name if self.label_id else ""
 
     def __str__(self):
-        return f"{self.name} ({self.category.name})"
+        label_name = self.label.name if self.label_id else "Sem rótulo"
+        return f"{label_name} ({self.category.name})"
 
 
 class CustomizationOption(TenantModel):
     group = models.ForeignKey(CustomizationGroup, on_delete=models.CASCADE, related_name='options')
-    name = models.CharField(max_length=100)
-    description = models.TextField(blank=True)
-    price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
-    image = models.ImageField(upload_to='customizations/%Y/%m/%d/', null=True, blank=True, validators=[validate_image_resolution])
-    is_available = models.BooleanField(default=True)
-    order = models.PositiveIntegerField(default=0)
+    name = models.CharField(max_length=100, verbose_name="Nome")
+    description = models.TextField(blank=True, verbose_name="Descrição")
+    price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Preço"
+    )
+    image = models.ImageField(
+        upload_to='customizations/%Y/%m/%d/',
+        null=True,
+        blank=True,
+        validators=[validate_image_resolution],
+        verbose_name="Imagem"
+    )
+    is_available = models.BooleanField(default=True, verbose_name="Disponível")
 
     class Meta:
         verbose_name = "Opção de Personalização"
         verbose_name_plural = "Opções de Personalização"
-        ordering = ['order', 'name']
+        ordering = ['name']
 
     def save(self, *args, **kwargs):
         if self.group and not self.tenant_id:

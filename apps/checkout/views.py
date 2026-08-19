@@ -1,3 +1,4 @@
+# apps/checkout/views.py
 import hashlib
 import json
 import logging
@@ -15,10 +16,15 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.orders.models import Cart, CartItem, CombinationPricingRule, Order, OrderItem
 from apps.stores.models import Product
+from apps.tenants.models import DeliveryZone
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 def to_decimal(value, default='0.00'):
     try:
@@ -44,11 +50,11 @@ def normalize_customization_list(raw_list):
             continue
         price = to_decimal(item.get('price', 0))
         normalized.append({
-            'group_id':   str(item.get('group_id',   '') or ''),
-            'group_name': str(item.get('group_name', '') or ''),
-            'option_id':  str(item.get('option_id',  '') or ''),
-            'option_name':str(item.get('option_name','') or ''),
-            'price':      str(price),
+            'group_id':    str(item.get('group_id',    '') or ''),
+            'group_name':  str(item.get('group_name',  '') or ''),
+            'option_id':   str(item.get('option_id',   '') or ''),
+            'option_name': str(item.get('option_name', '') or ''),
+            'price':       str(price),
         })
     return normalized
 
@@ -142,7 +148,7 @@ def get_or_create_cart(request):
             request.session.create()
         cart, _ = Cart.objects.get_or_create(
             tenant=request.tenant,
-            session_key=request.session.session_key
+            session_key=request.session.session_key,
         )
     return cart
 
@@ -150,6 +156,58 @@ def get_or_create_cart(request):
 def format_currency(value: Decimal):
     q = value.quantize(Decimal('0.01'))
     return 'R$ ' + f'{q:.2f}'.replace('.', ',')
+
+def get_pickup_address(tenant):
+    parts = []
+
+    if tenant.pickup_address:
+        address = tenant.pickup_address
+
+        if tenant.pickup_number:
+            address += f", {tenant.pickup_number}"
+
+        parts.append(address)
+
+    if tenant.pickup_complement:
+        parts.append(tenant.pickup_complement)
+
+    neighborhood_city = []
+
+    if tenant.pickup_neighborhood:
+        neighborhood_city.append(tenant.pickup_neighborhood)
+
+    if tenant.pickup_city:
+        neighborhood_city.append(tenant.pickup_city)
+
+    if neighborhood_city:
+        parts.append(" - ".join(neighborhood_city))
+
+    return ", ".join(parts)
+
+def resolve_delivery_fee(tenant, delivery_type, city, neighborhood):
+    """
+    Retorna (fee: Decimal, label: str).
+    Prioridade: 1) pickup → grátis; 2) DeliveryZone ativa; 3) taxa padrão do tenant.
+    """
+    if delivery_type == 'pickup':
+        return Decimal('0.00'), 'Retirada na loja'
+
+    if city and neighborhood:
+        zone = DeliveryZone.objects.filter(
+            tenant=tenant,
+            city__iexact=city,
+            neighborhood__iexact=neighborhood,
+            is_active=True,
+        ).first()
+        if zone:
+            return zone.fee, f'R$ {zone.fee:.2f}'.replace('.', ',')
+
+    # fallback: taxa padrão do tenant
+    fallback = to_decimal(getattr(tenant, 'delivery_fee', None))
+    if fallback > 0:
+        return fallback, f'R$ {fallback:.2f}'.replace('.', ',') + ' (padrão)'
+
+    return Decimal('0.00'), 'Grátis'
 
 
 # ---------------------------------------------------------------------------
@@ -224,8 +282,8 @@ def add_to_cart(request):
         except CombinationPricingRule.DoesNotExist:
             method = 'max_price'
 
-        price_a = to_decimal(p1.sale_price if p1.sale_price else p1.price)
-        price_b = to_decimal(p2.sale_price if p2.sale_price else p2.price)
+        price_a    = to_decimal(p1.sale_price if p1.sale_price else p1.price)
+        price_b    = to_decimal(p2.sale_price if p2.sale_price else p2.price)
         unit_price = max(price_a, price_b) if method == 'max_price' else (price_a + price_b) / Decimal(2)
 
         customizations_whole = normalize_customization_list(data.get('customizations_whole') or [])
@@ -234,12 +292,11 @@ def add_to_cart(request):
         notes_half1 = (data.get('notes_half1') or '').strip()
         notes_half2 = (data.get('notes_half2') or '').strip()
 
-        extras_total = (
+        unit_price += (
             sum_customizations_price(customizations_whole)
             + sum_customizations_price(customizations_half1)
             + sum_customizations_price(customizations_half2)
         )
-        unit_price += extras_total
 
         ids_sorted = sorted([str(p1.id), str(p2.id)], key=int)
         name       = f"{p1.name} / {p2.name}"
@@ -368,16 +425,14 @@ def remove_from_cart(request, cart_item_id=None, product_id=None):
     cart = get_or_create_cart(request)
     deleted_count, _ = CartItem.objects.filter(cart=cart, id=cid).delete()
 
-    items        = cart.items.select_related('product').all()
-    subtotal     = sum((item.get_total_price() for item in items), Decimal('0.00'))
-    delivery_fee = to_decimal(getattr(request.tenant, 'delivery_fee', 0) or 0)
-    total        = subtotal + delivery_fee if items else Decimal('0.00')
-    total_items  = sum(item.quantity for item in items)
+    items       = cart.items.select_related('product').all()
+    subtotal    = sum((item.get_total_price() for item in items), Decimal('0.00'))
+    total_items = sum(item.quantity for item in items)
 
     return JsonResponse({
         'success':    True,
         'deleted':    int(deleted_count),
-        'total':      f'R$ {total:.2f}'.replace('.', ','),
+        'total':      f'R$ {subtotal:.2f}'.replace('.', ','),
         'cart_count': int(total_items),
     })
 
@@ -402,14 +457,13 @@ def update_cart_quantity(request, cart_item_id):
             cart_item.quantity = quantity
             cart_item.save()
 
-        items        = cart.items.select_related('product').all()
-        subtotal     = sum((item.get_total_price() for item in items), Decimal('0.00'))
-        delivery_fee = to_decimal(getattr(request.tenant, 'delivery_fee', 0) or 0)
-        total        = subtotal + delivery_fee if items else Decimal('0.00')
-        total_items  = sum(item.quantity for item in items)
+        items       = cart.items.select_related('product').all()
+        subtotal    = sum((item.get_total_price() for item in items), Decimal('0.00'))
+        total_items = sum(item.quantity for item in items)
+
         return JsonResponse({
             'success':    True,
-            'total':      f'R$ {total:.2f}'.replace('.', ','),
+            'total':      f'R$ {subtotal:.2f}'.replace('.', ','),
             'cart_count': int(total_items),
         })
     except CartItem.DoesNotExist:
@@ -429,34 +483,89 @@ def checkout_step_one(request):
         messages.warning(request, "Seu carrinho está vazio.")
         return redirect('stores:catalogo')
 
-    subtotal     = sum(item.get_total_price() for item in cart_items)
-    delivery_fee = to_decimal(getattr(request.tenant, 'delivery_fee', 0) or 0)
-    total        = subtotal + delivery_fee
+    subtotal = sum(item.get_total_price() for item in cart_items)
+
+    # Zonas ativas do tenant (usadas no GET e no POST)
+    delivery_zones = (
+        DeliveryZone.objects
+        .filter(tenant=request.tenant, is_active=True)
+        .values('city', 'neighborhood', 'fee')
+        .order_by('city', 'neighborhood')
+    )
 
     if request.method == 'POST':
-        full_name      = request.POST.get('full_name', '')
-        phone          = request.POST.get('phone', '')
-        zip_code       = request.POST.get('cep', '')
-        address        = request.POST.get('address', '')
-        number         = request.POST.get('number', '')
-        neighborhood   = request.POST.get('neighborhood', '')
-        complement     = request.POST.get('complement', '')
+        full_name      = request.POST.get('full_name', '').strip()
+        phone          = request.POST.get('phone', '').strip()
         payment_method = request.POST.get('payment_method', '')
         change_for     = request.POST.get('change_for', '').strip()
+        delivery_type  = request.POST.get('delivery_type', '').strip()
 
-        payment_method_labels = {
+        # ── Validação do modo de atendimento da loja ────────────────────────
+        if delivery_type not in ('delivery', 'pickup'):
+            return HttpResponseBadRequest('Tipo de recebimento inválido.')
+
+        if delivery_type == 'delivery' and not request.tenant.accepts_delivery:
+            return HttpResponseBadRequest(
+                'Esta loja não aceita pedidos para entrega.'
+            )
+
+        if delivery_type == 'pickup' and not request.tenant.accepts_pickup:
+            return HttpResponseBadRequest(
+                'Esta loja não aceita pedidos para retirada.'
+            )
+
+        # ── Endereço e frete ────────────────────────────────────────────────
+        if delivery_type == 'pickup':
+            delivery_fee = Decimal('0.00')
+            fee_label = 'Retirada na loja'
+            delivery_address = get_pickup_address(request.tenant)
+            city_line = ''
+
+            if not delivery_address:
+                return HttpResponseBadRequest(
+                    'O endereço de retirada da loja não está configurado.'
+                )
+
+        else:
+            zip_code     = request.POST.get('cep', '').strip()
+            address      = request.POST.get('address', '').strip()
+            number       = request.POST.get('number', '').strip()
+            neighborhood = request.POST.get('neighborhood', '').strip()
+            city         = request.POST.get('city', '').strip()
+            complement   = request.POST.get('complement', '').strip()
+
+            if not address or not number or not neighborhood or not city:
+                return HttpResponseBadRequest(
+                    'Informe rua, número, bairro e cidade para entrega.'
+                )
+
+            # Busca a taxa pelo DeliveryZone cadastrado
+            delivery_fee, fee_label = resolve_delivery_fee(
+                request.tenant, 'delivery', city, neighborhood
+            )
+
+            delivery_address = f"{address}, {number}"
+            if complement:
+                delivery_address += f", {complement}"
+            city_line = f"{neighborhood}, {city}, CEP {zip_code}" if neighborhood or city else ''
+
+        total = subtotal + delivery_fee
+
+        # ── Pagamento ───────────────────────────────────────────────────────
+        payment_labels = {
             'cash':        'Dinheiro',
-            'credit_card': 'Cartao de Credito',
-            'debit_card':  'Cartao de Debito',
+            'credit_card': 'Cartão de Crédito',
+            'debit_card':  'Cartão de Débito',
             'pix':         'PIX',
         }
-        payment_label = payment_method_labels.get(payment_method, payment_method)
+        payment_label = payment_labels.get(payment_method, payment_method)
         payment_info  = (
             f"Dinheiro (troco para R$ {change_for})"
             if payment_method == 'cash' and change_for
             else payment_label
         )
 
+        # ── Criação do pedido ───────────────────────────────────────────────
         order = Order.objects.create(
             tenant=request.tenant,
             customer_phone=phone,
@@ -473,83 +582,88 @@ def checkout_step_one(request):
                 combination_details=item.combination_details,
             )
 
+        # ── Formata itens para WhatsApp ─────────────────────────────────────
+        def fmt_price(val):
+            return f"+R$ {float(val):.2f}".replace('.', ',') if float(val or 0) > 0 else ''
+
         def format_item_line(item):
             combo     = item.combination_details or {}
             names     = combo.get('names', [])
             total_str = f"{item.get_total_price():.2f}".replace('.', ',')
+            lines     = [f"{item.quantity}x {item.name} — R$ {total_str}"]
 
-            lines = [f"{item.quantity}x {item.name} — R$ {total_str}"]
-
-            # Borda / customizações gerais (toda a pizza)
             for c in combo.get('customizations_whole', []):
-                price_dec = float(c.get('price', 0) or 0)
-                price_str = f" (+R$ {price_dec:.2f})".replace('.', ',') if price_dec > 0 else ''
-                lines.append(f"   🔸 Borda: {c.get('option_name', '')}{price_str}")
+                p = fmt_price(c.get('price', 0))
+                lines.append(f"   🔸 Borda: {c.get('option_name', '')}" + (f" ({p})" if p else ''))
 
-            # Metade 1
             name1 = names[0] if names else 'Metade 1'
             if combo.get('customizations_half1') or combo.get('notes_half1'):
                 lines.append(f"   ½ {name1}")
                 for c in combo.get('customizations_half1', []):
-                    price_dec = float(c.get('price', 0) or 0)
-                    price_str = f" (+R$ {price_dec:.2f})".replace('.', ',') if price_dec > 0 else ''
-                    lines.append(f"      + {c.get('option_name', '')}{price_str}")
+                    p = fmt_price(c.get('price', 0))
+                    lines.append(f"      + {c.get('option_name', '')}" + (f" ({p})" if p else ''))
                 if combo.get('notes_half1'):
                     lines.append(f"      Obs: {combo['notes_half1']}")
 
-            # Metade 2
             name2 = names[1] if len(names) > 1 else 'Metade 2'
             if combo.get('customizations_half2') or combo.get('notes_half2'):
                 lines.append(f"   ½ {name2}")
                 for c in combo.get('customizations_half2', []):
-                    price_dec = float(c.get('price', 0) or 0)
-                    price_str = f" (+R$ {price_dec:.2f})".replace('.', ',') if price_dec > 0 else ''
-                    lines.append(f"      + {c.get('option_name', '')}{price_str}")
+                    p = fmt_price(c.get('price', 0))
+                    lines.append(f"      + {c.get('option_name', '')}" + (f" ({p})" if p else ''))
                 if combo.get('notes_half2'):
                     lines.append(f"      Obs: {combo['notes_half2']}")
 
-            # Produto simples: customizações
             for c in combo.get('customizations', []):
-                price_dec = float(c.get('price', 0) or 0)
-                price_str = f" (+R$ {price_dec:.2f})".replace('.', ',') if price_dec > 0 else ''
-                lines.append(f"   + {c.get('group_name', '')}: {c.get('option_name', '')}{price_str}")
+                p = fmt_price(c.get('price', 0))
+                lines.append(f"   + {c.get('group_name', '')}: {c.get('option_name', '')}" + (f" ({p})" if p else ''))
 
-            # Observação geral
             if item.notes:
                 lines.append(f"   Obs: {item.notes}")
 
             return '\n'.join(lines)
 
-        sep = '━' * 22
+        sep         = '━' * 22
         items_lines = f'\n{sep}\n'.join(format_item_line(item) for item in cart_items)
 
-        delivery_address = f"{address}, {number}"
-        if complement:
-            delivery_address += f", {complement}"
-        city_line = f"{neighborhood}, CEP {zip_code}"
+        if delivery_type == 'pickup':
+            totals_block = (
+                f"Subtotal: R$ {subtotal:.2f}".replace('.', ',') + '\n'
+                f"*Total: R$ {total:.2f}*".replace('.', ',')
+            )
+        else:
+            totals_block = (
+                f"Subtotal: R$ {subtotal:.2f}".replace('.', ',') + '\n'
+                f"Taxa de entrega: {fee_label}\n"
+                f"*Total: R$ {total:.2f}*".replace('.', ',')
+            )
 
-        subtotal_str = f"{subtotal:.2f}".replace('.', ',')
-        total_str    = f"{total:.2f}".replace('.', ',')
-
-        totals_block = f"Subtotal: R$ {subtotal_str}\n"
-        if delivery_fee > 0:
-            fee_str = f"{delivery_fee:.2f}".replace('.', ',')
-            totals_block += f"Taxa de entrega: R$ {fee_str}\n"
-        totals_block += f"*Total: R$ {total_str}*"
+        if delivery_type == 'pickup':
+            delivery_block = (
+                delivery_address
+                if delivery_address
+                else 'Endereço de retirada não informado.'
+            )
+        else:
+            delivery_block = (
+                f"{delivery_address}\n{city_line}"
+                if city_line
+                else delivery_address
+            )
 
         message = (
             f"*Novo Pedido #{order.id}*\n"
             f"{sep}\n\n"
             f"*Cliente*\n"
-            f"Nome: {full_name}\n\n"
+            f"Nome: {full_name}\n"
+            f"Telefone: {phone}\n\n"
             f"*Itens*\n\n"
             f"{items_lines}\n\n"
             f"{sep}\n"
             f"{totals_block}\n"
             f"*Pagamento: {payment_info}*\n\n"
-            f"*Entrega*\n"
-            f"{delivery_address}\n"
-            f"{city_line}\n"
+            f"*{'Retirada' if delivery_type == 'pickup' else 'Entrega'}*\n"
+            f"{delivery_block}\n"
             f"{sep}"
         )
 
@@ -559,12 +673,9 @@ def checkout_step_one(request):
         cart.delete()
         return redirect(whatsapp_url)
 
-    # ── GET: monta contexto para o template ──────────────────────────────────
+    # ── GET ──────────────────────────────────────────────────────────────────
     def build_item_context(item):
         combo = item.combination_details or {}
-        names = combo.get('names', [])
-
-        # customizações exibidas no resumo lateral (lista plana)
         customizations = (
             combo.get('customizations')
             or (
@@ -573,18 +684,16 @@ def checkout_step_one(request):
                 + combo.get('customizations_half2', [])
             )
         )
-
         return {
-            'id':          item.product.id if item.product else None,
-            'name':        item.name,
-            'price':       float(item.price),
-            'quantity':    item.quantity,
-            'total_price': float(item.get_total_price()),
-            'notes':       item.notes or '',
-            'customizations': customizations,
-            # campos meio a meio
+            'id':                   item.product.id if item.product else None,
+            'name':                 item.name,
+            'price':                float(item.price),
+            'quantity':             item.quantity,
+            'total_price':          float(item.get_total_price()),
+            'notes':                item.notes or '',
+            'customizations':       customizations,
             'is_half_half':         bool(combo.get('product_ids')),
-            'names':                names,
+            'names':                combo.get('names', []),
             'customizations_whole': combo.get('customizations_whole', []),
             'customizations_half1': combo.get('customizations_half1', []),
             'customizations_half2': combo.get('customizations_half2', []),
@@ -592,13 +701,13 @@ def checkout_step_one(request):
             'notes_half2':          combo.get('notes_half2', ''),
         }
 
-    context = {
-        'cart_items':   [build_item_context(item) for item in cart_items],
-        'subtotal':     float(subtotal),
-        'delivery_fee': float(delivery_fee),
-        'total':        float(total),
-    }
-    return render(request, 'checkout/checkout.html', context)
+    return render(request, 'checkout/checkout.html', {
+        'cart_items':     [build_item_context(item) for item in cart_items],
+        'subtotal':       float(subtotal),
+        'total':          float(subtotal),  # total sem frete; JS e POST atualizam
+        'delivery_zones': list(delivery_zones),
+        'store_address': get_pickup_address(request.tenant),
+    })
 
 
 def order_success(request):
@@ -651,8 +760,8 @@ def add_half_half(request):
     except CombinationPricingRule.DoesNotExist:
         method = 'max_price'
 
-    price_a = to_decimal(p1.sale_price if p1.sale_price else p1.price)
-    price_b = to_decimal(p2.sale_price if p2.sale_price else p2.price)
+    price_a    = to_decimal(p1.sale_price if p1.sale_price else p1.price)
+    price_b    = to_decimal(p2.sale_price if p2.sale_price else p2.price)
     unit_price = max(price_a, price_b) if method == 'max_price' else (price_a + price_b) / Decimal(2)
 
     customizations_whole = normalize_customization_list(payload.get('customizations_whole') or [])
@@ -717,7 +826,7 @@ def add_half_half(request):
     return JsonResponse({
         'success':    True,
         'added':      True,
-        'message':    f"Pizza meio a meio adicionada. Sera cobrado {format_currency(unit_price)} por unidade.",
+        'message':    f"Pizza meio a meio adicionada. Será cobrado {format_currency(unit_price)} por unidade.",
         'cart_count': int(total_items),
         'cart_total': str(cart_total),
     })

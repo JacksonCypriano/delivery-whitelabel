@@ -19,7 +19,8 @@
 
         <!-- Imagem -->
         <div class="w-20 h-20 rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden border">
-          {% if item.combination_details %}
+          {% if item.combination_details.product_ids %}
+            <!-- Meio a meio: mostra as duas imagens -->
             <div class="flex items-center gap-1">
               {% for img in item.combination_details.images %}
                 {% if img %}
@@ -33,6 +34,7 @@
               {% endif %}
             </div>
           {% elif item.product %}
+            <!-- Produto simples: imagem do produto -->
             {% if item.product.get_primary_image %}
               <img src="{{ item.product.get_primary_image }}" alt="{{ item.product.name }}" class="w-full h-full object-cover">
             {% else %}
@@ -47,76 +49,64 @@
         <div>
           <h3 class="font-semibold text-gray-800">{{ item.name }}</h3>
 
-          {% if item.combination_details %}
-
-            <!-- Nomes das metades -->
+          {% if item.combination_details.product_ids %}
+            <!-- Meio a meio -->
             <p class="text-xs text-gray-500 mt-1">
               {{ item.combination_details.names.0 }} / {{ item.combination_details.names.1 }}
             </p>
 
-            <!-- Borda / customizações gerais -->
             {% if item.combination_details.customizations_whole %}
               <div class="mt-1">
                 <p class="text-xs text-gray-400 font-medium">Toda a pizza:</p>
                 {% for c in item.combination_details.customizations_whole %}
                   <p class="text-xs text-gray-500">
-                    &bull; {{ c.option_name }}
+                    &bull; {% if c.group_name %}{{ c.group_name }}: {% endif %}{{ c.option_name }}
                     {% if c.price != '0.00' %}(+R$ {{ c.price }}){% endif %}
                   </p>
                 {% endfor %}
               </div>
             {% endif %}
 
-            <!-- Metade 1: customizações + observação -->
             {% if item.combination_details.customizations_half1 or item.combination_details.notes_half1 %}
               <div class="mt-1">
                 <p class="text-xs text-gray-400 font-medium">{{ item.combination_details.names.0 }}:</p>
                 {% for c in item.combination_details.customizations_half1 %}
                   <p class="text-xs text-gray-500">
-                    &bull; {{ c.option_name }}
+                    &bull; {% if c.group_name %}{{ c.group_name }}: {% endif %}{{ c.option_name }}
                     {% if c.price != '0.00' %}(+R$ {{ c.price }}){% endif %}
                   </p>
                 {% endfor %}
                 {% if item.combination_details.notes_half1 %}
-                  <p class="text-xs text-amber-600 italic mt-0.5">
-                    Obs: {{ item.combination_details.notes_half1 }}
-                  </p>
+                  <p class="text-xs text-amber-600 italic mt-0.5">Obs: {{ item.combination_details.notes_half1 }}</p>
                 {% endif %}
               </div>
             {% endif %}
 
-            <!-- Metade 2: customizações + observação -->
             {% if item.combination_details.customizations_half2 or item.combination_details.notes_half2 %}
               <div class="mt-1">
                 <p class="text-xs text-gray-400 font-medium">{{ item.combination_details.names.1 }}:</p>
                 {% for c in item.combination_details.customizations_half2 %}
                   <p class="text-xs text-gray-500">
-                    &bull; {{ c.option_name }}
+                    &bull; {% if c.group_name %}{{ c.group_name }}: {% endif %}{{ c.option_name }}
                     {% if c.price != '0.00' %}(+R$ {{ c.price }}){% endif %}
                   </p>
                 {% endfor %}
                 {% if item.combination_details.notes_half2 %}
-                  <p class="text-xs text-amber-600 italic mt-0.5">
-                    Obs: {{ item.combination_details.notes_half2 }}
-                  </p>
+                  <p class="text-xs text-amber-600 italic mt-0.5">Obs: {{ item.combination_details.notes_half2 }}</p>
                 {% endif %}
               </div>
             {% endif %}
 
-          {% else %}
-
-            <!-- Produto simples: customizações -->
-            {% if item.combination_details.customizations %}
-              <div class="mt-1">
-                {% for c in item.combination_details.customizations %}
-                  <p class="text-xs text-gray-500">
-                    &bull; {{ c.option_name }}
-                    {% if c.price != '0.00' %}(+R$ {{ c.price }}){% endif %}
-                  </p>
-                {% endfor %}
-              </div>
-            {% endif %}
-
+          {% elif item.combination_details.customizations %}
+            <!-- Produto simples com adicionais -->
+            <div class="mt-1">
+              {% for c in item.combination_details.customizations %}
+                <p class="text-xs text-gray-500">
+                  &bull; {% if c.group_name %}{{ c.group_name }}: {% endif %}{{ c.option_name }}
+                  {% if c.price != '0.00' %}(+R$ {{ c.price }}){% endif %}
+                </p>
+              {% endfor %}
+            </div>
           {% endif %}
 
           <!-- Observação geral do item -->
@@ -168,17 +158,6 @@
         <span>Subtotal</span>
         <span>R$ {{ subtotal|floatformat:2 }}</span>
       </div>
-      {% if delivery_fee %}
-      <div class="flex justify-between text-sm text-gray-600 mb-2">
-        <span>Taxa de entrega</span>
-        <span>R$ {{ delivery_fee|floatformat:2 }}</span>
-      </div>
-      {% else %}
-      <div class="flex justify-between text-sm text-green-600 mb-2">
-        <span>Taxa de entrega</span>
-        <span class="font-medium">Grátis</span>
-      </div>
-      {% endif %}
       <div class="border-t border-gray-100 my-2"></div>
       <div class="flex justify-between items-center text-lg font-bold">
         <span>Total</span>

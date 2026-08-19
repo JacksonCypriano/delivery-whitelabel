@@ -5,6 +5,7 @@ from django.urls import include, path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from apps.tenants.admin_site import tenant_admin_site, super_admin_site
+from apps.tenants.views import delivery_fee_api
 
 urlpatterns = [
     path('', include('apps.stores.urls')),
@@ -12,9 +13,11 @@ urlpatterns = [
     path('superadmin/', super_admin_site.urls),
     path('admin/', tenant_admin_site.urls),
     path('checkout/', include('apps.checkout.urls', namespace='checkout')),
+    path('api/', include('apps.stores.urls_api')),
     path('api/tenants/', include('apps.tenants.urls')),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/delivery-fee/', delivery_fee_api, name='delivery_fee_api'),
 ]
 
 if settings.DEBUG:

@@ -65,11 +65,6 @@ class CartItem(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=['cart', 'product'],
-                name='unique_cart_product',
-                condition=Q(product__isnull=False)
-            ),
-            models.UniqueConstraint(
                 fields=['cart', 'product_key'],
                 name='unique_cart_product_key',
                 condition=Q(product_key__isnull=False)

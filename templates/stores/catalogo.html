@@ -3,396 +3,1642 @@
 
 {% block page_name %}catalog{% endblock %}
 
+{% block header_search %}
+  <div class="catalog-search h-10 flex items-center gap-2 px-3.5 rounded-xl border border-gray-200 bg-gray-50 max-w-md">
+
+    <svg class="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 1114 0z"/>
+    </svg>
+
+    <input
+      type="search"
+      id="product-search"
+      placeholder="Buscar no cardápio..."
+      autocomplete="off"
+      class="w-full bg-transparent border-0 outline-none text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400"
+    >
+
+    <span id="search-count" class="hidden text-xs text-gray-400 whitespace-nowrap"></span>
+
+  </div>
+{% endblock %}
+
 {% block extra_head %}
 <style>
-  .selected-half {
-    box-shadow: 0 0 0 4px rgba(249,115,22,0.12);
-    outline: 2px solid rgba(249,115,22,0.12);
-    transform: translateY(-2px);
-    transition: transform .12s ease, box-shadow .12s ease;
-  }
-  .dropdown { position: relative; }
-  .dropdown-button { width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; padding: .5rem .75rem; border-radius: .5rem; border: 1px solid #e5e7eb; background: white; }
-  .dropdown-list { position: absolute; z-index: 60; top: calc(100% + 0.5rem); left: 0; right: 0; max-height: 260px; overflow-y: auto; background: white; border: 1px solid #e5e7eb; border-radius: .5rem; box-shadow: 0 8px 24px rgba(0,0,0,0.06); }
-  .dropdown-item { padding: .5rem .75rem; cursor: pointer; display: flex; gap: .75rem; align-items: center; }
-  .dropdown-item:hover { background: #f8fafc; }
-  .dropdown-item[aria-selected="true"] { background: rgba(249,115,22,0.08); border-left: 3px solid rgba(249,115,22,0.18); }
-  .dropdown-thumb { width: 44px; height: 44px; flex-shrink: 0; border-radius: .5rem; object-fit: cover; background: #fff; border: 1px solid #eee; }
-  .dropdown-search { width: 100%; padding: .5rem .75rem; border-bottom: 1px solid #eef2f7; outline: none; border-radius: .5rem .5rem 0 0; }
-  .dropdown-empty { padding: .75rem; color: #6b7280; text-align: center; font-size: 0.9rem; }
+  /* ================================================================
+     CATÁLOGO — ESTILO
+     ================================================================ */
 
-  /* Customizações */
-  .customization-group { border-top: 1px solid #f3f4f6; padding-top: 1rem; }
-  .customization-group:first-child { border-top: none; padding-top: 0; }
+  :root {
+    --catalog-primary: var(--color-primary, #f97316);
+    --catalog-primary-rgb: var(--color-primary-rgb, 249, 115, 22);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: #f8fafc;
+  }
+
+  /* ---------------------------------------------------------------
+     HEADER / BANNER / IDENTIDADE
+     --------------------------------------------------------------- */
+
+  .catalog-sticky-header {
+    position: sticky;
+    top: 64px;
+    z-index: 40;
+    background: rgba(255,255,255,.98);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid #eef2f7;
+  }
+
+  .category-hamburger {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #64748b;
+    background: #f1f5f9;
+    flex-shrink: 0;
+    transition: background .18s ease, color .18s ease;
+  }
+
+  .category-hamburger:hover {
+    background: rgba(var(--catalog-primary-rgb), .10);
+    color: var(--catalog-primary);
+  }
+
+  .category-drawer-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    background: rgba(15,23,42,.45);
+  }
+
+  .catalog-banner {
+    position: relative;
+    height: 190px;
+    overflow: hidden;
+  }
+
+  .catalog-banner img {
+    transition: transform .6s ease;
+  }
+
+  .catalog-banner:hover img {
+    transform: scale(1.02);
+  }
+
+  .catalog-banner-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,.35) 0%, rgba(0,0,0,0) 55%);
+  }
+
+  .catalog-identity {
+    position: relative;
+  }
+
+  .catalog-logo-wrap {
+    position: relative;
+    margin-top: -46px;
+    flex-shrink: 0;
+  }
+
+  .catalog-logo {
+    width: 92px;
+    height: 92px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 4px solid white;
+    background: white;
+    box-shadow: 0 4px 14px rgba(15,23,42,.14);
+    display: block;
+  }
+
+  .catalog-logo-fallback {
+    width: 92px;
+    height: 92px;
+    border-radius: 50%;
+    border: 4px solid white;
+    background: var(--catalog-primary);
+    box-shadow: 0 4px 14px rgba(15,23,42,.14);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 800;
+    font-size: 1.85rem;
+  }
+
+  .hours-popover {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    z-index: 55;
+    min-width: 240px;
+    background: white;
+    border: 1px solid #eef2f7;
+    border-radius: 14px;
+    box-shadow: 0 12px 32px rgba(15,23,42,.16);
+    padding: 12px;
+  }
+
+  /* ---------------------------------------------------------------
+     BUSCA
+     --------------------------------------------------------------- */
+
+  .catalog-search {
+    transition:
+      border-color .18s ease,
+      box-shadow .18s ease,
+      background .18s ease;
+  }
+
+  .catalog-search:focus-within {
+    border-color: rgba(var(--catalog-primary-rgb), .45);
+    box-shadow:
+      0 0 0 4px rgba(var(--catalog-primary-rgb), .08);
+    background: white;
+  }
+
+  /* ---------------------------------------------------------------
+     CATEGORIAS
+     --------------------------------------------------------------- */
+
+  .category-chip {
+    position: relative;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 6px 2px;
+    text-decoration: none;
+    text-decoration-color: var(--catalog-primary);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 5px;
+    transition:
+      color .18s ease,
+      font-weight .18s ease,
+      text-decoration-color .18s ease;
+  }
+
+  .category-chip:hover {
+    color: var(--catalog-primary);
+  }
+
+  .category-chip.active {
+    color: var(--catalog-primary);
+    font-weight: 800;
+    text-decoration: underline;
+  }
+
+  /* ---------------------------------------------------------------
+     SEÇÕES
+     --------------------------------------------------------------- */
+
+  .category-section {
+    scroll-margin-top: 200px;
+  }
+
+  .category-heading {
+    position: relative;
+  }
+
+  .category-heading::after {
+    content: "";
+    display: block;
+    width: 34px;
+    height: 3px;
+    margin-top: 8px;
+    border-radius: 999px;
+    background: var(--catalog-primary);
+  }
+
+  /* ---------------------------------------------------------------
+     CARD
+     --------------------------------------------------------------- */
+
+  .product-card {
+    position: relative;
+    display: flex;
+    min-height: 150px;
+    overflow: hidden;
+    background: white;
+    border: 1px solid #eef2f7;
+    border-radius: 18px;
+    box-shadow:
+      0 1px 2px rgba(15,23,42,.03);
+    transition:
+      transform .18s ease,
+      box-shadow .18s ease,
+      border-color .18s ease;
+  }
+
+  .product-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(var(--catalog-primary-rgb), .20);
+    box-shadow:
+      0 10px 28px rgba(15,23,42,.08);
+  }
+
+  .product-card-content {
+    min-width: 0;
+  }
+
+  .product-image {
+    width: 142px;
+    min-width: 142px;
+    height: 150px;
+    object-fit: cover;
+    background: #f1f5f9;
+  }
+
+  .product-image-placeholder {
+    width: 142px;
+    min-width: 142px;
+    height: 150px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      linear-gradient(
+        135deg,
+        #f8fafc,
+        #eef2f7
+      );
+    color: #cbd5e1;
+  }
+
+  .product-add {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--catalog-primary);
+    background: rgba(var(--catalog-primary-rgb), .08);
+    transition:
+      background .18s ease,
+      color .18s ease,
+      transform .18s ease;
+  }
+
+  .product-add:hover {
+    color: white;
+    background: var(--catalog-primary);
+    transform: scale(1.04);
+  }
+
+  .product-featured {
+    background: #f59e0b;
+  }
+
+  /* ---------------------------------------------------------------
+     MEIO A MEIO
+     --------------------------------------------------------------- */
+
+  .half-half-card {
+    background:
+      linear-gradient(
+        135deg,
+        rgba(var(--catalog-primary-rgb), .04),
+        rgba(var(--catalog-primary-rgb), .10)
+      );
+    border-color: rgba(var(--catalog-primary-rgb), .14);
+  }
+
+  .selected-half {
+    box-shadow:
+      0 0 0 4px rgba(var(--catalog-primary-rgb), .10);
+    outline: 2px solid rgba(var(--catalog-primary-rgb), .12);
+    transform: translateY(-2px);
+    transition:
+      transform .12s ease,
+      box-shadow .12s ease;
+  }
+
+  /* ---------------------------------------------------------------
+     DRAWER
+     --------------------------------------------------------------- */
+
+  .category-drawer-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 95;
+    width: min(340px, 88vw);
+    background: white;
+    box-shadow: 8px 0 30px rgba(15,23,42,.18);
+    transform: translateX(-100%);
+    transition: transform .25s ease;
+    overflow-y: auto;
+  }
+
+  .category-drawer-panel.open {
+    transform: translateX(0);
+  }
+
+  .category-drawer-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: .85rem 1rem;
+    border-radius: .75rem;
+    color: #475569;
+    font-weight: 600;
+    font-size: .9rem;
+    text-decoration: none;
+  }
+
+  .category-drawer-item:hover {
+    background: #f8fafc;
+  }
+
+  .category-drawer-item.active {
+    color: var(--catalog-primary);
+    background: rgba(var(--catalog-primary-rgb), .08);
+    font-weight: 800;
+  }
+
+  /* ---------------------------------------------------------------
+     DROPDOWN
+     --------------------------------------------------------------- */
+
+  .dropdown {
+    position: relative;
+  }
+
+  .dropdown-button {
+    width: 100%;
+    min-height: 48px;
+    text-align: left;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: .75rem;
+    padding: .65rem .85rem;
+    border-radius: .75rem;
+    border: 1px solid #e5e7eb;
+    background: white;
+  }
+
+  .dropdown-list {
+    position: absolute;
+    z-index: 80;
+    top: calc(100% + .5rem);
+    left: 0;
+    right: 0;
+    max-height: 280px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: .75rem;
+    box-shadow: 0 18px 45px rgba(15,23,42,.14);
+  }
+
+  .dropdown-item {
+    padding: .65rem .75rem;
+    cursor: pointer;
+    display: flex;
+    gap: .75rem;
+    align-items: center;
+  }
+
+  .dropdown-item:hover {
+    background: #f8fafc;
+  }
+
+  .dropdown-item[aria-selected="true"] {
+    background: rgba(var(--catalog-primary-rgb), .08);
+    border-left: 3px solid var(--catalog-primary);
+  }
+
+  .dropdown-thumb {
+    width: 46px;
+    height: 46px;
+    flex-shrink: 0;
+    border-radius: .6rem;
+    object-fit: cover;
+    background: #fff;
+    border: 1px solid #eee;
+  }
+
+  .dropdown-search {
+    width: 100%;
+    padding: .7rem .8rem;
+    border-bottom: 1px solid #eef2f7;
+    outline: none;
+    border-radius: .75rem .75rem 0 0;
+  }
+
+  .dropdown-empty {
+    padding: .9rem;
+    color: #6b7280;
+    text-align: center;
+    font-size: .9rem;
+  }
+
+  /* ---------------------------------------------------------------
+     CUSTOMIZAÇÕES
+     --------------------------------------------------------------- */
+
+  .customization-group {
+    border-top: 1px solid #f3f4f6;
+    padding-top: 1rem;
+  }
+
+  .customization-group:first-child {
+    border-top: none;
+    padding-top: 0;
+  }
+
+  /* ---------------------------------------------------------------
+     FRETE
+     --------------------------------------------------------------- */
+
+  .frete-fab {
+    bottom: 90px;
+    right: 24px;
+    z-index: 40;
+  }
+
+  .frete-panel {
+    bottom: 150px;
+    right: 24px;
+    z-index: 40;
+  }
+
+  /* ---------------------------------------------------------------
+     MOBILE
+     --------------------------------------------------------------- */
+
+  @media (max-width: 640px) {
+
+    .catalog-banner {
+      height: 150px;
+    }
+
+    .catalog-logo,
+    .catalog-logo-fallback {
+      width: 74px;
+      height: 74px;
+    }
+
+    .catalog-logo-wrap {
+      margin-top: -37px;
+    }
+
+    .category-section {
+      scroll-margin-top: 175px;
+    }
+
+    .product-card {
+      min-height: 132px;
+    }
+
+    .product-image,
+    .product-image-placeholder {
+      width: 118px;
+      min-width: 118px;
+      height: 132px;
+    }
+
+    .product-card-content {
+      padding: .85rem;
+    }
+
+    .frete-fab {
+      bottom: 136px;
+      right: 16px;
+    }
+
+    .frete-panel {
+      bottom: 192px;
+      right: 16px;
+      left: 16px;
+      width: auto;
+      max-width: none;
+    }
+  }
+
+  /* ---------------------------------------------------------------
+     ACESSIBILIDADE
+     --------------------------------------------------------------- */
+
+  @media (prefers-reduced-motion: reduce) {
+
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
+  }
 </style>
 {% endblock %}
 
+
 {% block content %}
 
-<!-- Banner -->
-<div class="relative h-32 md:h-40 bg-gray-200 overflow-hidden shadow-inner">
+<!-- ================================================================
+     BANNER + IDENTIDADE (não fixos — rolam com a página)
+     ================================================================ -->
+
+<div class="catalog-banner">
+
   {% if tenant.brand_config.banner %}
-    <img src="{{ tenant.brand_config.banner.url }}" class="w-full h-full object-cover" alt="banner">
+
+    <img
+      src="{{ tenant.brand_config.banner.url }}"
+      class="absolute inset-0 w-full h-full object-cover"
+      alt="Banner da {{ tenant.name }}"
+    >
+
   {% else %}
-    <div class="w-full h-full bg-gradient-to-r from-primary via-primary/90 to-red-800 opacity-95"></div>
+
+    <div class="absolute inset-0 bg-gradient-to-br from-primary via-primary/90 to-orange-700"></div>
+
   {% endif %}
-  <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent p-4 md:p-5">
-    <div class="container mx-auto">
-      <h1 class="text-white text-xl md:text-3xl font-bold tracking-tight shadow-sm">{{ tenant.name }}</h1>
-      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
-        <p class="text-white/90 text-xs md:text-sm flex items-center gap-1.5 font-medium">
-          <span class="flex h-2 w-2">
-            <span class="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-green-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-          </span>
-          {{ tenant.business_hours|default:"Aberto agora" }}
-        </p>
-        {% if tenant.delivery_time_estimate %}
-        <span class="text-white/40">•</span>
-        <p class="text-white/90 text-xs md:text-sm font-medium">Entrega {{ tenant.delivery_time_estimate }}</p>
-        {% endif %}
-        {% if tenant.address %}
-        <span class="text-white/40">•</span>
-        <p class="text-white/90 text-xs md:text-sm font-medium flex items-center gap-1">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-          {{ tenant.address }}
-        </p>
-        {% endif %}
-      </div>
-    </div>
-  </div>
+
+  <div class="catalog-banner-overlay"></div>
+
 </div>
 
-<!-- Categorias -->
-<div class="container mx-auto px-4 py-8">
-  <div class="flex gap-4 overflow-x-auto no-scrollbar pb-4 mb-8">
-    {% for category in categories %}
-    <a href="#cat-{{ category.id }}"
-       class="whitespace-nowrap px-6 py-2 rounded-full border border-gray-200 bg-white hover:border-primary hover:text-primary transition font-medium shadow-sm">
-      {{ category.name }}
-    </a>
-    {% endfor %}
+
+<div class="bg-white">
+
+  <div class="container mx-auto px-4">
+
+    <div class="catalog-identity flex items-start gap-4 pb-4">
+
+      <!-- Logo -->
+      <div class="catalog-logo-wrap">
+
+        {% if tenant.brand_config.logo %}
+          <img src="{{ tenant.brand_config.logo.url }}" class="catalog-logo" alt="Logo {{ tenant.name }}">
+        {% else %}
+          <div class="catalog-logo-fallback">{{ tenant.name|slice:":1" }}</div>
+        {% endif %}
+
+      </div>
+
+      <!-- Infos -->
+      <div class="flex-1 min-w-0 pt-2">
+
+        <h1 class="text-lg md:text-xl font-extrabold text-gray-900 truncate">
+          {{ tenant.name }}
+        </h1>
+
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-xs md:text-sm">
+
+          <!-- Aberto / Fechado + horários -->
+          <div class="relative">
+
+            <button type="button" id="hours-toggle"
+                    class="inline-flex items-center gap-1.5 font-semibold {% if tenant.is_open_now %}text-green-600{% else %}text-red-500{% endif %}">
+
+              {% if tenant.is_open_now %}
+                <span class="relative flex h-2 w-2">
+                  <span class="absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75 animate-ping"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                Aberto agora
+              {% else %}
+                <span class="inline-flex rounded-full h-2 w-2 bg-red-400"></span>
+                Fechado agora
+              {% endif %}
+
+              <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+
+            </button>
+
+            <div id="hours-popover" class="hours-popover hidden">
+
+              <p class="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
+                Horários de funcionamento
+              </p>
+
+              <ul class="space-y-1">
+                {% for h in tenant.business_hours.all %}
+                <li class="flex justify-between gap-3 text-xs text-gray-600">
+                  <span>{{ h.get_weekday_display }}</span>
+                  <span>
+                    {% if h.is_closed %}Fechado{% else %}{{ h.opening_time|time:"H:i" }} - {{ h.closing_time|time:"H:i" }}{% endif %}
+                  </span>
+                </li>
+                {% endfor %}
+              </ul>
+
+            </div>
+
+          </div>
+
+          <span class="text-gray-300">•</span>
+
+          <!-- Modo de atendimento -->
+          <span class="text-gray-600 font-medium">
+            {% if tenant.is_pickup_only %}
+              Apenas retirada
+            {% elif tenant.is_delivery_only %}
+              Apenas entrega
+            {% else %}
+              Entrega e retirada
+            {% endif %}
+          </span>
+
+        </div>
+
+        <!-- Endereço de retirada -->
+        {% if tenant.accepts_pickup %}
+        <p class="mt-1.5 text-xs text-gray-500 flex items-start gap-1">
+
+          <svg class="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+
+          <span class="truncate">
+            {{ tenant.pickup_address }}{% if tenant.pickup_number %}, {{ tenant.pickup_number }}{% endif %}{% if tenant.pickup_neighborhood %}, {{ tenant.pickup_neighborhood }}{% endif %}{% if tenant.pickup_city %} - {{ tenant.pickup_city }}{% endif %}
+          </span>
+
+        </p>
+        {% endif %}
+
+      </div>
+
+    </div>
+
   </div>
 
-  <div class="space-y-12">
+</div>
+
+
+<!-- ================================================================
+     CATEGORIAS (fixo — sob o header global)
+     ================================================================ -->
+
+<header class="catalog-sticky-header">
+
+  <div class="bg-white">
+
+    <div class="container mx-auto px-4 py-3 flex items-center gap-3">
+
+      <button type="button" id="category-hamburger" class="category-hamburger" aria-label="Ver todas as categorias">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+      </button>
+
+      <div id="category-chips" class="flex gap-5 overflow-x-auto no-scrollbar">
+
+        {% for category in categories %}
+
+          {% if category.name|lower == "pizza" or category.name|lower == "pizzas" %}
+
+            <a href="#pizzas-inteiras" data-category-chip data-target="pizzas-inteiras"
+               class="category-chip whitespace-nowrap text-gray-600 text-sm font-semibold">
+              {{ category.name }}
+            </a>
+
+          {% else %}
+
+            <a href="#cat-{{ category.id }}" data-category-chip data-target="cat-{{ category.id }}"
+               class="category-chip whitespace-nowrap text-gray-600 text-sm font-semibold">
+              {{ category.name }}
+            </a>
+
+          {% endif %}
+
+        {% endfor %}
+
+      </div>
+
+    </div>
+
+  </div>
+
+</header>
+
+
+<!-- ================================================================
+     DRAWER DE CATEGORIAS
+     ================================================================ -->
+
+<div id="category-drawer-overlay" class="category-drawer-overlay hidden"></div>
+
+<aside id="category-drawer-panel" class="category-drawer-panel">
+
+  <div class="flex items-center justify-between p-5 border-b border-gray-100">
+    <h3 class="font-extrabold text-gray-800">Categorias</h3>
+    <button type="button" id="category-drawer-close" class="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition" aria-label="Fechar">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+
+  <nav class="p-3 space-y-1">
+
     {% for category in categories %}
 
       {% if category.name|lower == "pizza" or category.name|lower == "pizzas" %}
 
-      <!-- Pizzas Inteiras -->
-      <section id="pizzas-inteiras" class="mb-10">
-        <h2 class="text-2xl font-bold mb-4">Pizzas inteiras</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {% for product in category.prefetched_products %}
-          <div class="product-card bg-white rounded-2xl border border-gray-100 shadow-sm flex overflow-hidden relative"
-               data-product-id="{{ product.id }}"
-               data-product-name="{{ product.name|escapejs }}"
-               data-product-price="{{ product.price|stringformat:".2f" }}"
-               data-product-image="{{ product.get_primary_image|default:'' }}">
-            <div class="flex-grow p-4 flex flex-col">
-              <h3 class="product-title font-semibold text-gray-800 mb-1 line-clamp-1">{{ product.name }}</h3>
-              <p class="text-gray-500 text-xs mb-3 line-clamp-2">{{ product.description }}</p>
-              <div class="flex items-center justify-between mt-auto">
-                <span class="product-price text-primary font-bold text-lg">R$ {{ product.price }}</span>
-                <button type="button"
-                        data-action="add-to-cart"
-                        data-product-id="{{ product.id }}"
-                        data-product-name="{{ product.name|escapejs }}"
-                        data-product-price="{{ product.price|stringformat:".2f" }}"
-                        data-product-image="{{ product.get_primary_image|default:'' }}"
-                        data-requires-modal="true"
-                        class="bg-gray-50 hover:bg-primary/10 text-primary p-2 rounded-lg transition flex items-center justify-center"
-                        aria-label="Adicionar {{ product.name }} ao carrinho">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            {% if product.get_primary_image %}
-            <div class="w-32 h-32 flex-shrink-0">
-              <img src="{{ product.get_primary_image }}" class="w-full h-full object-cover" alt="{{ product.name }}">
-            </div>
-            {% endif %}
-          </div>
-          {% endfor %}
-        </div>
-      </section>
-
-      <!-- Pizzas Meio a Meio -->
-      <section id="pizzas-meio-a-meio" class="mb-12 mt-8">
-        <h2 class="text-2xl font-bold mb-4">Pizzas meio a meio</h2>
-        <p class="text-sm text-gray-600 mb-4">Escolha dois sabores — clique em "Montar" para começar.</p>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {% for product in category.prefetched_products %}
-          <div class="product-card bg-white rounded-2xl border border-gray-100 shadow-sm flex overflow-hidden relative"
-               data-product-id="{{ product.id }}"
-               data-product-name="{{ product.name|escapejs }}"
-               data-product-price="{{ product.price|stringformat:".2f" }}"
-               data-product-image="{{ product.get_primary_image|default:'' }}">
-            <div class="flex-grow p-4 flex flex-col">
-              <h3 class="product-title font-semibold text-gray-800 mb-1 line-clamp-1">{{ product.name }}</h3>
-              <p class="text-gray-500 text-xs mb-3 line-clamp-2">{{ product.description }}</p>
-              <div class="flex items-center justify-between mt-auto">
-                <span class="product-price text-primary font-bold text-lg">R$ {{ product.price }}</span>
-                <button type="button"
-                        data-action="start-half-half"
-                        data-product-id="{{ product.id }}"
-                        data-product-name="{{ product.name|escapejs }}"
-                        data-product-price="{{ product.price|stringformat:".2f" }}"
-                        data-product-image="{{ product.get_primary_image|default:'' }}"
-                        class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium bg-amber-500 text-white hover:bg-amber-600 transition"
-                        aria-label="Montar meio a meio com {{ product.name }}">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2v10l8 4"/>
-                  </svg>
-                  <span class="hidden sm:inline">Montar</span>
-                </button>
-              </div>
-            </div>
-            {% if product.get_primary_image %}
-            <div class="w-32 h-32 flex-shrink-0">
-              <img src="{{ product.get_primary_image }}" class="w-full h-full object-cover" alt="{{ product.name }}">
-            </div>
-            {% endif %}
-          </div>
-          {% endfor %}
-        </div>
-      </section>
+        <a href="#pizzas-inteiras" data-category-chip data-drawer-item data-target="pizzas-inteiras" class="category-drawer-item">
+          {{ category.name }}
+        </a>
 
       {% else %}
 
-      <!-- Categoria padrão -->
-      <section id="cat-{{ category.id }}">
-        <h2 class="text-xl font-bold mb-6">{{ category.name }}</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {% for product in category.prefetched_products %}
-          <div class="product-card bg-white rounded-2xl border border-gray-100 shadow-sm flex overflow-hidden relative"
-               data-product-id="{{ product.id }}"
-               data-product-name="{{ product.name|escapejs }}"
-               data-product-price="{{ product.price|stringformat:".2f" }}"
-               data-product-image="{{ product.get_primary_image|default:'' }}">
-            {% if product.is_featured %}
-            <span class="absolute top-2 left-2 z-10 inline-flex items-center gap-1 bg-accent text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow">
-              <svg class="w-3 h-3 fill-current" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.955a1 1 0 00.95.69h4.162c.969 0 1.371 1.24.588 1.81l-3.368 2.446a1 1 0 00-.364 1.118l1.287 3.955c.3.921-.755 1.688-1.54 1.118l-3.367-2.446a1 1 0 00-1.175 0l-3.367 2.446c-.784.57-1.838-.197-1.539-1.118l1.286-3.955a1 1 0 00-.363-1.118L2.076 9.372c-.783-.57-.38-1.81.588-1.81h4.163a1 1 0 00.95-.69l1.286-3.955z"/></svg>
-              Destaque
-            </span>
-            {% endif %}
-            <div class="flex-grow p-4 flex flex-col">
-              <h3 class="product-title font-semibold text-gray-800 mb-1 line-clamp-1">{{ product.name }}</h3>
-              <p class="text-gray-500 text-xs mb-3 line-clamp-2">{{ product.description }}</p>
-              <div class="flex items-center justify-between mt-auto">
-                <span class="product-price text-primary font-bold text-lg">R$ {{ product.price }}</span>
-                <button type="button"
-                        data-action="add-to-cart"
-                        data-product-id="{{ product.id }}"
-                        data-product-name="{{ product.name|escapejs }}"
-                        data-product-price="{{ product.price|stringformat:".2f" }}"
-                        data-product-image="{{ product.get_primary_image|default:'' }}"
-                        data-requires-modal="true"
-                        class="bg-gray-50 hover:bg-primary/10 text-primary p-2 rounded-lg transition flex items-center justify-center"
-                        aria-label="Adicionar {{ product.name }} ao carrinho">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            {% if product.get_primary_image %}
-            <div class="w-32 h-32 flex-shrink-0">
-              <img src="{{ product.get_primary_image }}" class="w-full h-full object-cover" alt="{{ product.name }}">
-            </div>
-            {% endif %}
-          </div>
-          {% endfor %}
-        </div>
-      </section>
+        <a href="#cat-{{ category.id }}" data-category-chip data-drawer-item data-target="cat-{{ category.id }}" class="category-drawer-item">
+          {{ category.name }}
+        </a>
 
       {% endif %}
-    {% endfor %}
-  </div>
-</div>
 
-<!-- ===================== MODAL ADD TO CART ===================== -->
-<div data-modal="add-to-cart"
-     class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4">
+    {% endfor %}
+
+  </nav>
+
+</aside>
+
+
+<!-- ================================================================
+     FRETE
+     ================================================================ -->
+
+{% if delivery_zones and tenant.accepts_delivery %}
+
+  <button
+    id="frete-fab"
+    type="button"
+    class="frete-fab fixed z-[40] inline-flex items-center gap-2 bg-white border border-gray-200 shadow-lg rounded-full px-4 py-3 text-sm font-bold text-gray-700 hover:text-primary hover:border-primary hover:shadow-xl transition"
+  >
+
+    <svg class="w-4.5 h-4.5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/>
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l1 1h1m8-1h5l2-5H13v5zm0 0H9"/>
+    </svg>
+
+    <span>Consultar entrega</span>
+
+  </button>
+
+
+  <div
+    id="frete-panel"
+    class="frete-panel hidden fixed z-50 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-gray-100 p-5"
+  >
+
+    <div class="flex items-start justify-between mb-4">
+
+      <div>
+        <h3 class="font-bold text-gray-800">Taxa de entrega</h3>
+        <p class="text-xs text-gray-500 mt-0.5">Consulte o valor para seu endereço.</p>
+      </div>
+
+      <button id="frete-panel-close" type="button"
+              class="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition"
+              aria-label="Fechar">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+
+    </div>
+
+
+    <div class="space-y-3">
+
+      <div>
+        <label for="fee-check-neighborhood" class="block text-xs font-semibold text-gray-600 mb-1.5">Bairro</label>
+        <input id="fee-check-neighborhood" type="text" placeholder="Ex: Centro" list="fee-check-neighborhood-list" autocomplete="off"
+               class="w-full p-3 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/10 focus:border-primary outline-none transition">
+      </div>
+
+      <datalist id="fee-check-neighborhood-list">
+        {% for zone in delivery_zones %}
+          <option value="{{ zone.neighborhood }}" data-city="{{ zone.city }}">{{ zone.neighborhood }} — {{ zone.city }}</option>
+        {% endfor %}
+      </datalist>
+
+      <div>
+        <label for="fee-check-city" class="block text-xs font-semibold text-gray-600 mb-1.5">Cidade</label>
+        <input id="fee-check-city" type="text" placeholder="Ex: São Paulo" list="fee-check-city-list" autocomplete="off"
+               class="w-full p-3 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/10 focus:border-primary outline-none transition">
+      </div>
+
+      <datalist id="fee-check-city-list">
+        {% for zone in delivery_zones %}
+          <option value="{{ zone.city }}"></option>
+        {% endfor %}
+      </datalist>
+
+      <button id="fee-check-btn" type="button"
+              class="w-full bg-primary text-white text-sm font-bold py-3 rounded-xl hover:bg-primary/90 disabled:opacity-60 transition">
+        Consultar taxa
+      </button>
+
+    </div>
+
+
+    <div id="fee-check-result" class="hidden mt-4 p-3.5 rounded-xl text-sm border">
+      <div class="flex items-center justify-between gap-3">
+        <span id="fee-check-label" class="text-gray-600 font-medium text-xs"></span>
+        <span id="fee-check-value" class="font-bold text-base whitespace-nowrap"></span>
+      </div>
+    </div>
+
+  </div>
+
+{% endif %}
+
+
+<!-- ================================================================
+     CATÁLOGO
+     ================================================================ -->
+
+<main class="catalog-content container mx-auto px-4 pt-5 pb-32">
+
+  <p id="no-results" class="hidden text-center text-gray-500 py-16">
+    Nenhum produto encontrado para sua busca.
+  </p>
+
+  <div class="space-y-12">
+
+    {% for category in categories %}
+
+      {% if category.name|lower == "pizza" or category.name|lower == "pizzas" %}
+
+        <!-- PIZZAS INTEIRAS -->
+        <section id="pizzas-inteiras" class="category-section">
+
+          <div class="flex items-end justify-between gap-4 mb-5">
+            <div>
+              <p class="text-xs uppercase tracking-wider font-bold text-primary mb-1">Cardápio</p>
+              <h2 class="category-heading text-2xl md:text-3xl font-extrabold text-gray-900">Pizzas inteiras</h2>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+            {% for product in category.prefetched_products %}
+
+              <div data-product-wrapper>
+
+                <article class="product-card"
+                         data-product-id="{{ product.id }}"
+                         data-product-name="{{ product.name|lower|escape }}"
+                         data-product-price="{{ product.price|stringformat:'.2f' }}"
+                         data-product-image="{{ product.get_primary_image|default:'' }}">
+
+                  <div class="product-card-content flex-grow p-4 flex flex-col">
+
+                    <div class="flex-1">
+                      <h3 class="font-bold text-gray-900 text-base md:text-lg line-clamp-1 pr-2">{{ product.name }}</h3>
+
+                      {% if product.description %}
+                        <p class="product-desc text-gray-500 text-sm mt-1.5 line-clamp-2">{{ product.description }}</p>
+                      {% endif %}
+                    </div>
+
+                    <div class="flex items-center justify-between gap-3 mt-4">
+
+                      <span class="text-primary font-extrabold text-lg">R$ {{ product.price }}</span>
+
+                      <button type="button" data-action="add-to-cart"
+                              data-product-id="{{ product.id }}"
+                              data-product-name="{{ product.name|escape }}"
+                              data-product-price="{{ product.price|stringformat:'.2f' }}"
+                              data-product-image="{{ product.get_primary_image|default:'' }}"
+                              data-requires-modal="true"
+                              class="product-add"
+                              aria-label="Adicionar {{ product.name }}">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/>
+                        </svg>
+                      </button>
+
+                    </div>
+
+                  </div>
+
+                  {% if product.get_primary_image %}
+                    <img src="{{ product.get_primary_image }}" class="product-image" alt="{{ product.name }}" loading="lazy">
+                  {% else %}
+                    <div class="product-image-placeholder">
+                      <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-10h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                      </svg>
+                    </div>
+                  {% endif %}
+
+                </article>
+
+              </div>
+
+            {% empty %}
+              <p class="text-sm text-gray-400">Nenhuma pizza cadastrada.</p>
+            {% endfor %}
+
+          </div>
+
+        </section>
+
+
+        <!-- MEIO A MEIO -->
+        <section id="pizzas-meio-a-meio" class="category-section">
+
+          <div class="mb-5">
+            <p class="text-xs uppercase tracking-wider font-bold text-amber-600 mb-1">Monte do seu jeito</p>
+            <h2 class="category-heading text-2xl md:text-3xl font-extrabold text-gray-900">Pizza meio a meio</h2>
+            <p class="text-sm text-gray-500 mt-3 max-w-2xl">Escolha dois sabores e monte uma pizza do jeito que você quiser.</p>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+            {% for product in category.prefetched_products %}
+
+              <div data-product-wrapper>
+
+                <article class="product-card half-half-card"
+                         data-product-id="{{ product.id }}"
+                         data-product-name="{{ product.name|lower|escape }}"
+                         data-product-price="{{ product.price|stringformat:'.2f' }}"
+                         data-product-image="{{ product.get_primary_image|default:'' }}">
+
+                  <div class="product-card-content flex-grow p-4 flex flex-col">
+
+                    <div class="flex-1">
+
+                      <div class="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-700 bg-amber-100 rounded-full px-2 py-1 mb-2">
+                        ½ + ½
+                      </div>
+
+                      <h3 class="font-bold text-gray-900 text-base md:text-lg line-clamp-1">{{ product.name }}</h3>
+
+                      {% if product.description %}
+                        <p class="product-desc text-gray-500 text-sm mt-1.5 line-clamp-2">{{ product.description }}</p>
+                      {% endif %}
+
+                    </div>
+
+                    <div class="flex items-center justify-between gap-3 mt-4">
+
+                      <span class="text-primary font-extrabold text-lg">R$ {{ product.price }}</span>
+
+                      <button type="button" data-action="start-half-half"
+                              data-product-id="{{ product.id }}"
+                              data-product-name="{{ product.name|escape }}"
+                              data-product-price="{{ product.price|stringformat:'.2f' }}"
+                              data-product-image="{{ product.get_primary_image|default:'' }}"
+                              class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-bold bg-amber-500 text-white hover:bg-amber-600 transition"
+                              aria-label="Montar pizza meio a meio com {{ product.name }}">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <circle cx="12" cy="12" r="9"></circle>
+                          <path d="M12 3v18"></path>
+                        </svg>
+                        Montar
+                      </button>
+
+                    </div>
+
+                  </div>
+
+                  {% if product.get_primary_image %}
+                    <img src="{{ product.get_primary_image }}" class="product-image" alt="{{ product.name }}" loading="lazy">
+                  {% else %}
+                    <div class="product-image-placeholder">
+                      <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-10h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                      </svg>
+                    </div>
+                  {% endif %}
+
+                </article>
+
+              </div>
+
+            {% endfor %}
+
+          </div>
+
+        </section>
+
+
+      {% else %}
+
+        <!-- CATEGORIA NORMAL -->
+        <section id="cat-{{ category.id }}" class="category-section">
+
+          <div class="mb-5">
+            <h2 class="category-heading text-2xl md:text-3xl font-extrabold text-gray-900">{{ category.name }}</h2>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+            {% for product in category.prefetched_products %}
+
+              <div data-product-wrapper>
+
+                <article class="product-card"
+                         data-product-id="{{ product.id }}"
+                         data-product-name="{{ product.name|lower|escape }}"
+                         data-product-price="{{ product.price|stringformat:'.2f' }}"
+                         data-product-image="{{ product.get_primary_image|default:'' }}">
+
+                  {% if product.is_featured %}
+                    <span class="product-featured absolute top-3 left-3 z-10 inline-flex items-center gap-1 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow">
+                      <svg class="w-3 h-3 fill-current" viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.955a1 1 0 00.95.69h4.162c.969 0 1.371 1.24.588 1.81l-3.368 2.446a1 1 0 00-.364 1.118l1.287 3.955c.3.921-.755 1.688-1.54 1.118l-3.367-2.446a1 1 0 00-1.175 0l-3.367 2.446c-.784.57-1.838-.197-1.539-1.118l1.286-3.955a1 1 0 00-.363-1.118L2.076 9.372c-.783-.57-.38-1.81.588-1.81h4.163a1 1 0 00.95-.69l1.286-3.955z"/>
+                      </svg>
+                      Destaque
+                    </span>
+                  {% endif %}
+
+                  <div class="product-card-content flex-grow p-4 flex flex-col">
+
+                    <div class="flex-1">
+                      <h3 class="font-bold text-gray-900 text-base md:text-lg line-clamp-1 pr-2">{{ product.name }}</h3>
+
+                      {% if product.description %}
+                        <p class="product-desc text-gray-500 text-sm mt-1.5 line-clamp-2">{{ product.description }}</p>
+                      {% endif %}
+                    </div>
+
+                    <div class="flex items-center justify-between gap-3 mt-4">
+
+                      <span class="text-primary font-extrabold text-lg">R$ {{ product.price }}</span>
+
+                      <button type="button" data-action="add-to-cart"
+                              data-product-id="{{ product.id }}"
+                              data-product-name="{{ product.name|escape }}"
+                              data-product-price="{{ product.price|stringformat:'.2f' }}"
+                              data-product-image="{{ product.get_primary_image|default:'' }}"
+                              data-requires-modal="true"
+                              class="product-add"
+                              aria-label="Adicionar {{ product.name }}">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/>
+                        </svg>
+                      </button>
+
+                    </div>
+
+                  </div>
+
+                  {% if product.get_primary_image %}
+                    <img src="{{ product.get_primary_image }}" class="product-image" alt="{{ product.name }}" loading="lazy">
+                  {% else %}
+                    <div class="product-image-placeholder">
+                      <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-10h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                      </svg>
+                    </div>
+                  {% endif %}
+
+                </article>
+
+              </div>
+
+            {% empty %}
+              <p class="text-sm text-gray-400">Nenhum produto cadastrado nesta categoria.</p>
+            {% endfor %}
+
+          </div>
+
+        </section>
+
+      {% endif %}
+
+    {% endfor %}
+
+  </div>
+
+</main>
+
+
+<!-- ================================================================
+     MODAL — ADICIONAR AO CARRINHO
+     ================================================================ -->
+
+<div data-modal="add-to-cart" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/55 backdrop-blur-[2px] p-4">
 
   <div data-modal-overlay class="absolute inset-0"></div>
 
-  <div class="relative bg-white rounded-xl shadow-xl max-w-md w-full mx-4 z-10 max-h-[90vh] flex flex-col">
+  <div class="relative bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 z-10 max-h-[90vh] flex flex-col overflow-hidden">
 
-    <!-- Header -->
     <div class="flex justify-between items-center p-5 border-b border-gray-100">
-      <div>
-        <h3 class="text-lg font-bold text-gray-800" data-modal-product-name></h3>
-        <p class="text-primary font-semibold text-sm mt-0.5" data-modal-product-price></p>
+
+      <div class="min-w-0">
+        <h3 class="text-lg font-extrabold text-gray-900 truncate" data-modal-product-name></h3>
+        <p class="text-primary font-bold text-sm mt-1" data-modal-product-price></p>
       </div>
+
       <button type="button" data-modal-close="add-to-cart"
-              class="text-gray-400 hover:text-gray-600 rounded-full p-1 transition-colors" aria-label="Fechar">
+              class="flex-shrink-0 p-2 rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition"
+              aria-label="Fechar">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
         </svg>
       </button>
+
     </div>
 
-    <!-- Corpo com scroll -->
     <form data-add-to-cart-form class="flex flex-col flex-1 overflow-hidden">
+
       <input type="hidden" data-modal-product-id>
 
-      <div class="overflow-y-auto flex-1 p-5 space-y-4">
+      <div class="overflow-y-auto flex-1 p-5 space-y-5">
 
-        <!-- Customizações (preenchido via JS) -->
         <div data-customizations-container class="space-y-1"></div>
 
-        <!-- Observação -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Observação <span class="text-gray-400 font-normal">(opcional)</span></label>
-          <textarea data-modal-note
-                    rows="2"
-                    placeholder="Ex: sem cebola, bem passado..."
-                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition"></textarea>
+          <label class="block text-sm font-bold text-gray-700 mb-1.5">
+            Observação
+            <span class="text-gray-400 font-normal">(opcional)</span>
+          </label>
+          <textarea data-modal-note rows="3" placeholder="Ex: sem cebola, molho à parte..."
+                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"></textarea>
         </div>
 
       </div>
 
-      <!-- Footer fixo -->
       <div class="p-5 border-t border-gray-100 flex gap-3">
         <button type="button" data-modal-close="add-to-cart"
-                class="flex-1 py-2.5 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors text-sm">
+                class="flex-1 py-3 px-4 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition text-sm">
           Cancelar
         </button>
         <button type="submit"
-                class="flex-1 py-2.5 px-4 bg-primary text-white rounded-lg hover:bg-primary/90 font-medium transition-all shadow-sm hover:shadow-md text-sm">
+                class="flex-1 py-3 px-4 bg-primary text-white rounded-xl hover:bg-primary/90 font-bold transition shadow-sm">
           Adicionar
         </button>
       </div>
+
     </form>
 
   </div>
+
 </div>
 
-<!-- ===================== MODAL MEIO A MEIO ===================== -->
-<div data-modal="half-half"
-     class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4">
+
+<!-- ================================================================
+     MODAL — MEIO A MEIO
+     ================================================================ -->
+
+<div data-modal="half-half" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/55 backdrop-blur-[2px] p-4">
 
   <div data-modal-overlay class="absolute inset-0"></div>
 
-  <div class="relative bg-white rounded-xl shadow-xl max-w-md w-full mx-4 z-10 max-h-[90vh] flex flex-col"
-       id="half-half-modal-content">
+  <div class="relative bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 z-10 max-h-[90vh] flex flex-col overflow-hidden" id="half-half-modal-content">
 
-    <!-- Header -->
     <div class="flex justify-between items-center p-5 border-b border-gray-100">
-      <h3 class="text-lg font-bold text-gray-800">Monte sua Pizza Meio a Meio</h3>
+
+      <div>
+        <p class="text-xs uppercase tracking-wide font-bold text-primary">Personalização</p>
+        <h3 class="text-lg font-extrabold text-gray-900 mt-0.5">Pizza meio a meio</h3>
+      </div>
+
       <button type="button" data-modal-close="half-half"
-              class="text-gray-400 hover:text-gray-600 rounded-full p-1 transition-colors" aria-label="Fechar modal">
+              class="p-2 rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition"
+              aria-label="Fechar modal">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
         </svg>
       </button>
+
     </div>
 
-    <!-- Corpo com scroll -->
-    <div class="overflow-y-auto flex-1 p-5 space-y-4">
+    <div class="overflow-y-auto flex-1 p-5 space-y-5">
 
-      <!-- Dropdown segundo sabor -->
       <div>
-        <p class="text-gray-600 mb-2 text-sm font-medium">Selecione o segundo sabor:</p>
+
+        <p class="text-sm text-gray-600 mb-2 font-semibold">Escolha o segundo sabor</p>
+
         <div class="dropdown" data-half-half-dropdown>
-          <button type="button" data-half-half-dropdown-btn
-                  class="dropdown-button" aria-haspopup="listbox" aria-expanded="false">
-            <span data-half-half-dropdown-text>Selecione o segundo sabor</span>
-            <svg class="w-4 h-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+
+          <button type="button" data-half-half-dropdown-btn class="dropdown-button" aria-haspopup="listbox" aria-expanded="false">
+            <span data-half-half-dropdown-text class="text-gray-600 text-sm truncate">Selecione o segundo sabor</span>
+            <svg class="w-4 h-4 text-gray-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
             </svg>
           </button>
+
           <div data-half-half-dropdown-list class="dropdown-list hidden" role="listbox">
-            <input data-half-half-search class="dropdown-search" placeholder="Buscar sabor..." type="search">
+            <input data-half-half-search class="dropdown-search" placeholder="Buscar sabor..." type="search" autocomplete="off">
             <div data-half-half-items></div>
           </div>
+
         </div>
+
       </div>
 
-      <!-- Preview visual -->
-      <div class="p-4 bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl border border-primary/20">
-        <div class="text-center mb-3">
-          <h4 class="font-semibold text-gray-700">Sua Escolha</h4>
-          <p class="text-xs text-gray-500">Metade 1 (fixa) — Metade 2 (selecionável)</p>
+      <!-- PREVIEW -->
+      <div class="p-4 bg-gradient-to-br from-primary/5 to-primary/10 rounded-2xl border border-primary/15">
+
+        <div class="text-center mb-4">
+          <h4 class="font-extrabold text-gray-800">Sua pizza</h4>
+          <p class="text-xs text-gray-500 mt-1">Escolha um sabor para cada metade.</p>
         </div>
+
         <div class="relative h-32 mx-auto max-w-xs">
-          <div class="absolute inset-0 rounded-full border-4 border-primary/20 flex items-center justify-center">
+
+          <div class="absolute inset-0 rounded-full border-[5px] border-primary/20 flex items-center justify-center">
             <div class="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-              <div class="text-xs text-primary font-medium">½ + ½</div>
+              <div class="text-xs text-primary font-extrabold">½ + ½</div>
             </div>
           </div>
-          <!-- Metade esquerda -->
+
           <div class="absolute left-0 top-0 w-1/2 h-full overflow-hidden rounded-l-full">
-            <div class="w-full h-full rounded-l-full flex items-center justify-center bg-white/80 border-r border-primary/30">
-              <div class="text-center px-2">
-                <img data-half-left-thumb src="" alt="" class="w-14 h-14 rounded-md object-cover mb-1 mx-auto hidden">
-                <div class="text-xs text-gray-500 mb-1">Metade 1</div>
-                <div class="text-sm font-medium text-gray-700 truncate" data-half-left-name>Escolha...</div>
+            <div class="w-full h-full rounded-l-full flex items-center justify-center bg-white/85 border-r border-primary/20">
+              <div class="text-center px-2 min-w-0">
+                <img data-half-left-thumb src="" alt="" class="w-14 h-14 rounded-lg object-cover mb-1 mx-auto hidden">
+                <div class="text-[10px] uppercase tracking-wide text-gray-400 font-bold">Metade 1</div>
+                <div class="text-xs font-bold text-gray-700 truncate" data-half-left-name>Escolha...</div>
               </div>
             </div>
           </div>
-          <!-- Metade direita -->
+
           <div class="absolute right-0 top-0 w-1/2 h-full overflow-hidden rounded-r-full">
-            <div class="w-full h-full rounded-r-full flex items-center justify-center bg-white/80 border-l border-primary/30">
-              <div class="text-center px-2">
-                <img data-half-right-thumb src="" alt="" class="w-14 h-14 rounded-md object-cover mb-1 mx-auto hidden">
-                <div class="text-xs text-gray-500 mb-1">Metade 2</div>
-                <div class="text-sm font-medium text-gray-700 truncate" data-half-right-name>Selecione...</div>
+            <div class="w-full h-full rounded-r-full flex items-center justify-center bg-white/85 border-l border-primary/20">
+              <div class="text-center px-2 min-w-0">
+                <img data-half-right-thumb src="" alt="" class="w-14 h-14 rounded-lg object-cover mb-1 mx-auto hidden">
+                <div class="text-[10px] uppercase tracking-wide text-gray-400 font-bold">Metade 2</div>
+                <div class="text-xs font-bold text-gray-700 truncate" data-half-right-name>Selecione...</div>
               </div>
             </div>
           </div>
+
         </div>
+
         <div class="text-center mt-4">
-          <div class="text-2xl font-bold text-primary mb-1" data-half-price>R$ 0,00</div>
-          <div class="text-sm text-gray-600">Preço total (pizza + adicionais)</div>
+          <div class="text-2xl font-extrabold text-primary" data-half-price>R$ 0,00</div>
+          <div class="text-xs text-gray-500 mt-1">Valor total da pizza + adicionais</div>
         </div>
+
       </div>
 
-      <!-- Seção de customizações (aparece após selecionar os dois sabores) -->
-      <div id="half-customizations-section" class="hidden space-y-4">
-        <!-- Preenchido dinamicamente pelo half-half.js -->
-      </div>
+      <div id="half-customizations-section" class="hidden space-y-4"></div>
 
-      <!-- Observações por metade (aparece após selecionar os dois sabores) -->
       <div id="half-observations-section" class="hidden space-y-3 pt-1">
-        <p class="text-sm font-medium text-gray-700">Observações <span class="text-gray-400 font-normal">(opcional)</span></p>
+
+        <div>
+          <p class="text-sm font-bold text-gray-700 mb-2">Observações</p>
+          <label class="block text-xs text-gray-500 mb-1">
+            Metade 1: <span id="obs-label-half1" class="font-bold text-gray-700">—</span>
+          </label>
+          <textarea id="notes-half1" rows="2" placeholder="Ex: sem cebola..."
+                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"></textarea>
+        </div>
+
         <div>
           <label class="block text-xs text-gray-500 mb-1">
-            Metade 1: <span id="obs-label-half1" class="font-medium text-gray-700">—</span>
+            Metade 2: <span id="obs-label-half2" class="font-bold text-gray-700">—</span>
           </label>
-          <textarea id="notes-half1" rows="2"
-            placeholder="Ex: sem cebola, borda recheada..."
-            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition"></textarea>
+          <textarea id="notes-half2" rows="2" placeholder="Ex: sem cebola..."
+                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"></textarea>
         </div>
-        <div>
-          <label class="block text-xs text-gray-500 mb-1">
-            Metade 2: <span id="obs-label-half2" class="font-medium text-gray-700">—</span>
-          </label>
-          <textarea id="notes-half2" rows="2"
-            placeholder="Ex: sem cebola, borda recheada..."
-            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition"></textarea>
-        </div>
+
       </div>
 
     </div>
 
-    <!-- Footer fixo -->
     <div class="p-5 border-t border-gray-100 flex gap-3">
       <button type="button" data-modal-close="half-half"
-              class="flex-1 py-2.5 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors text-sm">
+              class="flex-1 py-3 px-4 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition text-sm">
         Cancelar
       </button>
-      <button type="button" data-half-half-submit
-              disabled
-              class="flex-1 py-2.5 px-4 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 font-medium transition-all shadow-sm hover:shadow-md text-sm">
-        Adicionar ao Carrinho
+      <button type="button" data-half-half-submit disabled
+              class="flex-1 py-3 px-4 bg-primary text-white rounded-xl hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed font-bold transition shadow-sm text-sm">
+        Adicionar
       </button>
     </div>
 
   </div>
+
 </div>
+
+
+<!-- ================================================================
+     JAVASCRIPT DO CATÁLOGO
+     ================================================================ -->
+
+<script>
+(function () {
+
+  'use strict';
+
+  /* ================================================================
+     HORÁRIOS (popover)
+     ================================================================ */
+
+  const hoursToggle = document.getElementById('hours-toggle');
+  const hoursPopover = document.getElementById('hours-popover');
+
+  hoursToggle?.addEventListener('click', function (e) {
+    e.stopPropagation();
+    hoursPopover?.classList.toggle('hidden');
+  });
+
+  document.addEventListener('click', function (e) {
+    if (hoursPopover && !hoursPopover.contains(e.target) && e.target !== hoursToggle) {
+      hoursPopover.classList.add('hidden');
+    }
+  });
+
+  /* ================================================================
+     BUSCA
+     ================================================================ */
+
+  const searchInput = document.getElementById('product-search');
+  const noResults = document.getElementById('no-results');
+  const countEl = document.getElementById('search-count');
+
+  function performSearch() {
+
+    const q = searchInput?.value.toLowerCase().trim() || '';
+    let visibleCount = 0;
+
+    document.querySelectorAll('[data-product-wrapper]').forEach(wrapper => {
+
+      const card = wrapper.querySelector('.product-card');
+      const name = card?.dataset.productName?.toLowerCase() || '';
+      const desc = wrapper.querySelector('.product-desc')?.textContent.toLowerCase() || '';
+
+      const show = !q || name.includes(q) || desc.includes(q);
+      wrapper.style.display = show ? '' : 'none';
+
+      if (show) visibleCount++;
+
+    });
+
+    document.querySelectorAll('.category-section').forEach(section => {
+      const products = section.querySelectorAll('[data-product-wrapper]');
+      const hasVisible = [...products].some(el => el.style.display !== 'none');
+      section.style.display = hasVisible ? '' : 'none';
+    });
+
+    if (noResults) {
+      noResults.classList.toggle('hidden', visibleCount > 0 || !q);
+    }
+
+    if (countEl) {
+      if (q) {
+        countEl.textContent = `${visibleCount} resultado${visibleCount !== 1 ? 's' : ''}`;
+        countEl.classList.remove('hidden');
+      } else {
+        countEl.classList.add('hidden');
+      }
+    }
+
+  }
+
+  searchInput?.addEventListener('input', performSearch);
+
+  /* ================================================================
+     CATEGORIAS — ACTIVE
+     ================================================================ */
+
+  const categoryChips = document.querySelectorAll('[data-category-chip]');
+
+  function setActiveCategory(target) {
+    categoryChips.forEach(chip => {
+      chip.classList.toggle('active', chip.dataset.target === target);
+    });
+  }
+
+  categoryChips.forEach(chip => {
+    chip.addEventListener('click', function (e) {
+      e.preventDefault();
+      setActiveCategory(this.dataset.target);
+      closeCategoryDrawer();
+      const targetEl = document.getElementById(this.dataset.target);
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
+
+  /* ================================================================
+     DRAWER DE CATEGORIAS
+     ================================================================ */
+
+  const hamburgerBtn = document.getElementById('category-hamburger');
+  const drawerPanel = document.getElementById('category-drawer-panel');
+  const drawerOverlay = document.getElementById('category-drawer-overlay');
+  const drawerClose = document.getElementById('category-drawer-close');
+
+  function openCategoryDrawer() {
+    drawerPanel?.classList.add('open');
+    drawerOverlay?.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeCategoryDrawer() {
+    drawerPanel?.classList.remove('open');
+    drawerOverlay?.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+
+  hamburgerBtn?.addEventListener('click', openCategoryDrawer);
+  drawerClose?.addEventListener('click', closeCategoryDrawer);
+  drawerOverlay?.addEventListener('click', closeCategoryDrawer);
+
+  /* ================================================================
+     INTERSECTION OBSERVER
+     ================================================================ */
+
+  if ('IntersectionObserver' in window) {
+
+    const sections = document.querySelectorAll('.category-section');
+
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting && entry.intersectionRatio >= .15) {
+          setActiveCategory(entry.target.id);
+        }
+      });
+    }, {
+      rootMargin: '-190px 0px -55% 0px',
+      threshold: [.15, .5]
+    });
+
+    sections.forEach(section => observer.observe(section));
+
+  }
+
+  /* ================================================================
+     FRETE
+     ================================================================ */
+
+  const fab = document.getElementById('frete-fab');
+  const fretePanel = document.getElementById('frete-panel');
+  const fretePanelClose = document.getElementById('frete-panel-close');
+  const neighborhoodEl = document.getElementById('fee-check-neighborhood');
+  const cityEl = document.getElementById('fee-check-city');
+  const feeBtn = document.getElementById('fee-check-btn');
+  const feeResult = document.getElementById('fee-check-result');
+  const feeLabelEl = document.getElementById('fee-check-label');
+  const feeValueEl = document.getElementById('fee-check-value');
+
+  fab?.addEventListener('click', function (event) {
+    event.stopPropagation();
+    fretePanel?.classList.toggle('hidden');
+  });
+
+  fretePanelClose?.addEventListener('click', function () {
+    fretePanel?.classList.add('hidden');
+  });
+
+  document.addEventListener('click', function (event) {
+    if (fretePanel && fab && !fretePanel.contains(event.target) && !fab.contains(event.target)) {
+      fretePanel.classList.add('hidden');
+    }
+  });
+
+  /* ================================================================
+     AUTO-PREENCHER CIDADE
+     ================================================================ */
+
+  neighborhoodEl?.addEventListener('change', function () {
+
+    const value = this.value.trim();
+    if (!value || !cityEl) return;
+
+    const options = document.querySelectorAll('#fee-check-neighborhood-list option');
+
+    const option = [...options].find(
+      item => item.value.toLowerCase() === value.toLowerCase()
+    );
+
+    if (option?.dataset.city && !cityEl.value.trim()) {
+      cityEl.value = option.dataset.city;
+    }
+
+  });
+
+  /* ================================================================
+     RESULTADO DO FRETE
+     ================================================================ */
+
+  function showFeeResult(type, label, value = '') {
+
+    if (!feeResult || !feeLabelEl || !feeValueEl) return;
+
+    const styles = {
+      success: 'mt-4 p-3.5 rounded-xl text-sm border bg-green-50 border-green-200',
+      warning: 'mt-4 p-3.5 rounded-xl text-sm border bg-yellow-50 border-yellow-200',
+      error: 'mt-4 p-3.5 rounded-xl text-sm border bg-red-50 border-red-200',
+      info: 'mt-4 p-3.5 rounded-xl text-sm border bg-gray-50 border-gray-200'
+    };
+
+    feeResult.className = styles[type] || styles.info;
+    feeLabelEl.textContent = label;
+    feeValueEl.textContent = value;
+
+    feeValueEl.className =
+      type === 'success'
+        ? 'font-extrabold text-base text-green-700 whitespace-nowrap'
+        : type === 'warning'
+          ? 'font-extrabold text-base text-yellow-700 whitespace-nowrap'
+          : 'font-extrabold text-base text-gray-700 whitespace-nowrap';
+
+    feeResult.classList.remove('hidden');
+
+  }
+
+  /* ================================================================
+     CALCULAR FRETE
+     ================================================================ */
+
+  async function calculateFee() {
+
+    const neighborhood = neighborhoodEl?.value.trim() || '';
+    const city = cityEl?.value.trim() || '';
+
+    if (!neighborhood || !city) {
+      showFeeResult('warning', 'Informe o bairro e a cidade.');
+      return;
+    }
+
+    if (!feeBtn) return;
+
+    feeBtn.disabled = true;
+    feeBtn.textContent = 'Consultando...';
+
+    try {
+
+      const params = new URLSearchParams({ city, neighborhood });
+
+      const response = await fetch(`/api/delivery-fee/?${params.toString()}`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro HTTP');
+      }
+
+      const data = await response.json();
+
+      if (data.found) {
+        showFeeResult('success', `${neighborhood}, ${city}`, data.fee_display);
+      } else if (parseFloat(data.fee || 0) > 0) {
+        showFeeResult('warning', 'Taxa padrão aplicada', data.fee_display);
+      } else {
+        showFeeResult('error', data.message || 'Este endereço não é atendido.');
+      }
+
+    } catch (error) {
+
+      console.error('Erro ao consultar frete:', error);
+      showFeeResult('error', 'Não foi possível consultar a taxa. Tente novamente.');
+
+    } finally {
+
+      feeBtn.disabled = false;
+      feeBtn.textContent = 'Consultar taxa';
+
+    }
+
+  }
+
+  feeBtn?.addEventListener('click', calculateFee);
+
+  [neighborhoodEl, cityEl].forEach(input => {
+    input?.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        calculateFee();
+      }
+    });
+  });
+
+  /* ================================================================
+     ESC
+     ================================================================ */
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key !== 'Escape') return;
+    fretePanel?.classList.add('hidden');
+    hoursPopover?.classList.add('hidden');
+    closeCategoryDrawer();
+  });
+
+})();
+</script>
 
 {% endblock %}

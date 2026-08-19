@@ -218,52 +218,79 @@ UNFOLD = {
         "show_search": False,
         "command_search": False,
         "show_all_applications": False,
-        # "navigation": [
-        #     {
-        #         "title": _("Navigation"),
-        #         "separator": True,
-        #         "collapsible": True,
-        #         "items": [
-        #             {
-        #                 "title": _("Dashboard"),
-        #                 "icon": "dashboard",
-        #                 "link": reverse_lazy("admin:index"),
-        #                 "badge": "sample_app.badge_callback",
-        #                 "badge_variant": "info",
-        #                 "badge_style": "solid",
-        #                 "permission": lambda request: request.user.is_superuser,
-        #             },
-        #             {
-        #                 "title": _("Users"),
-        #                 "icon": "people",
-        #                 "link": reverse_lazy("admin:auth_user_changelist"),
-        #             },
-        #         ],
-        #     },
-        # ],
-    },
-    # "TABS": [
-    #     {
-    #         "models": [
-    #             "tenants.tenant",
-    #             "stores.store",
-    #         ],
-    #         "items": [
-    #             {
-    #                 "title": _("Dashboard"),
-    #                 "link": reverse_lazy("admin:index"),
-    #             },
-    #             {
-    #                 "title": _("Tenants"),
-    #                 "link": reverse_lazy("tenants_tenant_changelist")
-    #             },
-    #             {
-    #                 "title": _("Stores"),
-    #                 "link": reverse_lazy("stores_store_changelist"),
-    #             },
-    #         ],
-    #     },
-    # ],
+        "navigation": [
+            {
+                "title": _("Cardápio"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Categorias"),
+                        "icon": "category",
+                        "link": reverse_lazy("tenant_admin:stores_category_changelist"),
+                    },
+                    {
+                        "title": _("Produtos"),
+                        "icon": "fastfood",
+                        "link": reverse_lazy("tenant_admin:stores_product_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("Personalizações"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Rótulos"),
+                        "icon": "label",
+                        "link": reverse_lazy("tenant_admin:stores_customizationgrouplabel_changelist"),
+                    },
+                    {
+                        "title": _("Grupos de Personalização"),
+                        "icon": "tune",
+                        "link": reverse_lazy("tenant_admin:stores_customizationgroup_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("Entrega"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Zonas de Entrega"),
+                        "icon": "local_shipping",
+                        "link": reverse_lazy("tenant_admin:tenants_deliveryzone_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("Pedidos"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Pedidos"),
+                        "icon": "receipt_long",
+                        "link": reverse_lazy("tenant_admin:orders_order_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("Configurações"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Minha Loja"),
+                        "icon": "store",
+                        "link": reverse_lazy("tenant_admin:tenants_tenant_changelist"),
+                    },
+                ],
+            },
+        ],
+    }
 }
 
 UNFOLD_SUPER = {

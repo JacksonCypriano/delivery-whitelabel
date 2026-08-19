@@ -9,6 +9,7 @@ from .models import (
     DAYS_OF_WEEK,
     Category,
     CustomizationGroup,
+    CustomizationGroupLabel,
     CustomizationOption,
     HalfProduct,
     Product,
@@ -93,7 +94,6 @@ class ProductAdmin(TenantModelAdmin):
             self.message_user(request, f"{created_count} meio(s) criado(s).", messages.SUCCESS)
         else:
             self.message_user(request, "Nenhum meio criado (já existiam para os produtos selecionados).", messages.INFO)
-
     create_half_for_selected.short_description = "Criar HalfProduct para produtos selecionados"
 
     def available_days_display(self, obj):
@@ -101,30 +101,44 @@ class ProductAdmin(TenantModelAdmin):
             return "Todos os dias"
         nomes = dict(DAYS_OF_WEEK)
         return ", ".join(nomes[d] for d in obj.available_days)
-
     available_days_display.short_description = "Dias disponíveis"
 
 
-# ── Customizações ─────────────────────────────────────────────────────────────
+# ── Rótulos de Grupos de Personalização ───────────────────────────────────────
+
+@admin.register(CustomizationGroupLabel, site=tenant_admin_site)
+class CustomizationGroupLabelAdmin(TenantModelAdmin):
+    list_display = ('name', 'groups_count')
+    search_fields = ('name',)
+    ordering = ('name',)
+
+    def groups_count(self, obj):
+        return obj.groups.count()
+    groups_count.short_description = "Grupos usando este rótulo"
+
+
+# ── Grupos de Personalização ──────────────────────────────────────────────────
 
 class CustomizationOptionInline(admin.StackedInline):
     model = CustomizationOption
     extra = 1
-    fields = ('name', 'description', 'price', 'image', 'is_available', 'order')
-    ordering = ('order',)
+    fields = ('name', 'description', 'price', 'image', 'is_available')
+    ordering = ('name',)
+    verbose_name = "Opção de Personalização"
+    verbose_name_plural = "Opções de Personalização"
 
 
 @admin.register(CustomizationGroup, site=tenant_admin_site)
 class CustomizationGroupAdmin(TenantModelAdmin):
-    list_display = ('name', 'category', 'apply_to_display', 'min_options', 'max_options', 'is_active', 'order')
+    list_display = ('label', 'category', 'apply_to_display', 'min_options', 'max_options', 'is_active')
     list_filter = ('category', 'apply_to', 'is_active')
-    search_fields = ('name',)
-    ordering = ('category', 'order')
+    search_fields = ('label__name', 'category__name')
+    ordering = ('category', 'label__name')
     inlines = [CustomizationOptionInline]
 
     fieldsets = (
         (None, {
-            'fields': ('category', 'name', 'apply_to', 'is_active', 'order')
+            'fields': ('category', 'label', 'apply_to', 'is_active')
         }),
         ('Limites de seleção', {
             'description': 'Defina quantas opções o cliente pode/deve escolher neste grupo.',
@@ -143,7 +157,7 @@ class CustomizationGroupAdmin(TenantModelAdmin):
 
     def save_formset(self, request, form, formset, change):
         """
-        Garante que as opções criadas via Inline (CustomizationOption) 
+        Garante que as opções criadas via Inline (CustomizationOption)
         também recebam o tenant da loja logada.
         """
         instances = formset.save(commit=False)
@@ -152,17 +166,18 @@ class CustomizationGroupAdmin(TenantModelAdmin):
             obj.delete()
 
         for instance in instances:
-            # Se for uma opção de customização e não tiver tenant, injeta o tenant logado
             if hasattr(instance, "tenant_id") and not instance.tenant_id:
                 instance.tenant = request.tenant
             instance.save()
-        
+
         formset.save_m2m()
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         field = super().formfield_for_foreignkey(db_field, request, **kwargs)
-        if db_field.name == 'category':
-            tenant = getattr(request, 'tenant', None)
-            if tenant:
+        tenant = getattr(request, 'tenant', None)
+        if tenant:
+            if db_field.name == 'category':
+                field.queryset = field.queryset.filter(tenant=tenant)
+            elif db_field.name == 'label':
                 field.queryset = field.queryset.filter(tenant=tenant)
         return field

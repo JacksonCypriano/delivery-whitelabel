@@ -16,7 +16,7 @@
                 {% for product in pizza_products %}
                 <div class="border border-gray-200 rounded-lg p-3 cursor-pointer half-half-option hover:border-primary hover:bg-primary/5 transition-all duration-200 transform hover:scale-105"
                      data-product-id="{{ product.id }}"
-                     data-product-name="{{ product.name|escapejs }}"
+                     data-product-name="{{ product.name }}"
                      data-product-price="{{ product.price }}">
                     <div class="font-medium text-sm text-gray-800 truncate">{{ product.name }}</div>
                     <div class="text-xs text-gray-500 mt-1">R$ {{ product.price|floatformat:2 }}</div>

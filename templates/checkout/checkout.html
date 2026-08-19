@@ -1,3 +1,4 @@
+{# templates/checkout/checkout.html #}
 {% extends "base.html" %}
 {% load static %}
 
@@ -11,7 +12,26 @@
     <!-- Formulário -->
     <form method="POST" id="checkout-form" class="lg:w-2/3 space-y-6">
       {% csrf_token %}
-      <h1 class="text-2xl font-bold mb-6">Finalizar Pedido</h1>
+      <h1 class="text-2xl font-bold mb-2">Finalizar Pedido</h1>
+
+      <!-- Modo de atendimento -->
+      <div class="bg-blue-50 border border-blue-100 rounded-xl p-3 text-sm text-blue-800 flex items-center gap-2">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span>
+          Esta loja oferece:
+          <strong>
+            {% if tenant.is_pickup_only %}
+              Apenas retirada
+            {% elif tenant.is_delivery_only %}
+              Apenas entrega
+            {% else %}
+              Entrega e retirada
+            {% endif %}
+          </strong>
+        </span>
+      </div>
 
       <!-- Identificação -->
       <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
@@ -29,8 +49,104 @@
         </div>
       </div>
 
-      <!-- Endereço -->
+      <!-- Tipo de Entrega -->
       <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div class="flex items-center gap-3 mb-4 text-primary">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12h12l1-12"/>
+          </svg>
+          <h2 class="text-lg font-semibold text-gray-800">Como deseja receber?</h2>
+        </div>
+
+        <input type="hidden" name="delivery_type" id="delivery_type_input"
+               value="{% if tenant.is_pickup_only %}pickup{% else %}delivery{% endif %}">
+
+        {% if tenant.is_pickup_only %}
+
+          <div class="flex flex-col items-center gap-2 border-2 border-primary bg-primary/5 rounded-xl p-4 text-primary">
+            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2 9m13-9l2 9M9 21h6"/>
+            </svg>
+            <span class="text-sm font-semibold">Apenas retirada na loja</span>
+          </div>
+
+          <div class="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-xl text-sm text-blue-700 flex items-start gap-2">
+            <svg class="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            <span>
+              Endereço para retirada:
+              <strong>
+                {{ tenant.pickup_address }}
+                {% if tenant.pickup_number %}, {{ tenant.pickup_number }}{% endif %}
+                {% if tenant.pickup_complement %} - {{ tenant.pickup_complement }}{% endif %}
+                {% if tenant.pickup_neighborhood %}, {{ tenant.pickup_neighborhood }}{% endif %}
+                {% if tenant.pickup_city %} - {{ tenant.pickup_city }}{% endif %}
+              </strong>
+            </span>
+          </div>
+
+        {% elif tenant.is_delivery_only %}
+
+          <div class="grid grid-cols-2 gap-3">
+            <button type="button" id="btn-delivery"
+                    class="delivery-type-btn flex flex-col items-center gap-2 border-2 border-primary bg-primary/5 rounded-xl p-4 cursor-pointer transition"
+                    data-value="delivery">
+              <svg class="w-7 h-7 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l1 1h1m8-1h5l2-5H13v5zm0 0H9"/>
+              </svg>
+              <span class="text-sm font-semibold text-primary">Entrega</span>
+            </button>
+            <div class="flex flex-col items-center justify-center gap-2 border-2 border-gray-100 bg-gray-50 rounded-xl p-4 text-gray-400 cursor-not-allowed">
+              <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2 9m13-9l2 9M9 21h6"/>
+              </svg>
+              <span class="text-sm font-semibold">Retirada indisponível</span>
+            </div>
+          </div>
+
+        {% else %}
+
+          <div class="grid grid-cols-2 gap-3">
+            <button type="button" id="btn-delivery"
+                    class="delivery-type-btn flex flex-col items-center gap-2 border-2 border-primary bg-primary/5 rounded-xl p-4 cursor-pointer transition"
+                    data-value="delivery">
+              <svg class="w-7 h-7 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l1 1h1m8-1h5l2-5H13v5zm0 0H9"/>
+              </svg>
+              <span class="text-sm font-semibold text-primary">Entrega</span>
+            </button>
+            <button type="button" id="btn-pickup"
+                    class="delivery-type-btn flex flex-col items-center gap-2 border-2 border-gray-200 rounded-xl p-4 cursor-pointer transition"
+                    data-value="pickup">
+              <svg class="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2 9m13-9l2 9M9 21h6"/>
+              </svg>
+              <span class="text-sm font-semibold text-gray-500">Retirar na loja</span>
+            </button>
+          </div>
+
+          {% if store_address %}
+          <div id="pickup-address-info" class="hidden mt-4 p-3 bg-blue-50 border border-blue-100 rounded-xl text-sm text-blue-700 flex items-start gap-2">
+            <svg class="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            <span>
+              Endereço para retirada:
+              <strong>{{ store_address }}</strong>
+            </span>
+          </div>
+          {% endif %}
+
+        {% endif %}
+      </div>
+
+      <!-- Endereço de Entrega -->
+      <div id="delivery-address-fields" class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 {% if tenant.is_pickup_only %}hidden{% endif %}">
         <div class="flex items-center gap-3 mb-4 text-primary">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -38,17 +154,56 @@
           </svg>
           <h2 class="text-lg font-semibold text-gray-800">Onde entregamos?</h2>
         </div>
+
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <input type="text" name="cep" placeholder="CEP" required
+          <input type="text" name="cep" id="cep" placeholder="CEP"
                  class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
-          <input type="text" name="address" placeholder="Rua / Logradouro" required
+          <input type="text" name="address" id="address" placeholder="Rua / Logradouro"
                  class="md:col-span-2 w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
-          <input type="text" name="number" placeholder="Número" required
+          <input type="text" name="number" id="number" placeholder="Número"
                  class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
-          <input type="text" name="neighborhood" placeholder="Bairro" required
-                 class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
+
+          <!-- Bairro com datalist -->
+          <div class="relative">
+            <input type="text" name="neighborhood" id="neighborhood" placeholder="Bairro"
+                   list="neighborhood-list" autocomplete="off"
+                   class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
+            <datalist id="neighborhood-list">
+              {% for zone in delivery_zones %}
+              <option value="{{ zone.neighborhood }}" data-city="{{ zone.city }}" data-fee="{{ zone.fee }}">{{ zone.neighborhood }} — {{ zone.city }}</option>
+              {% endfor %}
+            </datalist>
+          </div>
+
+          <!-- Cidade com datalist -->
+          <div class="relative">
+            <input type="text" name="city" id="city" placeholder="Cidade"
+                   list="city-list" autocomplete="off"
+                   class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
+            <datalist id="city-list">
+              {% for zone in delivery_zones %}
+              <option value="{{ zone.city }}">
+              {% endfor %}
+            </datalist>
+          </div>
+
           <input type="text" name="complement" placeholder="Complemento (opcional)"
                  class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
+        </div>
+
+        <!-- Exibe taxa calculada -->
+        <div id="fee-display" class="hidden mt-4 flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100 text-sm">
+          <span class="text-gray-600 font-medium flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l1 1h1m8-1h5l2-5H13v5zm0 0H9"/>
+            </svg>
+            Taxa de entrega:
+          </span>
+          <div class="text-right">
+            <span id="fee-value" class="text-primary font-bold">—</span>
+            <p id="fee-message" class="text-xs text-gray-400 mt-0.5"></p>
+          </div>
         </div>
       </div>
 
@@ -116,8 +271,6 @@
         <div class="space-y-4 mb-6">
           {% for item in cart_items %}
           <div class="text-sm border-b border-gray-100 pb-3 last:border-0">
-
-            <!-- Nome + quantidade + preço -->
             <div class="flex justify-between items-start">
               <div class="flex gap-2">
                 <span class="font-bold text-primary">{{ item.quantity }}x</span>
@@ -127,8 +280,6 @@
             </div>
 
             {% if item.is_half_half %}
-
-              <!-- Borda / customizações gerais -->
               {% if item.customizations_whole %}
               <ul class="mt-1 ml-6 space-y-0.5">
                 {% for c in item.customizations_whole %}
@@ -139,51 +290,37 @@
                 {% endfor %}
               </ul>
               {% endif %}
-
-              <!-- Metade 1 -->
               {% if item.customizations_half1 or item.notes_half1 %}
               <div class="mt-1 ml-6">
                 <p class="text-xs text-gray-400 font-medium">{{ item.names.0 }}:</p>
                 <ul class="space-y-0.5">
                   {% for c in item.customizations_half1 %}
-                  <li class="text-gray-500 text-xs">
-                    + {{ c.option_name }}
+                  <li class="text-gray-500 text-xs">+ {{ c.option_name }}
                     {% if c.price and c.price != "0.00" %}<span class="text-primary">(+R$ {{ c.price }})</span>{% endif %}
                   </li>
                   {% endfor %}
                 </ul>
-                {% if item.notes_half1 %}
-                  <p class="text-xs text-amber-600 italic mt-0.5">Obs: {{ item.notes_half1 }}</p>
-                {% endif %}
+                {% if item.notes_half1 %}<p class="text-xs text-amber-600 italic mt-0.5">Obs: {{ item.notes_half1 }}</p>{% endif %}
               </div>
               {% endif %}
-
-              <!-- Metade 2 -->
               {% if item.customizations_half2 or item.notes_half2 %}
               <div class="mt-1 ml-6">
                 <p class="text-xs text-gray-400 font-medium">{{ item.names.1 }}:</p>
                 <ul class="space-y-0.5">
                   {% for c in item.customizations_half2 %}
-                  <li class="text-gray-500 text-xs">
-                    + {{ c.option_name }}
+                  <li class="text-gray-500 text-xs">+ {{ c.option_name }}
                     {% if c.price and c.price != "0.00" %}<span class="text-primary">(+R$ {{ c.price }})</span>{% endif %}
                   </li>
                   {% endfor %}
                 </ul>
-                {% if item.notes_half2 %}
-                  <p class="text-xs text-amber-600 italic mt-0.5">Obs: {{ item.notes_half2 }}</p>
-                {% endif %}
+                {% if item.notes_half2 %}<p class="text-xs text-amber-600 italic mt-0.5">Obs: {{ item.notes_half2 }}</p>{% endif %}
               </div>
               {% endif %}
-
             {% else %}
-
-              <!-- Produto simples: customizações -->
               {% if item.customizations %}
               <ul class="mt-1 ml-6 space-y-0.5">
                 {% for c in item.customizations %}
-                <li class="text-gray-500 text-xs">
-                  + {{ c.group_name }}: {{ c.option_name }}
+                <li class="text-gray-500 text-xs">+ {{ c.group_name }}: {{ c.option_name }}
                   {% if c.price and c.price != "0.00" and c.price != "0" %}
                     <span class="text-primary">(+R$ {{ c.price }})</span>
                   {% endif %}
@@ -191,34 +328,27 @@
                 {% endfor %}
               </ul>
               {% endif %}
-
             {% endif %}
 
-            <!-- Observação geral -->
             {% if item.notes %}
               <p class="mt-1 ml-6 text-xs text-gray-400 italic">Obs: {{ item.notes }}</p>
             {% endif %}
-
           </div>
           {% endfor %}
         </div>
 
         <div class="border-t border-dashed border-gray-200 pt-4 space-y-2">
-          <div class="flex justify-between text-gray-500">
+          <div class="flex justify-between text-gray-500 text-sm">
             <span>Subtotal</span>
             <span>R$ {{ subtotal|floatformat:2 }}</span>
           </div>
-          <div class="flex justify-between text-gray-500">
+          <div class="flex justify-between text-gray-500 text-sm" id="summary-fee-row">
             <span>Taxa de entrega</span>
-            {% if delivery_fee %}
-              <span>R$ {{ delivery_fee|floatformat:2 }}</span>
-            {% else %}
-              <span class="text-green-600 font-medium">Grátis</span>
-            {% endif %}
+            <span id="summary-fee-value" class="font-medium text-gray-700">—</span>
           </div>
           <div class="flex justify-between text-xl font-bold pt-2 text-gray-900 border-t border-gray-100 mt-2">
             <span>Total</span>
-            <span>R$ {{ total|floatformat:2 }}</span>
+            <span id="summary-total">R$ {{ subtotal|floatformat:2 }}</span>
           </div>
         </div>
 
@@ -233,6 +363,175 @@
 
   </div>
 </div>
-{# A seleção de pagamento, o campo de troco e o feedback de envio são gerenciados
-   por static/js/features/checkout.js (initCheckout). #}
-{% endblock %}
+
+<script>
+(function () {
+  // Subtotal vindo do servidor (sem frete)
+  const subtotal = parseFloat('{{ subtotal|floatformat:2 }}'.replace(',', '.')) || 0;
+
+  // Configurações do tenant
+  const pickupOnly = {{ tenant.is_pickup_only|yesno:"true,false" }};
+
+  // Elementos
+  const typeInput     = document.getElementById('delivery_type_input');
+  const btnDelivery   = document.getElementById('btn-delivery');
+  const btnPickup     = document.getElementById('btn-pickup');
+  const addressFields = document.getElementById('delivery-address-fields');
+  const pickupInfo    = document.getElementById('pickup-address-info');
+  const feeDisplay    = document.getElementById('fee-display');
+  const feeValue      = document.getElementById('fee-value');
+  const feeMessage    = document.getElementById('fee-message');
+  const summaryFeeVal = document.getElementById('summary-fee-value');
+  const summaryFeeRow = document.getElementById('summary-fee-row');
+  const summaryTotal  = document.getElementById('summary-total');
+  const neighborhoodEl = document.getElementById('neighborhood');
+  const cityEl         = document.getElementById('city');
+
+  // Campos obrigatórios de endereço
+  const addressInputs = addressFields
+    ? [...addressFields.querySelectorAll('input[name="cep"], input[name="address"], input[name="number"], input[name="neighborhood"], input[name="city"]')]
+    : [];
+
+  // ── Atualiza resumo lateral ─────────────────────────────────────────────
+  function updateSummary(fee, display, msg) {
+    if (feeValue)      feeValue.textContent   = display || '—';
+    if (feeMessage)    feeMessage.textContent = msg || '';
+    if (summaryFeeVal) summaryFeeVal.textContent = display || '—';
+
+    if (feeDisplay) {
+      feeDisplay.classList.toggle('hidden', !display || display === '—');
+    }
+
+    const totalVal = subtotal + (parseFloat(fee) || 0);
+    if (summaryTotal) {
+      summaryTotal.textContent = 'R$ ' + totalVal.toFixed(2).replace('.', ',');
+    }
+  }
+
+  // ── Busca frete na API ─────────────────────────────────────────────────
+  let fetchTimer = null;
+  function calcularFrete() {
+    if (typeInput.value !== 'delivery') return;
+    const city         = cityEl?.value.trim()         || '';
+    const neighborhood = neighborhoodEl?.value.trim() || '';
+    if (!city || !neighborhood) return;
+
+    clearTimeout(fetchTimer);
+    fetchTimer = setTimeout(() => {
+      fetch(`/api/delivery-fee/?city=${encodeURIComponent(city)}&neighborhood=${encodeURIComponent(neighborhood)}`)
+        .then(r => r.json())
+        .then(data => {
+          updateSummary(data.fee, data.fee_display, data.message || '');
+        })
+        .catch(() => {});
+    }, 300);
+  }
+
+  // ── Selecionar bairro via datalist → preenche cidade e calcula frete ───
+  function onNeighborhoodInput() {
+    const val = neighborhoodEl.value.trim();
+    const opt = document.querySelector(`#neighborhood-list option[value="${CSS.escape(val)}"]`);
+    if (opt && opt.dataset.city) {
+      if (!cityEl.value || cityEl.value !== opt.dataset.city) {
+        cityEl.value = opt.dataset.city;
+      }
+      if (opt.dataset.fee !== undefined) {
+        const fee = parseFloat(opt.dataset.fee) || 0;
+        const display = fee > 0
+          ? 'R$ ' + fee.toFixed(2).replace('.', ',')
+          : 'Grátis';
+        updateSummary(fee, display, '');
+        return;
+      }
+    }
+    calcularFrete();
+  }
+
+  neighborhoodEl?.addEventListener('change', onNeighborhoodInput);
+  neighborhoodEl?.addEventListener('input',  onNeighborhoodInput);
+  neighborhoodEl?.addEventListener('blur',   calcularFrete);
+  cityEl?.addEventListener('blur',           calcularFrete);
+  cityEl?.addEventListener('input',          calcularFrete);
+
+  // ── Tipo de entrega ─────────────────────────────────────────────────────
+  function setDeliveryType(type) {
+    typeInput.value = type;
+    const isDelivery = type === 'delivery';
+
+    [btnDelivery, btnPickup].forEach(btn => {
+      if (!btn) return;
+      const active = btn.dataset.value === type;
+      btn.classList.toggle('border-primary', active);
+      btn.classList.toggle('bg-primary/5', active);
+      btn.classList.toggle('border-gray-200', !active);
+      btn.querySelectorAll('svg').forEach(el => {
+        el.classList.toggle('text-primary', active);
+        el.classList.toggle('text-gray-400', !active);
+      });
+      btn.querySelectorAll('span').forEach(el => {
+        el.classList.toggle('text-primary', active);
+        el.classList.toggle('text-gray-500', !active);
+      });
+    });
+
+    if (addressFields) addressFields.classList.toggle('hidden', !isDelivery);
+    if (pickupInfo)    pickupInfo.classList.toggle('hidden', isDelivery);
+
+    addressInputs.forEach(el => {
+      if (isDelivery) el.setAttribute('required', '');
+      else            el.removeAttribute('required');
+    });
+
+    if (!isDelivery) {
+      updateSummary(0, 'Grátis (Retirada)', '');
+      if (feeDisplay) feeDisplay.classList.add('hidden');
+    } else {
+      calcularFrete();
+    }
+  }
+
+  btnDelivery?.addEventListener('click', () => setDeliveryType('delivery'));
+  btnPickup?.addEventListener('click',   () => setDeliveryType('pickup'));
+
+  // ── Pagamento ───────────────────────────────────────────────────────────
+  document.querySelectorAll('.payment-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+      document.querySelectorAll('.payment-option').forEach(o => {
+        o.classList.remove('border-primary', 'bg-primary/5', 'text-primary');
+        o.classList.add('border-gray-200');
+      });
+      opt.classList.add('border-primary', 'bg-primary/5', 'text-primary');
+      opt.classList.remove('border-gray-200');
+      const radio = opt.querySelector('input[type=radio]');
+      if (radio) radio.checked = true;
+      document.getElementById('troco-field')?.classList.toggle('hidden', opt.dataset.value !== 'cash');
+    });
+  });
+
+  // ── Validação no submit ─────────────────────────────────────────────────
+  document.getElementById('checkout-form')?.addEventListener('submit', function (e) {
+    if (typeInput.value === 'delivery') {
+      const city         = cityEl?.value.trim()         || '';
+      const neighborhood = neighborhoodEl?.value.trim() || '';
+      if (!city || !neighborhood) {
+        e.preventDefault();
+        alert('Por favor, informe a cidade e o bairro para calcular o frete.');
+        return;
+      }
+    }
+    const btn = document.getElementById('submit-button');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = btn.innerHTML.replace(/Enviar.*|Confirmar.*/, 'Enviando pedido...');
+    }
+  });
+
+  // Inicializa
+  if (pickupOnly) {
+    setDeliveryType('pickup');
+  } else {
+    setDeliveryType('delivery');
+  }
+})();
+</script>
+{% endblock %}  

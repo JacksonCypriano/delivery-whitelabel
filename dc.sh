@@ -60,6 +60,16 @@ case "$COMMAND" in
   restart)
     ./scripts/restart.sh "$ENV"
     ;;
+  
+  createsuperuser)
+    echo "Creating superuser in $ENV..."
+    $DC exec "$SERVICE" python manage.py createsuperuser
+    ;;
+  
+  collectstatic)
+    echo "Running collectstatic in $ENV..."
+    $DC exec "$SERVICE" python manage.py collectstatic --noinput
+    ;;
 
   *)
     echo "Unknown command: $COMMAND"
@@ -73,6 +83,7 @@ case "$COMMAND" in
     echo "  makemigrations"
     echo "  migrate"
     echo "  restart"
+    echo "  collectstatic Run collectstatic"
     exit 1
     ;;
 

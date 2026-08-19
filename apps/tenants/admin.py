@@ -1,8 +1,9 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
+from unfold.admin import TabularInline
 
 from .admin_site import super_admin_site, tenant_admin_site
-from .models import BrandConfig, Tenant
+from .models import BrandConfig, Tenant, DeliveryZone, BusinessHour
 
 
 # ── Admin Global (só Tenant) ──────────────────────────────────────────────────
@@ -15,37 +16,120 @@ class TenantAdmin(ModelAdmin):
 super_admin_site.register(Tenant, TenantAdmin)
 
 
+class DeliveryZoneInline(TabularInline):
+    model = DeliveryZone
+    extra = 1
+    fields = ('city', 'neighborhood', 'fee', 'is_active')
+
+
+class BusinessHourInline(TabularInline):
+    model = BusinessHour
+
+    fields = (
+        "weekday",
+        "is_closed",
+        "opening_time",
+        "closing_time",
+    )
+
+    readonly_fields = ("weekday",)
+
+    ordering = ("weekday",)
+
+    can_delete = False
+    extra = 0
+    max_num = 7
+
+    # ── IMPORTANTE: forçar permissões do inline ──
+    def has_view_permission(self, request, obj=None):
+        return True
+
+    def has_change_permission(self, request, obj=None):
+        return True
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_queryset(self, request):
+        return super().get_queryset(request)
+
+
 # ── Admin do Lojista: Configurações da Loja (Tenant) ─────────────────────────
 class StoreSettingsAdmin(ModelAdmin):
-    """Permite ao lojista editar as informações da própria loja (white-label):
-    nome, WhatsApp, endereço, horário de funcionamento e taxa de entrega.
     """
-    list_display = ("name", "whatsapp_number", "delivery_fee", "is_active")
-    readonly_fields = ("slug", "sale_mode", "created_at")
+    Permite ao lojista editar as informações da própria loja.
+    """
+
+    list_display = (
+        "name",
+        "whatsapp_number",
+        "is_active",
+    )
+
+    readonly_fields = (
+        "slug",
+        "sale_mode",
+        "created_at",
+    )
 
     fieldsets = (
-        ("Informações da loja", {
-            "fields": ("name", "slug", "whatsapp_number"),
-        }),
-        ("Localização e atendimento", {
-            "fields": ("address", "business_hours", "delivery_time_estimate"),
-        }),
-        ("Entrega", {
-            "fields": ("delivery_fee",),
-        }),
-        ("Status", {
-            "fields": ("sale_mode", "is_active", "created_at"),
-        }),
+        (
+            "Informações da loja",
+            {
+                "fields": (
+                    "name",
+                    "slug",
+                    "whatsapp_number",
+                    "fulfillment_mode",
+                ),
+            },
+        ),
+        (
+            "Endereço para retirada",
+            {
+                "fields": (
+                    "pickup_address",
+                    "pickup_number",
+                    "pickup_complement",
+                    "pickup_neighborhood",
+                    "pickup_city",
+                    "pickup_zip_code",
+                ),
+            },
+        ),
+        (
+            "Status",
+            {
+                "fields": (
+                    "sale_mode",
+                    "is_active",
+                    "created_at",
+                ),
+            },
+        ),
     )
+
+    def get_inlines(self, request, obj=None):
+        inlines = [BusinessHourInline]
+
+        if obj is None or obj.accepts_delivery:
+            inlines.append(DeliveryZoneInline)
+
+        return inlines
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
+
         tenant = getattr(request, "tenant", None)
+
         if not tenant:
             return qs.none()
+
         return qs.filter(pk=tenant.pk)
 
-    # A loja é criada pelo super admin; o lojista apenas edita a própria.
     def has_add_permission(self, request):
         return False
 
@@ -107,3 +191,102 @@ class TenantBrandConfigAdmin(ModelAdmin):
 
 
 tenant_admin_site.register(BrandConfig, TenantBrandConfigAdmin)
+
+@admin.register(DeliveryZone, site=tenant_admin_site)
+class DeliveryZoneAdmin(ModelAdmin):
+    list_display = ("city", "neighborhood", "fee", "is_active")
+    list_editable = ("is_active",)
+    list_filter = ("city", "is_active")
+    search_fields = ("city", "neighborhood")
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+
+        tenant = getattr(request, "tenant", None)
+
+        if not tenant or not tenant.accepts_delivery:
+            return qs.none()
+
+        return qs.filter(tenant=tenant)
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.tenant = request.tenant
+
+        super().save_model(request, obj, form, change)
+
+    def has_module_permission(self, request):
+        tenant = getattr(request, "tenant", None)
+        return bool(tenant and tenant.accepts_delivery)
+
+
+    def has_view_permission(self, request, obj=None):
+        tenant = getattr(request, "tenant", None)
+        return bool(tenant and tenant.accepts_delivery)
+
+
+    def has_add_permission(self, request):
+        tenant = getattr(request, "tenant", None)
+        return bool(tenant and tenant.accepts_delivery)
+
+
+    def has_change_permission(self, request, obj=None):
+        tenant = getattr(request, "tenant", None)
+        return bool(tenant and tenant.accepts_delivery)
+
+
+    def has_delete_permission(self, request, obj=None):
+        tenant = getattr(request, "tenant", None)
+        return bool(tenant and tenant.accepts_delivery)
+
+
+@admin.register(BusinessHour, site=tenant_admin_site)
+class BusinessHourAdmin(ModelAdmin):
+    list_display = (
+        "tenant",
+        "weekday",
+        "is_closed",
+        "opening_time",
+        "closing_time",
+    )
+
+    list_filter = (
+        "tenant",
+        "weekday",
+        "is_closed",
+    )
+
+    ordering = (
+        "tenant",
+        "weekday",
+    )
+
+    readonly_fields = (
+        "tenant",
+        "weekday",
+    )
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+
+        tenant = getattr(request, "tenant", None)
+
+        if not tenant:
+            return qs.none()
+
+        return qs.filter(tenant=tenant)
+
+    def has_module_permission(self, request):
+        return True
+
+    def has_view_permission(self, request, obj=None):
+        return True
+
+    def has_change_permission(self, request, obj=None):
+        return True
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

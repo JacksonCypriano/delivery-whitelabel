@@ -7,6 +7,7 @@ from django.views.generic import ListView
 
 from apps.accounts.decorators import dashboard_auth_required
 from apps.stores.models import Category, HalfProduct, Product
+from apps.tenants.models import DeliveryZone
 
 from .models import Category, Product
 
@@ -20,16 +21,9 @@ class CatalogoView(ListView):
         tenant = getattr(self.request, 'tenant', None)
         if not tenant:
             return Product.objects.none()
-        
         today = timezone.localdate().weekday()
         qs = Product.objects.filter(tenant=tenant, is_available=True)
-
-        filtered = [
-            p for p in qs
-            if not p.available_days or today in p.available_days
-        ]
-
-        return filtered
+        return [p for p in qs if not p.available_days or today in p.available_days]
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -38,9 +32,7 @@ class CatalogoView(ListView):
 
         if tenant:
             today = timezone.localdate().weekday()
-
             products_qs = Product.objects.filter(tenant=tenant, is_available=True).order_by('name')
-
             categories = (
                 Category.objects
                 .filter(products__tenant=tenant)
@@ -50,15 +42,12 @@ class CatalogoView(ListView):
                     Prefetch('products', queryset=products_qs, to_attr='prefetched_products')
                 )
             )
-
             pizza_cat = categories.filter(name__iexact='Pizzas').first()
-
             for cat in categories:
                 cat.prefetched_products = [
                     p for p in cat.prefetched_products
                     if not p.available_days or today in p.available_days
                 ]
-
             if pizza_cat:
                 half_qs = HalfProduct.objects.filter(
                     product__tenant=tenant,
@@ -71,12 +60,21 @@ class CatalogoView(ListView):
                     is_active=True
                 ).select_related('product')
 
+            # ← ADICIONAR
+            delivery_zones = (
+                DeliveryZone.objects
+                .filter(tenant=tenant, is_active=True)
+                .values('city', 'neighborhood', 'fee')
+                .order_by('city', 'neighborhood')
+            )
         else:
             categories = Category.objects.none()
             half_qs = HalfProduct.objects.none()
+            delivery_zones = []  # ← ADICIONAR
 
         context['categories'] = categories
         context['half_products'] = half_qs
+        context['delivery_zones'] = list(delivery_zones)  # ← ADICIONAR
 
         return context
 
@@ -86,7 +84,6 @@ class DashboardHomeView(View):
     def get(self, request):
         total_produtos = Product.objects.filter(tenant=request.tenant).count()
         total_categorias = Category.objects.filter(tenant=request.tenant).count()
-        
         context = {
             'stats': {
                 'produtos': total_produtos,

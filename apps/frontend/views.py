@@ -22,7 +22,7 @@ def product_customizations(request, product_id):
         category=product.category,
         tenant=request.tenant,
         is_active=True
-    ).prefetch_related('options').order_by('order')
+    ).prefetch_related('options').order_by('id')
 
     data = []
     for group in groups:
@@ -35,7 +35,7 @@ def product_customizations(request, product_id):
                 'image': opt.image.url if opt.image else '',
                 'is_available': opt.is_available,
             }
-            for opt in group.options.filter(is_available=True).order_by('order')
+            for opt in group.options.filter(is_available=True).order_by('id')
         ]
         data.append({
             'id': group.id,

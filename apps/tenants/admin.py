@@ -32,15 +32,15 @@ class BusinessHourInline(TabularInline):
         "closing_time",
     )
 
-    readonly_fields = ("weekday",)
+    ordering = (
+        "weekday",
+        "opening_time",
+    )
 
-    ordering = ("weekday",)
+    extra = 1
 
-    can_delete = False
-    extra = 0
-    max_num = 7
+    can_delete = True
 
-    # ── IMPORTANTE: forçar permissões do inline ──
     def has_view_permission(self, request, obj=None):
         return True
 
@@ -48,13 +48,10 @@ class BusinessHourInline(TabularInline):
         return True
 
     def has_add_permission(self, request, obj=None):
-        return False
+        return True
 
     def has_delete_permission(self, request, obj=None):
-        return False
-
-    def get_queryset(self, request):
-        return super().get_queryset(request)
+        return True
 
 
 # ── Admin do Lojista: Configurações da Loja (Tenant) ─────────────────────────

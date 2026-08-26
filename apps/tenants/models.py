@@ -134,90 +134,96 @@ class Tenant(models.Model):
 
         super().save(*args, **kwargs)
 
-        # Cria os 7 dias automaticamente ao criar a loja.
+        # Cria segunda a domingo automaticamente.
+        # A loja começa fechada até configurar os horários.
         if is_new:
-            BusinessHour.objects.bulk_create([
-                BusinessHour(
-                    tenant=self,
-                    weekday=weekday,
-                    is_closed=True,
-                    opening_time=None,
-                    closing_time=None,
-                )
-                for weekday in range(7)
-            ])
+            BusinessHour.objects.bulk_create(
+                [
+                    BusinessHour(
+                        tenant=self,
+                        weekday=weekday,
+                        is_closed=True,
+                        opening_time=None,
+                        closing_time=None,
+                    )
+                    for weekday in range(7)
+                ]
+            )
 
     def is_open_now(self):
         """
         Retorna True se a loja estiver aberta neste momento.
 
-        Também considera horários que atravessam a meia-noite.
+        Suporta:
+        - múltiplos intervalos no mesmo dia;
+        - horários que atravessam meia-noite.
 
-        Exemplo:
-            Segunda: 18:00 -> 01:00
+        Exemplos:
 
-        Nesse caso:
-            Segunda 20:00 = aberta
-            Terça 00:30 = aberta
-            Terça 02:00 = fechada
+        Segunda:
+            11:00 -> 15:00
+            18:00 -> 23:00
+
+        Sexta:
+            18:00 -> 02:00
         """
 
         now = timezone.localtime()
+
         current_weekday = now.weekday()
         current_time = now.time()
 
-        # ─────────────────────────────────────────
-        # 1. Verifica o horário do dia atual
-        # ─────────────────────────────────────────
+        # ─────────────────────────────────────────────
+        # Horários iniciados hoje
+        # ─────────────────────────────────────────────
 
         today_hours = self.business_hours.filter(
-            weekday=current_weekday
-        ).first()
+            weekday=current_weekday,
+            is_closed=False,
+        )
 
-        if today_hours and not today_hours.is_closed:
-            if (
-                today_hours.opening_time
-                and today_hours.closing_time
-            ):
-                opening = today_hours.opening_time
-                closing = today_hours.closing_time
+        for business_hour in today_hours:
+            opening = business_hour.opening_time
+            closing = business_hour.closing_time
 
-                # Horário normal:
-                # 08:00 -> 18:00
-                if opening < closing:
-                    if opening <= current_time < closing:
-                        return True
+            if not opening or not closing:
+                continue
 
-                # Horário atravessando meia-noite:
-                # 18:00 -> 01:00
-                else:
-                    if current_time >= opening:
-                        return True
+            # Horário normal
+            # 11:00 -> 15:00
+            if opening < closing:
+                if opening <= current_time < closing:
+                    return True
 
-        # ─────────────────────────────────────────
-        # 2. Verifica se estamos dentro de um horário
-        #    iniciado no dia anterior.
-        # ─────────────────────────────────────────
+            # Atravessa meia-noite
+            # 18:00 -> 02:00
+            elif opening > closing:
+                if current_time >= opening:
+                    return True
+
+        # ─────────────────────────────────────────────
+        # Horários iniciados ontem e que atravessaram
+        # a meia-noite.
+        # ─────────────────────────────────────────────
 
         previous_weekday = (current_weekday - 1) % 7
 
         previous_hours = self.business_hours.filter(
-            weekday=previous_weekday
-        ).first()
+            weekday=previous_weekday,
+            is_closed=False,
+        )
 
-        if previous_hours and not previous_hours.is_closed:
-            if (
-                previous_hours.opening_time
-                and previous_hours.closing_time
-            ):
-                opening = previous_hours.opening_time
-                closing = previous_hours.closing_time
+        for business_hour in previous_hours:
+            opening = business_hour.opening_time
+            closing = business_hour.closing_time
 
-                # Só interessa aqui horário que atravessa
-                # a meia-noite.
-                if opening > closing:
-                    if current_time < closing:
-                        return True
+            if not opening or not closing:
+                continue
+
+            # Só interessa horário que atravessa meia-noite
+            if opening > closing:
+                if current_time < closing:
+                    return True
 
         return False
 
@@ -250,7 +256,7 @@ class BusinessHour(models.Model):
     )
 
     is_closed = models.BooleanField(
-        default=False,
+        default=True,
         verbose_name="Fechado",
     )
 
@@ -267,13 +273,9 @@ class BusinessHour(models.Model):
     )
 
     class Meta:
-        ordering = ["weekday", "opening_time"]
-
-        constraints = [
-            models.UniqueConstraint(
-                fields=["tenant", "weekday"],
-                name="unique_business_hour_per_tenant_weekday",
-            )
+        ordering = [
+            "weekday",
+            "opening_time",
         ]
 
         verbose_name = "Horário de funcionamento"
@@ -282,7 +284,7 @@ class BusinessHour(models.Model):
     def __str__(self):
         day = dict(self.WEEKDAYS).get(
             self.weekday,
-            ""
+            "",
         )
 
         if self.is_closed:
@@ -300,28 +302,30 @@ class BusinessHour(models.Model):
     def clean(self):
         super().clean()
 
-        # Se fechado, não precisa validar horários
+        # Dia/intervalo fechado não possui horários.
         if self.is_closed:
             return
 
         if not self.opening_time or not self.closing_time:
             raise ValidationError(
                 "Informe o horário de abertura e fechamento "
-                "ou marque o dia como fechado."
+                "ou marque o horário como fechado."
             )
 
-        # Horário normal: abertura deve ser antes do fechamento
-        if self.opening_time < self.closing_time:
-            return
+        # Não permite abertura == fechamento.
+        if self.opening_time == self.closing_time:
+            raise ValidationError(
+                "O horário de abertura não pode ser igual "
+                "ao horário de fechamento."
+            )
 
-        # Horário que atravessa a meia-noite é permitido
-        if self.opening_time > self.closing_time:
-            return
-
-        # Se forem iguais, é inválido
-        raise ValidationError(
-            "O horário de abertura não pode ser igual ao de fechamento."
-        )
+        # opening < closing:
+        # 11:00 -> 15:00
+        #
+        # opening > closing:
+        # 18:00 -> 01:00
+        #
+        # Ambos são permitidos.
 
     def save(self, *args, **kwargs):
         if self.is_closed:
@@ -329,7 +333,6 @@ class BusinessHour(models.Model):
             self.closing_time = None
 
         super().save(*args, **kwargs)
-
 
 class BrandConfig(models.Model):
     tenant = models.OneToOneField(Tenant, on_delete=models.CASCADE, related_name='brand_config')

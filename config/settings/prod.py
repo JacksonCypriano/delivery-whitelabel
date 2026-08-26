@@ -15,9 +15,14 @@ ALLOWED_HOSTS = [
 ]
 
 # Domínio dos cookies compartilhado entre subdomínios (multi-tenant).
-# Configurável via variável de ambiente SESSION_COOKIE_DOMAIN (ex.: .meudominio.com).
-# Se não definido, o Django usa o comportamento padrão (cookie por host).
 _COOKIE_DOMAIN = os.getenv("SESSION_COOKIE_DOMAIN", "").strip() or None
+
 if _COOKIE_DOMAIN:
     SESSION_COOKIE_DOMAIN = _COOKIE_DOMAIN
     CSRF_COOKIE_DOMAIN = _COOKIE_DOMAIN
+
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
+]

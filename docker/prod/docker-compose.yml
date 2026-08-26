@@ -11,6 +11,9 @@ services:
       - db
       - redis
     restart: always
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
 
   db:
     image: postgres:15
@@ -50,8 +53,10 @@ services:
     image: nginx:stable-alpine
     ports:
       - "80:80"
+      - "443:443"
     volumes:
-      - ./nginx:/etc/nginx/conf.d:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - /opt/vemdedelivery/ssl:/etc/nginx/ssl:ro
       - static_volume:/app/staticfiles
       - media_volume:/app/media
     depends_on:

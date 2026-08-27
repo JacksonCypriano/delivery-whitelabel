@@ -335,30 +335,265 @@ class BusinessHour(models.Model):
         super().save(*args, **kwargs)
 
 class BrandConfig(models.Model):
-    tenant = models.OneToOneField(Tenant, on_delete=models.CASCADE, related_name='brand_config')
+    tenant = models.OneToOneField(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="brand_config",
+        verbose_name="Loja",
+    )
 
-    primary_color = models.CharField(max_length=7, default="#e74c3c", verbose_name="Cor principal (botões, links)")
-    secondary_color = models.CharField(max_length=7, default="#2c3e50", verbose_name="Cor secundária (headers, ícones)")
+    # ─────────────────────────────────────────────
+    # Identidade visual
+    # ─────────────────────────────────────────────
 
-    accent_color = models.CharField(max_length=7, default="#f39c12", verbose_name="Cor de destaque (badges, promoções)")
-    background_color = models.CharField(max_length=7, default="#ffffff", verbose_name="Cor de fundo do site")
-    text_color = models.CharField(max_length=7, default="#111827", verbose_name="Cor base do texto")
+    primary_color = models.CharField(
+        max_length=7,
+        default="#FF5A1F",
+        verbose_name="Cor principal",
+        help_text="Usada em botões, links e ações principais.",
+    )
 
-    dark_mode_primary = models.CharField(max_length=7, default="#3b82f6", verbose_name="Cor primária no modo escuro")
-    dark_mode_background = models.CharField(max_length=7, default="#0f172a", verbose_name="Fundo no modo escuro")
-    dark_mode_text = models.CharField(max_length=7, default="#f1f5f9", verbose_name="Texto no modo escuro")
+    secondary_color = models.CharField(
+        max_length=7,
+        default="#1F2937",
+        verbose_name="Cor secundária",
+        help_text="Usada em cabeçalhos, ícones e elementos de apoio.",
+    )
 
-    logo = models.ImageField(upload_to='logos/', blank=True, null=True, verbose_name="Logo da loja (recomendada: 200x200px)")
-    favicon = models.ImageField(upload_to='favicons/', blank=True, null=True, verbose_name="Favicon da loja")
-    banner = models.ImageField(upload_to='banners/', blank=True, null=True, verbose_name="Banner da loja")
+    accent_color = models.CharField(
+        max_length=7,
+        default="#FBBF24",
+        verbose_name="Cor de destaque",
+        help_text="Usada em promoções, selos e elementos de destaque.",
+    )
+
+    background_color = models.CharField(
+        max_length=7,
+        default="#FFF7ED",
+        verbose_name="Cor de fundo do site",
+    )
+
+    card_background_color = models.CharField(
+        max_length=7,
+        default="#FFFFFF",
+        verbose_name="Cor de fundo dos cartões",
+    )
+
+    text_color = models.CharField(
+        max_length=7,
+        default="#111827",
+        verbose_name="Cor principal do texto",
+    )
+
+    muted_text_color = models.CharField(
+        max_length=7,
+        default="#6B7280",
+        verbose_name="Cor do texto secundário",
+    )
+
+    border_color = models.CharField(
+        max_length=7,
+        default="#E5E7EB",
+        verbose_name="Cor das bordas",
+    )
+
+    button_text_color = models.CharField(
+        max_length=7,
+        default="#FFFFFF",
+        verbose_name="Cor do texto dos botões",
+    )
+
+    success_color = models.CharField(
+        max_length=7,
+        default="#16A34A",
+        verbose_name="Cor de sucesso",
+    )
+
+    warning_color = models.CharField(
+        max_length=7,
+        default="#F59E0B",
+        verbose_name="Cor de aviso",
+    )
+
+    danger_color = models.CharField(
+        max_length=7,
+        default="#DC2626",
+        verbose_name="Cor de erro",
+    )
+
+    # ─────────────────────────────────────────────
+    # Tipografia
+    # ─────────────────────────────────────────────
+
+    FONT_CHOICES = [
+        ("Inter", "Inter"),
+        ("Poppins", "Poppins"),
+        ("Roboto", "Roboto"),
+        ("Montserrat", "Montserrat"),
+        ("Nunito", "Nunito"),
+    ]
+
+    font_family = models.CharField(
+        max_length=50,
+        choices=FONT_CHOICES,
+        default="Inter",
+        verbose_name="Fonte principal",
+    )
+
+    base_font_size = models.PositiveSmallIntegerField(
+        default=16,
+        verbose_name="Tamanho base da fonte",
+        help_text="Valor em pixels.",
+    )
+
+    # ─────────────────────────────────────────────
+    # Botões e cartões
+    # ─────────────────────────────────────────────
+
+    border_radius = models.PositiveSmallIntegerField(
+        default=18,
+        verbose_name="Arredondamento dos cartões",
+        help_text="Valor em pixels.",
+    )
+
+    button_radius = models.PositiveSmallIntegerField(
+        default=14,
+        verbose_name="Arredondamento dos botões",
+        help_text="Valor em pixels.",
+    )
+
+    card_shadow = models.BooleanField(
+        default=True,
+        verbose_name="Exibir sombra nos cartões",
+    )
+
+    hover_effect = models.BooleanField(
+        default=True,
+        verbose_name="Exibir efeito ao passar o mouse",
+    )
+
+    # ─────────────────────────────────────────────
+    # Cabeçalho e layout
+    # ─────────────────────────────────────────────
+
+    HEADER_STYLE_CHOICES = [
+        ("solid", "Cor sólida"),
+        ("gradient", "Gradiente"),
+        ("transparent", "Transparente"),
+    ]
+
+    header_style = models.CharField(
+        max_length=20,
+        choices=HEADER_STYLE_CHOICES,
+        default="solid",
+        verbose_name="Estilo do cabeçalho",
+    )
+
+    show_search_bar = models.BooleanField(
+        default=True,
+        verbose_name="Exibir barra de busca",
+    )
+
+    show_category_icons = models.BooleanField(
+        default=True,
+        verbose_name="Exibir ícones nas categorias",
+    )
+
+    show_product_description = models.BooleanField(
+        default=True,
+        verbose_name="Exibir descrição dos produtos",
+    )
+
+    show_product_image = models.BooleanField(
+        default=True,
+        verbose_name="Exibir imagem dos produtos",
+    )
+
+    compact_product_cards = models.BooleanField(
+        default=False,
+        verbose_name="Usar cartões de produto compactos",
+    )
+
+    # ─────────────────────────────────────────────
+    # Modo escuro
+    # ─────────────────────────────────────────────
+
+    dark_mode_enabled = models.BooleanField(
+        default=True,
+        verbose_name="Permitir modo escuro",
+    )
+
+    dark_mode_primary = models.CharField(
+        max_length=7,
+        default="#FB923C",
+        verbose_name="Cor principal no modo escuro",
+    )
+
+    dark_mode_background = models.CharField(
+        max_length=7,
+        default="#111827",
+        verbose_name="Cor de fundo no modo escuro",
+    )
+
+    dark_mode_card_background = models.CharField(
+        max_length=7,
+        default="#1F2937",
+        verbose_name="Cor dos cartões no modo escuro",
+    )
+
+    dark_mode_text = models.CharField(
+        max_length=7,
+        default="#F9FAFB",
+        verbose_name="Cor do texto no modo escuro",
+    )
+
+    dark_mode_muted_text = models.CharField(
+        max_length=7,
+        default="#9CA3AF",
+        verbose_name="Cor do texto secundário no modo escuro",
+    )
+
+    dark_mode_border_color = models.CharField(
+        max_length=7,
+        default="#374151",
+        verbose_name="Cor das bordas no modo escuro",
+    )
+
+    # ─────────────────────────────────────────────
+    # Mídia
+    # ─────────────────────────────────────────────
+
+    logo = models.ImageField(
+        upload_to="logos/",
+        blank=True,
+        null=True,
+        verbose_name="Logo da loja",
+        help_text="Recomendado: 200x200 px.",
+    )
+
+    favicon = models.ImageField(
+        upload_to="favicons/",
+        blank=True,
+        null=True,
+        verbose_name="Favicon da loja",
+    )
+
+    banner = models.ImageField(
+        upload_to="banners/",
+        blank=True,
+        null=True,
+        verbose_name="Banner da loja",
+        help_text="Recomendado: imagem horizontal de alta qualidade.",
+    )
 
     def __str__(self):
-        return f"Config de Branding - {self.tenant.name}"
+        return f"Configuração de marca - {self.tenant.name}"
 
     class Meta:
-        verbose_name = "Configuração de Marca"
-        verbose_name_plural = "Configurações de Marca"
+        verbose_name = "Configuração de marca"
+        verbose_name_plural = "Configurações de marca"
         ordering = ["tenant__name"]
+
 
 class DeliveryZone(models.Model):
     tenant = models.ForeignKey(

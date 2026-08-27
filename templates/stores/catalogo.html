@@ -1834,23 +1834,47 @@
 
   const categoryChips = document.querySelectorAll('[data-category-chip]');
 
-  function setActiveCategory(target) {
-    categoryChips.forEach(chip => {
-      chip.classList.toggle('active', chip.dataset.target === target);
-    });
+  function normalizeCategoryTarget(target) {
+    // As duas seções de pizza pertencem à mesma categoria.
+    if (
+      target === 'pizzas-inteiras' ||
+      target === 'pizzas-meio-a-meio'
+    ) {
+      return 'pizzas-inteiras';
+    }
+
+    return target;
   }
 
-  categoryChips.forEach(chip => {
-    chip.addEventListener('click', function (e) {
-      e.preventDefault();
-      setActiveCategory(this.dataset.target);
-      closeCategoryDrawer();
-      const targetEl = document.getElementById(this.dataset.target);
-      if (targetEl) {
-        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  function setActiveCategory(target) {
+    const normalizedTarget = normalizeCategoryTarget(target);
+
+    let activeChip = null;
+
+    categoryChips.forEach(chip => {
+      const isActive = chip.dataset.target === normalizedTarget;
+
+      chip.classList.toggle('active', isActive);
+
+      // O mesmo seletor existe no menu lateral e na barra horizontal.
+      // Só queremos rolar a barra horizontal.
+      if (
+        isActive &&
+        !chip.hasAttribute('data-drawer-item')
+      ) {
+        activeChip = chip;
       }
     });
-  });
+
+    // Mantém a categoria atual visível na barra horizontal.
+    if (activeChip) {
+      activeChip.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'center',
+      });
+    }
+  }
 
   /* ================================================================
      DRAWER DE CATEGORIAS
@@ -1883,22 +1907,44 @@
 
   if ('IntersectionObserver' in window) {
 
-    const sections = document.querySelectorAll('.category-section');
+  const sections = document.querySelectorAll('.category-section');
 
-    const observer = new IntersectionObserver(entries => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting && entry.intersectionRatio >= .15) {
-          setActiveCategory(entry.target.id);
-        }
+  const observer = new IntersectionObserver(entries => {
+
+    const visibleEntries = entries
+      .filter(entry => entry.isIntersecting)
+      .sort((a, b) => {
+        return Math.abs(a.boundingClientRect.top) -
+               Math.abs(b.boundingClientRect.top);
       });
-    }, {
-      rootMargin: '-190px 0px -55% 0px',
-      threshold: [.15, .5]
-    });
 
-    sections.forEach(section => observer.observe(section));
+    if (!visibleEntries.length) {
+      return;
+    }
 
-  }
+    const currentSection = visibleEntries[0];
+
+    setActiveCategory(currentSection.target.id);
+
+  }, {
+    root: null,
+
+    // Considera como "ativa" a seção que entrou logo
+    // abaixo do header/categorias.
+    rootMargin: '-190px 0px -65% 0px',
+
+    threshold: [
+      0,
+      0.05,
+      0.15,
+      0.30,
+    ],
+  });
+
+  sections.forEach(section => {
+    observer.observe(section);
+  });
+}
 
   /* ================================================================
      FRETE

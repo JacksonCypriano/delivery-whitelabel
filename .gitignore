@@ -241,3 +241,5 @@ logs/
 # Docker
 .env.*
 !.env.example
+
+deploy/nginx/certs/

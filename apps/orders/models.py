@@ -1,4 +1,8 @@
 # apps/orders/models.py
+
+import uuid
+from decimal import Decimal
+
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
@@ -9,45 +13,34 @@ from apps.tenants.models import Tenant
 
 from .choices import Status
 
+
 User = settings.AUTH_USER_MODEL
 
 
 class Cart(TenantModel):
-    user = models.ForeignKey(
-        User, 
-        on_delete=models.CASCADE, 
-        null=True, 
-        blank=True,
-        related_name='carts'
-    )
-    session_key = models.CharField(
-        max_length=128, 
-        null=True, 
-        blank=True,
-        db_index=True
-    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name="carts")
+    session_key = models.CharField(max_length=128, null=True, blank=True, db_index=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         constraints = [
             models.CheckConstraint(
-                check=(
-                    models.Q(user__isnull=False, session_key__isnull=True) |
-                    models.Q(user__isnull=True, session_key__isnull=False)
-                ),
-                name='cart_user_or_session_exclusive'
+                check=models.Q(user__isnull=False, session_key__isnull=True) | models.Q(user__isnull=True, session_key__isnull=False),
+                name="cart_user_or_session_exclusive",
             )
         ]
 
     def __str__(self):
         if self.user:
             return f"Carrinho de {self.user.username}"
+
         return f"Carrinho anônimo ({self.session_key[:10]}...)"
 
 
 class CartItem(models.Model):
-    cart = models.ForeignKey(Cart, related_name='items', on_delete=models.CASCADE)
+    cart = models.ForeignKey(Cart, related_name="items", on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.CASCADE, null=True, blank=True)
     product_key = models.CharField(max_length=100, null=True, blank=True)
     name = models.CharField(max_length=200, null=True, blank=True)
@@ -65,70 +58,214 @@ class CartItem(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=['cart', 'product_key'],
-                name='unique_cart_product_key',
-                condition=Q(product_key__isnull=False)
+                fields=["cart", "product_key"],
+                name="unique_cart_product_key",
+                condition=Q(product_key__isnull=False),
             ),
         ]
 
 
 class Order(TenantModel):
-    customer_phone = models.CharField(max_length=20)
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
-    total = models.DecimalField(max_digits=10, decimal_places=2)
-    created_at = models.DateTimeField(auto_now_add=True)
+    customer = models.ForeignKey(
+        "customers.Customer",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="orders",
+        verbose_name="Cliente",
+    )
+
+    customer_name = models.CharField(max_length=150, blank=True, verbose_name="Nome do cliente")
+    customer_phone = models.CharField(max_length=20, verbose_name="Telefone do cliente")
+
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, verbose_name="Status")
+
+    total = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Total")
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Subtotal")
+    delivery_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Taxa de entrega")
+
+    coupon_code = models.CharField(max_length=40, blank=True, default="", verbose_name="Cupom utilizado")
+    discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Desconto")
+
+    # Snapshot do endereço usado no pedido
+    delivery_zip_code = models.CharField(max_length=9, blank=True, verbose_name="CEP de entrega")
+    delivery_street = models.CharField(max_length=255, blank=True, verbose_name="Rua / Avenida")
+    delivery_number = models.CharField(max_length=20, blank=True, verbose_name="Número")
+    delivery_complement = models.CharField(max_length=100, blank=True, verbose_name="Complemento")
+    delivery_neighborhood = models.CharField(max_length=100, blank=True, verbose_name="Bairro")
+    delivery_city = models.CharField(max_length=100, blank=True, verbose_name="Cidade")
+    delivery_state = models.CharField(max_length=2, blank=True, verbose_name="Estado")
+    delivery_reference = models.CharField(max_length=255, blank=True, verbose_name="Ponto de referência")
+
+    delivery_type = models.CharField(
+        max_length=20,
+        choices=(
+            ("delivery", "Entrega"),
+            ("pickup", "Retirada"),
+        ),
+        default="delivery",
+        verbose_name="Forma de recebimento",
+    )
+
+    payment_method = models.CharField(max_length=30, blank=True, default="", verbose_name="Forma de pagamento")
+    payment_change_for = models.CharField(max_length=30, blank=True, default="", verbose_name="Troco para")
+
+    public_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
+
+    checkout_token = models.UUIDField(null=True, blank=True, unique=True, editable=False)
+    source_cart_id = models.PositiveBigIntegerField(null=True, blank=True, editable=False)
+
+    whatsapp_opened_at = models.DateTimeField(null=True, blank=True, verbose_name="WhatsApp aberto em")
+    abandoned_at = models.DateTimeField(null=True, blank=True, verbose_name="Descartado em")
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Data do pedido")
 
     def __str__(self):
-        return f"Pedido {self.id} - {self.get_status_display()}"
+        return f"Pedido #{self.id} - {self.customer_name or self.customer_phone}"
+
+    @property
+    def whatsapp_opened(self):
+        return self.whatsapp_opened_at is not None
+
+    @property
+    def is_abandoned(self):
+        return self.abandoned_at is not None
+
+    @property
+    def payment_label(self):
+        labels = {
+            "cash": "Dinheiro",
+            "credit_card": "Cartão de Crédito",
+            "debit_card": "Cartão de Débito",
+            "pix": "PIX",
+        }
+
+        label = labels.get(self.payment_method, self.payment_method or "-")
+
+        if self.payment_method == "cash" and self.payment_change_for:
+            return f"{label} — troco para R$ {self.payment_change_for}"
+
+        return label
+
+    @property
+    def delivery_type_label(self):
+        if self.delivery_type == "pickup":
+            return "Retirada"
+
+        return "Entrega"
+
+    @property
+    def delivery_address_label(self):
+        if self.delivery_type == "pickup":
+            return "Retirada na loja"
+
+        first_line = ", ".join(part for part in (self.delivery_street, self.delivery_number, self.delivery_complement) if part)
+
+        city_state = self.delivery_city or ""
+
+        if self.delivery_state:
+            city_state += f"/{self.delivery_state}"
+
+        second_line = " - ".join(part for part in (self.delivery_neighborhood, city_state) if part)
+
+        parts = [part for part in (first_line, second_line) if part]
+
+        if self.delivery_zip_code:
+            parts.append(f"CEP {self.delivery_zip_code}")
+
+        return " · ".join(parts)
 
 
 class OrderItem(models.Model):
-    order = models.ForeignKey(Order, related_name='items', on_delete=models.CASCADE)
+    order = models.ForeignKey(Order, related_name="items", on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True)
+
     name = models.CharField(max_length=255, blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     quantity = models.PositiveIntegerField()
+
     combination_details = models.JSONField(null=True, blank=True)
+    product_key = models.CharField(max_length=100, blank=True, default="")
+    notes = models.TextField(blank=True, default="", help_text="Observações do cliente no momento do pedido")
 
     def get_total_price(self):
-        return self.product.price * self.quantity
+        return self.price * self.quantity
+
+    def _customizations(self):
+        combo = self.combination_details or {}
+
+        if combo.get("product_ids"):
+            return (
+                list(combo.get("customizations_whole") or [])
+                + list(combo.get("customizations_half1") or [])
+                + list(combo.get("customizations_half2") or [])
+            )
+
+        return list(combo.get("customizations") or [])
+
+    @property
+    def additions_unit_price(self):
+        total = Decimal("0.00")
+
+        for item in self._customizations():
+            try:
+                total += Decimal(str(item.get("price", 0) or 0))
+            except (TypeError, ValueError):
+                continue
+
+        return total.quantize(Decimal("0.01"))
+
+    @property
+    def base_unit_price(self):
+        base = self.price - self.additions_unit_price
+
+        if base < Decimal("0.00"):
+            return self.price
+
+        return base
+
+    @property
+    def has_additions(self):
+        return self.additions_unit_price > Decimal("0.00")
 
 
 class ProductCombination(models.Model):
     """Modelo para combinar produtos (ex: meio a meio de pizzas)"""
+
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
+
     combination_type = models.CharField(
         max_length=20,
         choices=[
-            ('half_half', 'Meio a Meio'),
-            ('third_third', 'Três Sabores'),
-        ]
+            ("half_half", "Meio a Meio"),
+            ("third_third", "Três Sabores"),
+        ],
     )
-    base_products = models.ManyToManyField(
-        Product, 
-        related_name='combination_bases',
-        limit_choices_to={'tenant': models.F('tenant')}
-    )
+
+    base_products = models.ManyToManyField(Product, related_name="combination_bases", limit_choices_to={"tenant": models.F("tenant")})
+
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     def __str__(self):
         return f"{self.name} ({self.get_combination_type_display()})"
 
 
 class CombinationPricingRule(models.Model):
     """Regras de precificação para combinações"""
+
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
-    combination_type = models.CharField(max_length=20, choices=[('half_half', 'Meio a Meio')])
+    combination_type = models.CharField(max_length=20, choices=[("half_half", "Meio a Meio")])
+
     price_calculation_method = models.CharField(
         max_length=20,
         choices=[
-            ('max_price', 'Preço da Mais Cara'),
-            ('average', 'Média dos Preços'),
-            ('sum_halved', 'Soma/2'),
+            ("max_price", "Preço da Mais Cara"),
+            ("average", "Média dos Preços"),
+            ("sum_halved", "Soma/2"),
         ],
-        default='max_price'
+        default="max_price",
     )
-    
+
     class Meta:
-        unique_together = ['tenant', 'combination_type']
+        unique_together = ["tenant", "combination_type"]

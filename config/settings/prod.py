@@ -26,3 +26,8 @@ CSRF_TRUSTED_ORIGINS = [
     for origin in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")
     if origin.strip()
 ]
+
+CUSTOMER_PORTAL_URL = os.getenv(
+    "CUSTOMER_PORTAL_URL",
+    "https://vemdedelivery.com.br",
+).rstrip("/")

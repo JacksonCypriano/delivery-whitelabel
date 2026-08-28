@@ -4,192 +4,1510 @@
 <html lang="pt-br" class="">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}{{ tenant.name }}{% endblock %}</title>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>
+    {% block title %}
+      {{ tenant.name }}
+    {% endblock %}
+  </title>
 
   <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 
   <!-- Google Fonts: Inter -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+    rel="stylesheet"
+  >
 
-  <!-- Configuração Dinâmica de Cores (White-label) com Dark Mode -->
+  <!-- Configuração dinâmica -->
   <script>
     tailwind.config = {
       darkMode: 'class',
+
       theme: {
         extend: {
           colors: {
-            primary:     "{{ tenant.brand_config.primary_color|default:'#c0392b' }}",
-            secondary:   "{{ tenant.brand_config.secondary_color|default:'#3e2007' }}",
-            accent:      "{{ tenant.brand_config.accent_color|default:'#e67e22' }}",
-            background:  "{{ tenant.brand_config.background_color|default:'#fdf6f0' }}",
-            textBase:    "{{ tenant.brand_config.text_color|default:'#1a1a1a' }}",
-            darkPrimary: "{{ tenant.brand_config.dark_mode_primary|default:'#e74c3c' }}",
-            darkBg:      "{{ tenant.brand_config.dark_mode_background|default:'#1c1007' }}",
-            darkText:    "{{ tenant.brand_config.dark_mode_text|default:'#fef3e8' }}",
+            primary:
+              "{{ tenant.brand_config.primary_color|default:'#c0392b' }}",
+
+            secondary:
+              "{{ tenant.brand_config.secondary_color|default:'#3e2007' }}",
+
+            accent:
+              "{{ tenant.brand_config.accent_color|default:'#e67e22' }}",
+
+            background:
+              "{{ tenant.brand_config.background_color|default:'#fdf6f0' }}",
+
+            textBase:
+              "{{ tenant.brand_config.text_color|default:'#1a1a1a' }}",
+
+            darkPrimary:
+              "{{ tenant.brand_config.dark_mode_primary|default:'#e74c3c' }}",
+
+            darkBg:
+              "{{ tenant.brand_config.dark_mode_background|default:'#1c1007' }}",
+
+            darkText:
+              "{{ tenant.brand_config.dark_mode_text|default:'#fef3e8' }}",
           },
+
           fontFamily: {
-            sans: ['Inter', 'sans-serif'],
-          }
-        }
-      }
-    }
+            sans: [
+              'Inter',
+              'sans-serif',
+            ],
+          },
+        },
+      },
+    };
   </script>
 
-  <!-- Detecta preferência de dark mode do sistema -->
+
+  <!-- Detecta preferência dark mode -->
   <script>
     (function () {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      const saved = localStorage.getItem('theme');
-      if (saved === 'dark' || (!saved && prefersDark)) {
-        document.documentElement.classList.add('dark');
+      const prefersDark =
+        window.matchMedia(
+          '(prefers-color-scheme: dark)'
+        ).matches;
+
+      const saved =
+        localStorage.getItem('theme');
+
+      if (
+        saved === 'dark'
+        || (!saved && prefersDark)
+      ) {
+        document.documentElement
+          .classList
+          .add('dark');
       }
     })();
   </script>
 
-  <!-- APP_CONFIG: variáveis globais para o JavaScript modular -->
+
+  <!-- Configuração global JS -->
   <script>
     window.APP_CONFIG = {
-      csrfToken:           "{{ csrf_token }}",
-      addToCartUrl:        "{% url 'checkout:add_to_cart' %}",
-      addHalfHalfUrl:      "{% url 'checkout:add_half_half' %}",
-      updateQuantityBaseUrl: "/checkout/update_quantity/",
-      removeItemBaseUrl:   "/checkout/remove/",
-      tenantName:          "{{ tenant.name|default:'' }}",
-      tenantWhatsapp:      "{{ tenant.whatsapp_number|default:'' }}",
-      saleMode:            "{{ tenant.sale_mode|default:'online' }}",
-      catalogUrl:          "{% url 'stores:catalogo' %}",
+      csrfToken:
+        "{{ csrf_token }}",
+
+      addToCartUrl:
+        "{% url 'checkout:add_to_cart' %}",
+
+      addHalfHalfUrl:
+        "{% url 'checkout:add_half_half' %}",
+
+      updateQuantityBaseUrl:
+        "/checkout/update_quantity/",
+
+      removeItemBaseUrl:
+        "/checkout/remove/",
+
+      tenantName:
+        "{{ tenant.name|default:'' }}",
+
+      tenantWhatsapp:
+        "{{ tenant.whatsapp_number|default:'' }}",
+
+      saleMode:
+        "{{ tenant.sale_mode|default:'online' }}",
+
+      catalogUrl:
+        "{% url 'stores:catalogo' %}",
+
+      customerPortalUrl:
+        "{{ CUSTOMER_PORTAL_URL|default:'' }}",
     };
   </script>
 
-  <style>
-    .no-scrollbar::-webkit-scrollbar { display: none; }
-    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-    /* Transição suave ao trocar de tema */
-    *, *::before, *::after {
-      transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  <style>
+
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
     }
+
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+
+    /*
+     * Transições gerais
+     */
+    *,
+    *::before,
+    *::after {
+      transition:
+        background-color .2s ease,
+        color .2s ease,
+        border-color .2s ease;
+    }
+
+
+    /*
+     * Conta do cliente
+     */
+    .customer-menu {
+      position: absolute;
+
+      top: calc(100% + 10px);
+      right: 0;
+
+      width: 240px;
+
+      background: white;
+
+      border: 1px solid #e5e7eb;
+
+      border-radius: 16px;
+
+      box-shadow:
+        0 20px 50px rgba(15, 23, 42, .15);
+
+      overflow: hidden;
+
+      z-index: 100;
+    }
+
+
+    .dark .customer-menu {
+      background: #1f2937;
+      border-color: #374151;
+    }
+
+
+    .customer-menu-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #4b5563;
+      text-align: left;
+      line-height: 1.25rem;
+    }
+
+    .customer-menu-link svg {
+      width: 16px !important;
+      height: 16px !important;
+      min-width: 16px;
+      min-height: 16px;
+      flex: 0 0 16px;
+    }
+
+
+    .customer-menu-link:hover {
+      background: #f9fafb;
+      color: #111827;
+    }
+
+
+    .dark .customer-menu-link {
+      color: #d1d5db;
+    }
+
+
+    .dark .customer-menu-link:hover {
+      background: #374151;
+      color: white;
+    }
+
+
+    .customer-avatar {
+      background:
+        color-mix(
+          in srgb,
+          var(--catalog-primary, #FF5A1F) 12%,
+          transparent
+        );
+
+      color:
+        var(
+          --catalog-primary,
+          #FF5A1F
+        );
+    }
+
+
+    /*
+     * Mobile
+     */
+    @media (max-width: 640px) {
+
+      .desktop-auth-actions {
+        display: none;
+      }
+
+      .customer-name-desktop {
+        display: none;
+      }
+
+      .register-header-button {
+        display: none;
+      }
+    }
+
   </style>
 
-  {% block extra_head %}{% endblock %}
+  {% block extra_head %}
+  {% endblock %}
+
 </head>
 
+
 <body
-  class="bg-background dark:bg-darkBg text-textBase dark:text-darkText antialiased"
+  class="
+    bg-background
+    dark:bg-darkBg
+    text-textBase
+    dark:text-darkText
+    antialiased
+  "
   data-page="{% block page_name %}{% endblock %}"
 >
 
+
   <!-- Som de notificação -->
-  <audio id="notificationSound" preload="auto">
-    <source src="https://assets.mixkit.co/sfx/preview/mixkit-positive-notification-942.mp3" type="audio/mpeg">
+  <audio
+    id="notificationSound"
+    preload="auto"
+  >
+    <source
+      src="https://assets.mixkit.co/sfx/preview/mixkit-positive-notification-942.mp3"
+      type="audio/mpeg"
+    >
   </audio>
 
-  <!-- Header Fixo -->
-  <header class="sticky top-0 z-50 bg-white/80 dark:bg-darkBg/90 backdrop-blur-md border-b border-gray-100 dark:border-gray-800">
-    <nav class="container mx-auto px-4 h-16 flex items-center gap-3">
 
-      <!-- Logo -->
-      <a href="/" class="flex items-center gap-3 flex-shrink-0">
-        {% if tenant.brand_config.logo %}
-          <img src="{{ tenant.brand_config.logo.url }}" alt="{{ tenant.name }}" class="h-8 w-auto">
-        {% else %}
-          <div class="h-8 w-8 rounded-md bg-primary flex items-center justify-center text-white font-bold text-sm">
-            {{ tenant.name|default:"L"|slice:":1" }}
-          </div>
-        {% endif %}
+  <!-- ============================================================
+       HEADER
+       ============================================================ -->
+
+  <header
+    class="
+      sticky
+      top-0
+      z-50
+
+      bg-white/90
+      dark:bg-darkBg/90
+
+      backdrop-blur-md
+
+      border-b
+      border-gray-100
+      dark:border-gray-800
+    "
+  >
+
+    <nav
+      class="
+        container
+        mx-auto
+        px-4
+        h-16
+
+        flex
+        items-center
+        gap-3
+      "
+    >
+
+
+      <!-- ========================================================
+           VOLTAR PARA O MARKETPLACE
+           ======================================================== -->
+
+      <a
+        href="{{ CUSTOMER_PORTAL_URL }}/"
+        class="
+          flex
+          items-center
+          gap-1.5
+
+          flex-shrink-0
+
+          px-2
+          sm:px-3
+          py-2
+
+          rounded-xl
+
+          text-sm
+          font-semibold
+
+          text-gray-500
+          dark:text-gray-300
+
+          hover:text-primary
+          hover:bg-gray-100
+          dark:hover:bg-gray-800
+
+          transition
+        "
+        title="Ver outras lojas"
+        aria-label="Ver outras lojas"
+      >
+
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="
+            w-4
+            h-4
+            flex-shrink-0
+          "
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M15 19l-7-7 7-7"
+          />
+        </svg>
+
+        <span class="sm:hidden">
+          Lojas
+        </span>
+
+        <span class="hidden sm:inline">
+          Ver outras lojas
+        </span>
+
       </a>
 
-      <!-- Busca (preenchida pelas páginas que precisam, ex: catálogo) -->
-      <div class="flex-1 min-w-0">
-        {% block header_search %}{% endblock %}
+
+      <!-- ========================================================
+           LOGO
+           ======================================================== -->
+
+      <a
+        href="/"
+        class="
+          flex
+          items-center
+          gap-3
+          flex-shrink-0
+        "
+      >
+
+        {% if tenant.brand_config.logo %}
+
+          <img
+            src="{{ tenant.brand_config.logo.url }}"
+            alt="{{ tenant.name }}"
+            class="h-8 w-auto"
+          >
+
+        {% else %}
+
+          <div
+            class="
+              h-8
+              w-8
+
+              rounded-lg
+
+              bg-primary
+
+              flex
+              items-center
+              justify-center
+
+              text-white
+              font-bold
+              text-sm
+            "
+          >
+            {{ tenant.name|default:"L"|slice:":1" }}
+          </div>
+
+        {% endif %}
+
+      </a>
+
+
+      <!-- ========================================================
+           BUSCA
+           ======================================================== -->
+
+      <div
+        class="
+          flex-1
+          min-w-0
+        "
+      >
+        {% block header_search %}
+        {% endblock %}
       </div>
 
-      <!-- Ações do header -->
-      <div class="flex items-center gap-2 flex-shrink-0">
 
-        <!-- Botão toggle Dark Mode -->
+      <!-- ========================================================
+           AÇÕES
+           ======================================================== -->
+
+      <div
+        class="
+          flex
+          items-center
+          gap-1
+          sm:gap-2
+
+          flex-shrink-0
+        "
+      >
+
+
+        <!-- ======================================================
+             DARK MODE
+             ====================================================== -->
+
         <button
           id="darkModeToggle"
           onclick="toggleDarkMode()"
-          class="p-2 rounded-full text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+
+          class="
+            p-2
+
+            rounded-full
+
+            text-gray-500
+            dark:text-gray-300
+
+            hover:bg-gray-100
+            dark:hover:bg-gray-800
+
+            transition
+          "
+
           title="Alternar tema"
           aria-label="Alternar modo escuro"
         >
-          <!-- Ícone Sol (light mode) -->
-          <svg id="iconSun" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z"/>
+
+          <!-- Sol -->
+          <svg
+            id="iconSun"
+            xmlns="http://www.w3.org/2000/svg"
+            class="
+              h-5
+              w-5
+              hidden
+              dark:block
+            "
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="
+                M12 3v1
+                m0 16v1
+                m9-9h-1
+                M4 12H3
+                m15.364-6.364-.707.707
+                M6.343 17.657l-.707.707
+                M17.657 17.657l-.707-.707
+                M6.343 6.343l-.707-.707
+                M12 8a4 4 0 100 8
+                4 4 0 000-8z
+              "
+            />
           </svg>
-          <!-- Ícone Lua (dark mode) -->
-          <svg id="iconMoon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 block dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+
+
+          <!-- Lua -->
+          <svg
+            id="iconMoon"
+            xmlns="http://www.w3.org/2000/svg"
+            class="
+              h-5
+              w-5
+              block
+              dark:hidden
+            "
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="
+                M21 12.79
+                A9 9 0 1111.21 3
+                7 7 0 0021 12.79z
+              "
+            />
           </svg>
+
         </button>
 
-        <!-- Carrinho -->
-        <a href="{% url 'checkout:cart' %}" class="relative p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+
+        <!-- ======================================================
+             CARRINHO
+             ====================================================== -->
+
+        <a
+          href="{% url 'checkout:cart' %}"
+
+          class="
+            relative
+
+            p-2
+
+            text-gray-600
+            dark:text-gray-300
+
+            hover:bg-gray-100
+            dark:hover:bg-gray-800
+
+            rounded-full
+
+            transition
+          "
+
+          aria-label="Carrinho"
+        >
+
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="
+                M16 11V7
+                a4 4 0 00-8 0
+                v4
+                M5 9h14
+                l1 12H4
+                L5 9z
+              "
+            />
           </svg>
+
+
           <span
             data-cart-count
             data-initial-count="{{ cart_count_global|default:0 }}"
-            class="absolute -top-1 -right-1 bg-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white dark:border-darkBg {% if not cart_count_global %}hidden{% endif %}"
+
+            class="
+              absolute
+              -top-1
+              -right-1
+
+              bg-primary
+              text-white
+
+              text-[10px]
+              font-bold
+
+              px-1.5
+              py-0.5
+
+              rounded-full
+
+              border-2
+              border-white
+              dark:border-darkBg
+
+              {% if not cart_count_global %}
+                hidden
+              {% endif %}
+            "
           >
             {{ cart_count_global|default:0 }}
           </span>
+
         </a>
 
+
+        <!-- ======================================================
+             CONTA DO CLIENTE
+             ====================================================== -->
+
+        {% if request.user.is_authenticated and not request.user.is_staff and not request.user.is_tenant_admin %}
+
+
+          <!-- CLIENTE LOGADO -->
+
+          <div
+            class="
+              relative
+              ml-1
+            "
+            id="customer-menu-container"
+          >
+
+            <button
+              type="button"
+
+              id="customer-menu-toggle"
+
+              aria-expanded="false"
+              aria-haspopup="true"
+
+              class="
+                flex
+                items-center
+                gap-2
+
+                py-1.5
+                pl-1.5
+                pr-2.5
+
+                rounded-full
+
+                border
+                border-gray-200
+                dark:border-gray-700
+
+                hover:bg-gray-50
+                dark:hover:bg-gray-800
+
+                transition
+              "
+            >
+
+
+              <!-- Avatar -->
+
+              <span
+                class="
+                  customer-avatar
+
+                  w-8
+                  h-8
+
+                  rounded-full
+
+                  flex
+                  items-center
+                  justify-center
+
+                  font-extrabold
+                  text-sm
+                "
+              >
+                {{ request.user.first_name|default:request.user.username|slice:":1"|upper }}
+              </span>
+
+
+              <!-- Nome -->
+
+              <span
+                class="
+                  customer-name-desktop
+
+                  max-w-[120px]
+
+                  text-sm
+                  font-semibold
+
+                  text-gray-700
+                  dark:text-gray-200
+
+                  truncate
+                "
+              >
+                {{ request.user.first_name|default:"Minha conta" }}
+              </span>
+
+
+              <!-- Chevron -->
+
+              <svg
+                class="
+                  customer-name-desktop
+
+                  w-4
+                  h-4
+
+                  text-gray-400
+                "
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+
+            </button>
+
+
+            <!-- Dropdown -->
+
+            <div
+              id="customer-menu"
+              class="
+                customer-menu
+                hidden
+              "
+            >
+
+
+              <!-- Cabeçalho -->
+
+              <div
+                class="
+                  px-4
+                  py-4
+
+                  border-b
+                  border-gray-100
+                  dark:border-gray-700
+                "
+              >
+
+                <p
+                  class="
+                    text-sm
+                    font-bold
+
+                    text-gray-900
+                    dark:text-white
+
+                    truncate
+                  "
+                >
+                  {{ request.user.get_full_name|default:request.user.username }}
+                </p>
+
+                <p
+                  class="
+                    text-xs
+                    text-gray-400
+
+                    mt-0.5
+
+                    truncate
+                  "
+                >
+                  {{ request.user.email }}
+                </p>
+
+              </div>
+
+
+              <!-- Minha conta -->
+
+              <div class="p-2">
+
+                <!-- Explorar lojas -->
+
+                <a
+                  href="{{ CUSTOMER_PORTAL_URL }}/"
+                  class="customer-menu-link"
+                >
+
+                  <svg
+                    class="w-4 h-4 flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="
+                        M3 10.5
+                        L12 3
+                        l9 7.5
+                        V21
+                        H3
+                        V10.5z
+                        M9 21
+                        v-6
+                        h6
+                        v6
+                      "
+                    />
+                  </svg>
+
+                  Explorar lojas
+
+                </a>
+
+
+                <!-- Minha conta -->
+
+                <a
+                  href="{{ CUSTOMER_PORTAL_URL }}/conta/"
+                  class="customer-menu-link"
+                >
+
+                  <svg
+                    class="w-4 h-4 flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="
+                        M5.121 17.804
+                        A9 9 0 1118.88 17.804
+                        M15 11a3 3 0 11-6 0
+                        3 3 0 016 0z
+                      "
+                    />
+                  </svg>
+
+                  Minha conta
+
+                </a>
+
+
+                <!-- Pedidos -->
+
+                <a
+                  href="{{ CUSTOMER_PORTAL_URL }}/conta/pedidos/"
+                  class="customer-menu-link"
+                >
+
+                  <svg
+                    class="w-4 h-4 flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="
+                        M3 3h2l.4 2
+                        M7 13h10l4-8H5.4
+                        M7 13L5.4 5
+                        M7 13l-2 9
+                        m13-9 2 9
+                      "
+                    />
+                  </svg>
+
+                  Meus pedidos
+
+                </a>
+
+
+                <!-- Endereços -->
+
+                <a
+                  href="{{ CUSTOMER_PORTAL_URL }}/conta/enderecos/"
+                  class="customer-menu-link"
+                >
+
+                  <svg
+                    class="w-4 h-4 flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="
+                        M17.657 16.657
+                        L13.414 20.9
+                        a2 2 0 01-2.827 0
+                        l-4.244-4.243
+                        a8 8 0 1111.314 0z
+                      "
+                    />
+
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="
+                        M15 11
+                        a3 3 0 11-6 0
+                        3 3 0 016 0z
+                      "
+                    />
+                  </svg>
+
+                  Meus endereços
+
+                </a>
+
+
+                <!-- Dados -->
+
+                <a
+                  href="{{ CUSTOMER_PORTAL_URL }}/conta/dados/"
+                  class="customer-menu-link"
+                >
+
+                  <svg
+                    class="w-4 h-4 flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="
+                        M12 4.354
+                        a4 4 0 110 5.292
+                        M15 21H9
+                        a6 6 0 116-6
+                      "
+                    />
+                  </svg>
+
+                  Meus dados
+
+                </a>
+
+              </div>
+
+
+              <!-- Logout -->
+
+              <div
+                class="
+                  border-t
+                  border-gray-100
+                  dark:border-gray-700
+
+                  p-2
+                "
+              >
+
+                <form
+                  method="post"
+                  action="{{ CUSTOMER_PORTAL_URL }}/conta/sair/"
+                >
+
+                  {% csrf_token %}
+
+                  <input
+                    type="hidden"
+                    name="next"
+                    value="{{ request.build_absolute_uri }}"
+                  >
+
+                  <button
+                    type="submit"
+
+                    class="
+                      customer-menu-link
+                      text-red-500
+                      hover:text-red-600
+                    "
+                  >
+
+                    <svg
+                      class="w-4 h-4 flex-shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="
+                          M17 16l4-4m0 0-4-4m4 4H7
+                          m6 4v1
+                          a2 2 0 01-2 2H5
+                          a2 2 0 01-2-2V7
+                          a2 2 0 012-2h6
+                          a2 2 0 012 2v1
+                        "
+                      />
+                    </svg>
+
+                    Sair da conta
+
+                  </button>
+
+                </form>
+
+              </div>
+
+            </div>
+
+          </div>
+
+
+        {% else %}
+
+
+          <!-- ====================================================
+               VISITANTE
+               ==================================================== -->
+
+          <div
+            class="
+              desktop-auth-actions
+
+              flex
+              items-center
+              gap-2
+
+              ml-1
+            "
+          >
+
+            <a
+              href="{{ CUSTOMER_PORTAL_URL }}/conta/entrar/?next={{ request.build_absolute_uri|urlencode }}"
+
+              class="
+                px-3
+                py-2
+
+                text-sm
+                font-semibold
+
+                text-gray-600
+                dark:text-gray-300
+
+                hover:text-primary
+
+                transition
+              "
+            >
+              Entrar
+            </a>
+
+
+            <a
+              href="{{ CUSTOMER_PORTAL_URL }}/conta/criar-conta/?next={{ request.build_absolute_uri|urlencode }}"
+
+              class="
+                register-header-button
+
+                bg-primary
+                text-white
+
+                px-4
+                py-2
+
+                rounded-xl
+
+                text-sm
+                font-bold
+
+                hover:opacity-90
+
+                transition
+              "
+            >
+              Criar conta
+            </a>
+
+          </div>
+
+
+          <!-- Mobile -->
+
+          <a
+            href="{{ CUSTOMER_PORTAL_URL }}/conta/entrar/?next={{ request.build_absolute_uri|urlencode }}"
+
+            class="
+              sm:hidden
+
+              p-2
+
+              rounded-full
+
+              text-gray-600
+              dark:text-gray-300
+
+              hover:bg-gray-100
+              dark:hover:bg-gray-800
+
+              transition
+            "
+
+            aria-label="Entrar"
+          >
+
+            <svg
+              class="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="
+                  M5.121 17.804
+                  A9 9 0 1118.88 17.804
+                  M15 11a3 3 0 11-6 0
+                  3 3 0 016 0z
+                "
+              />
+            </svg>
+
+          </a>
+
+
+        {% endif %}
+
       </div>
+
     </nav>
+
   </header>
 
-  <!-- Conteúdo principal -->
+  {% if tenant %}
+    <div
+      class="
+        border-b border-gray-100 bg-white/95
+        dark:border-gray-800 dark:bg-gray-900/95
+      "
+    >
+      <div
+        class="
+          mx-auto flex max-w-7xl items-center justify-between
+          gap-3 px-4 py-2 text-xs
+        "
+      >
+        <div class="min-w-0 flex items-center gap-2">
+          <span class="flex-none">📍</span>
+
+          {% if request.global_delivery_location %}
+            <span class="truncate text-gray-600 dark:text-gray-300">
+              Entregar em:
+              <strong class="text-gray-800 dark:text-gray-100">
+                {{ request.global_delivery_location_label }}
+              </strong>
+            </span>
+
+            {% if request.global_delivery_result %}
+              {% if request.global_delivery_result.available %}
+                <span
+                  class="
+                    hidden sm:inline-flex flex-none rounded-full
+                    bg-emerald-50 px-2 py-1 font-bold text-emerald-700
+                    dark:bg-emerald-950/40 dark:text-emerald-300
+                  "
+                >
+                  Entrega · {{ request.global_delivery_result.fee_display }}
+                </span>
+              {% elif tenant.accepts_delivery %}
+                <span
+                  class="
+                    hidden sm:inline-flex flex-none rounded-full
+                    bg-red-50 px-2 py-1 font-bold text-red-600
+                    dark:bg-red-950/40 dark:text-red-300
+                  "
+                >
+                  Fora da área de entrega
+                </span>
+              {% endif %}
+            {% endif %}
+
+          {% else %}
+            <span class="truncate text-gray-500 dark:text-gray-400">
+              Informe seu endereço para verificar entrega e taxa.
+            </span>
+          {% endif %}
+        </div>
+
+        <a
+          href="{{ CUSTOMER_PORTAL_URL }}/#endereco-entrega"
+          class="flex-none font-bold text-primary hover:underline"
+        >
+          {% if request.global_delivery_location %}
+            Alterar
+          {% else %}
+            Informar endereço
+          {% endif %}
+        </a>
+      </div>
+    </div>
+  {% endif %}
+
+
+  <!-- ============================================================
+       CONTEÚDO
+       ============================================================ -->
+
   <main>
-    {% block content %}{% endblock %}
+    {% block content %}
+    {% endblock %}
   </main>
 
-  <!-- Botão WhatsApp Flutuante -->
+
+  <!-- ============================================================
+       WHATSAPP
+       ============================================================ -->
+
   <a
     href="https://wa.me/{{ tenant.whatsapp_number|default:'559999999999' }}"
     target="_blank"
-    class="whatsapp-float fixed bottom-4 right-4 z-50 bg-green-500 text-white p-3 rounded-full shadow-lg hover:bg-green-600 transition"
+
+    class="
+      whatsapp-float
+
+      fixed
+      bottom-4
+      right-4
+
+      z-50
+
+      bg-green-500
+      text-white
+
+      p-3
+
+      rounded-full
+
+      shadow-lg
+
+      hover:bg-green-600
+
+      transition
+    "
+
     title="Falar no WhatsApp"
     aria-label="Falar no WhatsApp"
   >
-    <svg class="w-6 h-6 fill-current" viewBox="0 0 24 24">
-      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+
+    <svg
+      class="w-6 h-6 fill-current"
+      viewBox="0 0 24 24"
+    >
+      <path
+        d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347"
+      />
     </svg>
+
   </a>
 
-  <!-- JavaScript modular -->
-  <script type="module" src="{% static 'js/app.js' %}"></script>
 
-  <!-- Toggle Dark Mode Script -->
+  <!-- JS modular -->
+  <script
+    type="module"
+    src="{% static 'js/app.js' %}"
+  ></script>
+
+
+  <!-- ============================================================
+       DARK MODE
+       ============================================================ -->
+
   <script>
+
     function toggleDarkMode() {
-      const html = document.documentElement;
-      if (html.classList.contains('dark')) {
+
+      const html =
+        document.documentElement;
+
+
+      if (
+        html.classList.contains('dark')
+      ) {
+
         html.classList.remove('dark');
-        localStorage.setItem('theme', 'light');
+
+        localStorage.setItem(
+          'theme',
+          'light'
+        );
+
       } else {
+
         html.classList.add('dark');
-        localStorage.setItem('theme', 'dark');
+
+        localStorage.setItem(
+          'theme',
+          'dark'
+        );
       }
     }
 
-    // Sincroniza com mudanças do sistema em tempo real
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
-      if (!localStorage.getItem('theme')) {
-        document.documentElement.classList.toggle('dark', e.matches);
-      }
-    });
+
+    window
+      .matchMedia(
+        '(prefers-color-scheme: dark)'
+      )
+      .addEventListener(
+        'change',
+        event => {
+
+          if (
+            !localStorage.getItem('theme')
+          ) {
+
+            document
+              .documentElement
+              .classList
+              .toggle(
+                'dark',
+                event.matches
+              );
+          }
+        }
+      );
+
   </script>
 
-  {% block extra_js %}{% endblock %}
+
+  <!-- ============================================================
+       MENU DO CLIENTE
+       ============================================================ -->
+
+  <script>
+
+    (function () {
+
+      const toggle =
+        document.getElementById(
+          'customer-menu-toggle'
+        );
+
+      const menu =
+        document.getElementById(
+          'customer-menu'
+        );
+
+      const container =
+        document.getElementById(
+          'customer-menu-container'
+        );
+
+
+      if (
+        !toggle
+        || !menu
+        || !container
+      ) {
+        return;
+      }
+
+
+      function openMenu() {
+
+        menu.classList.remove(
+          'hidden'
+        );
+
+        toggle.setAttribute(
+          'aria-expanded',
+          'true'
+        );
+      }
+
+
+      function closeMenu() {
+
+        menu.classList.add(
+          'hidden'
+        );
+
+        toggle.setAttribute(
+          'aria-expanded',
+          'false'
+        );
+      }
+
+
+      function toggleMenu() {
+
+        if (
+          menu.classList.contains(
+            'hidden'
+          )
+        ) {
+
+          openMenu();
+
+        } else {
+
+          closeMenu();
+        }
+      }
+
+
+      toggle.addEventListener(
+        'click',
+        function (event) {
+
+          event.stopPropagation();
+
+          toggleMenu();
+        }
+      );
+
+
+      document.addEventListener(
+        'click',
+        function (event) {
+
+          if (
+            !container.contains(
+              event.target
+            )
+          ) {
+
+            closeMenu();
+          }
+        }
+      );
+
+
+      document.addEventListener(
+        'keydown',
+        function (event) {
+
+          if (
+            event.key === 'Escape'
+          ) {
+
+            closeMenu();
+
+            toggle.focus();
+          }
+        }
+      );
+
+    })();
+
+  </script>
+
+
+  {% block extra_js %}
+  {% endblock %}
 
 </body>
 </html>

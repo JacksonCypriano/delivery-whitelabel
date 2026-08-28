@@ -10,9 +10,21 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 
 DEBUG = False
 
+CUSTOMER_PORTAL_URL = os.getenv("CUSTOMER_PORTAL_URL", "http://lvh.me:8000").rstrip("/")
+
 ALLOWED_HOSTS = [
     h.strip() for h in os.getenv("ALLOWED_HOSTS", "localhost").split(",") if h.strip()
 ]
+
+TENANT_BASE_DOMAIN = os.getenv(
+    "TENANT_BASE_DOMAIN",
+    "lvh.me:8000",
+).strip()
+
+TENANT_PUBLIC_SCHEME = os.getenv(
+    "TENANT_PUBLIC_SCHEME",
+    "http",
+).strip()
 
 INSTALLED_APPS = [
     # third-party
@@ -40,6 +52,9 @@ INSTALLED_APPS = [
     "apps.orders",
     "apps.checkout",
     "apps.frontend",
+    "apps.customers",
+    "apps.coupons",
+    "apps.marketplace.apps.MarketplaceConfig",
 ]
 
 MIDDLEWARE = [
@@ -47,11 +62,12 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
-
-    "apps.tenants.middleware.TenantMiddleware",
-
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+
+    "apps.tenants.middleware.TenantMiddleware",
+    "apps.marketplace.middleware.GlobalDeliveryLocationMiddleware",
+
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -84,6 +100,13 @@ MEDIA_ROOT = BASE_DIR / "media"
 CELERY_BROKER_URL = os.getenv("REDIS_URL")
 CELERY_RESULT_BACKEND = os.getenv("REDIS_URL")
 
+LANGUAGE_CODE = "pt-br"
+
+TIME_ZONE = "America/Sao_Paulo"
+
+USE_I18N = True
+USE_TZ = True
+
 # Templates
 TEMPLATES = [
     {
@@ -101,6 +124,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 # Disponibiliza `tenant` e `cart_count_global` em todos os templates
                 "apps.tenants.context_processors.tenant_brand",
+                "apps.core.context_processors.global_settings",
             ],
         },
     },
@@ -108,13 +132,13 @@ TEMPLATES = [
 
 AUTH_USER_MODEL = "accounts.User"
 
-SESSION_COOKIE_DOMAIN = None
-CSRF_COOKIE_DOMAIN = None
+SESSION_COOKIE_DOMAIN = ".lvh.me"
+SESSION_COOKIE_SECURE = True
 
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SECURE = False
-CSRF_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = True
 
 LANGUAGE_CODE = "pt-br"
 
@@ -297,3 +321,43 @@ UNFOLD_SUPER = {
     "SITE_TITLE": "Super Admin",
     "SITE_HEADER": "Painel Global",
 }
+
+# Marketplace - reverse geocoding
+MARKETPLACE_GEOCODER_ENABLED = (
+    os.getenv(
+        "MARKETPLACE_GEOCODER_ENABLED",
+        "true",
+    ).lower()
+    == "true"
+)
+
+MARKETPLACE_GEOCODER_URL = os.getenv(
+    "MARKETPLACE_GEOCODER_URL",
+    "https://nominatim.openstreetmap.org/reverse",
+).strip()
+
+MARKETPLACE_GEOCODER_USER_AGENT = os.getenv(
+    "MARKETPLACE_GEOCODER_USER_AGENT",
+    "VemDeDelivery/1.0 (+https://vemdedelivery.com.br)",
+).strip()
+
+MARKETPLACE_GEOCODER_TIMEOUT = int(
+    os.getenv("MARKETPLACE_GEOCODER_TIMEOUT", "4")
+)
+
+MARKETPLACE_GEOCODER_CACHE_SECONDS = int(
+    os.getenv(
+        "MARKETPLACE_GEOCODER_CACHE_SECONDS",
+        "604800",
+    )
+)
+
+SECURE_PROXY_SSL_HEADER = (
+    "HTTP_X_FORWARDED_PROTO",
+    "https",
+)
+
+MARKETPLACE_CEP_URL = "https://viacep.com.br/ws/{cep}/json/"
+MARKETPLACE_CEP_TIMEOUT = 4
+MARKETPLACE_CEP_CACHE_SECONDS = 60 * 60 * 24 * 30
+MARKETPLACE_CEP_USER_AGENT = "VemDeDelivery/1.0"

@@ -1,5 +1,11 @@
 from django.urls import path
-from .views import DashboardLoginView, DashboardLogoutView, DashboardRefreshView
+
+from .views import (
+    DashboardLoginView,
+    DashboardLogoutView,
+    DashboardRefreshView
+)
+
 
 urlpatterns = [
     path('login/', DashboardLoginView.as_view(), name='dashboard-login'),

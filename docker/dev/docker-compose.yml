@@ -50,5 +50,17 @@ services:
       - db
       - redis
 
+  nginx:
+    image: nginx:stable-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../../deploy/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ../../deploy/nginx/certs:/etc/nginx/ssl:ro
+    depends_on:
+      - web
+    restart: unless-stopped
+
 volumes:
-  pgdata: 
+  pgdata:

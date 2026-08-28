@@ -1,0 +1,491 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Criar conta{% if tenant %} | {{ tenant.name }}{% endif %}</title>
+
+  {% if tenant.brand_config.favicon %}
+    <link rel="icon" href="{{ tenant.brand_config.favicon.url }}">
+  {% else %}
+    <link rel="icon" href="{% static 'images/favicon.svg' %}">
+  {% endif %}
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    :root {
+      --primary: {{ tenant.brand_config.primary_color|default:"#e74c3c" }};
+      --secondary: {{ tenant.brand_config.secondary_color|default:"#2c3e50" }};
+      --background: {{ tenant.brand_config.background_color|default:"#ffffff" }};
+      --text: {{ tenant.brand_config.text_color|default:"#111827" }};
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, color-mix(in srgb, var(--primary) 13%, transparent), transparent 38%),
+        #f8fafc;
+    }
+
+    .auth-card {
+      box-shadow:
+        0 24px 60px rgba(15, 23, 42, 0.08),
+        0 4px 14px rgba(15, 23, 42, 0.04);
+    }
+
+    .form-input {
+      width: 100%;
+      height: 50px;
+      padding: 0 1rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.85rem;
+      background: #fff;
+      color: #111827;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .form-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 12%, transparent);
+    }
+
+    .primary-button {
+      background: var(--primary);
+      transition: all 0.2s ease;
+    }
+
+    .primary-button:hover {
+      filter: brightness(0.94);
+      transform: translateY(-1px);
+    }
+
+    .primary-text {
+      color: var(--primary);
+    }
+
+    .primary-bg-soft {
+      background: color-mix(in srgb, var(--primary) 9%, white);
+    }
+  </style>
+</head>
+
+<body class="min-h-screen">
+
+  <main class="min-h-screen flex items-center justify-center px-4 py-10">
+
+    <div class="w-full max-w-lg">
+
+      <!-- Marca -->
+      <div class="text-center mb-7">
+
+        <a href="/" class="inline-flex flex-col items-center">
+
+          {% if tenant.brand_config.logo %}
+            <img
+              src="{{ tenant.brand_config.logo.url }}"
+              alt="{{ tenant.name }}"
+              class="w-20 h-20 object-contain mb-3"
+            >
+          {% else %}
+            <div
+              class="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-black mb-3"
+              style="background: var(--primary);"
+            >
+              {{ tenant.name|slice:":1"|upper }}
+            </div>
+          {% endif %}
+
+          <span class="text-xl font-extrabold text-gray-900">
+            {{ tenant.name|default:"VemDeDelivery" }}
+          </span>
+
+        </a>
+
+      </div>
+
+      <!-- Card -->
+      <div class="auth-card bg-white rounded-3xl border border-gray-100 p-6 sm:p-8">
+
+        <div class="mb-7">
+
+          <div class="flex items-center gap-3 mb-2">
+
+            <div class="primary-bg-soft w-11 h-11 rounded-xl flex items-center justify-center primary-text">
+              <svg
+                class="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M18 9v3m0 0v3m0-3h3m-3 0h-3M13 7a4 4 0 11-8 0 4 4 0 018 0zM3 21a6 6 0 0112 0"
+                />
+              </svg>
+            </div>
+
+            <div>
+              <h1 class="text-2xl font-extrabold text-gray-900">
+                Criar sua conta
+              </h1>
+
+              <p class="text-sm text-gray-500 mt-0.5">
+                É rápido e leva menos de um minuto.
+              </p>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Erros gerais -->
+        {% if form.non_field_errors %}
+          <div class="mb-5 p-4 rounded-xl bg-red-50 border border-red-100 text-red-700 text-sm">
+            {% for error in form.non_field_errors %}
+              <p>{{ error }}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          <input
+            type="hidden"
+            name="next"
+            value="{{ next|default:'/' }}"
+          >
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+            <!-- Nome -->
+            <div>
+              <label
+                for="id_first_name"
+                class="block text-sm font-semibold text-gray-700 mb-2"
+              >
+                Nome
+              </label>
+
+              <input
+                type="text"
+                name="first_name"
+                id="id_first_name"
+                value="{{ form.first_name.value|default:'' }}"
+                autocomplete="given-name"
+                placeholder="Seu nome"
+                required
+                class="form-input"
+              >
+
+              {% for error in form.first_name.errors %}
+                <p class="text-xs text-red-600 mt-1.5">
+                  {{ error }}
+                </p>
+              {% endfor %}
+            </div>
+
+            <!-- Sobrenome -->
+            <div>
+              <label
+                for="id_last_name"
+                class="block text-sm font-semibold text-gray-700 mb-2"
+              >
+                Sobrenome
+              </label>
+
+              <input
+                type="text"
+                name="last_name"
+                id="id_last_name"
+                value="{{ form.last_name.value|default:'' }}"
+                autocomplete="family-name"
+                placeholder="Seu sobrenome"
+                required
+                class="form-input"
+              >
+
+              {% for error in form.last_name.errors %}
+                <p class="text-xs text-red-600 mt-1.5">
+                  {{ error }}
+                </p>
+              {% endfor %}
+            </div>
+
+          </div>
+
+          <!-- E-mail -->
+          <div class="mt-4">
+
+            <label
+              for="id_email"
+              class="block text-sm font-semibold text-gray-700 mb-2"
+            >
+              E-mail
+            </label>
+
+            <input
+              type="email"
+              name="email"
+              id="id_email"
+              value="{{ form.email.value|default:'' }}"
+              autocomplete="email"
+              placeholder="seuemail@exemplo.com"
+              required
+              class="form-input"
+            >
+
+            {% for error in form.email.errors %}
+              <p class="text-xs text-red-600 mt-1.5">
+                {{ error }}
+              </p>
+            {% endfor %}
+
+          </div>
+
+          <!-- Telefone -->
+          <div class="mt-4">
+
+            <label
+              for="id_phone"
+              class="block text-sm font-semibold text-gray-700 mb-2"
+            >
+              WhatsApp / Telefone
+            </label>
+
+            <input
+              type="tel"
+              name="phone"
+              id="id_phone"
+              value="{{ form.phone.value|default:'' }}"
+              autocomplete="tel"
+              placeholder="(11) 99999-9999"
+              maxlength="20"
+              required
+              class="form-input"
+            >
+
+            {% for error in form.phone.errors %}
+              <p class="text-xs text-red-600 mt-1.5">
+                {{ error }}
+              </p>
+            {% endfor %}
+
+          </div>
+
+          <!-- Senha -->
+          <div class="mt-4">
+
+            <label
+              for="id_password1"
+              class="block text-sm font-semibold text-gray-700 mb-2"
+            >
+              Senha
+            </label>
+
+            <div class="relative">
+
+              <input
+                type="password"
+                name="password1"
+                id="id_password1"
+                autocomplete="new-password"
+                placeholder="Crie uma senha"
+                required
+                class="form-input pr-12"
+              >
+
+              <button
+                type="button"
+                data-password-toggle="id_password1"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                aria-label="Mostrar senha"
+              >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+              </button>
+
+            </div>
+
+            {% for error in form.password1.errors %}
+              <p class="text-xs text-red-600 mt-1.5">
+                {{ error }}
+              </p>
+            {% endfor %}
+
+          </div>
+
+          <!-- Confirmação -->
+          <div class="mt-4">
+
+            <label
+              for="id_password2"
+              class="block text-sm font-semibold text-gray-700 mb-2"
+            >
+              Confirmar senha
+            </label>
+
+            <div class="relative">
+
+              <input
+                type="password"
+                name="password2"
+                id="id_password2"
+                autocomplete="new-password"
+                placeholder="Digite a senha novamente"
+                required
+                class="form-input pr-12"
+              >
+
+              <button
+                type="button"
+                data-password-toggle="id_password2"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                aria-label="Mostrar senha"
+              >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+              </button>
+
+            </div>
+
+            {% for error in form.password2.errors %}
+              <p class="text-xs text-red-600 mt-1.5">
+                {{ error }}
+              </p>
+            {% endfor %}
+
+          </div>
+
+          <!-- Benefício -->
+          <div class="primary-bg-soft rounded-xl p-4 mt-5">
+
+            <div class="flex items-start gap-3">
+
+              <svg
+                class="w-5 h-5 primary-text flex-shrink-0 mt-0.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+
+              <p class="text-xs text-gray-600 leading-relaxed">
+                Com sua conta, seus dados ficam disponíveis para facilitar
+                seus próximos pedidos e endereços de entrega.
+              </p>
+
+            </div>
+
+          </div>
+
+          <!-- Submit -->
+          <button
+            type="submit"
+            class="primary-button w-full h-13 mt-6 rounded-xl text-white font-bold py-3.5 shadow-sm"
+          >
+            Criar minha conta
+          </button>
+
+        </form>
+
+        <div class="relative flex items-center my-6">
+          <div class="flex-grow border-t border-gray-100"></div>
+          <span class="px-4 text-xs text-gray-400">
+            já possui uma conta?
+          </span>
+          <div class="flex-grow border-t border-gray-100"></div>
+        </div>
+
+        <a
+          href="{% url 'customer_accounts:login' %}?next={{ next|urlencode }}"
+          class="block w-full text-center border border-gray-200 rounded-xl py-3 font-semibold text-gray-700 hover:bg-gray-50 transition"
+        >
+          Entrar na minha conta
+        </a>
+
+      </div>
+
+      <div class="text-center mt-6">
+        <a
+          href="/"
+          class="text-sm text-gray-500 hover:text-gray-800 transition"
+        >
+          ← Voltar para a loja
+        </a>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    document.querySelectorAll('[data-password-toggle]').forEach(button => {
+      button.addEventListener('click', () => {
+        const input = document.getElementById(
+          button.dataset.passwordToggle
+        );
+
+        if (!input) return;
+
+        input.type = input.type === 'password'
+          ? 'text'
+          : 'password';
+      });
+    });
+
+    const phoneInput = document.getElementById('id_phone');
+
+    if (phoneInput) {
+      phoneInput.addEventListener('input', function () {
+        let value = this.value.replace(/\D/g, '').slice(0, 11);
+
+        if (value.length > 10) {
+          value = value.replace(
+            /^(\d{2})(\d{5})(\d{4})$/,
+            '($1) $2-$3'
+          );
+        } else if (value.length > 6) {
+          value = value.replace(
+            /^(\d{2})(\d{4})(\d{0,4})$/,
+            '($1) $2-$3'
+          );
+        } else if (value.length > 2) {
+          value = value.replace(
+            /^(\d{2})(\d+)/,
+            '($1) $2'
+          );
+        } else if (value.length) {
+          value = value.replace(
+            /^(\d{0,2})/,
+            '($1'
+          );
+        }
+
+        this.value = value;
+      });
+    }
+  </script>
+
+</body>
+</html>

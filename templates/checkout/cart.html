@@ -5,182 +5,1907 @@
 {% block title %}Carrinho - {{ tenant.name }}{% endblock %}
 
 {% block content %}
+
 {% csrf_token %}
+
 <div class="container mx-auto px-4 py-8 max-w-4xl">
-  <h1 class="text-2xl font-bold mb-6">Seu Carrinho</h1>
+
+  <div
+    class="
+      mb-6
+      flex
+      flex-col
+      gap-2
+      sm:flex-row
+      sm:items-center
+      sm:justify-between
+    "
+  >
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+        Seu Carrinho
+      </h1>
+
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        Confira os itens e a forma de atendimento antes de continuar.
+      </p>
+    </div>
+
+    <a
+      href="{% url 'stores:catalogo' %}"
+      class="
+        inline-flex
+        items-center
+        gap-2
+        text-sm
+        font-semibold
+        text-primary
+        hover:underline
+      "
+    >
+      ← Continuar comprando
+    </a>
+  </div>
+
 
   {% if cart_items %}
-  <div class="space-y-4" id="cart-items-container">
-    {% for item in cart_items %}
-    <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex justify-between items-center cart-item"
-         data-cart-item-id="{{ item.id }}">
 
-      <div class="flex items-center gap-4">
+    
 
-        <!-- Imagem -->
-        <div class="w-20 h-20 rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden border">
-          {% if item.combination_details.product_ids %}
-            <!-- Meio a meio: mostra as duas imagens -->
-            <div class="flex items-center gap-1">
-              {% for img in item.combination_details.images %}
-                {% if img %}
-                  <img src="{{ img }}" alt="" class="w-12 h-12 object-cover rounded-md border border-gray-100">
-                {% else %}
-                  <div class="w-12 h-12 bg-gray-100 rounded-md border border-gray-100"></div>
-                {% endif %}
-              {% endfor %}
-              {% if item.combination_details.images|length == 1 %}
-                <div class="w-12 h-12 bg-gray-100 rounded-md border border-gray-100"></div>
-              {% endif %}
-            </div>
-          {% elif item.product %}
-            <!-- Produto simples: imagem do produto -->
-            {% if item.product.get_primary_image %}
-              <img src="{{ item.product.get_primary_image }}" alt="{{ item.product.name }}" class="w-full h-full object-cover">
-            {% else %}
-              <div class="w-full h-full bg-gray-100"></div>
-            {% endif %}
-          {% else %}
-            <div class="w-full h-full bg-gray-100"></div>
-          {% endif %}
+    <div
+      id="cart-delivery-status"
+      class="
+        mb-5
+        rounded-2xl
+        border
+        p-4
+
+        {% if cart_delivery.status == 'delivery_available' %}
+          border-emerald-200
+          bg-emerald-50
+          dark:border-emerald-900
+          dark:bg-emerald-950/30
+
+        {% elif cart_delivery.status == 'delivery_unavailable' %}
+          border-red-200
+          bg-red-50
+          dark:border-red-900
+          dark:bg-red-950/30
+
+        {% elif cart_delivery.status == 'pickup_only' %}
+          border-blue-200
+          bg-blue-50
+          dark:border-blue-900
+          dark:bg-blue-950/30
+
+        {% else %}
+          border-amber-200
+          bg-amber-50
+          dark:border-amber-900
+          dark:bg-amber-950/30
+        {% endif %}
+      "
+    >
+
+      <div class="flex items-start gap-3">
+
+        <div
+          class="
+            mt-0.5
+            flex
+            h-10
+            w-10
+            flex-none
+            items-center
+            justify-center
+            rounded-full
+            bg-white
+            text-lg
+            shadow-sm
+            dark:bg-gray-900
+          "
+        >
+          📍
         </div>
 
-        <!-- Info -->
-        <div>
-          <h3 class="font-semibold text-gray-800">{{ item.name }}</h3>
 
-          {% if item.combination_details.product_ids %}
-            <!-- Meio a meio -->
-            <p class="text-xs text-gray-500 mt-1">
-              {{ item.combination_details.names.0 }} / {{ item.combination_details.names.1 }}
+        <div class="min-w-0 flex-1">
+
+          {% if cart_delivery.status == "delivery_available" %}
+
+            <p
+              class="
+                text-sm
+                font-black
+                text-emerald-800
+                dark:text-emerald-300
+              "
+            >
+              Entrega disponível no seu endereço
             </p>
 
-            {% if item.combination_details.customizations_whole %}
-              <div class="mt-1">
-                <p class="text-xs text-gray-400 font-medium">Toda a pizza:</p>
-                {% for c in item.combination_details.customizations_whole %}
-                  <p class="text-xs text-gray-500">
-                    &bull; {% if c.group_name %}{{ c.group_name }}: {% endif %}{{ c.option_name }}
-                    {% if c.price != '0.00' %}(+R$ {{ c.price }}){% endif %}
-                  </p>
-                {% endfor %}
-              </div>
+            <p
+              class="
+                mt-1
+                text-sm
+                text-emerald-700
+                dark:text-emerald-400
+              "
+            >
+              {% if request.global_delivery_location_label %}
+                {{ request.global_delivery_location_label }}
+                ·
+              {% endif %}
+
+              <strong>
+                {{ cart_delivery.delivery_fee_display }}
+              </strong>
+            </p>
+
+
+          {% elif cart_delivery.status == "delivery_unavailable" %}
+
+            <p
+              class="
+                text-sm
+                font-black
+                text-red-700
+                dark:text-red-300
+              "
+            >
+              Esta loja não entrega no endereço selecionado
+            </p>
+
+            {% if request.global_delivery_location_label %}
+              <p
+                class="
+                  mt-1
+                  text-sm
+                  text-red-600
+                  dark:text-red-400
+                "
+              >
+                {{ request.global_delivery_location_label }}
+              </p>
             {% endif %}
 
-            {% if item.combination_details.customizations_half1 or item.combination_details.notes_half1 %}
-              <div class="mt-1">
-                <p class="text-xs text-gray-400 font-medium">{{ item.combination_details.names.0 }}:</p>
-                {% for c in item.combination_details.customizations_half1 %}
-                  <p class="text-xs text-gray-500">
-                    &bull; {% if c.group_name %}{{ c.group_name }}: {% endif %}{{ c.option_name }}
-                    {% if c.price != '0.00' %}(+R$ {{ c.price }}){% endif %}
-                  </p>
-                {% endfor %}
-                {% if item.combination_details.notes_half1 %}
-                  <p class="text-xs text-amber-600 italic mt-0.5">Obs: {{ item.combination_details.notes_half1 }}</p>
-                {% endif %}
-              </div>
+            {% if tenant.accepts_pickup %}
+              <p
+                class="
+                  mt-2
+                  text-xs
+                  font-semibold
+                  text-red-700
+                  dark:text-red-300
+                "
+              >
+                Você ainda pode continuar este pedido para retirada na loja.
+              </p>
+            {% else %}
+              <p
+                class="
+                  mt-2
+                  text-xs
+                  font-semibold
+                  text-red-700
+                  dark:text-red-300
+                "
+              >
+                Troque o endereço para continuar o pedido.
+              </p>
             {% endif %}
 
-            {% if item.combination_details.customizations_half2 or item.combination_details.notes_half2 %}
-              <div class="mt-1">
-                <p class="text-xs text-gray-400 font-medium">{{ item.combination_details.names.1 }}:</p>
-                {% for c in item.combination_details.customizations_half2 %}
-                  <p class="text-xs text-gray-500">
-                    &bull; {% if c.group_name %}{{ c.group_name }}: {% endif %}{{ c.option_name }}
-                    {% if c.price != '0.00' %}(+R$ {{ c.price }}){% endif %}
-                  </p>
-                {% endfor %}
-                {% if item.combination_details.notes_half2 %}
-                  <p class="text-xs text-amber-600 italic mt-0.5">Obs: {{ item.combination_details.notes_half2 }}</p>
-                {% endif %}
-              </div>
+
+          {% elif cart_delivery.status == "pickup_only" %}
+
+            <p
+              class="
+                text-sm
+                font-black
+                text-blue-800
+                dark:text-blue-300
+              "
+            >
+              Esta loja trabalha somente com retirada
+            </p>
+
+            <p
+              class="
+                mt-1
+                text-sm
+                text-blue-700
+                dark:text-blue-400
+              "
+            >
+              Não há taxa de entrega neste pedido.
+            </p>
+
+
+          {% else %}
+
+            <p
+              class="
+                text-sm
+                font-black
+                text-amber-800
+                dark:text-amber-300
+              "
+            >
+              Informe seu endereço de entrega
+            </p>
+
+            <p
+              class="
+                mt-1
+                text-sm
+                text-amber-700
+                dark:text-amber-400
+              "
+            >
+              Assim mostramos a taxa correta antes do checkout.
+            </p>
+
+            {% if tenant.accepts_pickup %}
+              <p
+                class="
+                  mt-2
+                  text-xs
+                  font-semibold
+                  text-amber-700
+                  dark:text-amber-300
+                "
+              >
+                Se preferir, você também pode continuar para retirada.
+              </p>
             {% endif %}
 
-          {% elif item.combination_details.customizations %}
-            <!-- Produto simples com adicionais -->
-            <div class="mt-1">
-              {% for c in item.combination_details.customizations %}
-                <p class="text-xs text-gray-500">
-                  &bull; {% if c.group_name %}{{ c.group_name }}: {% endif %}{{ c.option_name }}
-                  {% if c.price != '0.00' %}(+R$ {{ c.price }}){% endif %}
-                </p>
-              {% endfor %}
-            </div>
           {% endif %}
 
-          <!-- Observação geral do item -->
-          {% if item.notes %}
-            <p class="text-xs text-gray-400 mt-1 italic">Obs: {{ item.notes }}</p>
-          {% endif %}
-
-          <!-- Controles de quantidade -->
-          <div class="flex items-center mt-3">
-            <div class="flex border border-gray-200 rounded-lg overflow-hidden">
-              <button type="button"
-                      data-action="decrease-qty"
-                      data-cart-item-id="{{ item.id }}"
-                      class="w-8 h-8 flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-gray-600 transition">−</button>
-              <span data-qty-display
-                    class="w-10 h-8 flex items-center justify-center text-sm font-medium">{{ item.quantity }}</span>
-              <button type="button"
-                      data-action="increase-qty"
-                      data-cart-item-id="{{ item.id }}"
-                      class="w-8 h-8 flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-gray-600 transition">+</button>
-            </div>
-            <button type="button"
-                    data-action="remove-item"
-                    data-cart-item-id="{{ item.id }}"
-                    class="text-red-500 text-sm ml-4 hover:underline font-medium transition">Remover</button>
-          </div>
         </div>
-      </div>
 
-      <!-- Preço -->
-      <div class="text-right">
-        <span class="font-bold text-primary"
-              data-price-display
-              data-price="{{ item.price|floatformat:2 }}">
-          R$ {{ item.price|floatformat:2 }}
-        </span><br>
-        <span class="text-sm text-gray-500">
-          Subtotal: R$ {{ item.get_total_price|floatformat:2 }}
-        </span>
+
+        {% if tenant.accepts_delivery %}
+          <a
+            href="{{ CUSTOMER_PORTAL_URL }}/#endereco-entrega"
+            class="
+              flex-none
+              rounded-xl
+              bg-white
+              px-3
+              py-2
+              text-xs
+              font-black
+              shadow-sm
+              transition
+              hover:shadow
+
+              dark:bg-gray-900
+
+              {% if cart_delivery.status == 'delivery_unavailable' %}
+                text-red-700
+                dark:text-red-300
+
+              {% elif cart_delivery.status == 'delivery_available' %}
+                text-emerald-700
+                dark:text-emerald-300
+
+              {% else %}
+                text-amber-700
+                dark:text-amber-300
+              {% endif %}
+            "
+          >
+            {% if global_delivery_location %}
+              Alterar
+            {% else %}
+              Informar
+            {% endif %}
+          </a>
+        {% endif %}
+
       </div>
 
     </div>
-    {% endfor %}
-  </div>
 
-  <div class="mt-8 flex justify-end">
-    <div class="w-full max-w-xs bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-      <div class="flex justify-between text-sm text-gray-600 mb-2">
-        <span>Subtotal</span>
-        <span>R$ {{ subtotal|floatformat:2 }}</span>
-      </div>
-      <div class="border-t border-gray-100 my-2"></div>
-      <div class="flex justify-between items-center text-lg font-bold">
-        <span>Total</span>
-        <span id="cart-total" class="text-primary">R$ {{ total|floatformat:2 }}</span>
-      </div>
-      <a href="{% url 'checkout:checkout_step_one' %}"
-         class="mt-4 w-full inline-flex items-center justify-center bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-xl font-medium transition transform hover:scale-[1.02] active:scale-[0.98] shadow-md">
-        Finalizar Pedido
-      </a>
+
+    
+
+    <div
+      class="space-y-4"
+      id="cart-items-container"
+    >
+
+      {% for item in cart_items %}
+
+        <div
+          class="
+            cart-item
+            flex
+            flex-col
+            gap-4
+            rounded-2xl
+            border
+            border-gray-100
+            bg-white
+            p-4
+            shadow-sm
+
+            dark:border-gray-800
+            dark:bg-gray-900
+
+            sm:flex-row
+            sm:items-center
+            sm:justify-between
+            sm:p-5
+          "
+          data-cart-item-id="{{ item.id }}"
+          data-remove-customization-url="{% url 'checkout:remove-cart-item-customization' item.id %}"
+        >
+
+          <div
+            class="
+              flex
+              min-w-0
+              items-start
+              gap-4
+            "
+          >
+
+            
+
+            <div
+              class="
+                flex
+                h-20
+                w-20
+                flex-none
+                items-center
+                justify-center
+                overflow-hidden
+                rounded-xl
+                border
+                border-gray-100
+                bg-gray-50
+
+                dark:border-gray-800
+                dark:bg-gray-800
+              "
+            >
+
+              {% if item.combination_details.product_ids %}
+
+                <div
+                  class="
+                    flex
+                    h-full
+                    w-full
+                    items-center
+                    justify-center
+                    gap-0.5
+                    p-1
+                  "
+                >
+
+                  {% for img in item.combination_details.images %}
+
+                    {% if img %}
+
+                      <img
+                        src="{{ img }}"
+                        alt=""
+                        class="
+                          h-full
+                          min-w-0
+                          flex-1
+                          object-cover
+                          {% if forloop.first %}
+                            rounded-l-lg
+                          {% endif %}
+                          {% if forloop.last %}
+                            rounded-r-lg
+                          {% endif %}
+                        "
+                      >
+
+                    {% else %}
+
+                      <div
+                        class="
+                          h-full
+                          min-w-0
+                          flex-1
+                          bg-gray-100
+                          dark:bg-gray-700
+                        "
+                      ></div>
+
+                    {% endif %}
+
+                  {% endfor %}
+
+
+                  {% if item.combination_details.images|length == 1 %}
+                    <div
+                      class="
+                        h-full
+                        min-w-0
+                        flex-1
+                        rounded-r-lg
+                        bg-gray-100
+                        dark:bg-gray-700
+                      "
+                    ></div>
+                  {% endif %}
+
+                </div>
+
+
+              {% elif item.product %}
+
+                {% if item.product.get_primary_image %}
+
+                  <img
+                    src="{{ item.product.get_primary_image }}"
+                    alt="{{ item.product.name }}"
+                    class="h-full w-full object-cover"
+                  >
+
+                {% else %}
+
+                  <div
+                    class="
+                      flex
+                      h-full
+                      w-full
+                      items-center
+                      justify-center
+                      bg-gray-100
+                      text-gray-300
+
+                      dark:bg-gray-800
+                      dark:text-gray-600
+                    "
+                  >
+                    <svg
+                      class="h-7 w-7"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="1.5"
+                        d="
+                          M4 16
+                          l4.586-4.586
+                          a2 2 0 012.828 0
+                          L16 16
+                          m-2-2
+                          1.586-1.586
+                          a2 2 0 012.828 0
+                          L20 14
+                          M6 20h12
+                          a2 2 0 002-2
+                          V6
+                          a2 2 0 00-2-2
+                          H6
+                          a2 2 0 00-2 2
+                          v12
+                          a2 2 0 002 2z
+                        "
+                      />
+                    </svg>
+                  </div>
+
+                {% endif %}
+
+
+              {% else %}
+
+                <div
+                  class="
+                    h-full
+                    w-full
+                    bg-gray-100
+                    dark:bg-gray-800
+                  "
+                ></div>
+
+              {% endif %}
+
+            </div>
+
+
+            
+
+            <div class="min-w-0">
+
+              <h3
+                class="
+                  font-semibold
+                  text-gray-800
+                  dark:text-gray-100
+                "
+              >
+                {{ item.name }}
+              </h3>
+
+
+              {% if item.combination_details.product_ids %}
+
+                <p
+                  class="
+                    mt-1
+                    text-xs
+                    font-medium
+                    text-gray-500
+                    dark:text-gray-400
+                  "
+                >
+                  {{ item.combination_details.names.0 }}
+                  /
+                  {{ item.combination_details.names.1 }}
+                </p>
+
+
+                {% if item.combination_details.customizations_whole %}
+
+                  <div class="mt-2" data-customization-group>
+
+                    <p
+                      class="
+                        text-xs
+                        font-semibold
+                        text-gray-400
+                      "
+                    >
+                      Toda a pizza:
+                    </p>
+
+                    {% for c in item.combination_details.customizations_whole %}
+
+                      <div class="mt-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400" data-customization-row>
+                        <span class="min-w-0 flex-1">
+                          •
+                          {% if c.group_name %}{{ c.group_name }}:{% endif %}
+                          {{ c.option_name }}
+                          {% if c.price != '0.00' %}
+                            <span class="text-primary">(+R$ {{ c.price }})</span>
+                          {% endif %}
+                        </span>
+
+                        {% if c.can_remove_from_cart %}
+                          <button
+                            type="button"
+                            data-action="remove-customization"
+                            data-customization-bucket="customizations_whole"
+                            data-customization-index="{{ forloop.counter0 }}"
+                            class="flex h-6 w-6 flex-none items-center justify-center rounded-full text-base font-bold leading-none text-gray-400 transition hover:bg-red-50 hover:text-red-500 disabled:cursor-wait disabled:opacity-50 dark:hover:bg-red-950/30"
+                            aria-label="Remover {{ c.option_name }}"
+                            title="Remover opcional"
+                          >×</button>
+                        {% endif %}
+                      </div>
+
+                    {% endfor %}
+
+                  </div>
+
+                {% endif %}
+
+
+                {% if item.combination_details.customizations_half1 or item.combination_details.notes_half1 %}
+
+                  <div class="mt-2" data-customization-group>
+
+                    <p
+                      class="
+                        text-xs
+                        font-semibold
+                        text-gray-400
+                      "
+                    >
+                      {{ item.combination_details.names.0 }}:
+                    </p>
+
+                    {% for c in item.combination_details.customizations_half1 %}
+
+                      <div class="mt-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400" data-customization-row>
+                        <span class="min-w-0 flex-1">
+                          •
+                          {% if c.group_name %}{{ c.group_name }}:{% endif %}
+                          {{ c.option_name }}
+                          {% if c.price != '0.00' %}
+                            <span class="text-primary">(+R$ {{ c.price }})</span>
+                          {% endif %}
+                        </span>
+
+                        {% if c.can_remove_from_cart %}
+                          <button
+                            type="button"
+                            data-action="remove-customization"
+                            data-customization-bucket="customizations_half1"
+                            data-customization-index="{{ forloop.counter0 }}"
+                            class="flex h-6 w-6 flex-none items-center justify-center rounded-full text-base font-bold leading-none text-gray-400 transition hover:bg-red-50 hover:text-red-500 disabled:cursor-wait disabled:opacity-50 dark:hover:bg-red-950/30"
+                            aria-label="Remover {{ c.option_name }}"
+                            title="Remover opcional"
+                          >×</button>
+                        {% endif %}
+                      </div>
+
+                    {% endfor %}
+
+
+                    {% if item.combination_details.notes_half1 %}
+                      <p
+                        class="
+                          mt-1
+                          text-xs
+                          italic
+                          text-amber-600
+                          dark:text-amber-400
+                        "
+                      >
+                        Obs:
+                        {{ item.combination_details.notes_half1 }}
+                      </p>
+                    {% endif %}
+
+                  </div>
+
+                {% endif %}
+
+
+                {% if item.combination_details.customizations_half2 or item.combination_details.notes_half2 %}
+
+                  <div class="mt-2" data-customization-group>
+
+                    <p
+                      class="
+                        text-xs
+                        font-semibold
+                        text-gray-400
+                      "
+                    >
+                      {{ item.combination_details.names.1 }}:
+                    </p>
+
+                    {% for c in item.combination_details.customizations_half2 %}
+
+                      <div class="mt-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400" data-customization-row>
+                        <span class="min-w-0 flex-1">
+                          •
+                          {% if c.group_name %}{{ c.group_name }}:{% endif %}
+                          {{ c.option_name }}
+                          {% if c.price != '0.00' %}
+                            <span class="text-primary">(+R$ {{ c.price }})</span>
+                          {% endif %}
+                        </span>
+
+                        {% if c.can_remove_from_cart %}
+                          <button
+                            type="button"
+                            data-action="remove-customization"
+                            data-customization-bucket="customizations_half2"
+                            data-customization-index="{{ forloop.counter0 }}"
+                            class="flex h-6 w-6 flex-none items-center justify-center rounded-full text-base font-bold leading-none text-gray-400 transition hover:bg-red-50 hover:text-red-500 disabled:cursor-wait disabled:opacity-50 dark:hover:bg-red-950/30"
+                            aria-label="Remover {{ c.option_name }}"
+                            title="Remover opcional"
+                          >×</button>
+                        {% endif %}
+                      </div>
+
+                    {% endfor %}
+
+
+                    {% if item.combination_details.notes_half2 %}
+                      <p
+                        class="
+                          mt-1
+                          text-xs
+                          italic
+                          text-amber-600
+                          dark:text-amber-400
+                        "
+                      >
+                        Obs:
+                        {{ item.combination_details.notes_half2 }}
+                      </p>
+                    {% endif %}
+
+                  </div>
+
+                {% endif %}
+
+
+              {% elif item.combination_details.customizations %}
+
+                <div class="mt-2" data-customization-group>
+
+                  {% for c in item.combination_details.customizations %}
+
+                      <div class="mt-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400" data-customization-row>
+                        <span class="min-w-0 flex-1">
+                          •
+                          {% if c.group_name %}{{ c.group_name }}:{% endif %}
+                          {{ c.option_name }}
+                          {% if c.price != '0.00' %}
+                            <span class="text-primary">(+R$ {{ c.price }})</span>
+                          {% endif %}
+                        </span>
+
+                        {% if c.can_remove_from_cart %}
+                          <button
+                            type="button"
+                            data-action="remove-customization"
+                            data-customization-bucket="customizations"
+                            data-customization-index="{{ forloop.counter0 }}"
+                            class="flex h-6 w-6 flex-none items-center justify-center rounded-full text-base font-bold leading-none text-gray-400 transition hover:bg-red-50 hover:text-red-500 disabled:cursor-wait disabled:opacity-50 dark:hover:bg-red-950/30"
+                            aria-label="Remover {{ c.option_name }}"
+                            title="Remover opcional"
+                          >×</button>
+                        {% endif %}
+                      </div>
+
+                    {% endfor %}
+
+                </div>
+
+              {% endif %}
+
+
+              {% if item.notes %}
+
+                <p
+                  class="
+                    mt-2
+                    text-xs
+                    italic
+                    text-gray-400
+                  "
+                >
+                  Obs: {{ item.notes }}
+                </p>
+
+              {% endif %}
+
+
+              
+
+              <div
+                class="
+                  mt-4
+                  flex
+                  flex-wrap
+                  items-center
+                  gap-3
+                "
+              >
+
+                <div
+                  class="
+                    flex
+                    overflow-hidden
+                    rounded-xl
+                    border
+                    border-gray-200
+
+                    dark:border-gray-700
+                  "
+                >
+
+                  <button
+                    type="button"
+                    data-action="decrease-qty"
+                    data-cart-item-id="{{ item.id }}"
+                    class="
+                      flex
+                      h-9
+                      w-9
+                      items-center
+                      justify-center
+                      bg-gray-50
+                      text-gray-600
+                      transition
+                      hover:bg-gray-100
+
+                      dark:bg-gray-800
+                      dark:text-gray-300
+                      dark:hover:bg-gray-700
+                    "
+                    aria-label="Diminuir quantidade"
+                  >
+                    −
+                  </button>
+
+
+                  <span
+                    data-qty-display
+                    class="
+                      flex
+                      h-9
+                      w-11
+                      items-center
+                      justify-center
+                      bg-white
+                      text-sm
+                      font-semibold
+                      text-gray-800
+
+                      dark:bg-gray-900
+                      dark:text-gray-100
+                    "
+                  >
+                    {{ item.quantity }}
+                  </span>
+
+
+                  <button
+                    type="button"
+                    data-action="increase-qty"
+                    data-cart-item-id="{{ item.id }}"
+                    class="
+                      flex
+                      h-9
+                      w-9
+                      items-center
+                      justify-center
+                      bg-gray-50
+                      text-gray-600
+                      transition
+                      hover:bg-gray-100
+
+                      dark:bg-gray-800
+                      dark:text-gray-300
+                      dark:hover:bg-gray-700
+                    "
+                    aria-label="Aumentar quantidade"
+                  >
+                    +
+                  </button>
+
+                </div>
+
+
+                <button
+                  type="button"
+                  data-action="remove-item"
+                  data-cart-item-id="{{ item.id }}"
+                  class="
+                    text-sm
+                    font-semibold
+                    text-red-500
+                    transition
+                    hover:text-red-600
+                    hover:underline
+                  "
+                >
+                  Remover
+                </button>
+
+              </div>
+
+            </div>
+
+          </div>
+
+
+          
+
+          <div
+            class="
+              border-t
+              border-gray-100
+              pt-4
+
+              dark:border-gray-800
+
+              sm:min-w-[190px]
+              sm:border-0
+              sm:pt-0
+              sm:text-right
+            "
+          >
+
+            <div
+              class="
+                flex
+                items-center
+                justify-between
+                gap-4
+
+                sm:block
+              "
+            >
+
+              <span
+                class="
+                  text-xs
+                  font-medium
+                  text-gray-500
+                  dark:text-gray-400
+                "
+              >
+                Valor do produto
+              </span>
+
+              <p
+                class="
+                  font-bold
+                  text-primary
+
+                  sm:mt-1
+                  sm:text-lg
+                "
+                data-base-price-display
+                data-base-price="{{ item.base_unit_price|floatformat:2 }}"
+              >
+                R$ {{ item.base_unit_price|floatformat:2 }}
+              </p>
+
+            </div>
+
+
+            {% if item.has_additions %}
+
+              <div
+                data-additions-row
+                class="
+                  mt-2
+                  flex
+                  items-center
+                  justify-between
+                  gap-4
+                  text-xs
+
+                  sm:block
+                "
+              >
+
+                <span
+                  class="
+                    text-gray-500
+                    dark:text-gray-400
+                  "
+                >
+                  Adicionais
+                </span>
+
+                <p
+                  class="
+                    font-semibold
+                    text-amber-600
+                    dark:text-amber-400
+
+                    sm:mt-0.5
+                  "
+                  data-additions-price
+                >
+                  + R$ {{ item.additions_unit_price|floatformat:2 }}
+                </p>
+
+              </div>
+
+
+              <div
+                class="
+                  mt-2
+                  flex
+                  items-center
+                  justify-between
+                  gap-4
+                  text-xs
+
+                  sm:block
+                "
+              >
+
+                <span
+                  class="
+                    text-gray-500
+                    dark:text-gray-400
+                  "
+                >
+                  Valor unitário
+                </span>
+
+                <p
+                  class="
+                    font-semibold
+                    text-gray-800
+                    dark:text-gray-200
+
+                    sm:mt-0.5
+                  "
+                  data-price-display
+                  data-price="{{ item.final_unit_price|floatformat:2 }}"
+                >
+                  R$ {{ item.final_unit_price|floatformat:2 }}
+                </p>
+
+              </div>
+
+            {% else %}
+
+              <span
+                class="hidden"
+                data-price-display
+                data-price="{{ item.final_unit_price|floatformat:2 }}"
+              >
+                R$ {{ item.final_unit_price|floatformat:2 }}
+              </span>
+
+            {% endif %}
+
+
+            <div
+              class="
+                mt-3
+                border-t
+                border-gray-100
+                pt-3
+
+                dark:border-gray-800
+              "
+            >
+
+              <div
+                class="
+                  flex
+                  items-center
+                  justify-between
+                  gap-4
+
+                  sm:block
+                "
+              >
+
+                <span
+                  class="
+                    text-xs
+                    text-gray-500
+                    dark:text-gray-400
+                  "
+                >
+                  Subtotal
+                </span>
+
+                <p
+                  class="
+                    font-black
+                    text-gray-900
+                    dark:text-gray-100
+
+                    sm:mt-1
+                  "
+                  data-item-subtotal
+                  data-unit-price="{{ item.final_unit_price|floatformat:2 }}"
+                >
+                  R$ {{ item.line_total|floatformat:2 }}
+                </p>
+
+              </div>
+
+              {% if item.quantity > 1 and item.has_additions %}
+
+                <p
+                  class="
+                    mt-1
+                    text-right
+                    text-[11px]
+                    text-gray-400
+                  "
+                >
+                  {{ item.quantity }} ×
+                  R$ {{ item.final_unit_price|floatformat:2 }}
+                </p>
+
+              {% endif %}
+
+            </div>
+
+          </div>
+
+        </div>
+
+      {% endfor %}
+
     </div>
-  </div>
+
+
+    
+
+    <div
+      class="
+        mt-8
+        flex
+        justify-end
+      "
+    >
+
+      <div
+        class="
+          w-full
+          max-w-sm
+          rounded-2xl
+          border
+          border-gray-100
+          bg-white
+          p-5
+          shadow-sm
+
+          dark:border-gray-800
+          dark:bg-gray-900
+        "
+      >
+
+        <h2
+          class="
+            mb-4
+            text-base
+            font-bold
+            text-gray-800
+            dark:text-gray-100
+          "
+        >
+          Resumo do pedido
+        </h2>
+
+
+        <div
+          class="
+            flex
+            justify-between
+            gap-4
+            text-sm
+            text-gray-600
+            dark:text-gray-400
+          "
+        >
+          <span>Subtotal</span>
+
+          <span
+            class="
+              font-medium
+              text-gray-800
+              dark:text-gray-200
+            "
+            data-cart-subtotal
+          >
+            R$ {{ subtotal|floatformat:2 }}
+          </span>
+        </div>
+
+
+        <div
+          class="
+            mt-3
+            flex
+            justify-between
+            gap-4
+            text-sm
+            text-gray-600
+            dark:text-gray-400
+          "
+        >
+          <span>
+            {% if cart_checkout_mode_hint == "pickup" %}
+              Taxa de entrega
+            {% else %}
+              Entrega
+            {% endif %}
+          </span>
+
+          <span
+            class="
+              font-medium
+
+              {% if cart_delivery.status == 'delivery_unavailable' %}
+                text-red-600
+                dark:text-red-400
+
+              {% elif cart_delivery.status == 'delivery_available' %}
+                text-emerald-700
+                dark:text-emerald-400
+
+              {% else %}
+                text-gray-700
+                dark:text-gray-300
+              {% endif %}
+            "
+            data-cart-delivery-fee
+            data-delivery-fee="{{ cart_delivery.delivery_fee|default:'0.00' }}"
+          >
+            {{ cart_delivery.delivery_fee_display }}
+          </span>
+        </div>
+
+
+        <div
+          class="
+            my-4
+            border-t
+            border-gray-100
+            dark:border-gray-800
+          "
+        ></div>
+
+
+        <div
+          class="
+            flex
+            items-center
+            justify-between
+            gap-4
+          "
+        >
+
+          <span
+            class="
+              text-lg
+              font-bold
+              text-gray-900
+              dark:text-white
+            "
+          >
+            Total
+          </span>
+
+          <span
+            id="cart-total"
+            data-cart-total
+            class="
+              text-xl
+              font-black
+              text-primary
+            "
+          >
+            R$ {{ total|floatformat:2 }}
+          </span>
+
+        </div>
+
+
+        
+
+        {% if cart_can_checkout %}
+
+          <a
+            href="{% url 'checkout:checkout_step_one' %}"
+            id="cart-checkout-button"
+            class="
+              mt-5
+              inline-flex
+              w-full
+              items-center
+              justify-center
+              gap-2
+              rounded-xl
+              bg-primary
+              px-6
+              py-3
+              font-bold
+              text-white
+              shadow-md
+              transition
+              hover:bg-primary/90
+              hover:shadow-lg
+              active:scale-[0.98]
+            "
+          >
+
+            {% if cart_checkout_mode_hint == "pickup" %}
+
+              Continuar para retirada
+
+            {% else %}
+
+              Finalizar pedido
+
+            {% endif %}
+
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 5l7 7-7 7"
+              />
+            </svg>
+
+          </a>
+
+
+          {% if cart_checkout_mode_hint == "pickup" and tenant.accepts_delivery %}
+
+            <p
+              class="
+                mt-3
+                text-center
+                text-xs
+                leading-5
+                text-gray-400
+              "
+            >
+              A entrega não está disponível para o endereço atual.
+              O checkout abrirá para retirada.
+            </p>
+
+          {% endif %}
+
+
+        {% else %}
+
+          <a
+            href="{{ CUSTOMER_PORTAL_URL }}/#endereco-entrega"
+            id="cart-checkout-button"
+            class="
+              mt-5
+              inline-flex
+              w-full
+              items-center
+              justify-center
+              gap-2
+              rounded-xl
+              bg-amber-500
+              px-6
+              py-3
+              font-bold
+              text-white
+              shadow-md
+              transition
+              hover:bg-amber-600
+              hover:shadow-lg
+              active:scale-[0.98]
+            "
+          >
+            Alterar endereço para continuar
+
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="
+                  M17.657 16.657
+                  L13.414 20.9
+                  a2 2 0 01-2.827 0
+                  l-4.244-4.243
+                  a8 8 0 1111.314 0z
+                "
+              />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="
+                  M15 11
+                  a3 3 0 11-6 0
+                  3 3 0 016 0z
+                "
+              />
+            </svg>
+
+          </a>
+
+        {% endif %}
+
+
+        <p
+          class="
+            mt-4
+            text-center
+            text-[10px]
+            font-bold
+            uppercase
+            tracking-widest
+            text-gray-400
+          "
+        >
+          A disponibilidade de entrega será confirmada novamente no checkout.
+        </p>
+
+      </div>
+
+    </div>
+
 
   {% else %}
-  <div id="empty-cart-placeholder" class="text-center py-12">
-    <div class="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-      </svg>
+
+    
+
+    <div
+      id="empty-cart-placeholder"
+      class="
+        rounded-2xl
+        border
+        border-gray-100
+        bg-white
+        py-14
+        text-center
+        shadow-sm
+
+        dark:border-gray-800
+        dark:bg-gray-900
+      "
+    >
+
+      <div
+        class="
+          mx-auto
+          mb-4
+          flex
+          h-16
+          w-16
+          items-center
+          justify-center
+          rounded-full
+          bg-gray-100
+
+          dark:bg-gray-800
+        "
+      >
+
+        <svg
+          class="
+            h-8
+            w-8
+            text-gray-400
+          "
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="
+              M3 3h2
+              l.4 2
+              M7 13h10
+              l4-8
+              H5.4
+              M7 13
+              L5.4 5
+              M7 13
+              l-2.293 2.293
+              c-.63.63-.184 1.707.707 1.707
+              H17
+              m0 0
+              a2 2 0 100 4
+              2 2 0 000-4
+              zm-8 2
+              a2 2 0 11-4 0
+              2 2 0 014 0z
+            "
+          />
+        </svg>
+
+      </div>
+
+
+      <h2
+        class="
+          text-lg
+          font-bold
+          text-gray-800
+          dark:text-gray-100
+        "
+      >
+        Seu carrinho está vazio
+      </h2>
+
+
+      <p
+        class="
+          mx-auto
+          mt-2
+          max-w-md
+          px-4
+          text-sm
+          text-gray-500
+          dark:text-gray-400
+        "
+      >
+        Adicione produtos do cardápio para começar seu pedido.
+      </p>
+
+
+      <a
+        href="{% url 'stores:catalogo' %}"
+        class="
+          mt-5
+          inline-flex
+          items-center
+          justify-center
+          rounded-xl
+          bg-primary
+          px-5
+          py-3
+          text-sm
+          font-bold
+          text-white
+          transition
+          hover:bg-primary/90
+        "
+      >
+        ← Voltar ao cardápio
+      </a>
+
     </div>
-    <p class="text-gray-500 mb-4">Seu carrinho está vazio.</p>
-    <a href="{% url 'stores:catalogo' %}" class="inline-block text-primary font-medium hover:underline">← Voltar ao cardápio</a>
-  </div>
+
   {% endif %}
 
 </div>
+
+
+
+
+<script>
+(function () {
+  'use strict';
+
+  function parseMoney(value) {
+    if (value === null || value === undefined || value === '') {
+      return 0;
+    }
+
+    let normalized = String(value)
+      .replace(/\s/g, '')
+      .replace('R$', '');
+
+    /*
+     * Decimal vindo do Django:
+     * 10.00
+     *
+     * Valor formatado BR:
+     * 10,00
+     * 1.234,56
+     */
+    if (normalized.includes(',')) {
+      normalized = normalized
+        .replace(/\./g, '')
+        .replace(',', '.');
+    }
+
+    const number = Number(normalized);
+
+    return Number.isFinite(number)
+      ? number
+      : 0;
+  }
+
+
+  function formatMoney(value) {
+    return new Intl.NumberFormat(
+      'pt-BR',
+      {
+        style: 'currency',
+        currency: 'BRL',
+      }
+    ).format(Number(value || 0));
+  }
+
+
+  function getCartSubtotalFromItems() {
+    let subtotal = 0;
+
+    document
+      .querySelectorAll('[data-item-subtotal]')
+      .forEach((subtotalEl) => {
+        const item = subtotalEl.closest('[data-cart-item-id]');
+
+        if (!item) {
+          return;
+        }
+
+        const qtyEl = item.querySelector('[data-qty-display]');
+
+        const quantity = qtyEl
+          ? Number(qtyEl.textContent.trim()) || 0
+          : 0;
+
+        const unitPrice = parseMoney(
+          subtotalEl.dataset.unitPrice
+        );
+
+        const itemSubtotal = unitPrice * quantity;
+
+        subtotalEl.textContent = formatMoney(itemSubtotal);
+
+        subtotal += itemSubtotal;
+      });
+
+    return subtotal;
+  }
+
+
+  function getDeliveryFee() {
+    const feeEl =
+      document.querySelector('[data-cart-delivery-fee]');
+
+    if (!feeEl) {
+      return 0;
+    }
+
+    const rawFee =
+      feeEl.dataset.deliveryFee;
+
+    return parseMoney(rawFee);
+  }
+
+
+  function renderSummary(subtotal, fee, total) {
+    const subtotalEl =
+      document.querySelector('[data-cart-subtotal]');
+
+    const totalEl =
+      document.querySelector('[data-cart-total]');
+
+    if (subtotalEl) {
+      subtotalEl.textContent =
+        formatMoney(subtotal);
+    }
+
+    if (totalEl) {
+      totalEl.textContent =
+        formatMoney(total);
+    }
+  }
+
+
+  function recalculateCartSummary() {
+    const subtotal =
+      getCartSubtotalFromItems();
+
+    const fee =
+      getDeliveryFee();
+
+    const total =
+      subtotal + fee;
+
+    renderSummary(
+      subtotal,
+      fee,
+      total
+    );
+  }
+
+
+  function applyCartSummary(data) {
+    if (!data) {
+      recalculateCartSummary();
+      return;
+    }
+
+    const subtotalEl =
+      document.querySelector('[data-cart-subtotal]');
+
+    const feeEl =
+      document.querySelector('[data-cart-delivery-fee]');
+
+    const totalEl =
+      document.querySelector('[data-cart-total]');
+
+
+    if (subtotalEl && data.subtotal !== undefined) {
+      subtotalEl.textContent =
+        data.subtotal_display
+        || formatMoney(data.subtotal);
+    }
+
+
+    if (feeEl && data.delivery_fee !== undefined) {
+      feeEl.dataset.deliveryFee =
+        data.delivery_fee;
+
+      feeEl.textContent =
+        data.delivery_fee_display
+        || formatMoney(data.delivery_fee);
+    }
+
+
+    if (totalEl && data.total !== undefined) {
+      totalEl.textContent =
+        data.total_display
+        || formatMoney(data.total);
+    }
+
+
+    /*
+     * Se o JS antigo não mandar o novo payload completo,
+     * recalculamos visualmente pelos itens presentes.
+     */
+    if (
+      data.subtotal === undefined
+      || data.delivery_fee === undefined
+      || data.total === undefined
+    ) {
+      recalculateCartSummary();
+    }
+  }
+
+
+  document.addEventListener(
+    'DOMContentLoaded',
+    recalculateCartSummary
+  );
+
+
+  document.addEventListener(
+    'cart:updated',
+    function (event) {
+      applyCartSummary(
+        event.detail || {}
+      );
+    }
+  );
+
+
+  /*
+   * Compatibilidade com o seu cart.js atual:
+   *
+   * depois de um fetch, ele pode chamar:
+   *
+   * window.applyCartSummary(data);
+   */
+  window.applyCartSummary =
+    applyCartSummary;
+
+  function getCsrfToken() {
+    const input = document.querySelector('input[name="csrfmiddlewaretoken"]');
+    if (input?.value) return input.value;
+
+    const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : '';
+  }
+
+
+  function showCartToast(message, type = 'success') {
+    let toast = document.getElementById('cart-customization-toast');
+
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'cart-customization-toast';
+      toast.className = 'fixed bottom-5 left-1/2 z-[120] -translate-x-1/2 rounded-xl px-4 py-3 text-sm font-bold text-white shadow-xl transition';
+      document.body.appendChild(toast);
+    }
+
+    toast.textContent = message;
+    toast.classList.remove('hidden', 'bg-emerald-600', 'bg-red-600');
+    toast.classList.add(type === 'error' ? 'bg-red-600' : 'bg-emerald-600');
+
+    window.clearTimeout(showCartToast.timer);
+    showCartToast.timer = window.setTimeout(() => toast.classList.add('hidden'), 2400);
+  }
+
+
+  function updateItemPrices(itemEl, data) {
+    const baseEl = itemEl.querySelector('[data-base-price-display]');
+    const additionsRow = itemEl.querySelector('[data-additions-row]');
+    const additionsEl = itemEl.querySelector('[data-additions-price]');
+    const finalEl = itemEl.querySelector('[data-price-display]');
+    const subtotalEl = itemEl.querySelector('[data-item-subtotal]');
+
+    if (baseEl) {
+      baseEl.dataset.basePrice = data.base_unit_price;
+      baseEl.textContent = data.base_unit_price_display || formatMoney(data.base_unit_price);
+    }
+
+    if (additionsEl) {
+      additionsEl.textContent = `+ ${data.additions_unit_price_display || formatMoney(data.additions_unit_price)}`;
+    }
+
+    if (additionsRow) {
+      additionsRow.classList.toggle('hidden', !data.has_additions);
+    }
+
+    if (finalEl) {
+      finalEl.dataset.price = data.final_unit_price;
+      finalEl.textContent = data.final_unit_price_display || formatMoney(data.final_unit_price);
+      finalEl.classList.remove('hidden');
+    }
+
+    if (subtotalEl) {
+      subtotalEl.dataset.unitPrice = data.final_unit_price;
+      subtotalEl.textContent = data.line_total_display || formatMoney(data.line_total);
+    }
+  }
+
+
+  function normalizeCustomizationIndexes(groupEl, bucket) {
+    if (!groupEl) return;
+
+    groupEl.querySelectorAll(`[data-action="remove-customization"][data-customization-bucket="${bucket}"]`).forEach((button, index) => {
+      button.dataset.customizationIndex = String(index);
+    });
+  }
+
+
+  document.addEventListener('click', async function (event) {
+    const button = event.target.closest('[data-action="remove-customization"]');
+
+    if (!button) return;
+
+    event.preventDefault();
+
+    const itemEl = button.closest('[data-cart-item-id]');
+    const rowEl = button.closest('[data-customization-row]');
+    const groupEl = button.closest('[data-customization-group]');
+
+    if (!itemEl || !rowEl) return;
+
+    const url = itemEl.dataset.removeCustomizationUrl;
+    const bucket = button.dataset.customizationBucket;
+    const index = Number(button.dataset.customizationIndex);
+
+    if (!url || !bucket || !Number.isInteger(index)) {
+      showCartToast('Não foi possível identificar o opcional.', 'error');
+      return;
+    }
+
+    button.disabled = true;
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({ bucket, index }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Não foi possível remover o opcional.');
+      }
+
+      if (data.reload_required) {
+        window.location.reload();
+        return;
+      }
+
+      rowEl.remove();
+      normalizeCustomizationIndexes(groupEl, bucket);
+
+      if (groupEl && !groupEl.querySelector('[data-customization-row]')) {
+        const hasObservation = groupEl.querySelector('.text-amber-600, .dark\\:text-amber-400');
+        if (!hasObservation) groupEl.remove();
+      }
+
+      updateItemPrices(itemEl, data);
+      applyCartSummary(data);
+      document.dispatchEvent(new CustomEvent('cart:updated', { detail: data }));
+      showCartToast(data.message || 'Opcional removido.');
+    } catch (error) {
+      button.disabled = false;
+      showCartToast(error.message || 'Não foi possível remover o opcional.', 'error');
+    }
+  });
+
+
+  window.recalculateCartSummary =
+    recalculateCartSummary;
+
+})();
+</script>
+
 {% endblock %}

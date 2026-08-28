@@ -6,6 +6,38 @@ import { fetchCustomizations, renderCustomizationGroups, collectSelectedOptions,
 let selectedProduct = null;
 let currentGroups = [];
 
+function toNonNegativeInt(value, fallback = 0) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : fallback;
+}
+
+function groupMinChoices(group) {
+  if (!group || typeof group !== 'object') return 0;
+  const explicit = group.min_choices ?? group.min_selection ?? group.minimum_choices ?? group.minimum ?? 0;
+  const minimum = toNonNegativeInt(explicit, 0);
+  const required = Boolean(group.is_required ?? group.required ?? false);
+  return required && minimum === 0 ? 1 : minimum;
+}
+
+function enrichCustomizationsWithGroupRules(customizations, groups) {
+  const groupMap = new Map(
+    (Array.isArray(groups) ? groups : []).map(group => [String(group.id ?? group.group_id ?? ''), group])
+  );
+
+  return (Array.isArray(customizations) ? customizations : []).map(customization => {
+    const group = groupMap.get(String(customization.group_id ?? ''));
+    if (!group) return customization;
+
+    const minChoices = groupMinChoices(group);
+
+    return {
+      ...customization,
+      min_choices: minChoices,
+      is_required: minChoices > 0 || Boolean(group.is_required ?? group.required ?? false),
+    };
+  });
+}
+
 function getAddToCartUrl(trigger) {
   return (
     trigger?.dataset.addUrl ||
@@ -99,7 +131,7 @@ async function submitModal(note = '') {
   }
 
   // Coletar customizações selecionadas
-  const customizations = container ? collectSelectedOptions(container) : [];
+  const customizations = enrichCustomizationsWithGroupRules(container ? collectSelectedOptions(container) : [], currentGroups);
 
   // Calcular preço extra das customizações
   const extra = customizations.reduce((sum, c) => sum + parseFloat(c.price || 0), 0);

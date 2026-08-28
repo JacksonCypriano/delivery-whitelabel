@@ -12,4 +12,5 @@ urlpatterns = [
     path('success/', views.order_success, name='order_success'),
     path('checkout/add-half-half/', views.add_half_half, name='add_half_half'),
     path('update_notes/<int:cart_item_id>/', views.update_cart_item_notes, name='update_cart_item_notes'),
+    path("carrinho/item/<int:cart_item_id>/opcional/remover/", views.remove_cart_item_customization, name="remove-cart-item-customization"),
 ]

@@ -1,0 +1,1521 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>VemDeDelivery — Encontre lojas perto de você</title>
+  <meta
+    name="description"
+    content="Encontre restaurantes, pizzarias, lanchonetes e outras lojas disponíveis na sua região."
+  >
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    body {
+      background:
+        radial-gradient(
+          circle at top left,
+          rgba(249, 115, 22, .08),
+          transparent 28rem
+        ),
+        #f8fafc;
+    }
+
+    .store-card {
+      transition:
+        transform .18s ease,
+        box-shadow .18s ease,
+        border-color .18s ease;
+    }
+
+    .store-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 18px 50px rgba(15, 23, 42, .10);
+      border-color: #fed7aa;
+    }
+
+    .location-button-loading .location-icon {
+      animation: location-spin .8s linear infinite;
+    }
+
+    @keyframes location-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+
+<body class="min-h-screen text-slate-900">
+
+<header
+  class="
+    sticky
+    top-0
+    z-40
+
+    border-b
+    border-slate-200/80
+
+    bg-white/90
+    backdrop-blur
+  "
+>
+  <div
+    class="
+      mx-auto
+      flex
+      max-w-6xl
+      items-center
+      justify-between
+      gap-4
+      px-4
+      py-3
+    "
+  >
+
+    <a href="/" class="flex items-center gap-2">
+      <div
+        class="
+          flex
+          h-10
+          w-10
+          items-center
+          justify-center
+          rounded-2xl
+          bg-orange-500
+          text-lg
+          font-black
+          text-white
+        "
+      >
+        V
+      </div>
+
+      <div>
+        <div class="text-base font-black leading-none">
+          VemDeDelivery
+        </div>
+
+        <div class="mt-1 text-[11px] text-slate-500">
+          Encontre. Escolha. Peça.
+        </div>
+      </div>
+    </a>
+
+
+    <nav class="flex items-center gap-2 text-sm font-semibold">
+
+      {% if request.user.is_authenticated %}
+
+        <a
+          href="/conta/"
+          class="rounded-xl px-3 py-2 hover:bg-slate-100"
+        >
+          Minha conta
+        </a>
+
+      {% else %}
+
+        <a
+          href="/conta/entrar/"
+          class="rounded-xl px-3 py-2 hover:bg-slate-100"
+        >
+          Entrar
+        </a>
+
+        <a
+          href="/conta/criar-conta/"
+          class="
+            hidden
+            rounded-xl
+            bg-slate-900
+            px-4
+            py-2
+            text-white
+            hover:bg-slate-800
+            sm:inline-flex
+          "
+        >
+          Criar conta
+        </a>
+
+      {% endif %}
+
+    </nav>
+
+  </div>
+</header>
+
+{% if messages %}
+  <div class="mx-auto max-w-6xl px-4 pt-4">
+    {% for message in messages %}
+      <div
+        class="
+          mb-2 rounded-2xl border px-4 py-3 text-sm font-semibold
+          {% if message.tags == 'error' %}
+            border-red-200 bg-red-50 text-red-700
+          {% elif message.tags == 'success' %}
+            border-emerald-200 bg-emerald-50 text-emerald-700
+          {% else %}
+            border-slate-200 bg-white text-slate-600
+          {% endif %}
+        "
+      >
+        {{ message }}
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+
+<section class="border-b border-slate-200 bg-white">
+
+  <div class="mx-auto max-w-6xl px-4 py-8 md:py-11">
+
+    <div class="max-w-3xl">
+
+      <span
+        class="
+          inline-flex
+          rounded-full
+          bg-orange-50
+          px-3
+          py-1
+          text-xs
+          font-bold
+          text-orange-700
+        "
+      >
+        Lojas da sua região
+      </span>
+
+      <h1
+        class="
+          mt-4
+          text-3xl
+          font-black
+          tracking-tight
+          md:text-5xl
+        "
+      >
+        O que você quer pedir hoje?
+      </h1>
+
+      <p
+        class="
+          mt-3
+          max-w-2xl
+          text-sm
+          leading-6
+          text-slate-500
+          md:text-base
+        "
+      >
+        Procure por pizza, hambúrguer, Coca-Cola ou qualquer outro
+        produto e encontre lojas que atendem sua região.
+      </p>
+
+    </div>
+
+
+    <div id="endereco-entrega" class="mt-7 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div class="flex min-w-0 items-center gap-3">
+        <div class="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-orange-50 text-lg">📍</div>
+        <div class="min-w-0">
+          <p class="text-[11px] font-black uppercase tracking-wide text-slate-400">Endereço de entrega</p>
+          {% if global_delivery_location %}
+            <p class="mt-0.5 truncate text-sm font-bold text-slate-800">{% if global_delivery_location.label %}{{ global_delivery_location.label }} · {% endif %}{{ global_delivery_location.neighborhood }}, {{ global_delivery_location.city }}{% if global_delivery_location.state %}/{{ global_delivery_location.state }}{% endif %}</p>
+          {% else %}
+            <p class="mt-0.5 text-sm font-semibold text-slate-600">Informe seu endereço no checkout para calcular entrega e taxa.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="flex flex-none items-center gap-2">
+        {% if request.user.is_authenticated %}
+          <a href="{% url 'customer_accounts:addresses' %}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:border-orange-200 hover:text-orange-600">{% if global_delivery_location %}Alterar{% else %}Meus endereços{% endif %}</a>
+        {% else %}
+          <a href="/conta/entrar/" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:border-orange-200 hover:text-orange-600">Entrar para salvar endereço</a>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<div class="sticky top-[65px] z-30 border-b border-slate-200/80 bg-slate-50/95 py-3 backdrop-blur">
+  <div class="mx-auto max-w-6xl px-4">
+    <form
+      method="get"
+      id="marketplace-search-form"
+      class="
+        mt-7
+        rounded-3xl
+        border
+        border-slate-200
+        bg-white
+        p-3
+        shadow-sm
+      "
+    >
+
+      {% if location_active %}
+        <input
+          type="hidden"
+          name="lat"
+          value="{{ user_latitude }}"
+        >
+
+        <input
+          type="hidden"
+          name="lng"
+          value="{{ user_longitude }}"
+        >
+
+        {% if user_accuracy is not None %}
+          <input
+            type="hidden"
+            name="accuracy"
+            value="{{ user_accuracy|floatformat:0 }}"
+          >
+        {% endif %}
+      {% endif %}
+
+
+      <div
+        class="
+          grid
+          gap-3
+          lg:grid-cols-[1fr_220px_170px_auto]
+        "
+      >
+
+        <label class="relative block">
+
+          <span class="sr-only">
+            Buscar
+          </span>
+
+          <svg
+            class="
+              absolute
+              left-4
+              top-1/2
+              h-5
+              w-5
+              -translate-y-1/2
+              text-slate-400
+            "
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="
+                m21 21-4.35-4.35
+                m2.35-5.65
+                a8 8 0 1 1-16 0
+                8 8 0 0 1 16 0Z
+              "
+            />
+          </svg>
+
+          <input
+            type="search"
+            name="q"
+            value="{{ search }}"
+            placeholder="Pizza, Coca-Cola, hambúrguer..."
+            class="
+              h-12
+              w-full
+              rounded-2xl
+              border
+              border-slate-200
+              bg-slate-50
+              pl-12
+              pr-4
+              text-sm
+              outline-none
+
+              focus:border-orange-400
+              focus:bg-white
+              focus:ring-4
+              focus:ring-orange-100
+            "
+          >
+
+        </label>
+
+
+        <select
+          name="cidade"
+          {% if location_active %}disabled{% endif %}
+          class="
+            h-12
+            rounded-2xl
+            border
+            border-slate-200
+            bg-slate-50
+            px-4
+            text-sm
+            font-medium
+            outline-none
+
+            disabled:cursor-not-allowed
+            disabled:opacity-50
+
+            focus:border-orange-400
+            focus:ring-4
+            focus:ring-orange-100
+          "
+        >
+
+          {% if location_active %}
+            <option selected>
+              Usando localização atual
+            </option>
+          {% else %}
+            <option value="">
+              Todas as cidades
+            </option>
+
+            {% for city in cities %}
+              <option
+                value="{{ city }}"
+                {% if selected_city|lower == city|lower %}selected{% endif %}
+              >
+                {{ city }}
+              </option>
+            {% endfor %}
+          {% endif %}
+
+        </select>
+
+
+        <select
+          name="categoria"
+          class="
+            h-12
+            rounded-2xl
+            border
+            border-slate-200
+            bg-slate-50
+            px-4
+            text-sm
+            font-medium
+            outline-none
+
+            focus:border-orange-400
+            focus:ring-4
+            focus:ring-orange-100
+          "
+        >
+
+          <option value="">
+            Todas as categorias
+          </option>
+
+          {% for category in categories %}
+            <option
+              value="{{ category.slug }}"
+              {% if selected_category == category.slug %}selected{% endif %}
+            >
+              {% if category.icon %}
+                {{ category.icon }}
+              {% endif %}
+              {{ category.name }}
+            </option>
+          {% endfor %}
+
+        </select>
+
+
+        <button
+          type="submit"
+          class="
+            h-12
+            rounded-2xl
+            bg-orange-500
+            px-6
+            text-sm
+            font-black
+            text-white
+            shadow-sm
+            hover:bg-orange-600
+          "
+        >
+          Buscar
+        </button>
+
+      </div>
+
+
+      <div
+        class="
+          mt-3
+          flex
+          flex-wrap
+          items-center
+          gap-2
+          px-1
+        "
+      >
+
+        <button
+          type="button"
+          id="use-location-button"
+          class="
+            inline-flex
+            items-center
+            gap-2
+            rounded-xl
+
+            {% if location_active %}
+              bg-orange-50
+              text-orange-700
+            {% else %}
+              bg-slate-50
+              text-slate-600
+            {% endif %}
+
+            px-3
+            py-2
+            text-xs
+            font-bold
+
+            hover:bg-orange-50
+            hover:text-orange-700
+          "
+        >
+
+          <svg
+            class="location-icon h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="
+                M12 21
+                s7-5.686 7-12
+                a7 7 0 10-14 0
+                c0 6.314 7 12 7 12z
+              "
+            />
+
+            <circle
+              cx="12"
+              cy="9"
+              r="2.5"
+              stroke-width="2"
+            />
+          </svg>
+
+          {% if location_active %}
+            Atualizar minha localização
+          {% else %}
+            Usar minha localização
+          {% endif %}
+
+        </button>
+
+
+        {% if location_active %}
+          <a
+            href="?q={{ search|urlencode }}&categoria={{ selected_category|urlencode }}{% if open_only %}&abertas=1{% endif %}"
+            class="
+              rounded-xl
+              px-3
+              py-2
+              text-xs
+              font-bold
+              text-slate-500
+              hover:bg-slate-100
+            "
+          >
+            Remover localização
+          </a>
+        {% endif %}
+
+
+        <label
+          class="
+            inline-flex
+            cursor-pointer
+            items-center
+            gap-2
+            rounded-xl
+            bg-slate-50
+            px-3
+            py-2
+            text-xs
+            font-bold
+            text-slate-600
+          "
+        >
+
+          <input
+            type="checkbox"
+            name="abertas"
+            value="1"
+            {% if open_only %}checked{% endif %}
+            class="
+              h-4
+              w-4
+              rounded
+              border-slate-300
+              text-orange-500
+              focus:ring-orange-400
+            "
+          >
+
+          Abertas agora
+
+        </label>
+
+
+
+
+        {% if search or selected_city or selected_category or open_only or location_active %}
+          <a
+            href="/"
+            class="
+              rounded-xl
+              px-3
+              py-2
+              text-xs
+              font-bold
+              text-slate-500
+              hover:bg-slate-100
+            "
+          >
+            Limpar filtros
+          </a>
+        {% endif %}
+
+      </div>
+
+
+      <p
+        id="location-message"
+        class="mt-2 hidden px-1 text-xs font-semibold"
+      ></p>
+
+      {% if location_active and geocoded_location %}
+        <div
+          class="
+            mt-3
+            flex
+            flex-wrap
+            items-center
+            gap-2
+            rounded-2xl
+            bg-emerald-50
+            px-4
+            py-3
+            text-xs
+            font-semibold
+            text-emerald-800
+          "
+        >
+          <span>📍</span>
+          <span>
+            Região aproximada pelo GPS:
+            {% if geocoded_location.neighborhood %}
+              {{ geocoded_location.neighborhood }},
+            {% endif %}
+            {{ geocoded_location.city }}
+            {% if geocoded_location.state %}
+              - {{ geocoded_location.state }}
+            {% endif %}
+            {% if user_accuracy is not None %}
+              · precisão aproximada de {{ user_accuracy|floatformat:0 }} m
+            {% endif %}
+            · o endereço de entrega será confirmado antes do pedido.
+          </span>
+        </div>
+      {% endif %}
+
+    </form>
+  </div>
+</div>
+
+
+<main class="mx-auto max-w-6xl px-4 py-7 md:py-9">
+
+  <div
+    class="
+      mb-5
+      flex
+      flex-wrap
+      items-end
+      justify-between
+      gap-3
+    "
+  >
+
+    <div>
+
+      <h2 class="text-xl font-black md:text-2xl">
+
+        {% if location_active %}
+          Lojas perto de você
+
+        {% elif selected_city %}
+          Lojas em {{ selected_city }}
+
+        {% else %}
+          Lojas disponíveis
+
+        {% endif %}
+
+      </h2>
+
+
+      <p class="mt-1 text-sm text-slate-500">
+
+        {{ result_count }}
+        loja{{ result_count|pluralize:"s" }}
+        encontrada{{ result_count|pluralize:"s" }}
+
+        {% if search %}
+          para “{{ search }}”
+        {% endif %}
+
+        {% if global_delivery_location %}
+          · lojas que entregam no endereço selecionado aparecem primeiro
+        {% elif location_active %}
+          · ordenadas pela distância aproximada do GPS
+        {% endif %}
+
+      </p>
+
+    </div>
+
+  </div>
+
+
+  {% if request.user.is_authenticated %}
+    <div class="mb-5 flex flex-wrap items-center gap-2">
+      <a
+        href="/meus-pedidos/"
+        class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-700"
+      >
+        Meus pedidos
+      </a>
+
+      <a
+        href="?q={{ search|urlencode }}&cidade={{ selected_city|urlencode }}&categoria={{ selected_category|urlencode }}{% if open_only %}&abertas=1{% endif %}{% if not favorites_only %}&favoritas=1{% endif %}"
+        class="rounded-xl px-4 py-2 text-sm font-black {% if favorites_only %}bg-rose-500 text-white{% else %}border border-slate-200 bg-white text-slate-700{% endif %}"
+      >
+        ♥ Favoritas{% if favorite_count %} · {{ favorite_count }}{% endif %}
+      </a>
+    </div>
+  {% endif %}
+
+
+  {% if stores %}
+
+    <div class="grid gap-4 md:grid-cols-2">
+
+      {% for store in stores %}
+
+        <article
+          class="
+            store-card
+            group
+            relative
+            flex
+            min-h-[150px]
+            gap-4
+            rounded-3xl
+            border
+            border-slate-200
+            bg-white
+            p-4
+          "
+        >
+
+          <a
+            href="{{ store.url }}"
+            class="absolute inset-0 z-0 rounded-3xl"
+            aria-label="Ver cardápio de {{ store.tenant.name }}"
+          ></a>
+
+          {% if request.user.is_authenticated %}
+            <form
+              method="post"
+              action="/favoritos/loja/{{ store.tenant.id }}/"
+              class="favorite-store-form absolute right-3 top-3 z-20"
+            >
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+
+              <button
+                type="submit"
+                data-favorite="{% if store.is_favorite %}1{% else %}0{% endif %}"
+                class="favorite-store-button flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm transition hover:scale-105"
+                title="{% if store.is_favorite %}Remover dos favoritos{% else %}Adicionar aos favoritos{% endif %}"
+              >
+                <span class="{% if store.is_favorite %}text-rose-500{% else %}text-slate-300{% endif %}">
+                  ♥
+                </span>
+              </button>
+            </form>
+          {% endif %}
+
+          <div
+            class="
+              relative
+              z-10
+              pointer-events-none
+              flex
+              h-24
+              w-24
+              flex-none
+              items-center
+              justify-center
+              overflow-hidden
+              rounded-2xl
+              border
+              border-slate-100
+              bg-slate-50
+
+              md:h-28
+              md:w-28
+            "
+          >
+
+            {% if store.logo_url %}
+
+              <img
+                src="{{ store.logo_url }}"
+                alt="Logo {{ store.tenant.name }}"
+                class="h-full w-full object-cover"
+                loading="lazy"
+              >
+
+            {% else %}
+
+              <span
+                class="
+                  text-3xl
+                  font-black
+                  text-slate-300
+                "
+              >
+                {{ store.tenant.name|slice:":1"|upper }}
+              </span>
+
+            {% endif %}
+
+          </div>
+
+
+          <div class="relative z-10 min-w-0 flex-1 pointer-events-none">
+
+            <div class="flex items-start gap-3 {% if request.user.is_authenticated %}pr-11{% endif %}">
+
+              <div class="min-w-0 flex-1">
+
+                <div class="flex flex-wrap items-center gap-2">
+
+                  <h3
+                    class="
+                      truncate
+                      text-base
+                      font-black
+                      md:text-lg
+                    "
+                  >
+                    {{ store.tenant.name }}
+                  </h3>
+
+
+                  {% if store.profile.is_featured %}
+                    <span
+                      class="
+                        rounded-full
+                        bg-amber-50
+                        px-2
+                        py-1
+                        text-[10px]
+                        font-black
+                        text-amber-700
+                      "
+                    >
+                      Destaque
+                    </span>
+                  {% endif %}
+
+                </div>
+
+
+                {% if store.distance_km is not None %}
+
+                  <p
+                    class="
+                      mt-1
+                      flex
+                      items-center
+                      gap-1
+                      text-xs
+                      font-bold
+                      text-orange-600
+                    "
+                  >
+                    <svg
+                      class="h-3.5 w-3.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="
+                          M12 21
+                          s7-5.686 7-12
+                          a7 7 0 10-14 0
+                          c0 6.314 7 12 7 12z
+                        "
+                      />
+                    </svg>
+
+                    {{ store.distance_km|floatformat:1 }} km de você
+
+                  </p>
+
+                {% elif location_active %}
+
+                  <p
+                    class="
+                      mt-1
+                      text-xs
+                      font-medium
+                      text-slate-400
+                    "
+                  >
+                    Distância indisponível
+                  </p>
+
+                {% elif store.profile.location_label %}
+
+                  <p
+                    class="
+                      mt-1
+                      truncate
+                      text-xs
+                      font-medium
+                      text-slate-500
+                    "
+                  >
+                    {{ store.profile.location_label }}
+                  </p>
+
+                {% endif %}
+
+              </div>
+
+
+            </div>
+
+
+            {% if store.profile.short_description %}
+
+              <p
+                class="
+                  mt-2
+                  line-clamp-2
+                  text-sm
+                  leading-5
+                  text-slate-500
+                "
+              >
+                {{ store.profile.short_description }}
+              </p>
+
+            {% endif %}
+
+
+            {% if store.categories %}
+
+              <div class="mt-3 flex flex-wrap gap-1.5">
+
+                {% for category in store.categories|slice:":3" %}
+
+                  <span
+                    class="
+                      rounded-lg
+                      bg-orange-50
+                      px-2
+                      py-1
+                      text-[10px]
+                      font-bold
+                      text-orange-700
+                    "
+                  >
+                    {% if category.icon %}
+                      {{ category.icon }}
+                    {% endif %}
+                    {{ category.name }}
+                  </span>
+
+                {% endfor %}
+
+              </div>
+
+            {% endif %}
+
+
+            {% if store.matched_products %}
+
+              <div
+                class="
+                  mt-3
+                  border-t
+                  border-slate-100
+                  pt-2
+                "
+              >
+
+                <p
+                  class="
+                    text-[10px]
+                    font-black
+                    uppercase
+                    tracking-wide
+                    text-slate-400
+                  "
+                >
+                  Encontrado nesta loja
+                </p>
+
+
+                <div
+                  class="
+                    mt-1
+                    flex
+                    flex-wrap
+                    gap-x-2
+                    gap-y-1
+                    text-xs
+                    font-semibold
+                    text-slate-600
+                  "
+                >
+
+                  {% for product in store.matched_products %}
+
+                    <span>
+                      {{ product.name }}
+                      ·
+                      R$
+
+                      {% if product.sale_price %}
+                        {{ product.sale_price }}
+                      {% else %}
+                        {{ product.price }}
+                      {% endif %}
+                    </span>
+
+                  {% endfor %}
+
+                </div>
+
+              </div>
+
+            {% endif %}
+
+
+            <div
+              class="
+                mt-3
+                flex
+                flex-wrap
+                items-center
+                gap-x-3
+                gap-y-1
+                text-[11px]
+                font-bold
+                text-slate-500
+              "
+            >
+
+              {% if store.is_open %}
+                <span class="rounded-md bg-emerald-50 px-1.5 py-0.5 text-emerald-700">Aberto</span>
+              {% else %}
+                <span class="rounded-md bg-slate-100 px-1.5 py-0.5 text-slate-500">Fechado</span>
+              {% endif %}
+
+              {% if store.tenant.accepts_delivery %}
+                <span>Entrega</span>
+              {% endif %}
+
+              {% if store.tenant.accepts_pickup %}
+                <span>Retirada</span>
+              {% endif %}
+
+
+              {% if store.delivery.status == "pickup_only" %}
+                <span
+                  class="rounded-md bg-slate-100 px-1.5 py-0.5 text-slate-500"
+                >
+                  Somente retirada
+                </span>
+
+              {% elif store.delivery.status == "available" %}
+                <span
+                  class="rounded-md bg-emerald-50 px-1.5 py-0.5 text-emerald-700"
+                >
+                  Entrega no seu endereço · {{ store.delivery.fee_display }}
+                </span>
+
+              {% elif store.delivery.status == "unavailable" %}
+                <span
+                  class="rounded-md bg-red-50 px-1.5 py-0.5 text-red-600"
+                >
+                  Não entrega neste endereço
+                </span>
+
+              {% elif store.tenant.accepts_delivery %}
+                <span
+                  class="rounded-md bg-amber-50 px-1.5 py-0.5 text-amber-700"
+                >
+                  Confirme o endereço para entrega
+                </span>
+              {% endif %}
+
+
+
+              <span
+                class="
+                  ml-auto
+                  text-orange-600
+                  group-hover:text-orange-700
+                "
+              >
+                Ver cardápio →
+              </span>
+
+            </div>
+
+          </div>
+
+        </article>
+
+      {% endfor %}
+
+    </div>
+
+
+    {% if page_obj.has_other_pages %}
+
+      <nav class="mt-8 flex items-center justify-center gap-2">
+
+        {% if page_obj.has_previous %}
+
+          <a
+            href="?page={{ page_obj.previous_page_number }}&q={{ search|urlencode }}&cidade={{ selected_city|urlencode }}&categoria={{ selected_category|urlencode }}{% if open_only %}&abertas=1{% endif %}{% if favorites_only %}&favoritas=1{% endif %}{% if location_active %}&lat={{ user_latitude }}&lng={{ user_longitude }}{% if user_accuracy is not None %}&accuracy={{ user_accuracy|floatformat:0 }}{% endif %}{% endif %}"
+            class="
+              rounded-xl
+              border
+              border-slate-200
+              bg-white
+              px-4
+              py-2
+              text-sm
+              font-bold
+              hover:bg-slate-50
+            "
+          >
+            ← Anterior
+          </a>
+
+        {% endif %}
+
+
+        <span class="px-3 py-2 text-sm font-semibold text-slate-500">
+          {{ page_obj.number }}
+          de
+          {{ page_obj.paginator.num_pages }}
+        </span>
+
+
+        {% if page_obj.has_next %}
+
+          <a
+            href="?page={{ page_obj.next_page_number }}&q={{ search|urlencode }}&cidade={{ selected_city|urlencode }}&categoria={{ selected_category|urlencode }}{% if open_only %}&abertas=1{% endif %}{% if favorites_only %}&favoritas=1{% endif %}{% if location_active %}&lat={{ user_latitude }}&lng={{ user_longitude }}{% if user_accuracy is not None %}&accuracy={{ user_accuracy|floatformat:0 }}{% endif %}{% endif %}"
+            class="
+              rounded-xl
+              border
+              border-slate-200
+              bg-white
+              px-4
+              py-2
+              text-sm
+              font-bold
+              hover:bg-slate-50
+            "
+          >
+            Próxima →
+          </a>
+
+        {% endif %}
+
+      </nav>
+
+    {% endif %}
+
+
+  {% else %}
+
+    <div
+      class="
+        rounded-3xl
+        border
+        border-dashed
+        border-slate-300
+        bg-white
+        px-6
+        py-16
+        text-center
+      "
+    >
+
+      <div class="text-4xl">
+        🔎
+      </div>
+
+      <h3 class="mt-4 text-lg font-black">
+        Nenhuma loja encontrada
+      </h3>
+
+      <p
+        class="
+          mx-auto
+          mt-2
+          max-w-md
+          text-sm
+          leading-6
+          text-slate-500
+        "
+      >
+        Tente remover algum filtro ou buscar por outro produto.
+      </p>
+
+      <a
+        href="/"
+        class="
+          mt-5
+          inline-flex
+          rounded-2xl
+          bg-slate-900
+          px-5
+          py-3
+          text-sm
+          font-black
+          text-white
+        "
+      >
+        Ver todas as lojas
+      </a>
+
+    </div>
+
+  {% endif %}
+
+</main>
+
+
+<footer class="mt-10 border-t border-slate-200 bg-white">
+
+  <div
+    class="
+      mx-auto
+      flex
+      max-w-6xl
+      flex-col
+      gap-2
+      px-4
+      py-7
+      text-xs
+      text-slate-400
+
+      sm:flex-row
+      sm:items-center
+      sm:justify-between
+    "
+  >
+
+    <span>
+      © VemDeDelivery
+    </span>
+
+    <span>
+      Encontre lojas e peça direto no cardápio.
+      · Dados de localização:
+      <a
+        href="https://www.openstreetmap.org/copyright"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="underline hover:text-slate-600"
+      >
+        © OpenStreetMap contributors
+      </a>
+    </span>
+
+  </div>
+
+</footer>
+
+
+<script>
+  (function () {
+    const button =
+      document.getElementById(
+        'use-location-button'
+      );
+
+    const message =
+      document.getElementById(
+        'location-message'
+      );
+
+    if (!button || !message) {
+      return;
+    }
+
+
+    function showMessage(text, type) {
+      message.textContent = text;
+      message.classList.remove(
+        'hidden',
+        'text-red-600',
+        'text-slate-500',
+        'text-emerald-600'
+      );
+
+      if (type === 'error') {
+        message.classList.add('text-red-600');
+
+      } else if (type === 'success') {
+        message.classList.add('text-emerald-600');
+
+      } else {
+        message.classList.add('text-slate-500');
+      }
+    }
+
+
+    function setLoading(loading) {
+      button.disabled = loading;
+
+      button.classList.toggle(
+        'location-button-loading',
+        loading
+      );
+
+      button.classList.toggle(
+        'opacity-60',
+        loading
+      );
+
+      button.classList.toggle(
+        'cursor-wait',
+        loading
+      );
+    }
+
+
+    button.addEventListener(
+      'click',
+      function () {
+
+        if (!window.isSecureContext) {
+          showMessage(
+            'A localização exige uma conexão HTTPS. Este ambiente está usando HTTP.',
+            'error'
+          );
+
+          return;
+        }
+
+        if (!navigator.geolocation) {
+          showMessage(
+            'Seu navegador não oferece suporte à localização.',
+            'error'
+          );
+
+          return;
+        }
+
+        setLoading(true);
+
+        showMessage(
+          'Obtendo sua localização...',
+          'info'
+        );
+
+
+        navigator.geolocation.getCurrentPosition(
+          function (position) {
+
+            const accuracy =
+              Number(position.coords.accuracy || 0);
+
+            if (accuracy > 500) {
+              setLoading(false);
+
+              showMessage(
+                'Sua localização foi encontrada com baixa precisão ('
+                + Math.round(accuracy)
+                + ' m). Tente novamente ou informe sua localização manualmente.',
+                'error'
+              );
+
+              return;
+            }
+
+            const params =
+              new URLSearchParams(
+                window.location.search
+              );
+
+            params.set(
+              'lat',
+              position.coords.latitude.toFixed(6)
+            );
+
+            params.set(
+              'lng',
+              position.coords.longitude.toFixed(6)
+            );
+
+            if (accuracy > 0) {
+              params.set(
+                'accuracy',
+                Math.round(accuracy)
+              );
+            } else {
+              params.delete('accuracy');
+            }
+
+            // GPS passa a ser a fonte da localização.
+            params.delete('cidade');
+            params.delete('uf');
+            params.delete('page');
+
+            let successText =
+              'Localização encontrada. Buscando lojas próximas...';
+
+            if (accuracy > 0) {
+              successText =
+                'Localização encontrada com precisão aproximada de '
+                + Math.round(accuracy)
+                + ' m. Buscando lojas próximas...';
+            }
+
+            showMessage(
+              successText,
+              'success'
+            );
+
+            window.location.href =
+              window.location.pathname
+              + '?'
+              + params.toString();
+          },
+
+          function (error) {
+            setLoading(false);
+
+            let text =
+              'Não foi possível obter sua localização.';
+
+            if (error.code === 1) {
+              if (!window.isSecureContext) {
+                text =
+                  'A localização exige uma conexão HTTPS. Este ambiente está usando HTTP.';
+              } else {
+                text =
+                  'Permissão de localização negada. Libere o acesso no navegador e tente novamente.';
+              }
+
+            } else if (error.code === 2) {
+              text =
+                'Sua localização está indisponível neste momento.';
+
+            } else if (error.code === 3) {
+              text =
+                'A busca pela localização demorou demais. Tente novamente.';
+            }
+
+            showMessage(
+              text,
+              'error'
+            );
+          },
+
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0,
+          }
+        );
+      }
+    );
+  })();
+</script>
+
+
+<script>
+  (function () {
+    const forms = document.querySelectorAll('.favorite-store-form');
+
+    forms.forEach(function (form) {
+      form.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const button = form.querySelector('.favorite-store-button');
+        const heart = button ? button.querySelector('span') : null;
+        if (!button || !heart || button.disabled) return;
+
+        const wasFavorite = button.dataset.favorite === '1';
+        button.disabled = true;
+        button.classList.add('opacity-60');
+
+        try {
+          const response = await fetch(form.action, {method: 'POST', body: new FormData(form), credentials: 'same-origin', headers: {'X-Requested-With': 'XMLHttpRequest'}});
+          if (!response.ok) throw new Error('Falha ao atualizar favorito.');
+
+          const isFavorite = !wasFavorite;
+          button.dataset.favorite = isFavorite ? '1' : '0';
+          button.title = isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos';
+          heart.classList.toggle('text-rose-500', isFavorite);
+          heart.classList.toggle('text-slate-300', !isFavorite);
+        } catch (error) {
+          form.submit();
+        } finally {
+          button.disabled = false;
+          button.classList.remove('opacity-60');
+        }
+      });
+    });
+  })();
+</script>
+
+</body>
+</html>

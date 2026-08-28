@@ -12,6 +12,7 @@
     <!-- Formulário -->
     <form method="POST" id="checkout-form" class="lg:w-2/3 space-y-6">
       {% csrf_token %}
+      <input type="hidden" name="checkout_token" value="{{ checkout_token }}">
       <h1 class="text-2xl font-bold mb-2">Finalizar Pedido</h1>
 
       <!-- Modo de atendimento -->
@@ -35,17 +36,64 @@
 
       <!-- Identificação -->
       <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-        <div class="flex items-center gap-3 mb-4 text-primary">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-          </svg>
-          <h2 class="text-lg font-semibold text-gray-800">Seus Dados</h2>
+        <div class="flex items-center justify-between gap-4 mb-4">
+          <div class="flex items-center gap-3 text-primary">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            <h2 class="text-lg font-semibold text-gray-800">Seus dados</h2>
+          </div>
+
+          {% if customer %}
+            <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-green-700 bg-green-50 border border-green-100 rounded-full px-3 py-1.5">
+              <span class="w-2 h-2 rounded-full bg-green-500"></span>
+              Conta conectada
+            </span>
+          {% endif %}
         </div>
+
+        {% if customer %}
+          <div class="mb-4 p-4 rounded-xl bg-primary/5 border border-primary/10">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center font-bold flex-shrink-0">
+                {{ request.user.get_full_name|default:request.user.username|slice:":1"|upper }}
+              </div>
+              <div class="min-w-0">
+                <p class="text-sm font-semibold text-gray-800">
+                  {{ request.user.get_full_name|default:request.user.username }}
+                </p>
+                <p class="text-xs text-gray-500 mt-0.5">
+                  Seus dados e endereços podem ser preenchidos automaticamente.
+                </p>
+              </div>
+            </div>
+          </div>
+        {% else %}
+          <div class="mb-4 p-4 rounded-xl bg-gray-50 border border-gray-100 text-sm text-gray-600">
+            <strong>Já tem uma conta?</strong>
+            Entre para preencher seus dados e endereços automaticamente.
+          </div>
+        {% endif %}
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <input type="text" name="full_name" placeholder="Nome Completo" required
-                 class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
-          <input type="tel" name="phone" placeholder="WhatsApp / Telefone" required
-                 class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
+          <input
+            type="text"
+            name="full_name"
+            id="full_name"
+            placeholder="Nome completo"
+            value="{{ initial_full_name|default:'' }}"
+            required
+            class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition"
+          >
+          <input
+            type="tel"
+            name="phone"
+            id="phone"
+            placeholder="WhatsApp / Telefone"
+            value="{{ initial_phone|default:'' }}"
+            required
+            class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition"
+          >
         </div>
       </div>
 
@@ -147,51 +195,232 @@
 
       <!-- Endereço de Entrega -->
       <div id="delivery-address-fields" class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 {% if tenant.is_pickup_only %}hidden{% endif %}">
-        <div class="flex items-center gap-3 mb-4 text-primary">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          <h2 class="text-lg font-semibold text-gray-800">Onde entregamos?</h2>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <input type="text" name="cep" id="cep" placeholder="CEP"
-                 class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
-          <input type="text" name="address" id="address" placeholder="Rua / Logradouro"
-                 class="md:col-span-2 w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
-          <input type="text" name="number" id="number" placeholder="Número"
-                 class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
-
-          <!-- Bairro com datalist -->
-          <div class="relative">
-            <input type="text" name="neighborhood" id="neighborhood" placeholder="Bairro"
-                   list="neighborhood-list" autocomplete="off"
-                   class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
-            <datalist id="neighborhood-list">
-              {% for zone in delivery_zones %}
-              <option value="{{ zone.neighborhood }}" data-city="{{ zone.city }}" data-fee="{{ zone.fee }}">{{ zone.neighborhood }} — {{ zone.city }}</option>
-              {% endfor %}
-            </datalist>
+        <div class="flex items-center justify-between gap-4 mb-4">
+          <div class="flex items-center gap-3 text-primary">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <h2 class="text-lg font-semibold text-gray-800">Endereço de entrega</h2>
           </div>
 
-          <!-- Cidade com datalist -->
-          <div class="relative">
-            <input type="text" name="city" id="city" placeholder="Cidade"
-                   list="city-list" autocomplete="off"
-                   class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
-            <datalist id="city-list">
-              {% for zone in delivery_zones %}
-              <option value="{{ zone.city }}">
-              {% endfor %}
-            </datalist>
-          </div>
-
-          <input type="text" name="complement" placeholder="Complemento (opcional)"
-                 class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
+          {% if customer and customer_addresses %}
+            <button
+              type="button"
+              id="show-manual-address"
+              class="text-xs font-semibold text-primary hover:underline"
+            >
+              Informar outro endereço
+            </button>
+          {% endif %}
         </div>
 
-        <!-- Exibe taxa calculada -->
+        {% if customer and customer_addresses %}
+          <div
+            id="saved-addresses-section"
+            class="space-y-3 mb-5 {% if use_global_manual_address %}hidden{% endif %}"
+          >
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Seus endereços
+            </p>
+
+            <div class="grid grid-cols-1 gap-3">
+              {% for address_item in customer_addresses %}
+                <label
+                  class="saved-address-card relative block p-4 rounded-2xl border-2 cursor-pointer transition
+                         {% if default_address and address_item.id == default_address.id %}
+                           border-primary bg-primary/5
+                         {% else %}
+                           border-gray-200 hover:border-primary/40
+                         {% endif %}"
+                  data-address-id="{{ address_item.id }}"
+                  data-zip="{{ address_item.zip_code }}"
+                  data-street="{{ address_item.street }}"
+                  data-number="{{ address_item.number }}"
+                  data-neighborhood="{{ address_item.neighborhood }}"
+                  data-city="{{ address_item.city }}"
+                  data-state="{{ address_item.state }}"
+                  data-complement="{{ address_item.complement }}"
+                  data-reference="{{ address_item.reference }}"
+                >
+                  <input
+                    type="radio"
+                    name="customer_address_id"
+                    value="{{ address_item.id }}"
+                    class="hidden saved-address-radio"
+                    {% if default_address and address_item.id == default_address.id %}checked{% endif %}
+                  >
+
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-2">
+                        <span class="font-semibold text-gray-800">
+                          {{ address_item.label }}
+                        </span>
+                        {% if address_item.is_default %}
+                          <span class="text-[10px] uppercase tracking-wide font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                            Principal
+                          </span>
+                        {% endif %}
+                      </div>
+
+                      <p class="text-sm text-gray-600 mt-1">
+                        {{ address_item.street }}, {{ address_item.number }}
+                        {% if address_item.complement %} - {{ address_item.complement }}{% endif %}
+                      </p>
+
+                      <p class="text-xs text-gray-500 mt-0.5">
+                        {{ address_item.neighborhood }} - {{ address_item.city }}/{{ address_item.state }}
+                        {% if address_item.zip_code %} • CEP {{ address_item.zip_code }}{% endif %}
+                      </p>
+
+                      {% if address_item.reference %}
+                        <p class="text-xs text-gray-400 mt-1">
+                          Referência: {{ address_item.reference }}
+                        </p>
+                      {% endif %}
+                    </div>
+
+                    <span class="saved-address-check w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0
+                                 {% if default_address and address_item.id == default_address.id %}
+                                   border-primary bg-primary text-white
+                                 {% else %}
+                                   border-gray-300 text-transparent
+                                 {% endif %}">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                      </svg>
+                    </span>
+                  </div>
+                </label>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+
+        <div
+          id="manual-address-fields"
+          class="{% if customer and customer_addresses and not use_global_manual_address %}hidden{% endif %}"
+        >
+          {% if customer and customer_addresses %}
+            <div class="mb-4 flex items-center justify-between gap-3">
+              <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                Outro endereço
+              </p>
+              <button
+                type="button"
+                id="back-to-saved-addresses"
+                class="text-xs font-semibold text-primary hover:underline"
+              >
+                Usar endereço salvo
+              </button>
+            </div>
+          {% endif %}
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <input
+              type="text"
+              name="cep"
+              id="cep"
+              value="{% if use_global_manual_address %}{{ global_delivery_location.zip_code }}{% endif %}"
+              placeholder="CEP"
+              class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition"
+            >
+              <p
+                id="checkout-cep-status"
+                class="mt-1 text-[11px] font-semibold text-gray-400"
+              ></p>
+
+            <input
+              type="text"
+              name="address"
+              id="address"
+              value="{% if use_global_manual_address %}{{ global_delivery_location.street }}{% endif %}"
+              placeholder="Rua / Logradouro"
+              class="md:col-span-2 w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition"
+            >
+
+            <input
+              type="text"
+              name="number"
+              id="number"
+              value="{% if use_global_manual_address %}{{ global_delivery_location.number }}{% endif %}"
+              placeholder="Número"
+              class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition"
+            >
+
+            <div class="relative">
+              <input
+                type="text"
+                name="neighborhood"
+                id="neighborhood"
+                value="{% if use_global_manual_address %}{{ global_delivery_location.neighborhood }}{% endif %}"
+                placeholder="Bairro"
+                list="neighborhood-list"
+                autocomplete="off"
+                class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition"
+              >
+              <datalist id="neighborhood-list">
+                {% for zone in delivery_zones %}
+                  <option
+                    value="{{ zone.neighborhood }}"
+                    data-city="{{ zone.city }}"
+                    data-fee="{{ zone.fee }}"
+                  >
+                    {{ zone.neighborhood }} — {{ zone.city }}
+                  </option>
+                {% endfor %}
+              </datalist>
+            </div>
+
+            <div class="relative">
+              <input
+                type="text"
+                name="city"
+                id="city"
+                value="{% if use_global_manual_address %}{{ global_delivery_location.city }}{% endif %}"
+                placeholder="Cidade"
+                list="city-list"
+                autocomplete="off"
+                class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition"
+              >
+              <datalist id="city-list">
+                {% for zone in delivery_zones %}
+                  <option value="{{ zone.city }}"></option>
+                {% endfor %}
+              </datalist>
+            </div>
+
+            <input
+              type="text"
+              name="state"
+              id="state"
+              value="{% if use_global_manual_address %}{{ global_delivery_location.state }}{% endif %}"
+              maxlength="2"
+              placeholder="UF"
+              class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition uppercase"
+            >
+
+            <input
+              type="text"
+              name="complement"
+              id="complement"
+              value="{% if use_global_manual_address %}{{ global_delivery_location.complement }}{% endif %}"
+              placeholder="Complemento (opcional)"
+              class="md:col-span-2 w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition"
+            >
+
+            <input
+              type="text"
+              name="reference"
+              id="reference"
+              value="{% if use_global_manual_address %}{{ global_delivery_location.reference }}{% endif %}"
+              placeholder="Ponto de referência (opcional)"
+              class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition"
+            >
+          </div>
+        </div>
+
         <div id="fee-display" class="hidden mt-4 flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100 text-sm">
           <span class="text-gray-600 font-medium flex items-center gap-1.5">
             <svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -252,9 +481,9 @@
       <button type="submit" id="submit-button"
               class="w-full flex items-center justify-center gap-3 bg-green-500 hover:bg-green-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-green-500/30 transition-all transform hover:scale-[1.02] active:scale-[0.98]">
         <svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
-        Enviar Pedido via WhatsApp
+        Revisar pedido
       </button>
-      <p class="text-center text-xs text-gray-500 mt-3">Você será redirecionado ao WhatsApp com o resumo do pedido pronto para enviar.</p>
+      <p class="text-center text-xs text-gray-500 mt-3">Na próxima tela você revisa tudo antes de abrir o WhatsApp.</p>
       {% else %}
       <button type="submit" id="submit-button"
               class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/30 transition-all transform hover:scale-[1.02] active:scale-[0.98]">
@@ -271,12 +500,64 @@
         <div class="space-y-4 mb-6">
           {% for item in cart_items %}
           <div class="text-sm border-b border-gray-100 pb-3 last:border-0">
-            <div class="flex justify-between items-start">
-              <div class="flex gap-2">
-                <span class="font-bold text-primary">{{ item.quantity }}x</span>
-                <span class="text-gray-700 font-medium">{{ item.name }}</span>
+            <div class="flex justify-between items-start gap-3">
+              <div class="min-w-0 flex-1">
+                <div class="flex gap-2">
+                  <span class="font-bold text-primary">
+                    {{ item.quantity }}x
+                  </span>
+
+                  <span class="text-gray-700 font-medium">
+                    {{ item.name }}
+                  </span>
+                </div>
+
+                <div class="mt-2 ml-6 space-y-1">
+
+                  <div class="flex items-center justify-between gap-3 text-xs">
+                    <span class="text-gray-400">
+                      Valor do produto
+                    </span>
+
+                    <span class="font-medium text-gray-600">
+                      R$ {{ item.base_unit_price|floatformat:2 }}
+                    </span>
+                  </div>
+
+                  {% if item.has_additions %}
+                    <div class="flex items-center justify-between gap-3 text-xs">
+                      <span class="text-gray-400">
+                        Adicionais
+                      </span>
+
+                      <span class="font-semibold text-amber-600">
+                        + R$ {{ item.additions_unit_price|floatformat:2 }}
+                      </span>
+                    </div>
+
+                    <div class="flex items-center justify-between gap-3 text-xs">
+                      <span class="text-gray-400">
+                        Valor unitário
+                      </span>
+
+                      <span class="font-semibold text-gray-700">
+                        R$ {{ item.final_unit_price|floatformat:2 }}
+                      </span>
+                    </div>
+                  {% endif %}
+
+                </div>
               </div>
-              <span class="font-semibold whitespace-nowrap ml-2">R$ {{ item.total_price|floatformat:2 }}</span>
+
+              <div class="flex-none text-right">
+                <span class="font-semibold whitespace-nowrap">
+                  R$ {{ item.line_total|floatformat:2 }}
+                </span>
+
+                <p class="mt-0.5 text-[10px] text-gray-400">
+                  subtotal
+                </p>
+              </div>
             </div>
 
             {% if item.is_half_half %}
@@ -336,6 +617,99 @@
           </div>
           {% endfor %}
         </div>
+        
+        <!-- Cupom -->
+        <div class="border-t border-gray-100 pt-5 mb-5">
+
+          <div class="flex items-center justify-between gap-3 mb-3">
+            <div>
+              <p class="text-sm font-bold text-gray-800">
+                Cupom de desconto
+              </p>
+
+              <p class="text-xs text-gray-400 mt-0.5">
+                Tem um cupom? Aproveite seu benefício.
+              </p>
+            </div>
+
+            <svg
+              class="w-5 h-5 text-primary"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </div>
+
+          <div class="flex gap-2">
+
+            <input
+              type="text"
+              id="coupon-code"
+              name="coupon_code"
+              form="checkout-form"
+              placeholder="Ex.: PRIMEIRA10"
+              autocomplete="off"
+              maxlength="40"
+              class="
+                flex-1
+                min-w-0
+                p-3
+                rounded-xl
+                border
+                border-gray-200
+                uppercase
+                font-semibold
+                text-sm
+                focus:ring-2
+                focus:ring-primary/20
+                focus:border-primary
+                outline-none
+                transition
+              "
+            >
+
+            <button
+              type="button"
+              id="apply-coupon-btn"
+              class="
+                bg-primary
+                text-white
+                px-4
+                rounded-xl
+                text-sm
+                font-bold
+                hover:opacity-90
+                disabled:opacity-60
+                disabled:cursor-not-allowed
+                transition
+              "
+            >
+              Aplicar
+            </button>
+
+          </div>
+
+          <div
+            id="coupon-message"
+            class="hidden mt-2 text-xs font-semibold"
+          ></div>
+
+          <button
+            type="button"
+            id="remove-coupon-btn"
+            class="hidden mt-2 text-xs font-semibold text-red-500 hover:text-red-700"
+          >
+            Remover cupom
+          </button>
+
+        </div>
 
         <div class="border-t border-dashed border-gray-200 pt-4 space-y-2">
           <div class="flex justify-between text-gray-500 text-sm">
@@ -346,6 +720,21 @@
             <span>Taxa de entrega</span>
             <span id="summary-fee-value" class="font-medium text-gray-700">—</span>
           </div>
+
+          <div
+            id="summary-discount-row"
+            class="hidden flex justify-between text-sm text-green-600 font-semibold"
+          >
+            <span>
+              Cupom
+              <strong id="summary-coupon-code"></strong>
+            </span>
+
+            <span id="summary-discount-value">
+              - R$ 0,00
+            </span>
+          </div>
+
           <div class="flex justify-between text-xl font-bold pt-2 text-gray-900 border-t border-gray-100 mt-2">
             <span>Total</span>
             <span id="summary-total">R$ {{ subtotal|floatformat:2 }}</span>
@@ -366,167 +755,800 @@
 
 <script>
 (function () {
-  // Subtotal vindo do servidor (sem frete)
-  const subtotal = parseFloat('{{ subtotal|floatformat:2 }}'.replace(',', '.')) || 0;
+  'use strict';
 
-  // Configurações do tenant
+  const subtotal = parseFloat('{{ subtotal|floatformat:2 }}'.replace(',', '.')) || 0;
   const pickupOnly = {{ tenant.is_pickup_only|yesno:"true,false" }};
 
-  // Elementos
-  const typeInput     = document.getElementById('delivery_type_input');
-  const btnDelivery   = document.getElementById('btn-delivery');
-  const btnPickup     = document.getElementById('btn-pickup');
-  const addressFields = document.getElementById('delivery-address-fields');
-  const pickupInfo    = document.getElementById('pickup-address-info');
-  const feeDisplay    = document.getElementById('fee-display');
-  const feeValue      = document.getElementById('fee-value');
-  const feeMessage    = document.getElementById('fee-message');
-  const summaryFeeVal = document.getElementById('summary-fee-value');
-  const summaryFeeRow = document.getElementById('summary-fee-row');
-  const summaryTotal  = document.getElementById('summary-total');
-  const neighborhoodEl = document.getElementById('neighborhood');
-  const cityEl         = document.getElementById('city');
+  let currentDeliveryFee = 0;
+  let currentDiscount = 0;
+  let appliedCouponCode = '';
 
-  // Campos obrigatórios de endereço
-  const addressInputs = addressFields
-    ? [...addressFields.querySelectorAll('input[name="cep"], input[name="address"], input[name="number"], input[name="neighborhood"], input[name="city"]')]
-    : [];
+  // A API é a fonte da verdade para saber se o endereço é atendido.
+  let deliveryAddressAvailable = null;
+  let deliveryFeeChecking = false;
+  let deliveryAddressMessage = '';
 
-  // ── Atualiza resumo lateral ─────────────────────────────────────────────
+  const typeInput       = document.getElementById('delivery_type_input');
+  const btnDelivery     = document.getElementById('btn-delivery');
+  const btnPickup       = document.getElementById('btn-pickup');
+  const addressFields   = document.getElementById('delivery-address-fields');
+  const pickupInfo      = document.getElementById('pickup-address-info');
+  const feeDisplay      = document.getElementById('fee-display');
+  const feeValue        = document.getElementById('fee-value');
+  const feeMessage      = document.getElementById('fee-message');
+  const summaryFeeVal   = document.getElementById('summary-fee-value');
+  const summaryFeeRow   = document.getElementById('summary-fee-row');
+  const summaryTotal    = document.getElementById('summary-total');
+
+  const couponInput          = document.getElementById('coupon-code');
+  const applyCouponBtn       = document.getElementById('apply-coupon-btn');
+  const removeCouponBtn      = document.getElementById('remove-coupon-btn');
+  const couponMessage        = document.getElementById('coupon-message');
+  const summaryDiscountRow   = document.getElementById('summary-discount-row');
+  const summaryCouponCode    = document.getElementById('summary-coupon-code');
+  const summaryDiscountValue = document.getElementById('summary-discount-value');
+
+  const savedSection    = document.getElementById('saved-addresses-section');
+  const manualSection   = document.getElementById('manual-address-fields');
+  const showManualBtn   = document.getElementById('show-manual-address');
+  const backSavedBtn    = document.getElementById('back-to-saved-addresses');
+
+  const cepEl           = document.getElementById('cep');
+  const addressEl       = document.getElementById('address');
+  const numberEl        = document.getElementById('number');
+  const neighborhoodEl  = document.getElementById('neighborhood');
+  const cityEl          = document.getElementById('city');
+  const stateEl         = document.getElementById('state');
+  const complementEl    = document.getElementById('complement');
+  const referenceEl     = document.getElementById('reference');
+
+  let usingSavedAddress = !!document.querySelector('.saved-address-radio:checked');
+
+  const manualRequiredInputs = [
+    addressEl,
+    numberEl,
+    neighborhoodEl,
+    cityEl,
+  ].filter(Boolean);
+
+  function formatMoney(value) {
+    return 'R$ ' + (parseFloat(value || 0)).toFixed(2).replace('.', ',');
+  }
+
+  function updateFinalTotal() {
+    const total =
+      subtotal
+      + currentDeliveryFee
+      - currentDiscount;
+
+    if (summaryTotal) {
+      summaryTotal.textContent = formatMoney(
+        Math.max(total, 0)
+      );
+    }
+  }
+
   function updateSummary(fee, display, msg) {
-    if (feeValue)      feeValue.textContent   = display || '—';
-    if (feeMessage)    feeMessage.textContent = msg || '';
+    currentDeliveryFee = parseFloat(fee) || 0;
+
+    if (feeValue) feeValue.textContent = display || '—';
+    if (feeMessage) feeMessage.textContent = msg || '';
     if (summaryFeeVal) summaryFeeVal.textContent = display || '—';
 
     if (feeDisplay) {
-      feeDisplay.classList.toggle('hidden', !display || display === '—');
+      feeDisplay.classList.toggle(
+        'hidden',
+        !display || display === '—'
+      );
     }
 
-    const totalVal = subtotal + (parseFloat(fee) || 0);
-    if (summaryTotal) {
-      summaryTotal.textContent = 'R$ ' + totalVal.toFixed(2).replace('.', ',');
+    if (summaryFeeRow) {
+      summaryFeeRow.classList.toggle(
+        'hidden',
+        typeInput?.value === 'pickup'
+      );
+    }
+
+    updateFinalTotal();
+
+    if (appliedCouponCode) {
+      validateCoupon(
+        appliedCouponCode,
+        false
+      );
     }
   }
 
-  // ── Busca frete na API ─────────────────────────────────────────────────
   let fetchTimer = null;
-  function calcularFrete() {
-    if (typeInput.value !== 'delivery') return;
-    const city         = cityEl?.value.trim()         || '';
-    const neighborhood = neighborhoodEl?.value.trim() || '';
-    if (!city || !neighborhood) return;
+  let deliveryRequestId = 0;
+
+  function resetDeliveryValidation(message = '') {
+    deliveryAddressAvailable = null;
+    deliveryAddressMessage = message;
+    currentDeliveryFee = 0;
+
+    updateSummary(
+      0,
+      '—',
+      message
+    );
+  }
+
+  function calculateFeeFor(city, neighborhood) {
+    if (!typeInput || typeInput.value !== 'delivery') {
+      return;
+    }
+
+    city = (city || '').trim();
+    neighborhood = (neighborhood || '').trim();
 
     clearTimeout(fetchTimer);
+
+    if (!city || !neighborhood) {
+      deliveryFeeChecking = false;
+
+      resetDeliveryValidation(
+        'Informe cidade e bairro para confirmar a entrega.'
+      );
+
+      return;
+    }
+
+    deliveryAddressAvailable = null;
+    deliveryAddressMessage =
+      'Confirmando se a loja atende este endereço...';
+
+    updateSummary(
+      0,
+      '—',
+      deliveryAddressMessage
+    );
+
+    const requestId = ++deliveryRequestId;
+
     fetchTimer = setTimeout(() => {
-      fetch(`/api/delivery-fee/?city=${encodeURIComponent(city)}&neighborhood=${encodeURIComponent(neighborhood)}`)
-        .then(r => r.json())
-        .then(data => {
-          updateSummary(data.fee, data.fee_display, data.message || '');
+      deliveryFeeChecking = true;
+
+      fetch(
+        `/api/delivery-fee/?city=${encodeURIComponent(city)}&neighborhood=${encodeURIComponent(neighborhood)}`
+      )
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Falha ao consultar taxa');
+          }
+
+          return response.json();
         })
-        .catch(() => {});
-    }, 300);
+        .then(data => {
+          if (requestId !== deliveryRequestId) {
+            return;
+          }
+
+          deliveryAddressAvailable = data.available === true;
+          deliveryAddressMessage = data.message || '';
+
+          if (!deliveryAddressAvailable) {
+            updateSummary(
+              0,
+              '—',
+              deliveryAddressMessage
+                || 'Esta loja não entrega neste endereço.'
+            );
+
+            return;
+          }
+
+          updateSummary(
+            data.fee,
+            data.fee_display,
+            deliveryAddressMessage
+          );
+        })
+        .catch(() => {
+          if (requestId !== deliveryRequestId) {
+            return;
+          }
+
+          deliveryAddressAvailable = null;
+          deliveryAddressMessage =
+            'Não foi possível confirmar a entrega. Tente novamente.';
+
+          updateSummary(
+            0,
+            '—',
+            deliveryAddressMessage
+          );
+        })
+        .finally(() => {
+          if (requestId === deliveryRequestId) {
+            deliveryFeeChecking = false;
+          }
+        });
+    }, 200);
   }
 
-  // ── Selecionar bairro via datalist → preenche cidade e calcula frete ───
+  function calculateManualFee() {
+    if (usingSavedAddress) {
+      return;
+    }
+
+    calculateFeeFor(
+      cityEl?.value || '',
+      neighborhoodEl?.value || ''
+    );
+  }
+
+  function getSelectedSavedAddressCard() {
+    const checked = document.querySelector(
+      '.saved-address-radio:checked'
+    );
+
+    if (!checked) {
+      return null;
+    }
+
+    return checked.closest('.saved-address-card');
+  }
+
+  function updateSavedAddressCards() {
+    document.querySelectorAll('.saved-address-card').forEach(card => {
+      const radio = card.querySelector('.saved-address-radio');
+      const check = card.querySelector('.saved-address-check');
+      const active = !!radio?.checked;
+
+      card.classList.toggle('border-primary', active);
+      card.classList.toggle('bg-primary/5', active);
+      card.classList.toggle('border-gray-200', !active);
+
+      if (check) {
+        check.classList.toggle('border-primary', active);
+        check.classList.toggle('bg-primary', active);
+        check.classList.toggle('text-white', active);
+        check.classList.toggle('border-gray-300', !active);
+        check.classList.toggle('text-transparent', !active);
+      }
+    });
+  }
+
+  function useSavedAddress(card) {
+    if (!card) {
+      return;
+    }
+
+    usingSavedAddress = true;
+
+    document.querySelectorAll('.saved-address-radio').forEach(radio => {
+      radio.checked = (
+        radio.value === card.dataset.addressId
+      );
+    });
+
+    updateSavedAddressCards();
+
+    if (savedSection) {
+      savedSection.classList.remove('hidden');
+    }
+
+    if (manualSection) {
+      manualSection.classList.add('hidden');
+    }
+
+    manualRequiredInputs.forEach(input => {
+      input.removeAttribute('required');
+    });
+
+    calculateFeeFor(
+      card.dataset.city || '',
+      card.dataset.neighborhood || ''
+    );
+  }
+
+  function useManualAddress() {
+    usingSavedAddress = false;
+
+    document.querySelectorAll('.saved-address-radio').forEach(radio => {
+      radio.checked = false;
+    });
+
+    updateSavedAddressCards();
+
+    if (savedSection) {
+      savedSection.classList.add('hidden');
+    }
+
+    if (manualSection) {
+      manualSection.classList.remove('hidden');
+    }
+
+    if (typeInput?.value === 'delivery') {
+      manualRequiredInputs.forEach(input => {
+        input.setAttribute('required', '');
+      });
+    }
+
+    calculateManualFee();
+
+    cepEl?.focus();
+  }
+
+  function useCurrentSavedAddress() {
+    let card = getSelectedSavedAddressCard();
+
+    if (!card) {
+      card = document.querySelector('.saved-address-card');
+    }
+
+    if (card) {
+      useSavedAddress(card);
+    }
+  }
+
+  document.querySelectorAll('.saved-address-card').forEach(card => {
+    card.addEventListener('click', () => {
+      useSavedAddress(card);
+    });
+  });
+
+  showManualBtn?.addEventListener('click', useManualAddress);
+  backSavedBtn?.addEventListener('click', useCurrentSavedAddress);
+
   function onNeighborhoodInput() {
+    if (usingSavedAddress || !neighborhoodEl) {
+      return;
+    }
+
     const val = neighborhoodEl.value.trim();
-    const opt = document.querySelector(`#neighborhood-list option[value="${CSS.escape(val)}"]`);
+
+    let opt = null;
+
+    try {
+      opt = document.querySelector(
+        `#neighborhood-list option[value="${CSS.escape(val)}"]`
+      );
+    } catch (_) {
+      opt = null;
+    }
+
     if (opt && opt.dataset.city) {
       if (!cityEl.value || cityEl.value !== opt.dataset.city) {
         cityEl.value = opt.dataset.city;
       }
-      if (opt.dataset.fee !== undefined) {
-        const fee = parseFloat(opt.dataset.fee) || 0;
-        const display = fee > 0
-          ? 'R$ ' + fee.toFixed(2).replace('.', ',')
-          : 'Grátis';
-        updateSummary(fee, display, '');
-        return;
-      }
     }
-    calcularFrete();
+
+    // Mesmo quando o bairro veio do datalist, o backend confirma
+    // DeliveryZone e taxa. Nunca confiamos no data-fee do navegador.
+    calculateManualFee();
   }
 
   neighborhoodEl?.addEventListener('change', onNeighborhoodInput);
-  neighborhoodEl?.addEventListener('input',  onNeighborhoodInput);
-  neighborhoodEl?.addEventListener('blur',   calcularFrete);
-  cityEl?.addEventListener('blur',           calcularFrete);
-  cityEl?.addEventListener('input',          calcularFrete);
+  neighborhoodEl?.addEventListener('input', onNeighborhoodInput);
+  neighborhoodEl?.addEventListener('blur', calculateManualFee);
+  cityEl?.addEventListener('blur', calculateManualFee);
+  cityEl?.addEventListener('input', calculateManualFee);
 
-  // ── Tipo de entrega ─────────────────────────────────────────────────────
+  stateEl?.addEventListener('input', function () {
+    this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2);
+  });
+
   function setDeliveryType(type) {
+    if (!typeInput) {
+      return;
+    }
+
     typeInput.value = type;
     const isDelivery = type === 'delivery';
 
     [btnDelivery, btnPickup].forEach(btn => {
       if (!btn) return;
+
       const active = btn.dataset.value === type;
+
       btn.classList.toggle('border-primary', active);
       btn.classList.toggle('bg-primary/5', active);
       btn.classList.toggle('border-gray-200', !active);
+
       btn.querySelectorAll('svg').forEach(el => {
         el.classList.toggle('text-primary', active);
         el.classList.toggle('text-gray-400', !active);
       });
+
       btn.querySelectorAll('span').forEach(el => {
         el.classList.toggle('text-primary', active);
         el.classList.toggle('text-gray-500', !active);
       });
     });
 
-    if (addressFields) addressFields.classList.toggle('hidden', !isDelivery);
-    if (pickupInfo)    pickupInfo.classList.toggle('hidden', isDelivery);
+    if (addressFields) {
+      addressFields.classList.toggle('hidden', !isDelivery);
+    }
 
-    addressInputs.forEach(el => {
-      if (isDelivery) el.setAttribute('required', '');
-      else            el.removeAttribute('required');
-    });
+    if (pickupInfo) {
+      pickupInfo.classList.toggle('hidden', isDelivery);
+    }
 
     if (!isDelivery) {
+      manualRequiredInputs.forEach(input => {
+        input.removeAttribute('required');
+      });
+
+      deliveryRequestId++;
+      deliveryFeeChecking = false;
+      deliveryAddressAvailable = true;
+      deliveryAddressMessage = '';
+
       updateSummary(0, 'Grátis (Retirada)', '');
-      if (feeDisplay) feeDisplay.classList.add('hidden');
+
+      if (feeDisplay) {
+        feeDisplay.classList.add('hidden');
+      }
+
+      if (summaryFeeRow) {
+        summaryFeeRow.classList.add('hidden');
+      }
+
+      return;
+    }
+
+    deliveryAddressAvailable = null;
+    deliveryAddressMessage = '';
+
+    if (summaryFeeRow) {
+      summaryFeeRow.classList.remove('hidden');
+    }
+
+    if (usingSavedAddress) {
+      const card = getSelectedSavedAddressCard();
+
+      if (card) {
+        calculateFeeFor(
+          card.dataset.city || '',
+          card.dataset.neighborhood || ''
+        );
+      } else {
+        useCurrentSavedAddress();
+      }
     } else {
-      calcularFrete();
+      manualRequiredInputs.forEach(input => {
+        input.setAttribute('required', '');
+      });
+
+      calculateManualFee();
     }
   }
 
-  btnDelivery?.addEventListener('click', () => setDeliveryType('delivery'));
-  btnPickup?.addEventListener('click',   () => setDeliveryType('pickup'));
+  btnDelivery?.addEventListener(
+    'click',
+    () => setDeliveryType('delivery')
+  );
 
-  // ── Pagamento ───────────────────────────────────────────────────────────
+  btnPickup?.addEventListener(
+    'click',
+    () => setDeliveryType('pickup')
+  );
+
   document.querySelectorAll('.payment-option').forEach(opt => {
     opt.addEventListener('click', () => {
-      document.querySelectorAll('.payment-option').forEach(o => {
-        o.classList.remove('border-primary', 'bg-primary/5', 'text-primary');
-        o.classList.add('border-gray-200');
+      document.querySelectorAll('.payment-option').forEach(other => {
+        other.classList.remove(
+          'border-primary',
+          'bg-primary/5',
+          'text-primary'
+        );
+
+        other.classList.add('border-gray-200');
       });
-      opt.classList.add('border-primary', 'bg-primary/5', 'text-primary');
+
+      opt.classList.add(
+        'border-primary',
+        'bg-primary/5',
+        'text-primary'
+      );
+
       opt.classList.remove('border-gray-200');
+
       const radio = opt.querySelector('input[type=radio]');
-      if (radio) radio.checked = true;
-      document.getElementById('troco-field')?.classList.toggle('hidden', opt.dataset.value !== 'cash');
+
+      if (radio) {
+        radio.checked = true;
+      }
+
+      document.getElementById('troco-field')
+        ?.classList.toggle(
+          'hidden',
+          opt.dataset.value !== 'cash'
+        );
     });
   });
 
-  // ── Validação no submit ─────────────────────────────────────────────────
-  document.getElementById('checkout-form')?.addEventListener('submit', function (e) {
-    if (typeInput.value === 'delivery') {
-      const city         = cityEl?.value.trim()         || '';
-      const neighborhood = neighborhoodEl?.value.trim() || '';
-      if (!city || !neighborhood) {
-        e.preventDefault();
-        alert('Por favor, informe a cidade e o bairro para calcular o frete.');
+  function showCouponMessage(message, type = 'error') {
+    if (!couponMessage) {
+      return;
+    }
+
+    couponMessage.textContent = message;
+
+    couponMessage.classList.remove(
+      'hidden',
+      'text-green-600',
+      'text-red-600',
+      'text-gray-500'
+    );
+
+    if (type === 'success') {
+      couponMessage.classList.add('text-green-600');
+    } else if (type === 'loading') {
+      couponMessage.classList.add('text-gray-500');
+    } else {
+      couponMessage.classList.add('text-red-600');
+    }
+  }
+
+  function clearAppliedCoupon(clearInput = true) {
+    currentDiscount = 0;
+    appliedCouponCode = '';
+
+    if (clearInput && couponInput) {
+      couponInput.value = '';
+    }
+
+    if (summaryDiscountRow) {
+      summaryDiscountRow.classList.add('hidden');
+    }
+
+    if (summaryCouponCode) {
+      summaryCouponCode.textContent = '';
+    }
+
+    if (summaryDiscountValue) {
+      summaryDiscountValue.textContent = '- R$ 0,00';
+    }
+
+    if (removeCouponBtn) {
+      removeCouponBtn.classList.add('hidden');
+    }
+
+    if (couponMessage) {
+      couponMessage.classList.add('hidden');
+    }
+
+    updateFinalTotal();
+  }
+
+  async function validateCoupon(code, showLoading = true) {
+    code = (code || '').trim().toUpperCase();
+
+    if (!code) {
+      showCouponMessage('Informe o código do cupom.');
+      return;
+    }
+
+    if (showLoading) {
+      showCouponMessage(
+        'Validando cupom...',
+        'loading'
+      );
+    }
+
+    if (applyCouponBtn) {
+      applyCouponBtn.disabled = true;
+    }
+
+    try {
+      const csrfToken =
+        document.querySelector(
+          '#checkout-form input[name="csrfmiddlewaretoken"]'
+        )?.value || '';
+
+      const response = await fetch(
+        "{% url 'coupons:validate' %}",
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+          },
+          body: JSON.stringify({
+            code: code,
+            subtotal: subtotal,
+            delivery_fee: currentDeliveryFee,
+          }),
+        }
+      );
+
+      let data = {};
+
+      try {
+        data = await response.json();
+      } catch (_) {
+        data = {};
+      }
+
+      if (!response.ok || !data.valid) {
+        clearAppliedCoupon(false);
+
+        showCouponMessage(
+          data.message
+          || 'Não foi possível aplicar este cupom.'
+        );
+
         return;
       }
-    }
-    const btn = document.getElementById('submit-button');
-    if (btn) {
-      btn.disabled = true;
-      btn.innerHTML = btn.innerHTML.replace(/Enviar.*|Confirmar.*/, 'Enviando pedido...');
-    }
-  });
 
-  // Inicializa
+      appliedCouponCode = data.code;
+
+      currentDiscount =
+        parseFloat(data.discount) || 0;
+
+      if (couponInput) {
+        couponInput.value = data.code;
+      }
+
+      if (summaryCouponCode) {
+        summaryCouponCode.textContent =
+          data.code;
+      }
+
+      if (summaryDiscountValue) {
+        summaryDiscountValue.textContent =
+          '- ' + formatMoney(currentDiscount);
+      }
+
+      if (summaryDiscountRow) {
+        summaryDiscountRow.classList.remove(
+          'hidden'
+        );
+      }
+
+      if (removeCouponBtn) {
+        removeCouponBtn.classList.remove(
+          'hidden'
+        );
+      }
+
+      showCouponMessage(
+        data.message
+        || 'Cupom aplicado com sucesso.',
+        'success'
+      );
+
+      updateFinalTotal();
+
+    } catch (error) {
+      console.error(
+        'Erro ao validar cupom:',
+        error
+      );
+
+      clearAppliedCoupon(false);
+
+      showCouponMessage(
+        'Não foi possível validar o cupom agora.'
+      );
+
+    } finally {
+      if (applyCouponBtn) {
+        applyCouponBtn.disabled = false;
+      }
+    }
+  }
+
+  applyCouponBtn?.addEventListener(
+    'click',
+    function () {
+      validateCoupon(
+        couponInput?.value || ''
+      );
+    }
+  );
+
+  couponInput?.addEventListener(
+    'input',
+    function () {
+      this.value = this.value.toUpperCase();
+
+      if (
+        appliedCouponCode
+        && this.value.trim() !== appliedCouponCode
+      ) {
+        clearAppliedCoupon(false);
+      }
+    }
+  );
+
+  couponInput?.addEventListener(
+    'keydown',
+    function (event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+
+        validateCoupon(
+          this.value
+        );
+      }
+    }
+  );
+
+  removeCouponBtn?.addEventListener(
+    'click',
+    function () {
+      clearAppliedCoupon(true);
+    }
+  );
+
+  document.getElementById('checkout-form')
+    ?.addEventListener('submit', function (event) {
+      if (typeInput?.value === 'delivery') {
+        if (usingSavedAddress) {
+          const selected = document.querySelector(
+            '.saved-address-radio:checked'
+          );
+
+          if (!selected) {
+            event.preventDefault();
+            alert(
+              'Selecione um endereço de entrega ou informe outro endereço.'
+            );
+            return;
+          }
+        } else {
+          const address = addressEl?.value.trim() || '';
+          const number = numberEl?.value.trim() || '';
+          const city = cityEl?.value.trim() || '';
+          const neighborhood = neighborhoodEl?.value.trim() || '';
+
+          if (!address || !number || !city || !neighborhood) {
+            event.preventDefault();
+            alert(
+              'Por favor, informe rua, número, bairro e cidade para entrega.'
+            );
+            return;
+          }
+        }
+
+        if (deliveryFeeChecking) {
+          event.preventDefault();
+
+          alert(
+            'Aguarde a confirmação do endereço de entrega.'
+          );
+
+          return;
+        }
+
+        if (deliveryAddressAvailable !== true) {
+          event.preventDefault();
+
+          alert(
+            deliveryAddressAvailable === false
+              ? (
+                  deliveryAddressMessage
+                  || 'Esta loja não entrega no endereço selecionado.'
+                )
+              : (
+                  'Confirme o endereço de entrega antes de finalizar o pedido.'
+                )
+          );
+
+          return;
+        }
+      }
+
+      const button = document.getElementById('submit-button');
+
+      if (button) {
+        button.disabled = true;
+        button.classList.add('opacity-70', 'cursor-not-allowed');
+
+        const originalText = button.textContent.trim();
+
+        button.dataset.originalText = originalText;
+        button.textContent = 'Enviando pedido...';
+      }
+    });
+
+  updateSavedAddressCards();
+
   if (pickupOnly) {
     setDeliveryType('pickup');
   } else {
@@ -534,4 +1556,106 @@
   }
 })();
 </script>
-{% endblock %}  
+
+<script>
+(function () {
+  'use strict';
+
+  const cepEl = document.getElementById('cep');
+  if (!cepEl) return;
+
+  const streetEl = document.getElementById('address');
+  const numberEl = document.getElementById('number');
+  const neighborhoodEl = document.getElementById('neighborhood');
+  const cityEl = document.getElementById('city');
+  const stateEl = document.getElementById('state');
+  const statusEl = document.getElementById('checkout-cep-status');
+
+  let lastCep = '';
+
+  function onlyDigits(value) {
+    return String(value || '').replace(/\D/g, '');
+  }
+
+  function formatCep(value) {
+    const digits = onlyDigits(value).slice(0, 8);
+    return digits.length <= 5
+      ? digits
+      : `${digits.slice(0, 5)}-${digits.slice(5)}`;
+  }
+
+  function setStatus(message, type) {
+    if (!statusEl) return;
+
+    statusEl.textContent = message || '';
+    statusEl.className = 'mt-1 text-[11px] font-semibold';
+
+    if (type === 'error') {
+      statusEl.classList.add('text-red-500');
+    } else if (type === 'success') {
+      statusEl.classList.add('text-emerald-600');
+    } else {
+      statusEl.classList.add('text-gray-400');
+    }
+  }
+
+  async function lookupCep() {
+    const cep = onlyDigits(cepEl.value);
+
+    if (cep.length !== 8 || cep === lastCep) {
+      return;
+    }
+
+    lastCep = cep;
+    setStatus('Buscando CEP...', 'loading');
+
+    try {
+      const response = await fetch(
+        `/api/cep/${encodeURIComponent(cep)}/`,
+        { headers: { 'Accept': 'application/json' } }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'CEP não encontrado.');
+      }
+
+      if (streetEl && data.street) streetEl.value = data.street;
+      if (neighborhoodEl && data.neighborhood) neighborhoodEl.value = data.neighborhood;
+      if (cityEl && data.city) cityEl.value = data.city;
+      if (stateEl && data.state) stateEl.value = data.state;
+
+      neighborhoodEl?.dispatchEvent(
+        new Event('input', { bubbles: true })
+      );
+      cityEl?.dispatchEvent(
+        new Event('input', { bubbles: true })
+      );
+
+      setStatus('CEP encontrado.', 'success');
+      numberEl?.focus();
+    } catch (error) {
+      lastCep = '';
+      setStatus(
+        error.message || 'Não foi possível consultar o CEP.',
+        'error'
+      );
+    }
+  }
+
+  cepEl.addEventListener('input', function () {
+    cepEl.value = formatCep(cepEl.value);
+
+    if (onlyDigits(cepEl.value).length === 8) {
+      lookupCep();
+    } else {
+      setStatus('', 'loading');
+    }
+  });
+
+  cepEl.addEventListener('blur', lookupCep);
+})();
+</script>
+
+{% endblock %}

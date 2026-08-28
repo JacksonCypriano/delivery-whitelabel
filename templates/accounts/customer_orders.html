@@ -1,0 +1,247 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Meus Pedidos | VemDeDelivery</title>
+
+  <link rel="icon" href="{% static 'images/favicon.svg' %}">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    :root {
+      --primary: #FF5A1F;
+      --background: #F8F7F4;
+    }
+
+    body {
+      background:
+        radial-gradient(
+          circle at top left,
+          rgba(255, 90, 31, .07),
+          transparent 34%
+        ),
+        var(--background);
+    }
+
+    .order-card {
+      transition:
+        transform .18s ease,
+        box-shadow .18s ease,
+        border-color .18s ease;
+    }
+
+    .order-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(15, 23, 42, .07);
+      border-color: rgba(255, 90, 31, .18);
+    }
+
+    .primary-text {
+      color: var(--primary);
+    }
+  </style>
+</head>
+
+<body class="min-h-screen text-gray-900">
+
+<header class="bg-white border-b border-gray-100">
+  <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+
+    <a
+      href="{% url 'customer_accounts:account' %}"
+      class="text-sm font-semibold text-gray-600 hover:text-gray-900"
+    >
+      ← Minha conta
+    </a>
+
+    <a
+      href="/"
+      class="text-sm text-gray-400 hover:text-gray-700"
+    >
+      Início
+    </a>
+
+  </div>
+</header>
+
+<main class="max-w-5xl mx-auto px-4 py-8 sm:py-10">
+
+  <div class="mb-8">
+
+    <p class="text-sm font-semibold primary-text">
+      Minha conta
+    </p>
+
+    <h1 class="text-3xl font-black mt-1">
+      Meus pedidos
+    </h1>
+
+    <p class="text-gray-500 mt-2">
+      Acompanhe seu histórico de compras em todas as lojas.
+    </p>
+
+  </div>
+
+  {% if orders %}
+
+    <div class="space-y-4">
+
+      {% for order in orders %}
+
+        <a
+          href="{% url 'customer_accounts:order-detail' order.id %}"
+          class="order-card block bg-white border border-gray-100 rounded-2xl p-5"
+        >
+
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+
+            <div class="min-w-0">
+
+              <div class="flex flex-wrap items-center gap-2">
+
+                <h2 class="font-bold text-gray-900">
+                  Pedido #{{ order.id }}
+                </h2>
+
+                <span class="text-gray-300">
+                  •
+                </span>
+
+                <span class="text-sm font-semibold text-gray-700">
+                  {{ order.tenant.name }}
+                </span>
+
+              </div>
+
+              <p class="text-sm text-gray-500 mt-1">
+                {{ order.created_at|date:"d/m/Y H:i" }}
+              </p>
+
+              <div class="mt-3 text-sm text-gray-500">
+
+                {% for item in order.items.all|slice:":3" %}
+                  <span>
+                    {{ item.quantity }}x {{ item.name }}
+                  </span>
+
+                  {% if not forloop.last %}
+                    <span class="mx-1 text-gray-300">•</span>
+                  {% endif %}
+                {% endfor %}
+
+                {% if order.items.count > 3 %}
+                  <span class="ml-1">
+                    + mais itens
+                  </span>
+                {% endif %}
+
+              </div>
+
+            </div>
+
+            <div class="sm:text-right">
+
+              <span
+                class="
+                  inline-flex
+                  items-center
+                  rounded-full
+                  px-3
+                  py-1
+                  text-xs
+                  font-bold
+
+                  {% if order.status == 'delivered' %}
+                    bg-green-50 text-green-700
+
+                  {% elif order.status == 'cancelled' %}
+                    bg-red-50 text-red-700
+
+                  {% elif order.status == 'confirmed' %}
+                    bg-blue-50 text-blue-700
+
+                  {% else %}
+                    bg-amber-50 text-amber-700
+                  {% endif %}
+                "
+              >
+                {{ order.get_status_display }}
+              </span>
+
+              <p class="text-xs text-gray-400 mt-3">
+                Total
+              </p>
+
+              <p class="text-xl font-black primary-text">
+                R$ {{ order.total|floatformat:2 }}
+              </p>
+
+            </div>
+
+          </div>
+
+        </a>
+
+      {% endfor %}
+
+    </div>
+
+  {% else %}
+
+    <div class="bg-white border border-gray-100 rounded-3xl p-10 text-center">
+
+      <div
+        class="
+          w-16
+          h-16
+          mx-auto
+          rounded-2xl
+          bg-orange-50
+          primary-text
+          flex
+          items-center
+          justify-center
+        "
+      >
+        <svg
+          class="w-8 h-8"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2 9m13-9l2 9M9 21h6"
+          />
+        </svg>
+      </div>
+
+      <h2 class="text-xl font-bold mt-5">
+        Você ainda não fez nenhum pedido
+      </h2>
+
+      <p class="text-gray-500 text-sm mt-2">
+        Quando fizer sua primeira compra, ela aparecerá aqui.
+      </p>
+
+      <a
+        href="/"
+        class="inline-block mt-6 bg-orange-500 text-white font-bold px-5 py-3 rounded-xl"
+      >
+        Explorar lojas
+      </a>
+
+    </div>
+
+  {% endif %}
+
+</main>
+
+</body>
+</html>

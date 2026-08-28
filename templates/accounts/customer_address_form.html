@@ -1,0 +1,1288 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>
+    {{ title }} | VemDeDelivery
+  </title>
+
+  <link
+    rel="icon"
+    href="{% static 'images/favicon.svg' %}"
+  >
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    :root {
+      --primary: #FF5A1F;
+      --background: #F8F7F4;
+      --success: #16A34A;
+      --danger: #DC2626;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      background:
+        radial-gradient(
+          circle at top left,
+          rgba(255, 90, 31, .07),
+          transparent 34%
+        ),
+        var(--background);
+    }
+
+    .form-input {
+      width: 100%;
+      height: 50px;
+      padding: 0 1rem;
+
+      border: 1px solid #e5e7eb;
+      border-radius: .85rem;
+
+      outline: none;
+      background: white;
+
+      transition:
+        border-color .18s ease,
+        box-shadow .18s ease,
+        background .18s ease,
+        opacity .18s ease;
+    }
+
+    .form-input:hover {
+      border-color: #d1d5db;
+    }
+
+    .form-input:focus {
+      border-color: var(--primary);
+
+      box-shadow:
+        0 0 0 4px rgba(255, 90, 31, .10);
+    }
+
+    .form-input.cep-loading {
+      background:
+        linear-gradient(
+          90deg,
+          #ffffff,
+          #fff7ed,
+          #ffffff
+        );
+
+      background-size: 200% 100%;
+
+      animation:
+        cep-loading 1.2s linear infinite;
+    }
+
+    @keyframes cep-loading {
+      0% {
+        background-position: 200% 0;
+      }
+
+      100% {
+        background-position: -200% 0;
+      }
+    }
+
+    .primary-bg {
+      background: var(--primary);
+    }
+
+    .primary-text {
+      color: var(--primary);
+    }
+
+    .primary-button {
+      background: var(--primary);
+
+      transition:
+        opacity .18s ease,
+        transform .18s ease,
+        box-shadow .18s ease;
+    }
+
+    .primary-button:hover {
+      opacity: .94;
+      transform: translateY(-1px);
+
+      box-shadow:
+        0 8px 20px rgba(255, 90, 31, .16);
+    }
+
+    .primary-button:active {
+      transform: translateY(0);
+    }
+
+    .field-error {
+      color: var(--danger);
+    }
+
+    .cep-status {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+
+      margin-top: .4rem;
+
+      font-size: .75rem;
+      font-weight: 600;
+    }
+
+    .cep-status.success {
+      color: var(--success);
+    }
+
+    .cep-status.error {
+      color: var(--danger);
+    }
+
+    .cep-status.loading {
+      color: #6b7280;
+    }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+
+      border: 2px solid #e5e7eb;
+      border-top-color: var(--primary);
+
+      border-radius: 9999px;
+
+      animation:
+        spin .7s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .default-address-box {
+      transition:
+        border-color .18s ease,
+        background .18s ease;
+    }
+
+    .default-address-box:hover {
+      border-color:
+        rgba(255, 90, 31, .35);
+
+      background:
+        rgba(255, 90, 31, .02);
+    }
+  </style>
+</head>
+
+<body class="min-h-screen text-gray-900">
+
+<header class="bg-white border-b border-gray-100">
+
+  <div
+    class="
+      max-w-3xl
+      mx-auto
+      px-4
+      py-4
+      flex
+      items-center
+      justify-between
+      gap-4
+    "
+  >
+
+    <a
+      href="{% url 'customer_accounts:addresses' %}"
+      class="
+        text-sm
+        font-semibold
+        text-gray-600
+        hover:text-gray-900
+        transition
+      "
+    >
+      ← Voltar para meus endereços
+    </a>
+
+    <a
+      href="{% url 'customer_accounts:account' %}"
+      class="
+        text-sm
+        text-gray-400
+        hover:text-gray-700
+        transition
+      "
+    >
+      Minha conta
+    </a>
+
+  </div>
+
+</header>
+
+
+<main
+  class="
+    max-w-3xl
+    mx-auto
+    px-4
+    py-8
+    sm:py-10
+  "
+>
+
+  <!-- Título -->
+  <div class="mb-7">
+
+    <p
+      class="
+        text-sm
+        font-semibold
+        primary-text
+      "
+    >
+      Minha conta
+    </p>
+
+    <h1
+      class="
+        text-3xl
+        font-black
+        mt-1
+      "
+    >
+      {{ title }}
+    </h1>
+
+    <p
+      class="
+        text-sm
+        text-gray-500
+        mt-2
+      "
+    >
+      Informe o CEP para preencher automaticamente os dados do endereço.
+    </p>
+
+  </div>
+
+
+  <!-- Card -->
+  <div
+    class="
+      bg-white
+      border
+      border-gray-100
+      rounded-3xl
+      p-6
+      sm:p-8
+      shadow-sm
+    "
+  >
+
+    <!-- Erros gerais -->
+    {% if form.non_field_errors %}
+
+      <div
+        class="
+          mb-6
+          p-4
+          bg-red-50
+          border
+          border-red-100
+          rounded-xl
+          text-red-700
+          text-sm
+        "
+      >
+
+        <div class="flex items-start gap-3">
+
+          <svg
+            class="
+              w-5
+              h-5
+              flex-shrink-0
+              mt-0.5
+            "
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="
+                M12 9v2m0 4h.01
+                M5.07 19h13.86
+                c1.54 0 2.5-1.667 1.73-3
+                L13.73 4
+                c-.77-1.333-2.69-1.333-3.46 0
+                L3.34 16
+                c-.77 1.333.19 3 1.73 3z
+              "
+            />
+          </svg>
+
+          <div>
+            {% for error in form.non_field_errors %}
+              <p>{{ error }}</p>
+            {% endfor %}
+          </div>
+
+        </div>
+
+      </div>
+
+    {% endif %}
+
+
+    <form
+      method="post"
+      id="address-form"
+      novalidate
+    >
+
+      {% csrf_token %}
+
+      <div
+        class="
+          grid
+          grid-cols-1
+          md:grid-cols-2
+          gap-5
+        "
+      >
+
+        <!-- Identificação -->
+        <div>
+
+          <label
+            for="id_label"
+            class="
+              block
+              text-sm
+              font-semibold
+              text-gray-700
+              mb-2
+            "
+          >
+            Identificação
+          </label>
+
+          <input
+            type="text"
+            name="label"
+            id="id_label"
+            value="{{ form.label.value|default:'' }}"
+            placeholder="Ex.: Casa, Trabalho, Apartamento"
+            maxlength="50"
+            required
+            class="form-input"
+          >
+
+          {% for error in form.label.errors %}
+            <p
+              class="
+                field-error
+                text-xs
+                mt-1.5
+              "
+            >
+              {{ error }}
+            </p>
+          {% endfor %}
+
+        </div>
+
+
+        <!-- CEP -->
+        <div>
+
+          <label
+            for="id_zip_code"
+            class="
+              block
+              text-sm
+              font-semibold
+              text-gray-700
+              mb-2
+            "
+          >
+            CEP
+          </label>
+
+          <div class="relative">
+
+            <input
+              type="text"
+              name="zip_code"
+              id="id_zip_code"
+              value="{{ form.zip_code.value|default:'' }}"
+              placeholder="00000-000"
+              inputmode="numeric"
+              autocomplete="postal-code"
+              maxlength="9"
+              required
+              class="form-input pr-12"
+            >
+
+            <div
+              id="cep-loading-icon"
+              class="
+                hidden
+                absolute
+                right-4
+                top-1/2
+                -translate-y-1/2
+              "
+            >
+              <div class="spinner"></div>
+            </div>
+
+          </div>
+
+          <div
+            id="cep-message"
+            class="hidden cep-status"
+            aria-live="polite"
+          ></div>
+
+          {% for error in form.zip_code.errors %}
+            <p
+              class="
+                field-error
+                text-xs
+                mt-1.5
+              "
+            >
+              {{ error }}
+            </p>
+          {% endfor %}
+
+        </div>
+
+
+        <!-- Rua -->
+        <div class="md:col-span-2">
+
+          <label
+            for="id_street"
+            class="
+              block
+              text-sm
+              font-semibold
+              text-gray-700
+              mb-2
+            "
+          >
+            Rua / Avenida
+          </label>
+
+          <input
+            type="text"
+            name="street"
+            id="id_street"
+            value="{{ form.street.value|default:'' }}"
+            placeholder="Rua / Avenida"
+            autocomplete="address-line1"
+            maxlength="255"
+            required
+            class="form-input"
+          >
+
+          {% for error in form.street.errors %}
+            <p
+              class="
+                field-error
+                text-xs
+                mt-1.5
+              "
+            >
+              {{ error }}
+            </p>
+          {% endfor %}
+
+        </div>
+
+
+        <!-- Número -->
+        <div>
+
+          <label
+            for="id_number"
+            class="
+              block
+              text-sm
+              font-semibold
+              text-gray-700
+              mb-2
+            "
+          >
+            Número
+          </label>
+
+          <input
+            type="text"
+            name="number"
+            id="id_number"
+            value="{{ form.number.value|default:'' }}"
+            placeholder="Número"
+            autocomplete="address-line2"
+            maxlength="20"
+            required
+            class="form-input"
+          >
+
+          {% for error in form.number.errors %}
+            <p
+              class="
+                field-error
+                text-xs
+                mt-1.5
+              "
+            >
+              {{ error }}
+            </p>
+          {% endfor %}
+
+        </div>
+
+
+        <!-- Bairro -->
+        <div>
+
+          <label
+            for="id_neighborhood"
+            class="
+              block
+              text-sm
+              font-semibold
+              text-gray-700
+              mb-2
+            "
+          >
+            Bairro
+          </label>
+
+          <input
+            type="text"
+            name="neighborhood"
+            id="id_neighborhood"
+            value="{{ form.neighborhood.value|default:'' }}"
+            placeholder="Bairro"
+            maxlength="100"
+            required
+            class="form-input"
+          >
+
+          {% for error in form.neighborhood.errors %}
+            <p
+              class="
+                field-error
+                text-xs
+                mt-1.5
+              "
+            >
+              {{ error }}
+            </p>
+          {% endfor %}
+
+        </div>
+
+
+        <!-- Cidade -->
+        <div>
+
+          <label
+            for="id_city"
+            class="
+              block
+              text-sm
+              font-semibold
+              text-gray-700
+              mb-2
+            "
+          >
+            Cidade
+          </label>
+
+          <input
+            type="text"
+            name="city"
+            id="id_city"
+            value="{{ form.city.value|default:'' }}"
+            placeholder="Cidade"
+            autocomplete="address-level2"
+            maxlength="100"
+            required
+            class="form-input"
+          >
+
+          {% for error in form.city.errors %}
+            <p
+              class="
+                field-error
+                text-xs
+                mt-1.5
+              "
+            >
+              {{ error }}
+            </p>
+          {% endfor %}
+
+        </div>
+
+
+        <!-- Estado -->
+        <div>
+
+          <label
+            for="id_state"
+            class="
+              block
+              text-sm
+              font-semibold
+              text-gray-700
+              mb-2
+            "
+          >
+            Estado
+          </label>
+
+          <input
+            type="text"
+            name="state"
+            id="id_state"
+            value="{{ form.state.value|default:'' }}"
+            placeholder="SP"
+            autocomplete="address-level1"
+            maxlength="2"
+            required
+            class="
+              form-input
+              uppercase
+            "
+          >
+
+          {% for error in form.state.errors %}
+            <p
+              class="
+                field-error
+                text-xs
+                mt-1.5
+              "
+            >
+              {{ error }}
+            </p>
+          {% endfor %}
+
+        </div>
+
+
+        <!-- Complemento -->
+        <div class="md:col-span-2">
+
+          <label
+            for="id_complement"
+            class="
+              block
+              text-sm
+              font-semibold
+              text-gray-700
+              mb-2
+            "
+          >
+            Complemento
+            <span class="font-normal text-gray-400">
+              (opcional)
+            </span>
+          </label>
+
+          <input
+            type="text"
+            name="complement"
+            id="id_complement"
+            value="{{ form.complement.value|default:'' }}"
+            placeholder="Apartamento, bloco, fundos..."
+            maxlength="100"
+            class="form-input"
+          >
+
+          {% for error in form.complement.errors %}
+            <p
+              class="
+                field-error
+                text-xs
+                mt-1.5
+              "
+            >
+              {{ error }}
+            </p>
+          {% endfor %}
+
+        </div>
+
+
+        <!-- Referência -->
+        <div class="md:col-span-2">
+
+          <label
+            for="id_reference"
+            class="
+              block
+              text-sm
+              font-semibold
+              text-gray-700
+              mb-2
+            "
+          >
+            Ponto de referência
+            <span class="font-normal text-gray-400">
+              (opcional)
+            </span>
+          </label>
+
+          <input
+            type="text"
+            name="reference"
+            id="id_reference"
+            value="{{ form.reference.value|default:'' }}"
+            placeholder="Ex.: Próximo ao mercado, portão azul..."
+            maxlength="255"
+            class="form-input"
+          >
+
+          {% for error in form.reference.errors %}
+            <p
+              class="
+                field-error
+                text-xs
+                mt-1.5
+              "
+            >
+              {{ error }}
+            </p>
+          {% endfor %}
+
+        </div>
+
+
+        <!-- Endereço principal -->
+        <div class="md:col-span-2">
+
+          <label
+            class="
+              default-address-box
+              flex
+              items-start
+              gap-3
+              p-4
+              border
+              border-gray-200
+              rounded-xl
+              cursor-pointer
+            "
+          >
+
+            <input
+              type="checkbox"
+              name="is_default"
+              id="id_is_default"
+              value="on"
+              {% if form.is_default.value %}checked{% endif %}
+              class="
+                mt-1
+                w-4
+                h-4
+                accent-orange-500
+              "
+            >
+
+            <div>
+
+              <p
+                class="
+                  text-sm
+                  font-semibold
+                  text-gray-800
+                "
+              >
+                Endereço principal
+              </p>
+
+              <p
+                class="
+                  text-xs
+                  text-gray-500
+                  mt-0.5
+                "
+              >
+                Usar este endereço automaticamente nos próximos pedidos.
+              </p>
+
+            </div>
+
+          </label>
+
+          {% for error in form.is_default.errors %}
+            <p
+              class="
+                field-error
+                text-xs
+                mt-1.5
+              "
+            >
+              {{ error }}
+            </p>
+          {% endfor %}
+
+        </div>
+
+      </div>
+
+
+      <!-- Ações -->
+      <div
+        class="
+          flex
+          flex-col
+          sm:flex-row
+          gap-3
+          mt-8
+        "
+      >
+
+        <button
+          type="submit"
+          id="submit-button"
+          class="
+            primary-button
+            text-white
+            font-bold
+            px-6
+            py-3.5
+            rounded-xl
+          "
+        >
+          {{ submit_label }}
+        </button>
+
+        <a
+          href="{% url 'customer_accounts:addresses' %}"
+          class="
+            border
+            border-gray-200
+            text-gray-600
+            font-semibold
+            px-6
+            py-3.5
+            rounded-xl
+            text-center
+            hover:bg-gray-50
+            transition
+          "
+        >
+          Cancelar
+        </a>
+
+      </div>
+
+    </form>
+
+  </div>
+
+</main>
+
+
+<script>
+(function () {
+  'use strict';
+
+  const form = document.getElementById('address-form');
+
+  const zipInput = document.getElementById('id_zip_code');
+  const streetInput = document.getElementById('id_street');
+  const numberInput = document.getElementById('id_number');
+  const neighborhoodInput = document.getElementById('id_neighborhood');
+  const cityInput = document.getElementById('id_city');
+  const stateInput = document.getElementById('id_state');
+  const complementInput = document.getElementById('id_complement');
+
+  const cepMessage = document.getElementById('cep-message');
+  const cepLoadingIcon = document.getElementById('cep-loading-icon');
+
+  const submitButton = document.getElementById('submit-button');
+
+  let lastConsultedCep = '';
+  let isConsultingCep = false;
+
+
+  // ---------------------------------------------------------------
+  // Mensagem do CEP
+  // ---------------------------------------------------------------
+
+  function clearCepMessage() {
+    if (!cepMessage) {
+      return;
+    }
+
+    cepMessage.textContent = '';
+
+    cepMessage.classList.add('hidden');
+
+    cepMessage.classList.remove(
+      'success',
+      'error',
+      'loading'
+    );
+  }
+
+
+  function showCepMessage(message, type) {
+    if (!cepMessage) {
+      return;
+    }
+
+    cepMessage.innerHTML = '';
+
+    cepMessage.classList.remove(
+      'hidden',
+      'success',
+      'error',
+      'loading'
+    );
+
+    cepMessage.classList.add(type);
+
+    if (type === 'loading') {
+      const spinner = document.createElement('span');
+      spinner.className = 'spinner';
+
+      cepMessage.appendChild(spinner);
+    }
+
+    const text = document.createElement('span');
+    text.textContent = message;
+
+    cepMessage.appendChild(text);
+  }
+
+
+  // ---------------------------------------------------------------
+  // Estado de carregamento
+  // ---------------------------------------------------------------
+
+  function setCepLoading(loading) {
+    isConsultingCep = loading;
+
+    if (zipInput) {
+      zipInput.classList.toggle(
+        'cep-loading',
+        loading
+      );
+
+      zipInput.setAttribute(
+        'aria-busy',
+        loading ? 'true' : 'false'
+      );
+    }
+
+    if (cepLoadingIcon) {
+      cepLoadingIcon.classList.toggle(
+        'hidden',
+        !loading
+      );
+    }
+
+    if (loading) {
+      showCepMessage(
+        'Consultando CEP...',
+        'loading'
+      );
+    }
+  }
+
+
+  // ---------------------------------------------------------------
+  // Limpar endereço
+  // ---------------------------------------------------------------
+
+  function clearAddressFields() {
+    if (streetInput) {
+      streetInput.value = '';
+    }
+
+    if (neighborhoodInput) {
+      neighborhoodInput.value = '';
+    }
+
+    if (cityInput) {
+      cityInput.value = '';
+    }
+
+    if (stateInput) {
+      stateInput.value = '';
+    }
+  }
+
+
+  // ---------------------------------------------------------------
+  // ViaCEP
+  // ---------------------------------------------------------------
+
+  async function lookupCep(force = false) {
+    if (!zipInput || isConsultingCep) {
+      return;
+    }
+
+    const cep = zipInput.value.replace(
+      /\D/g,
+      ''
+    );
+
+    if (!cep) {
+      clearCepMessage();
+      return;
+    }
+
+    if (cep.length !== 8) {
+      return;
+    }
+
+    if (
+      !force
+      && cep === lastConsultedCep
+    ) {
+      return;
+    }
+
+    try {
+      setCepLoading(true);
+
+      const response = await fetch(
+        `https://viacep.com.br/ws/${cep}/json/`,
+        {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          'Falha na consulta do CEP.'
+        );
+      }
+
+      const data = await response.json();
+
+      if (data.erro) {
+        lastConsultedCep = '';
+
+        clearAddressFields();
+
+        showCepMessage(
+          'CEP não encontrado. Confira o número informado.',
+          'error'
+        );
+
+        return;
+      }
+
+      lastConsultedCep = cep;
+
+      if (streetInput) {
+        streetInput.value =
+          data.logradouro || '';
+      }
+
+      if (neighborhoodInput) {
+        neighborhoodInput.value =
+          data.bairro || '';
+      }
+
+      if (cityInput) {
+        cityInput.value =
+          data.localidade || '';
+      }
+
+      if (stateInput) {
+        stateInput.value =
+          data.uf || '';
+      }
+
+      /*
+       * O complemento retornado pelo ViaCEP costuma trazer
+       * informações complementares do logradouro.
+       *
+       * Só usamos se o usuário ainda não tiver preenchido.
+       */
+      if (
+        complementInput
+        && !complementInput.value
+        && data.complemento
+      ) {
+        complementInput.value =
+          data.complemento;
+      }
+
+      showCepMessage(
+        'Endereço encontrado automaticamente.',
+        'success'
+      );
+
+      /*
+       * Quando o ViaCEP não retorna logradouro,
+       * o usuário precisa preencher a rua.
+       */
+      if (
+        streetInput
+        && !streetInput.value
+      ) {
+        streetInput.focus();
+      } else if (numberInput) {
+        numberInput.focus();
+      }
+
+    } catch (error) {
+      console.error(
+        'Erro ao consultar ViaCEP:',
+        error
+      );
+
+      showCepMessage(
+        'Não foi possível consultar o CEP agora. Preencha o endereço manualmente.',
+        'error'
+      );
+
+    } finally {
+      setCepLoading(false);
+    }
+  }
+
+
+  // ---------------------------------------------------------------
+  // Máscara do CEP
+  // ---------------------------------------------------------------
+
+  if (zipInput) {
+    zipInput.addEventListener(
+      'input',
+      function () {
+        let value = this.value
+          .replace(/\D/g, '')
+          .slice(0, 8);
+
+        if (value.length > 5) {
+          value =
+            value.slice(0, 5)
+            + '-'
+            + value.slice(5);
+        }
+
+        this.value = value;
+
+        const digits = value.replace(
+          /\D/g,
+          ''
+        );
+
+        /*
+         * Se o usuário alterar o CEP já consultado,
+         * permitimos uma nova consulta.
+         */
+        if (
+          digits !== lastConsultedCep
+        ) {
+          clearCepMessage();
+        }
+
+        if (digits.length === 8) {
+          lookupCep();
+        }
+      }
+    );
+
+    /*
+     * Também consulta ao sair do campo.
+     * Isso ajuda em preenchimento automático ou colagem.
+     */
+    zipInput.addEventListener(
+      'blur',
+      function () {
+        const cep = this.value.replace(
+          /\D/g,
+          ''
+        );
+
+        if (cep.length === 8) {
+          lookupCep();
+        }
+      }
+    );
+  }
+
+
+  // ---------------------------------------------------------------
+  // Estado
+  // ---------------------------------------------------------------
+
+  if (stateInput) {
+    stateInput.addEventListener(
+      'input',
+      function () {
+        this.value = this.value
+          .toUpperCase()
+          .replace(/[^A-Z]/g, '')
+          .slice(0, 2);
+      }
+    );
+  }
+
+
+  // ---------------------------------------------------------------
+  // Evita submit duplicado
+  // ---------------------------------------------------------------
+
+  if (form) {
+    form.addEventListener(
+      'submit',
+      function () {
+        if (!submitButton) {
+          return;
+        }
+
+        submitButton.disabled = true;
+
+        submitButton.classList.add(
+          'opacity-70',
+          'cursor-not-allowed'
+        );
+
+        submitButton.textContent =
+          'Salvando endereço...';
+      }
+    );
+  }
+
+})();
+</script>
+
+</body>
+</html>

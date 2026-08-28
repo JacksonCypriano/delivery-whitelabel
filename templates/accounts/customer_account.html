@@ -1,0 +1,454 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Minha Conta | VemDeDelivery</title>
+
+  <link rel="icon" href="{% static 'images/favicon.svg' %}">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    :root {
+      --primary: #FF5A1F;
+      --secondary: #111827;
+      --background: #F8F7F4;
+      --text: #111827;
+      --muted: #6B7280;
+      --border: #E5E7EB;
+      --card: #FFFFFF;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(
+          circle at top left,
+          rgba(255, 90, 31, 0.08),
+          transparent 34%
+        ),
+        var(--background);
+    }
+
+    .account-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 1.25rem;
+      transition:
+        transform .18s ease,
+        box-shadow .18s ease,
+        border-color .18s ease;
+    }
+
+    .account-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(255, 90, 31, .25);
+      box-shadow:
+        0 14px 35px rgba(15, 23, 42, .08);
+    }
+
+    .primary-bg {
+      background: var(--primary);
+    }
+
+    .primary-text {
+      color: var(--primary);
+    }
+
+    .primary-soft {
+      background: rgba(255, 90, 31, .09);
+    }
+  </style>
+</head>
+
+<body class="min-h-screen">
+
+  <!-- HEADER -->
+  <header class="bg-white border-b border-gray-100">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+
+      <a
+        href="/"
+        class="flex items-center gap-3"
+      >
+        <div class="w-10 h-10 rounded-xl primary-bg text-white flex items-center justify-center font-black text-lg">
+          V
+        </div>
+
+        <div>
+          <p class="font-black text-gray-900 leading-tight">
+            VemDeDelivery
+          </p>
+          <p class="text-[11px] text-gray-400">
+            Sua conta
+          </p>
+        </div>
+      </a>
+
+      <form
+        method="post"
+        action="{% url 'customer_accounts:logout' %}"
+      >
+        {% csrf_token %}
+
+        <input
+          type="hidden"
+          name="next"
+          value="/"
+        >
+
+        <button
+          type="submit"
+          class="text-sm font-semibold text-gray-500 hover:text-red-600 transition"
+        >
+          Sair
+        </button>
+      </form>
+
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-8 sm:py-10">
+
+    <!-- BOAS-VINDAS -->
+    <section class="mb-8">
+
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+
+        <div>
+          <p class="text-sm font-semibold primary-text mb-1">
+            Minha conta
+          </p>
+
+          <h1 class="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight">
+            Olá,
+            {{ request.user.first_name|default:request.user.username }}
+            👋
+          </h1>
+
+          <p class="text-gray-500 mt-2">
+            Gerencie seus dados, endereços e acompanhe seus pedidos.
+          </p>
+        </div>
+
+        <div class="flex items-center gap-3">
+
+          <div class="bg-white border border-gray-100 rounded-2xl px-4 py-3 shadow-sm">
+            <p class="text-xs text-gray-400">
+              Pedidos
+            </p>
+
+            <p class="text-xl font-black text-gray-900">
+              {{ orders_count }}
+            </p>
+          </div>
+
+          <div class="bg-white border border-gray-100 rounded-2xl px-4 py-3 shadow-sm">
+            <p class="text-xs text-gray-400">
+              Endereços
+            </p>
+
+            <p class="text-xl font-black text-gray-900">
+              {{ addresses_count }}
+            </p>
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ÚLTIMO PEDIDO -->
+    {% if last_order %}
+      <section class="mb-7">
+
+        <div class="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+
+            <div>
+              <p class="text-xs uppercase tracking-wider font-bold text-gray-400">
+                Último pedido
+              </p>
+
+              <div class="mt-1 flex items-center flex-wrap gap-2">
+
+                <h2 class="font-bold text-gray-900">
+                  Pedido #{{ last_order.id }}
+                </h2>
+
+                {% if last_order.tenant %}
+                  <span class="text-gray-300">•</span>
+
+                  <span class="text-sm text-gray-600">
+                    {{ last_order.tenant.name }}
+                  </span>
+                {% endif %}
+              </div>
+
+              <p class="text-sm text-gray-500 mt-1">
+                {{ last_order.created_at|date:"d/m/Y H:i" }}
+              </p>
+            </div>
+
+            <div class="sm:text-right">
+
+              <p class="text-xs text-gray-400">
+                Total
+              </p>
+
+              <p class="text-xl font-black primary-text">
+                R$ {{ last_order.total|floatformat:2 }}
+              </p>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+    {% endif %}
+
+    <!-- CARDS -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+
+      <!-- PEDIDOS -->
+      <a
+        href="{% url 'customer_accounts:orders' %}"
+        class="account-card block p-6 group"
+      >
+
+        <div class="w-12 h-12 rounded-2xl primary-soft primary-text flex items-center justify-center mb-5">
+          <svg
+            class="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2 9m13-9l2 9M9 21h6"
+            />
+          </svg>
+        </div>
+
+        <div class="flex justify-between gap-4">
+
+          <div>
+            <h2 class="text-lg font-bold text-gray-900">
+              Meus pedidos
+            </h2>
+
+            <p class="text-sm text-gray-500 mt-1">
+              Veja seu histórico de compras em todas as lojas.
+            </p>
+          </div>
+
+          <span class="text-gray-300 group-hover:text-orange-500 transition">
+            →
+          </span>
+
+        </div>
+
+      </a>
+
+      <!-- ENDEREÇOS -->
+      <a
+        href="{% url 'customer_accounts:addresses' %}"
+        class="account-card block p-6 group"
+      >
+
+        <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-5">
+          <svg
+            class="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+            />
+
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+          </svg>
+        </div>
+
+        <div class="flex justify-between gap-4">
+
+          <div>
+            <h2 class="text-lg font-bold text-gray-900">
+              Meus endereços
+            </h2>
+
+            <p class="text-sm text-gray-500 mt-1">
+              Cadastre casa, trabalho e outros locais de entrega.
+            </p>
+          </div>
+
+          <span class="text-gray-300 group-hover:text-blue-500 transition">
+            →
+          </span>
+
+        </div>
+
+      </a>
+
+      <!-- DADOS -->
+      <a
+        href="{% url 'customer_accounts:profile' %}"
+        class="account-card block p-6 group"
+      >
+
+        <div class="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center mb-5">
+          <svg
+            class="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M5.121 17.804A9 9 0 1118.88 17.804M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+          </svg>
+        </div>
+
+        <div class="flex justify-between gap-4">
+
+          <div>
+            <h2 class="text-lg font-bold text-gray-900">
+              Meus dados
+            </h2>
+
+            <p class="text-sm text-gray-500 mt-1">
+              Atualize seu nome, e-mail e telefone.
+            </p>
+          </div>
+
+          <span class="text-gray-300 group-hover:text-purple-500 transition">
+            →
+          </span>
+
+        </div>
+
+      </a>
+
+      <!-- CUPONS -->
+      <div
+        class="account-card p-6 relative overflow-hidden"
+      >
+
+        <div class="absolute top-4 right-4">
+          <span class="text-[10px] uppercase tracking-wider font-bold bg-gray-100 text-gray-500 px-2 py-1 rounded-full">
+            Em breve
+          </span>
+        </div>
+
+        <div class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-5">
+
+          <svg
+            class="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+
+        </div>
+
+        <h2 class="text-lg font-bold text-gray-900">
+          Meus cupons
+        </h2>
+
+        <p class="text-sm text-gray-500 mt-1">
+          Promoções e benefícios disponíveis para você.
+        </p>
+
+      </div>
+
+    </section>
+
+    <!-- DADOS RÁPIDOS -->
+    <section class="mt-8 bg-white border border-gray-100 rounded-2xl p-6">
+
+      <div class="flex items-center justify-between gap-4 mb-5">
+
+        <h2 class="text-lg font-bold text-gray-900">
+          Seus dados
+        </h2>
+
+        <span class="text-xs text-gray-400">
+          Cliente desde
+          {{ customer.created_at|date:"d/m/Y" }}
+        </span>
+
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+
+        <div>
+          <p class="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+            Nome
+          </p>
+
+          <p class="font-semibold text-gray-800">
+            {{ request.user.get_full_name|default:request.user.username }}
+          </p>
+        </div>
+
+        <div>
+          <p class="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+            E-mail
+          </p>
+
+          <p class="font-semibold text-gray-800 break-all">
+            {{ request.user.email }}
+          </p>
+        </div>
+
+        <div>
+          <p class="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+            Telefone
+          </p>
+
+          <p class="font-semibold text-gray-800">
+            {{ customer.phone }}
+          </p>
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+</body>
+</html>

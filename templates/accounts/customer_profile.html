@@ -1,0 +1,327 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>Meus Dados | VemDeDelivery</title>
+
+  <link
+    rel="icon"
+    href="{% static 'images/favicon.svg' %}"
+  >
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    :root {
+      --primary: #FF5A1F;
+      --background: #F8F7F4;
+    }
+
+    body {
+      background:
+        radial-gradient(
+          circle at top left,
+          rgba(255, 90, 31, .07),
+          transparent 34%
+        ),
+        var(--background);
+    }
+
+    .form-input {
+      width: 100%;
+      height: 50px;
+      padding: 0 1rem;
+      border: 1px solid #e5e7eb;
+      border-radius: .85rem;
+      outline: none;
+      background: white;
+      transition: all .18s ease;
+    }
+
+    .form-input:focus {
+      border-color: var(--primary);
+      box-shadow:
+        0 0 0 4px rgba(255, 90, 31, .10);
+    }
+
+    .primary-bg {
+      background: var(--primary);
+    }
+
+    .primary-text {
+      color: var(--primary);
+    }
+  </style>
+</head>
+
+<body class="min-h-screen text-gray-900">
+
+<header class="bg-white border-b border-gray-100">
+
+  <div class="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+
+    <a
+      href="{% url 'customer_accounts:account' %}"
+      class="text-sm font-semibold text-gray-600 hover:text-gray-900"
+    >
+      ← Minha conta
+    </a>
+
+    <a
+      href="/"
+      class="text-sm text-gray-400 hover:text-gray-700"
+    >
+      Início
+    </a>
+
+  </div>
+
+</header>
+
+<main class="max-w-3xl mx-auto px-4 py-8 sm:py-10">
+
+  {% if messages %}
+    <div class="space-y-3 mb-6">
+
+      {% for message in messages %}
+        <div class="p-4 bg-green-50 border border-green-100 text-green-700 rounded-xl text-sm font-medium">
+          {{ message }}
+        </div>
+      {% endfor %}
+
+    </div>
+  {% endif %}
+
+  <div class="mb-7">
+
+    <p class="text-sm font-semibold primary-text">
+      Minha conta
+    </p>
+
+    <h1 class="text-3xl font-black mt-1">
+      Meus dados
+    </h1>
+
+    <p class="text-sm text-gray-500 mt-2">
+      Atualize seus dados pessoais e de contato.
+    </p>
+
+  </div>
+
+  <div class="bg-white border border-gray-100 rounded-3xl p-6 sm:p-8 shadow-sm">
+
+    {% if form.non_field_errors %}
+      <div class="mb-5 p-4 bg-red-50 border border-red-100 text-red-700 rounded-xl text-sm">
+
+        {% for error in form.non_field_errors %}
+          <p>{{ error }}</p>
+        {% endfor %}
+
+      </div>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+        <div>
+          <label
+            for="id_first_name"
+            class="block text-sm font-semibold text-gray-700 mb-2"
+          >
+            Nome
+          </label>
+
+          <input
+            type="text"
+            name="first_name"
+            id="id_first_name"
+            value="{{ form.first_name.value|default:'' }}"
+            required
+            class="form-input"
+          >
+
+          {% for error in form.first_name.errors %}
+            <p class="text-xs text-red-600 mt-1.5">
+              {{ error }}
+            </p>
+          {% endfor %}
+        </div>
+
+        <div>
+          <label
+            for="id_last_name"
+            class="block text-sm font-semibold text-gray-700 mb-2"
+          >
+            Sobrenome
+          </label>
+
+          <input
+            type="text"
+            name="last_name"
+            id="id_last_name"
+            value="{{ form.last_name.value|default:'' }}"
+            required
+            class="form-input"
+          >
+
+          {% for error in form.last_name.errors %}
+            <p class="text-xs text-red-600 mt-1.5">
+              {{ error }}
+            </p>
+          {% endfor %}
+        </div>
+
+        <div class="md:col-span-2">
+          <label
+            for="id_email"
+            class="block text-sm font-semibold text-gray-700 mb-2"
+          >
+            E-mail
+          </label>
+
+          <input
+            type="email"
+            name="email"
+            id="id_email"
+            value="{{ form.email.value|default:'' }}"
+            required
+            class="form-input"
+          >
+
+          {% for error in form.email.errors %}
+            <p class="text-xs text-red-600 mt-1.5">
+              {{ error }}
+            </p>
+          {% endfor %}
+        </div>
+
+        <div class="md:col-span-2">
+          <label
+            for="id_phone"
+            class="block text-sm font-semibold text-gray-700 mb-2"
+          >
+            WhatsApp / Telefone
+          </label>
+
+          <input
+            type="tel"
+            name="phone"
+            id="id_phone"
+            value="{{ form.phone.value|default:'' }}"
+            required
+            class="form-input"
+          >
+
+          <p class="text-xs text-gray-400 mt-1.5">
+            Usamos este telefone para facilitar seus pedidos.
+          </p>
+
+          {% for error in form.phone.errors %}
+            <p class="text-xs text-red-600 mt-1.5">
+              {{ error }}
+            </p>
+          {% endfor %}
+        </div>
+
+      </div>
+
+      <div class="flex flex-col sm:flex-row gap-3 mt-7">
+
+        <button
+          type="submit"
+          class="primary-bg text-white font-bold px-6 py-3.5 rounded-xl"
+        >
+          Salvar alterações
+        </button>
+
+        <a
+          href="{% url 'customer_accounts:account' %}"
+          class="border border-gray-200 text-gray-600 font-semibold px-6 py-3.5 rounded-xl text-center hover:bg-gray-50"
+        >
+          Cancelar
+        </a>
+
+      </div>
+
+    </form>
+
+  </div>
+
+  <div class="bg-white border border-gray-100 rounded-3xl p-6 sm:p-8 shadow-sm mt-6">
+
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+
+      <div>
+
+        <h2 class="text-lg font-bold text-gray-900">
+          Segurança
+        </h2>
+
+        <p class="text-sm text-gray-500 mt-1">
+          Altere sua senha de acesso quando quiser.
+        </p>
+
+      </div>
+
+      <a
+        href="{% url 'customer_accounts:change-password' %}"
+        class="border border-gray-200 text-gray-700 font-semibold px-5 py-3 rounded-xl text-center hover:bg-gray-50"
+      >
+        Alterar senha
+      </a>
+
+    </div>
+
+  </div>
+
+</main>
+
+<script>
+  const phoneInput = document.getElementById('id_phone');
+
+  function formatPhone(value) {
+    let digits = value.replace(/\D/g, '').slice(0, 11);
+
+    if (digits.length <= 2) {
+      return digits;
+    }
+
+    if (digits.length <= 6) {
+      return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    }
+
+    if (digits.length <= 10) {
+      return (
+        `(${digits.slice(0, 2)}) `
+        + `${digits.slice(2, 6)}-`
+        + `${digits.slice(6)}`
+      );
+    }
+
+    return (
+      `(${digits.slice(0, 2)}) `
+      + `${digits.slice(2, 7)}-`
+      + `${digits.slice(7)}`
+    );
+  }
+
+  if (phoneInput) {
+    phoneInput.value = formatPhone(phoneInput.value);
+
+    phoneInput.addEventListener('input', function () {
+      this.value = formatPhone(this.value);
+    });
+  }
+</script>
+
+</body>
+</html>

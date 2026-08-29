@@ -49,7 +49,7 @@ class Migration(migrations.Migration):
                 "constraints": [
                     models.UniqueConstraint(
                         fields=("tenant", "city", "neighborhood"),
-                        name="unique_delivery_zone_per_tenant",
+                        name="unique_store_delivery_zone_per_tenant",
                     )
                 ],
             },

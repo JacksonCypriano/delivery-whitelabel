@@ -40,13 +40,15 @@ class OrdersCheckoutCriticalTests(CriticalTestCase):
         self.assertEqual(response.status_code, 302)  # carrinho vazio
 
         session = self.client.session
-        if not session.session_key:
-            session.save()
-        cart = Cart.objects.create(tenant=self.tenant_a, session_key=session.session_key)
+        self.assertIsNotNone(session.session_key)
+
+        cart = Cart.objects.get(tenant=self.tenant_a, session_key=session.session_key)
         CartItem.objects.create(cart=cart, product=self.product_a, product_key="checkout", name=self.product_a.name, price=Decimal("20.00"), quantity=1)
 
         response = self.client.get("/checkout/checkout/", HTTP_HOST=self.host(self.tenant_a))
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(Cart.objects.filter(tenant=self.tenant_a, session_key=session.session_key).count(), 1)
+
         response = self.client.post("/checkout/checkout/", {"checkout_token": str(uuid.uuid4()), "full_name": "Cliente", "phone": "11999999999", "delivery_type": "pickup", "payment_method": "pix"}, HTTP_HOST=self.host(self.tenant_a))
         self.assertEqual(response.status_code, 400)
         self.assertEqual(Order.objects.filter(tenant=self.tenant_a).count(), 0)

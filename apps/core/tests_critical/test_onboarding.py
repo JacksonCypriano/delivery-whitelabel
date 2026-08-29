@@ -9,15 +9,25 @@ from .base import CriticalTestCase
 
 class OnboardingCriticalTests(CriticalTestCase):
     def _complete_tenant(self, tenant, category):
-        profile = MarketplaceProfile.objects.create(tenant=tenant, is_listed=False, short_description="Uma loja completa para testes", city="São Paulo", state="SP", neighborhood="Centro")
+        profile = MarketplaceProfile.objects.get(tenant=tenant)
+        profile.is_listed = False
+        profile.short_description = "Uma loja completa para testes"
+        profile.city = "São Paulo"
+        profile.state = "SP"
+        profile.neighborhood = "Centro"
+        profile.save()
+
         marketplace_category = MarketplaceCategory.objects.create(name=f"Categoria {tenant.slug}")
         profile.categories.add(marketplace_category)
+
         BrandConfig.objects.create(tenant=tenant, logo="logos/test-logo.png")
+
         hour = tenant.business_hours.get(weekday=0)
         hour.is_closed = False
         hour.opening_time = time(9, 0)
         hour.closing_time = time(18, 0)
         hour.save()
+
         return profile
 
     def test_new_incomplete_store_is_not_ready(self):
@@ -32,8 +42,10 @@ class OnboardingCriticalTests(CriticalTestCase):
         self.assertEqual(setup["percent"], 100)
 
     def test_incomplete_listed_store_is_automatically_unlisted(self):
-        profile = MarketplaceProfile.objects.create(tenant=self.tenant_a, is_listed=False)
+        profile = MarketplaceProfile.objects.get(tenant=self.tenant_a)
         MarketplaceProfile.objects.filter(pk=profile.pk).update(is_listed=True)
+
         enforce_store_listing(self.tenant_a.pk)
+
         profile.refresh_from_db()
         self.assertFalse(profile.is_listed)

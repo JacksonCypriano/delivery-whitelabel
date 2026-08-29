@@ -59,6 +59,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "apps.core.observability.RequestContextMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -144,6 +145,59 @@ CACHES = {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
         "LOCATION": os.getenv("CACHE_REDIS_URL") or os.getenv("REDIS_URL", "redis://redis:6379/0"),
     }
+}
+
+
+# Observabilidade
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+DJANGO_LOG_LEVEL = os.getenv("DJANGO_LOG_LEVEL", "WARNING").upper()
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "request_context": {
+            "()": "apps.core.observability.RequestContextFilter",
+        },
+    },
+    "formatters": {
+        "json": {
+            "()": "apps.core.observability.JsonFormatter",
+        },
+    },
+    "handlers": {
+        "console_json": {
+            "class": "logging.StreamHandler",
+            "filters": ["request_context"],
+            "formatter": "json",
+        },
+    },
+    "root": {
+        "handlers": ["console_json"],
+        "level": LOG_LEVEL,
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console_json"],
+            "level": DJANGO_LOG_LEVEL,
+            "propagate": False,
+        },
+        "django.request": {
+            "handlers": ["console_json"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "django.security": {
+            "handlers": ["console_json"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "vemdedelivery": {
+            "handlers": ["console_json"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+    },
 }
 
 SESSION_COOKIE_HTTPONLY = True

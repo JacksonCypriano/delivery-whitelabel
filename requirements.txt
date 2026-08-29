@@ -19,3 +19,5 @@ black>=24.0.0
 python-decouple
 django-celery-beat
 django-unfold
+sentry-sdk[django]>=2.0,<3
+

@@ -26,7 +26,7 @@ services:
       - static_volume:/app/staticfiles
       - media_volume:/app/media
     healthcheck:
-      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1', 8000), 3); s.close()"]
+      test: ["CMD", "python", "-c", "import urllib.request; r=urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8000/health/live/', headers={'Host':'vemdedelivery.com.br','X-Forwarded-Proto':'https'}), timeout=3); raise SystemExit(0 if r.status == 200 else 1)"]
       interval: 15s
       timeout: 5s
       retries: 5

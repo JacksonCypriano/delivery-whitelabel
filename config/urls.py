@@ -2,11 +2,16 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import include, path
 from apps.checkout.views import delivery_fee_api
+from apps.core import health as health_views
 from apps.marketplace import views as marketplace_views
 from apps.tenants.admin_site import super_admin_site, tenant_admin_site
 
 
 urlpatterns = [
+    # Health checks (sem dados sensíveis)
+    path("health/live/", health_views.live, name="health_live"),
+    path("health/ready/", health_views.ready, name="health_ready"),
+
     # Marketplace / catálogo
     path("", include("apps.marketplace.urls")),
     path("", include("apps.stores.urls")),

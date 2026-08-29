@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth import authenticate, get_user_model
-from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib.auth.forms import PasswordChangeForm, PasswordResetForm
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -260,6 +260,27 @@ class CustomerRegisterForm(forms.Form):
         )
 
         return user
+
+
+class CustomerPasswordResetForm(PasswordResetForm):
+    """Password recovery restricted to global consumer accounts."""
+
+    def get_users(self, email):
+        users = User._default_manager.filter(
+            email__iexact=email,
+            is_active=True,
+            tenant__isnull=True,
+            is_tenant_admin=False,
+            is_staff=False,
+            is_superuser=False,
+            customer_profile__isnull=False,
+        )
+
+        return (
+            user
+            for user in users
+            if user.has_usable_password()
+        )
 
 
 class CustomerLoginForm(forms.Form):

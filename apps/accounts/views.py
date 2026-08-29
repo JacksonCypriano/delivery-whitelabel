@@ -1,7 +1,13 @@
+import logging
+from urllib.parse import urlsplit
+
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import authenticate, get_user_model, login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import PasswordResetConfirmView
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse_lazy
 from django.views.decorators.http import require_http_methods
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -17,11 +23,13 @@ from apps.orders.models import Order
 from .forms import (
     CustomerLoginForm,
     CustomerPasswordChangeForm,
+    CustomerPasswordResetForm,
     CustomerProfileForm,
     CustomerRegisterForm,
 )
 
 User = get_user_model()
+logger = logging.getLogger("vemdedelivery.accounts")
 
 class DashboardLoginView(APIView):
     permission_classes = [AllowAny]
@@ -158,6 +166,105 @@ def customer_login(request):
             "form": form,
             "next": request.GET.get("next", "/"),
         },
+    )
+
+
+def _password_reset_domain():
+    parsed = urlsplit(settings.CUSTOMER_PORTAL_URL)
+    if not parsed.scheme or not parsed.netloc:
+        raise ValueError("CUSTOMER_PORTAL_URL precisa conter esquema e domínio.")
+    return parsed.scheme == "https", parsed.netloc
+
+
+@require_http_methods(["GET", "POST"])
+def customer_password_reset(request):
+    if request.user.is_authenticated and hasattr(request.user, "customer_profile"):
+        return redirect("customer_accounts:account")
+
+    if request.method == "POST":
+        form = CustomerPasswordResetForm(request.POST)
+
+        if form.is_valid():
+            email = form.cleaned_data["email"].strip().lower()
+
+            ip_limited = rate_limit_exceeded(
+                request,
+                "customer-password-reset-ip",
+                limit=10,
+                window=3600,
+            )
+            email_limited = rate_limit_exceeded(
+                request,
+                "customer-password-reset-email",
+                email,
+                limit=5,
+                window=3600,
+            )
+
+            # Sempre retorna a mesma tela para não revelar se a conta existe.
+            if not ip_limited and not email_limited:
+                try:
+                    use_https, domain = _password_reset_domain()
+                    form.save(
+                        domain_override=domain,
+                        use_https=use_https,
+                        request=request,
+                        from_email=settings.DEFAULT_FROM_EMAIL,
+                        subject_template_name="accounts/password_reset_subject.txt",
+                        email_template_name="accounts/password_reset_email.txt",
+                        extra_email_context={"site_name": "VemDeDelivery"},
+                    )
+                except Exception:
+                    # Não expõe falha de SMTP ao visitante nem a existência da conta.
+                    logger.exception("Customer password reset email could not be sent")
+
+            return redirect("customer_accounts:password-reset-done")
+
+    else:
+        form = CustomerPasswordResetForm()
+
+    return render(
+        request,
+        "accounts/customer_password_reset.html",
+        {"form": form},
+    )
+
+
+@require_http_methods(["GET"])
+def customer_password_reset_done(request):
+    return render(
+        request,
+        "accounts/customer_password_reset_done.html",
+    )
+
+
+class CustomerPasswordResetConfirmView(PasswordResetConfirmView):
+    template_name = "accounts/customer_password_reset_confirm.html"
+    success_url = reverse_lazy("customer_accounts:password-reset-complete")
+    post_reset_login = False
+
+    def get_user(self, uidb64):
+        user = super().get_user(uidb64)
+
+        if (
+            user is None
+            or not user.is_active
+            or user.tenant_id is not None
+            or user.is_tenant_admin
+            or user.is_staff
+            or user.is_superuser
+            or not hasattr(user, "customer_profile")
+        ):
+            return None
+
+        return user
+
+
+@require_http_methods(["GET"])
+def customer_password_reset_complete(request):
+    return render(
+        request,
+        "accounts/customer_password_reset_complete.html",
     )
 
 

@@ -132,13 +132,23 @@ TEMPLATES = [
 
 AUTH_USER_MODEL = "accounts.User"
 
-SESSION_COOKIE_DOMAIN = ".lvh.me"
-SESSION_COOKIE_SECURE = True
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
 
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": os.getenv("CACHE_REDIS_URL") or os.getenv("REDIS_URL", "redis://redis:6379/0"),
+    }
+}
+
+SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
-SESSION_COOKIE_SECURE = False
-CSRF_COOKIE_SECURE = True
 
 LANGUAGE_CODE = "pt-br"
 

@@ -4,14 +4,16 @@ from decimal import Decimal
 
 from django.http import JsonResponse
 from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
 from .models import DeliveryZone
+from .permissions import IsSuperUser
 from .serializers import TenantCreateSerializer
 
 
 @api_view(["POST"])
+@permission_classes([IsSuperUser])
 def create_tenant(request):
     serializer = TenantCreateSerializer(data=request.data)
 

@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
@@ -225,10 +226,13 @@ class CustomerRegisterForm(forms.Form):
         password2 = cleaned_data.get("password2")
 
         if password1 and password2 and password1 != password2:
-            self.add_error(
-                "password2",
-                "As senhas não coincidem.",
-            )
+            self.add_error("password2", "As senhas não coincidem.")
+
+        if password1:
+            try:
+                validate_password(password1)
+            except ValidationError as exc:
+                self.add_error("password1", exc)
 
         return cleaned_data
 

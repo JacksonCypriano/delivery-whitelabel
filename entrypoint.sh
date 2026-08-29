@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-set -e
-echo "⚙️ DJANGO_SETTINGS_MODULE=$DJANGO_SETTINGS_MODULE"
-echo "⚙️ DEBUG=$DJANGO_DEBUG"
+set -euo pipefail
 
 ROLE="${1:-web}"
-
 DB_HOST="${DATABASE_HOST:-db}"
 DB_PORT="${DATABASE_PORT:-5432}"
 REDIS_HOST="${REDIS_HOST:-redis}"
 REDIS_PORT="${REDIS_PORT:-6379}"
+
+export DJANGO_SETTINGS_MODULE="${DJANGO_SETTINGS_MODULE:-config.settings.prod}"
+
+echo "⚙️ DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE}"
+echo "⚙️ ROLE=${ROLE}"
 
 wait_for_port() {
   local host="$1"
@@ -24,13 +26,10 @@ import sys
 host = "${host}"
 port = int("${port}")
 
-s = socket.socket()
-s.settimeout(2)
-
 try:
-    s.connect((host, port))
-    s.close()
-except Exception:
+    with socket.create_connection((host, port), timeout=2):
+        pass
+except OSError:
     sys.exit(1)
 PY
   do
@@ -40,13 +39,8 @@ PY
   echo "✅ ${name} is up!"
 }
 
-export DJANGO_SETTINGS_MODULE="${DJANGO_SETTINGS_MODULE:-config.settings}"
-
 wait_for_port "$DB_HOST" "$DB_PORT" "database"
-
-if [ "$ROLE" = "celery" ] || [ "$ROLE" = "beat" ]; then
-  wait_for_port "$REDIS_HOST" "$REDIS_PORT" "redis"
-fi
+wait_for_port "$REDIS_HOST" "$REDIS_PORT" "redis"
 
 case "$ROLE" in
   web)
@@ -63,13 +57,21 @@ case "$ROLE" in
       python manage.py collectstatic --noinput
     fi
 
+    echo "🔎 Running Django deployment checks..."
+    python manage.py check --deploy --fail-level ERROR
+
     echo "🌐 Starting Gunicorn..."
     exec gunicorn config.asgi:application \
       -k uvicorn.workers.UvicornWorker \
-      --bind 0.0.0.0:${PORT:-8000} \
-      --workers ${GUNICORN_WORKERS:-3} \
-      --log-level info \
-      --timeout ${GUNICORN_TIMEOUT:-120}
+      --bind "0.0.0.0:${PORT:-8000}" \
+      --workers "${GUNICORN_WORKERS:-3}" \
+      --timeout "${GUNICORN_TIMEOUT:-120}" \
+      --max-requests "${GUNICORN_MAX_REQUESTS:-1000}" \
+      --max-requests-jitter "${GUNICORN_MAX_REQUESTS_JITTER:-100}" \
+      --access-logfile - \
+      --error-logfile - \
+      --capture-output \
+      --log-level info
     ;;
 
   celery)
@@ -83,7 +85,7 @@ case "$ROLE" in
     ;;
 
   *)
-    echo "❌ Unknown role: $ROLE"
+    echo "❌ Unknown role: ${ROLE}" >&2
     exit 1
     ;;
 esac

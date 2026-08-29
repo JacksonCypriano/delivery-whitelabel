@@ -1,0 +1,54 @@
+{% extends "admin/index.html" %}
+{% load unfold %}
+
+{% block content %}
+{% if store_setup %}
+    {% capture as setup_title %}
+        {% if store_setup.complete %}Sua loja está pronta{% else %}Finalize a configuração da sua loja{% endif %}
+    {% endcapture %}
+
+    {% capture as setup_status %}
+        {{ store_setup.completed }}/{{ store_setup.total }} concluídos
+    {% endcapture %}
+
+    {% component "unfold/components/card.html" with title=setup_title label=setup_status %}
+        {% component "unfold/components/text.html" %}
+            {% if store_setup.complete %}
+                Todos os itens obrigatórios foram concluídos. Sua loja pode ser publicada no marketplace.
+            {% else %}
+                Conclua os itens abaixo antes de publicar a loja no VemDeDelivery.
+            {% endif %}
+        {% endcomponent %}
+
+        {% component "unfold/components/progress.html" with title="Progresso da configuração" description=setup_status value=store_setup.percent %}{% endcomponent %}
+    {% endcomponent %}
+
+    {% component "unfold/components/separator.html" %}{% endcomponent %}
+
+    {% component "unfold/components/card.html" with title="Etapas da configuração" %}
+        {% for step in store_setup.steps %}
+            {% if step.required %}
+                {% if step.complete %}
+                    {% component "unfold/components/link.html" with href=step.url icon="check_circle" %}
+                        {{ step.title }} — Concluído
+                    {% endcomponent %}
+                {% else %}
+                    {% component "unfold/components/link.html" with href=step.url icon="pending" %}
+                        {{ step.title }} — Pendente
+                    {% endcomponent %}
+                {% endif %}
+
+                {% component "unfold/components/text.html" %}
+                    {{ step.description }}
+                {% endcomponent %}
+
+                {% component "unfold/components/separator.html" %}{% endcomponent %}
+            {% endif %}
+        {% endfor %}
+    {% endcomponent %}
+
+    {% component "unfold/components/separator.html" %}{% endcomponent %}
+{% endif %}
+
+{{ block.super }}
+{% endblock %}

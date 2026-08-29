@@ -1,8 +1,6 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import include, path
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-
 from apps.checkout.views import delivery_fee_api
 from apps.marketplace import views as marketplace_views
 from apps.tenants.admin_site import super_admin_site, tenant_admin_site
@@ -37,8 +35,6 @@ urlpatterns = [
     # APIs
     path("api/", include("apps.stores.urls_api")),
     path("api/tenants/", include("apps.tenants.urls")),
-    path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("api/delivery-fee/", delivery_fee_api, name="delivery_fee_api"),
     path("api/cupons/", include("apps.coupons.urls", namespace="coupons")),
     path("api/cep/<str:cep>/", marketplace_views.cep_lookup_api, name="marketplace_cep_lookup"),

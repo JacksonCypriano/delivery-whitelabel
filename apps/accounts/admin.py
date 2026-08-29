@@ -1,3 +1,4 @@
+from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from unfold.admin import ModelAdmin
 from unfold.forms import UserChangeForm, UserCreationForm
@@ -12,20 +13,48 @@ class CustomUserAdmin(ModelAdmin, BaseUserAdmin):
     form = UserChangeForm
     add_form = UserCreationForm
 
-    list_display = ("username", "email", "tenant", "is_tenant_admin", "is_staff")
-    list_filter = ("is_tenant_admin", "is_staff", "tenant")
+    list_display = ("username", "email", "tenant", "access_type", "is_active")
+    list_filter = ("is_active", "tenant")
+    search_fields = ("username", "first_name", "last_name", "email", "tenant__name")
+    ordering = ("username",)
 
-    fieldsets = BaseUserAdmin.fieldsets + (
-        ("Informações de Tenant (Lojista)", {
-            "fields": ("tenant", "is_tenant_admin"),
-        }),
+    fieldsets = (
+        ("Usuário", {"fields": ("username", "password")}),
+        ("Dados pessoais", {"fields": ("first_name", "last_name", "email")}),
+        ("Acesso", {"fields": ("tenant", "is_active")}),
+        ("Datas", {"fields": ("last_login", "date_joined"), "classes": ("collapse",)}),
     )
 
-    add_fieldsets = BaseUserAdmin.add_fieldsets + (
-        ("Informações de Tenant (Lojista)", {
-            "fields": ("tenant", "is_tenant_admin"),
-        }),
+    add_fieldsets = (
+        (None, {"classes": ("wide",), "fields": ("username", "password1", "password2")}),
+        ("Dados pessoais", {"fields": ("first_name", "last_name", "email")}),
+        ("Acesso", {"fields": ("tenant", "is_active")}),
     )
+
+    readonly_fields = ("last_login", "date_joined")
+
+    @admin.display(description="Tipo de acesso", ordering="is_superuser")
+    def access_type(self, obj):
+        if obj.is_superuser:
+            return "Gestor global"
+        if obj.tenant_id:
+            return "Administrador da loja"
+        return "Cliente"
+
+    def save_model(self, request, obj, form, change):
+        if obj.is_superuser:
+            obj.tenant = None
+            obj.is_tenant_admin = False
+            obj.is_staff = True
+        elif obj.tenant_id:
+            obj.is_tenant_admin = True
+            obj.is_staff = True
+        else:
+            obj.is_tenant_admin = False
+            obj.is_staff = False
+
+        super().save_model(request, obj, form, change)
+
 
 super_admin_site.register(User, CustomUserAdmin)
 

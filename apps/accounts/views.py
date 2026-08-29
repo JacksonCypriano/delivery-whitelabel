@@ -1,5 +1,5 @@
 from django.contrib import messages
-from django.contrib.auth import get_user_model, login, logout, update_session_auth_hash
+from django.contrib.auth import authenticate, get_user_model, login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.core.rate_limit import clear_rate_limit, rate_limit_exceeded
 from apps.customers.forms import CustomerAddressForm
 from apps.customers.models import Customer, CustomerAddress
 from apps.orders.models import Order
@@ -26,23 +27,20 @@ class DashboardLoginView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        username = request.data.get('username')
-        password = request.data.get('password')
+        username = str(request.data.get("username") or "").strip()
+        password = request.data.get("password") or ""
 
-        try:
-            user = User.objects.get(username=username)
-        except User.DoesNotExist:
-            return Response({'error': 'Credenciais inválidas'}, status=status.HTTP_401_UNAUTHORIZED)
+        if rate_limit_exceeded(request, "dashboard-login", username, limit=8, window=300):
+            return Response({"error": "Muitas tentativas. Aguarde alguns minutos e tente novamente."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
 
-        if not user.check_password(password):
-            return Response({'error': 'Credenciais inválidas'}, status=status.HTTP_401_UNAUTHORIZED)
+        user = authenticate(request=request, username=username, password=password)
+        if not user:
+            return Response({"error": "Credenciais inválidas"}, status=status.HTTP_401_UNAUTHORIZED)
 
-        if not user.is_tenant_admin:
-            return Response({'error': 'Acesso não autorizado'}, status=status.HTTP_403_FORBIDDEN)
+        if not user.is_tenant_admin or user.tenant != getattr(request, "tenant", None):
+            return Response({"error": "Acesso não autorizado"}, status=status.HTTP_403_FORBIDDEN)
 
-        if user.tenant != request.tenant:
-            return Response({'error': 'Acesso não autorizado para este tenant'}, status=status.HTTP_403_FORBIDDEN)
-
+        clear_rate_limit(request, "dashboard-login", username)
         refresh = RefreshToken.for_user(user)
         return Response({
             'access': str(refresh.access_token),
@@ -73,13 +71,14 @@ class DashboardRefreshView(APIView):
 
     def post(self, request):
         try:
-            refresh_token = request.data.get('refresh')
+            refresh_token = request.data.get("refresh")
             token = RefreshToken(refresh_token)
-            return Response({
-                'access': str(token.access_token),
-            })
+            user = User.objects.filter(pk=token.get("user_id"), is_active=True).select_related("tenant").first()
+            if not user or not user.is_tenant_admin or user.tenant != getattr(request, "tenant", None):
+                return Response({"error": "Token inválido"}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({"access": str(token.access_token)})
         except Exception:
-            return Response({'error': 'Token inválido'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Token inválido"}, status=status.HTTP_400_BAD_REQUEST)
 
 def _safe_next_url(request):
     next_url = (
@@ -103,7 +102,9 @@ def customer_register(request):
     if request.method == "POST":
         form = CustomerRegisterForm(request.POST)
 
-        if form.is_valid():
+        if rate_limit_exceeded(request, "customer-register", limit=5, window=3600):
+            form.add_error(None, "Muitas tentativas de cadastro. Aguarde um pouco e tente novamente.")
+        elif form.is_valid():
             user = form.save()
 
             login(
@@ -135,20 +136,15 @@ def customer_login(request):
         return redirect(_safe_next_url(request))
 
     if request.method == "POST":
-        form = CustomerLoginForm(
-            request.POST,
-            request=request,
-        )
+        form = CustomerLoginForm(request.POST, request=request)
+        email = str(request.POST.get("email") or "").strip().lower()
 
-        if form.is_valid():
-            login(
-                request,
-                form.get_user(),
-            )
-
-            return redirect(
-                _safe_next_url(request)
-            )
+        if rate_limit_exceeded(request, "customer-login", email, limit=8, window=300):
+            form.add_error(None, "Muitas tentativas. Aguarde alguns minutos e tente novamente.")
+        elif form.is_valid():
+            clear_rate_limit(request, "customer-login", email)
+            login(request, form.get_user())
+            return redirect(_safe_next_url(request))
 
     else:
         form = CustomerLoginForm(
@@ -168,10 +164,7 @@ def customer_login(request):
 @require_http_methods(["POST"])
 def customer_logout(request):
     logout(request)
-
-    return redirect(
-        request.POST.get("next") or "/"
-    )
+    return redirect(_safe_next_url(request))
 
 @login_required
 def customer_account(request):

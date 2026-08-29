@@ -2,15 +2,30 @@ from django.contrib import admin
 from unfold.admin import ModelAdmin
 from unfold.admin import TabularInline
 
+from .onboarding import get_store_setup
+
 from .admin_site import super_admin_site, tenant_admin_site
 from .models import BrandConfig, Tenant, DeliveryZone, BusinessHour
 
 
 # ── Admin Global (só Tenant) ──────────────────────────────────────────────────
 class TenantAdmin(ModelAdmin):
-    list_display = ("name", "slug", "is_active", "created_at")
-    search_fields = ("name", "slug")
+    list_display = ("name", "slug", "whatsapp_number", "fulfillment_mode", "setup_status", "is_active", "created_at")
+    list_filter = ("is_active", "fulfillment_mode")
+    search_fields = ("name", "slug", "whatsapp_number")
     prepopulated_fields = {"slug": ("name",)}
+    readonly_fields = ("created_at",)
+
+    fieldsets = (
+        ("Loja", {"fields": ("name", "slug", "whatsapp_number")}),
+        ("Operação", {"fields": ("fulfillment_mode", "is_active")}),
+        ("Informações", {"fields": ("created_at",), "classes": ("collapse",)}),
+    )
+
+    @admin.display(description="Configuração")
+    def setup_status(self, obj):
+        setup = get_store_setup(obj)
+        return "Pronta" if setup["complete"] else f"Pendente ({setup['completed']}/{setup['total']})"
 
 
 super_admin_site.register(Tenant, TenantAdmin)
@@ -69,6 +84,7 @@ class StoreSettingsAdmin(ModelAdmin):
     readonly_fields = (
         "slug",
         "sale_mode",
+        "is_active",
         "created_at",
     )
 
@@ -105,6 +121,7 @@ class StoreSettingsAdmin(ModelAdmin):
                     "is_active",
                     "created_at",
                 ),
+                "description": "A ativação da loja é controlada pelo gestor do VemDeDelivery. Para aparecer no marketplace, conclua o checklist do painel e publique o perfil da loja.",
             },
         ),
     )

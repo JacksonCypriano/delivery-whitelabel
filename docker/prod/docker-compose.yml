@@ -1,3 +1,9 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   web:
     build:
@@ -7,25 +13,55 @@ services:
     environment:
       RUN_MIGRATIONS: "true"
       COLLECTSTATIC: "true"
+    command: ["web"]
     depends_on:
-      - db
-      - redis
-    restart: always
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
     volumes:
       - static_volume:/app/staticfiles
       - media_volume:/app/media
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1', 8000), 3); s.close()"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging: *default-logging
 
   db:
     image: postgres:15
     env_file:
       - .env
+    restart: unless-stopped
+    stop_grace_period: 60s
     volumes:
       - pgdata:/var/lib/postgresql/data
-    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *default-logging
 
   redis:
     image: redis:7-alpine
-    restart: always
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    logging: *default-logging
 
   celery:
     build:
@@ -34,9 +70,20 @@ services:
       - .env
     command: ["celery"]
     depends_on:
-      - db
-      - redis
-    restart: always
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A config inspect ping -d celery@$$HOSTNAME --timeout=5 2>/dev/null | grep -q pong"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging: *default-logging
 
   celery-beat:
     build:
@@ -45,9 +92,14 @@ services:
       - .env
     command: ["beat"]
     depends_on:
-      - db
-      - redis
-    restart: always
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    logging: *default-logging
 
   nginx:
     image: nginx:stable-alpine
@@ -57,13 +109,23 @@ services:
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - /opt/vemdedelivery/ssl:/etc/nginx/ssl:ro
-      - static_volume:/app/staticfiles
-      - media_volume:/app/media
+      - static_volume:/app/staticfiles:ro
+      - media_volume:/app/media:ro
     depends_on:
-      - web
-    restart: always
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+    stop_grace_period: 15s
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider --no-check-certificate --header='Host: vemdedelivery.com.br' https://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging: *default-logging
 
 volumes:
   pgdata:
+  redisdata:
   static_volume:
   media_volume:

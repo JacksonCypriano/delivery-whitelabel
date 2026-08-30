@@ -149,6 +149,14 @@ CACHES = {
 
 
 
+# WhatsApp / Evolution API
+EVOLUTION_WHATSAPP_VALIDATION_ENABLED = os.getenv("EVOLUTION_WHATSAPP_VALIDATION_ENABLED", "false").lower() in ("1", "true", "yes", "on")
+EVOLUTION_API_URL = os.getenv("EVOLUTION_API_URL", "")
+EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY", "")
+EVOLUTION_INSTANCE = os.getenv("EVOLUTION_INSTANCE", "")
+EVOLUTION_API_TIMEOUT = int(os.getenv("EVOLUTION_API_TIMEOUT", "4"))
+EVOLUTION_CHECK_CACHE_SECONDS = int(os.getenv("EVOLUTION_CHECK_CACHE_SECONDS", "86400"))
+
 # E-mail / recuperação de senha
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST = os.getenv("EMAIL_HOST", "")

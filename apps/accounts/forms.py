@@ -5,8 +5,10 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
+from django.utils import timezone
 
 from apps.customers.models import Customer
+from apps.integrations.whatsapp.service import get_whatsapp_service, normalize_br_phone
 
 User = get_user_model()
 
@@ -56,33 +58,24 @@ class CustomerProfileForm(forms.Form):
         return email
 
     def clean_phone(self):
-        phone = self.cleaned_data["phone"]
+        raw_phone = self.cleaned_data["phone"]
+        try:
+            phone = normalize_br_phone(raw_phone)[2:]
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
 
-        phone = "".join(
-            char for char in phone
-            if char.isdigit()
-        )
-
-        if phone.startswith("55") and len(phone) in (12, 13):
-            phone = phone[2:]
-
-        if len(phone) not in (10, 11):
-            raise ValidationError(
-                "Informe um telefone válido com DDD."
-            )
-
-        queryset = Customer.objects.filter(
-            phone=phone
-        )
-
+        queryset = Customer.objects.filter(phone=phone)
         if self.customer:
             queryset = queryset.exclude(pk=self.customer.pk)
-
         if queryset.exists():
-            raise ValidationError(
-                "Já existe uma conta cadastrada com este telefone."
-            )
+            raise ValidationError("Já existe uma conta cadastrada com este telefone.")
 
+        phone_changed = not self.customer or self.customer.phone != phone
+        self.whatsapp_check = None
+        if phone_changed:
+            self.whatsapp_check = get_whatsapp_service().check_number(phone)
+            if self.whatsapp_check.available and self.whatsapp_check.exists is False:
+                raise ValidationError("Este número não foi encontrado no WhatsApp. Verifique o DDD e o telefone informado.")
         return phone
 
     def save(self):
@@ -104,14 +97,14 @@ class CustomerProfileForm(forms.Form):
             ]
         )
 
+        phone_changed = self.customer.phone != self.cleaned_data["phone"]
         self.customer.phone = self.cleaned_data["phone"]
+        if phone_changed:
+            check = getattr(self, "whatsapp_check", None)
+            self.customer.phone_verified = bool(check and check.available and check.exists)
+            self.customer.phone_verified_at = timezone.now() if self.customer.phone_verified else None
 
-        self.customer.save(
-            update_fields=[
-                "phone",
-                "updated_at",
-            ]
-        )
+        self.customer.save(update_fields=["phone", "phone_verified", "phone_verified_at", "updated_at"])
 
         return self.user
 
@@ -195,28 +188,18 @@ class CustomerRegisterForm(forms.Form):
         return email
 
     def clean_phone(self):
-        phone = self.cleaned_data["phone"]
-
-        # Mantém somente números
-        phone = "".join(
-            char for char in phone
-            if char.isdigit()
-        )
-
-        # Se vier com código do Brasil, remove o 55
-        if phone.startswith("55") and len(phone) in (12, 13):
-            phone = phone[2:]
-
-        if len(phone) not in (10, 11):
-            raise ValidationError(
-                "Informe um telefone válido com DDD."
-            )
+        raw_phone = self.cleaned_data["phone"]
+        try:
+            phone = normalize_br_phone(raw_phone)[2:]
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
 
         if Customer.objects.filter(phone=phone).exists():
-            raise ValidationError(
-                "Já existe uma conta cadastrada com este telefone."
-            )
+            raise ValidationError("Já existe uma conta cadastrada com este telefone.")
 
+        self.whatsapp_check = get_whatsapp_service().check_number(phone)
+        if self.whatsapp_check.available and self.whatsapp_check.exists is False:
+            raise ValidationError("Este número não foi encontrado no WhatsApp. Verifique o DDD e o telefone informado.")
         return phone
 
     def clean(self):
@@ -254,10 +237,9 @@ class CustomerRegisterForm(forms.Form):
             is_staff=False,
         )
 
-        Customer.objects.create(
-            user=user,
-            phone=self.cleaned_data["phone"],
-        )
+        check = getattr(self, "whatsapp_check", None)
+        verified = bool(check and check.available and check.exists)
+        Customer.objects.create(user=user, phone=self.cleaned_data["phone"], phone_verified=verified, phone_verified_at=timezone.now() if verified else None)
 
         return user
 

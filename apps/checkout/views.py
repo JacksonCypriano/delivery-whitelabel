@@ -676,16 +676,8 @@ def delivery_fee_api(request):
 
 @require_POST
 def update_cart_item_notes(request, cart_item_id):
-    try:
-        cart = get_or_create_cart(request)
-    except Exception:
-        cart = None
-
-    cart_item = (
-        get_object_or_404(CartItem, pk=cart_item_id, cart=cart)
-        if cart else
-        get_object_or_404(CartItem, pk=cart_item_id)
-    )
+    cart = get_or_create_cart(request)
+    cart_item = get_object_or_404(CartItem, pk=cart_item_id, cart=cart)
 
     notes = request.POST.get('notes', '').strip()
     try:

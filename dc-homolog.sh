@@ -24,6 +24,11 @@ case "$COMMAND" in
 
         "${DC[@]}" up -d --build
 
+        info "Aguardando PostgreSQL"
+        until "${DC[@]}" exec -T db pg_isready >/dev/null 2>&1; do
+            sleep 2
+        done
+
         info "Executando migrations"
         "${DC[@]}" exec web python manage.py migrate --noinput
 
@@ -33,7 +38,11 @@ case "$COMMAND" in
         info "Validando Django"
         "${DC[@]}" exec web python manage.py check
 
+        info "Reiniciando aplicação"
         "${DC[@]}" restart web celery
+
+        info "Recriando Nginx"
+        "${DC[@]}" up -d --force-recreate nginx
 
         "${DC[@]}" ps
 
@@ -43,6 +52,9 @@ case "$COMMAND" in
     rebuild)
         info "Rebuild da homologação"
         "${DC[@]}" up -d --build
+
+        info "Recriando Nginx"
+        "${DC[@]}" up -d --force-recreate nginx
         ;;
 
     restart)
@@ -84,4 +96,3 @@ case "$COMMAND" in
         exit 1
         ;;
 esac
-

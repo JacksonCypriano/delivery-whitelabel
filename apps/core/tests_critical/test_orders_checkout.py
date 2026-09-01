@@ -59,3 +59,19 @@ class OrdersCheckoutCriticalTests(CriticalTestCase):
         self.assertEqual(response.status_code, 404)
         order.refresh_from_db()
         self.assertIsNone(order.whatsapp_opened_at)
+
+    def test_cart_notes_cannot_modify_item_from_other_tenant(self):
+        response = self.client.get("/", HTTP_HOST=self.host(self.tenant_b))
+        self.assertIn(response.status_code, (200, 302))
+        session = self.client.session
+        if not session.session_key:
+            session.create()
+        Cart.objects.get_or_create(tenant=self.tenant_b, session_key=session.session_key)
+
+        cart_a = self._anonymous_cart(self.tenant_a, "foreign-cart-session")
+        foreign_item = CartItem.objects.create(cart=cart_a, product=self.product_a, product_key="foreign-notes", name=self.product_a.name, price=Decimal("20.00"), quantity=1, notes="original")
+
+        response = self.client.post(f"/checkout/update_notes/{foreign_item.pk}/", {"notes": "alterado"}, HTTP_HOST=self.host(self.tenant_b))
+        self.assertEqual(response.status_code, 404)
+        foreign_item.refresh_from_db()
+        self.assertEqual(foreign_item.notes, "original")

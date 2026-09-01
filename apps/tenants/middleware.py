@@ -1,6 +1,8 @@
 from .models import Tenant
 import logging
 
+from apps.core.observability import set_tenant_slug
+
 logger = logging.getLogger(__name__)
 
 class TenantMiddleware:
@@ -15,6 +17,7 @@ class TenantMiddleware:
     def __call__(self, request):
         if request.path.startswith('/superadmin'):
             request.tenant = None
+            set_tenant_slug('-')
             return self.get_response(request)
 
         host = request.META.get('HTTP_HOST', '')
@@ -26,5 +29,6 @@ class TenantMiddleware:
             tenant = None
 
         request.tenant = tenant
+        set_tenant_slug(getattr(tenant, "slug", "-") if tenant is not None else "-")
         logger.debug("Requisição para %s resolvida para tenant: %s", request.path, tenant)
         return self.get_response(request)

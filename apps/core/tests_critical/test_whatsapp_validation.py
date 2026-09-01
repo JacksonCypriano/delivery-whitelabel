@@ -98,3 +98,54 @@ class WhatsAppValidationTests(CriticalTestCase):
         customer.refresh_from_db()
         self.assertEqual(customer.phone, "11977776666")
         self.assertTrue(customer.phone_verified)
+
+    @patch("apps.integrations.whatsapp.service.requests.post")
+    def test_profile_rate_limit_blocks_sixth_distinct_phone_without_calling_evolution(self, post):
+        User = __import__("django.contrib.auth", fromlist=["get_user_model"]).get_user_model()
+        user = User.objects.create_user(username="limited@example.com", email="limited@example.com", password=self.password)
+        Customer.objects.create(user=user, phone="11911111111", phone_verified=True)
+        self.client.force_login(user)
+
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.side_effect = lambda: [{"exists": True, "jid": "test@s.whatsapp.net", "number": "5511999999999"}]
+        post.return_value = response
+
+        for index in range(5):
+            phone = f"1198000000{index}"
+            result = self.client.post("/conta/dados/", {"first_name": "Perfil", "last_name": "Teste", "email": "limited@example.com", "phone": phone}, HTTP_HOST="lvh.me")
+            self.assertEqual(result.status_code, 302)
+
+        calls_before_limit = post.call_count
+        result = self.client.post("/conta/dados/", {"first_name": "Perfil", "last_name": "Teste", "email": "limited@example.com", "phone": "11980000005"}, HTTP_HOST="lvh.me")
+        self.assertEqual(result.status_code, 200)
+        self.assertContains(result, "Muitas tentativas de alteração do WhatsApp")
+        self.assertEqual(post.call_count, calls_before_limit)
+
+    @patch("apps.integrations.whatsapp.service.requests.post")
+    def test_profile_distinct_limit_cannot_be_bypassed_by_retrying_blocked_phone(self, post):
+        User = __import__("django.contrib.auth", fromlist=["get_user_model"]).get_user_model()
+        user = User.objects.create_user(username="retry-limit@example.com", email="retry-limit@example.com", password=self.password)
+        Customer.objects.create(user=user, phone="11911112222", phone_verified=True)
+        self.client.force_login(user)
+
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = [{"exists": True, "jid": "test@s.whatsapp.net", "number": "5511980000000"}]
+        post.return_value = response
+
+        for index in range(5):
+            result = self.client.post("/conta/dados/", {"first_name": "Perfil", "last_name": "Teste", "email": "retry-limit@example.com", "phone": f"1198100000{index}"}, HTTP_HOST="lvh.me")
+            self.assertEqual(result.status_code, 302)
+
+        blocked_phone = "11981000005"
+        calls_before_limit = post.call_count
+
+        first = self.client.post("/conta/dados/", {"first_name": "Perfil", "last_name": "Teste", "email": "retry-limit@example.com", "phone": blocked_phone}, HTTP_HOST="lvh.me")
+        second = self.client.post("/conta/dados/", {"first_name": "Perfil", "last_name": "Teste", "email": "retry-limit@example.com", "phone": blocked_phone}, HTTP_HOST="lvh.me")
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertContains(first, "Muitas tentativas de alteração do WhatsApp")
+        self.assertContains(second, "Muitas tentativas de alteração do WhatsApp")
+        self.assertEqual(post.call_count, calls_before_limit)

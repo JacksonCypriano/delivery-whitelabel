@@ -27,6 +27,8 @@ if _COOKIE_DOMAIN:
 CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if origin.strip()]
 
 CUSTOMER_PORTAL_URL = os.getenv("CUSTOMER_PORTAL_URL", "https://vemdedelivery.com.br").rstrip("/")
+TENANT_BASE_DOMAIN = os.getenv("TENANT_BASE_DOMAIN", "vemdedelivery.com.br").strip()
+TENANT_PUBLIC_SCHEME = os.getenv("TENANT_PUBLIC_SCHEME", "https").strip()
 
 # Sentry é opcional: com SENTRY_DSN vazio, nenhuma informação é enviada.
 SENTRY_DSN = os.getenv("SENTRY_DSN", "").strip()

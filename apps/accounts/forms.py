@@ -33,11 +33,12 @@ class CustomerProfileForm(forms.Form):
         label="WhatsApp / Telefone",
     )
 
-    def __init__(self, *args, user=None, customer=None, **kwargs):
+    def __init__(self, *args, user=None, customer=None, skip_whatsapp_validation=False, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.user = user
         self.customer = customer
+        self.skip_whatsapp_validation = skip_whatsapp_validation
 
     def clean_email(self):
         email = self.cleaned_data["email"].strip().lower()
@@ -72,7 +73,7 @@ class CustomerProfileForm(forms.Form):
 
         phone_changed = not self.customer or self.customer.phone != phone
         self.whatsapp_check = None
-        if phone_changed:
+        if phone_changed and not self.skip_whatsapp_validation:
             self.whatsapp_check = get_whatsapp_service().check_number(phone)
             if self.whatsapp_check.available and self.whatsapp_check.exists is False:
                 raise ValidationError("Este número não foi encontrado no WhatsApp. Verifique o DDD e o telefone informado.")

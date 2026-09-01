@@ -15,10 +15,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from apps.core.rate_limit import clear_rate_limit, rate_limit_exceeded
+from apps.core.rate_limit import clear_rate_limit, distinct_identifier_rate_limit_exceeded, identifier_rate_limit_exceeded, rate_limit_exceeded
 from apps.customers.forms import CustomerAddressForm
 from apps.customers.models import Customer, CustomerAddress
 from apps.orders.models import Order
+from apps.integrations.whatsapp.service import normalize_br_phone
 
 from .forms import (
     CustomerLoginForm,
@@ -541,23 +542,41 @@ def customer_profile(request):
     customer = get_current_customer(request)
 
     if request.method == "POST":
+        raw_phone = str(request.POST.get("phone") or "")
+        try:
+            normalized_phone = normalize_br_phone(raw_phone)[2:]
+        except ValueError:
+            normalized_phone = ""
+
+        phone_changed = bool(normalized_phone and normalized_phone != customer.phone)
+        phone_limited = False
+        if phone_changed:
+            user_key = str(request.user.pk)
+            hourly_limited = identifier_rate_limit_exceeded("customer-profile-whatsapp-hour", user_key, limit=10, window=3600)
+            distinct_limited = distinct_identifier_rate_limit_exceeded("customer-profile-whatsapp-distinct", user_key, normalized_phone, limit=5, window=900)
+            phone_limited = hourly_limited or distinct_limited
+
         form = CustomerProfileForm(
             request.POST,
             user=request.user,
             customer=customer,
+            skip_whatsapp_validation=phone_limited,
         )
 
         if form.is_valid():
-            form.save()
+            if phone_limited:
+                form.add_error("phone", "Muitas tentativas de alteração do WhatsApp. Aguarde alguns minutos e tente novamente.")
+            else:
+                form.save()
 
-            messages.success(
-                request,
-                "Seus dados foram atualizados com sucesso.",
-            )
+                messages.success(
+                    request,
+                    "Seus dados foram atualizados com sucesso.",
+                )
 
-            return redirect(
-                "customer_accounts:profile"
-            )
+                return redirect(
+                    "customer_accounts:profile"
+                )
 
     else:
         form = CustomerProfileForm(

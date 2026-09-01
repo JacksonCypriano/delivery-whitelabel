@@ -22,6 +22,10 @@ def get_tenant_slug():
     return _tenant_slug.get()
 
 
+def set_tenant_slug(slug):
+    _tenant_slug.set(str(slug or "-"))
+
+
 class RequestContextFilter(logging.Filter):
     def filter(self, record):
         record.request_id = get_request_id()

@@ -1,5 +1,7 @@
 from unittest.mock import patch
 
+from apps.core.observability import get_tenant_slug
+
 from django.core.cache import cache
 from django.test import override_settings
 
@@ -33,3 +35,15 @@ class ObservabilityCriticalTests(CriticalTestCase):
         self.assertEqual(response.status_code, 503)
         self.assertTrue(response.json()["checks"]["database"])
         self.assertFalse(response.json()["checks"]["redis"])
+
+    def test_tenant_context_is_available_during_request(self):
+        seen = []
+
+        def capture(*args, **kwargs):
+            seen.append(get_tenant_slug())
+
+        with patch("apps.tenants.middleware.logger.debug", side_effect=capture):
+            response = self.client.get("/", HTTP_HOST=self.host(self.tenant_a))
+
+        self.assertEqual(response.wsgi_request.tenant, self.tenant_a)
+        self.assertIn(self.tenant_a.slug, seen)

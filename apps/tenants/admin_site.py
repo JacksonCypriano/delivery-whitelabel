@@ -23,6 +23,8 @@ class TenantAdminAuthenticationForm(AuthenticationForm):
             or not tenant
             or user.tenant_id != tenant.id
         ):
+            from apps.accounts.audit import record_event
+            record_event("access_denied", request=self.request, user_id=user.pk, reason="not_allowed")
             raise ValidationError(
                 "Credenciais inválidas para esta loja.",
                 code="invalid_tenant_login",

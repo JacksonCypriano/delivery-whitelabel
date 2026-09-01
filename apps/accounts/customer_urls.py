@@ -1,5 +1,7 @@
 from django.urls import path
 
+from .contact_views import customer_verify_contact
+
 from .views import (
     customer_account,
     customer_address_create,
@@ -41,6 +43,7 @@ urlpatterns = [
     path("enderecos/<int:address_id>/excluir/", customer_address_delete, name="address-delete"),
     path("enderecos/<int:address_id>/principal/", customer_address_set_default, name="address-default"),
     path("dados/", customer_profile, name="profile"),
+    path("dados/validar/<uuid:change_id>/", customer_verify_contact, name="verify-contact"),
     path("alterar-senha/", customer_change_password, name="change-password"),
     path("pedidos/", customer_orders, name="orders"),
     path("pedidos/<int:order_id>/", customer_order_detail, name="order-detail"),

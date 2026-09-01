@@ -65,6 +65,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "apps.accounts.audit.AuditContextMiddleware",
 
     "apps.tenants.middleware.TenantMiddleware",
     "apps.marketplace.middleware.GlobalDeliveryLocationMiddleware",

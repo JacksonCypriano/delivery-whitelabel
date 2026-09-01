@@ -1,16 +1,20 @@
 import hashlib
+import ipaddress
+
+from django.conf import settings
 
 from django.core.cache import cache
 
 
 def get_client_ip(request):
-    real_ip = request.META.get("HTTP_X_REAL_IP", "").strip()
-    if real_ip:
-        return real_ip
-    forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    if forwarded_for:
-        return forwarded_for.split(",", 1)[0].strip()
-    return request.META.get("REMOTE_ADDR", "unknown") or "unknown"
+    # Trust only X-Real-IP explicitly overwritten by the configured proxy.
+    value = request.META.get("REMOTE_ADDR", "")
+    if getattr(settings, "OTP_TRUST_PROXY_HEADERS", False):
+        value = request.META.get("HTTP_X_REAL_IP") or value
+    try:
+        return str(ipaddress.ip_address(value.strip()))
+    except (ValueError, AttributeError):
+        return "unknown"
 
 
 def _key(scope, request, identifier=""):

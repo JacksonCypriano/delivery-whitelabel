@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Confirmar novo {{ pending.get_channel_display }} | VemDeDelivery</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#f8f7f4;color:#172033;font:16px system-ui,sans-serif;min-height:100vh;display:grid;place-items:center;padding:24px}main{width:100%;max-width:480px;background:#fff;padding:32px;border:1px solid #e2e8f0;border-radius:24px;box-shadow:0 24px 60px #0f172a12}h1{font-size:26px;margin:16px 0}p{line-height:1.6}.muted{font-size:14px;color:#64748b}.notice{padding:12px;background:#f1f5f9;border-radius:8px}.error{background:#fef2f2;color:#991b1b}label{display:block;margin-bottom:8px}input[type=text]{width:100%;padding:14px;font-size:24px;letter-spacing:8px;border:1px solid #94a3b8;border-radius:12px}button{width:100%;padding:14px;margin-top:16px;border:0;border-radius:12px;background:{{ tenant.brand_config.primary_color|default:'#FF5A1F' }};color:white;font-size:16px;cursor:pointer}.secondary{background:#e2e8f0;color:#172033}.cancel{background:transparent;color:#b91c1c;text-decoration:underline}button:disabled{opacity:.55;cursor:wait}a{color:#475569}small{display:block;line-height:1.6;margin-top:16px}input:focus,button:focus,a:focus{outline:3px solid #94a3b8;outline-offset:3px}
+  </style>
+</head>
+<body><main>
+  <strong>{{ tenant.name|default:'VemDeDelivery' }}</strong>
+  <p class="muted">Atualização de contato</p>
+  <h1>Confirme seu novo {{ pending.get_channel_display }}</h1>
+  <p>{% if pending.code_hash %}Digite o código enviado para{% else %}Solicite um código para{% endif %} <strong>{{ pending.masked_destination }}</strong>.</p>
+  <p class="muted">Seu contato atual continua válido até a confirmação.{% if pending.channel == 'email' %} Depois de confirmar, use o novo e-mail para entrar na sua conta.{% endif %}</p>
+  {% for message in messages %}<p class="notice {% if message.tags == 'error' %}error{% endif %}" role="status">{{ message }}</p>{% endfor %}
+  <form method="post">
+    {% csrf_token %}<input type="hidden" name="action" value="verify">
+    <label for="code">Código de confirmação</label>
+    <input type="text" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required autofocus>
+    <button type="submit">Confirmar e atualizar {{ pending.get_channel_display }}</button>
+  </form>
+  <form method="post">
+    {% csrf_token %}
+    <button class="secondary" id="resend" name="action" value="send" type="submit" data-seconds="{{ resend_seconds }}">{% if pending.last_sent_at %}Reenviar código{% else %}Enviar código{% endif %}</button>
+  </form>
+  <small>O código vale por 10 minutos. Aguarde 60 segundos entre os envios.{% if pending.channel == 'email' %} Confira também a pasta de spam.{% endif %}</small>
+  <form method="post">
+    {% csrf_token %}
+    <button class="cancel" name="action" value="cancel" type="submit">Cancelar esta alteração</button>
+  </form>
+  <p><a href="{% url 'customer_accounts:profile' %}">← Voltar aos meus dados</a></p>
+</main>
+<script>
+  const button = document.getElementById('resend');
+  let remaining = Number(button.dataset.seconds);
+  const label = button.textContent;
+  function tick() {
+    button.disabled = remaining > 0;
+    button.textContent = remaining > 0 ? `Reenviar em ${remaining}s` : label;
+    if (remaining > 0) { remaining -= 1; setTimeout(tick, 1000); }
+  }
+  tick();
+</script>
+</body></html>

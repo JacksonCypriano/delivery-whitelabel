@@ -170,7 +170,7 @@ class RegistrationOTPTests(TestCase):
         client = Client(enforce_csrf_checks=True)
         self.assertEqual(client.post('/conta/criar-conta/validar/', {'action': 'send'}).status_code, 403)
 
-    def test_profile_changes_clear_ownership_flags(self):
+    def test_profile_changes_preserve_contacts_until_confirmation(self):
         from .forms import CustomerProfileForm
         user = User.objects.create_user(username='old@example.com', email='old@example.com', email_verified=True, email_verified_at=timezone.now())
         customer = Customer.objects.create(user=user, phone='11988887777', phone_verified=True, phone_verified_at=timezone.now())
@@ -179,10 +179,14 @@ class RegistrationOTPTests(TestCase):
         form.save()
         user.refresh_from_db()
         customer.refresh_from_db()
-        self.assertFalse(user.email_verified)
-        self.assertIsNone(user.email_verified_at)
-        self.assertFalse(customer.phone_verified)
-        self.assertIsNone(customer.phone_verified_at)
+        self.assertEqual(user.email, 'old@example.com')
+        self.assertEqual(user.username, 'old@example.com')
+        self.assertTrue(user.email_verified)
+        self.assertIsNotNone(user.email_verified_at)
+        self.assertEqual(customer.phone, '11988887777')
+        self.assertTrue(customer.phone_verified)
+        self.assertIsNotNone(customer.phone_verified_at)
+        self.assertEqual(len(form.pending_changes), 2)
 
 
 # Run these against PostgreSQL: SQLite does not implement select_for_update.

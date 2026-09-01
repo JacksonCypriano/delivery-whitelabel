@@ -1,7 +1,7 @@
 from datetime import timedelta
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from apps.accounts.models import PendingRegistration, RegistrationRateLimit
+from apps.accounts.models import PendingRegistration, RegistrationRateLimit, PendingContactChange
 
 
 class Command(BaseCommand):
@@ -11,4 +11,5 @@ class Command(BaseCommand):
         expired, _ = PendingRegistration.objects.filter(expires_at__lte=timezone.now()).delete()
         completed, _ = PendingRegistration.objects.filter(completed_at__isnull=False).delete()
         RegistrationRateLimit.objects.filter(updated_at__lt=timezone.now() - timedelta(hours=24)).delete()
-        self.stdout.write(f'{expired + completed} cadastros removidos.')
+        contacts, _ = PendingContactChange.objects.filter(expires_at__lte=timezone.now()).delete()
+        self.stdout.write(f'{expired + completed} cadastros e {contacts} solicitações de contato removidos.')

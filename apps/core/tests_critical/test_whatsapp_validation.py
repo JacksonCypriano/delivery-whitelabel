@@ -83,7 +83,7 @@ class WhatsAppValidationTests(CriticalTestCase):
         post.assert_called_once()
 
     @patch("apps.integrations.whatsapp.service.requests.post")
-    def test_changing_phone_revalidates_and_updates_verification(self, post):
+    def test_changing_phone_stages_change_without_replacing_verified_contact(self, post):
         User = __import__("django.contrib.auth", fromlist=["get_user_model"]).get_user_model()
         user = User.objects.create_user(username="profile@example.com", email="profile@example.com", password=self.password)
         customer = Customer.objects.create(user=user, phone="11988887777", phone_verified=True)
@@ -95,8 +95,9 @@ class WhatsAppValidationTests(CriticalTestCase):
         self.assertTrue(form.is_valid(), form.errors)
         form.save()
         customer.refresh_from_db()
-        self.assertEqual(customer.phone, "11977776666")
-        self.assertFalse(customer.phone_verified)
+        self.assertEqual(customer.phone, "11988887777")
+        self.assertTrue(customer.phone_verified)
+        self.assertEqual(form.pending_changes[0].destination, "11977776666")
 
     @patch("apps.integrations.whatsapp.service.requests.post")
     def test_profile_rate_limit_blocks_sixth_distinct_phone_without_calling_evolution(self, post):

@@ -81,37 +81,9 @@ class CustomerProfileForm(forms.Form):
         return phone
 
     def save(self):
-        email = self.cleaned_data["email"]
+        from .contact_otp import save_profile
 
-        self.user.first_name = self.cleaned_data["first_name"]
-        self.user.last_name = self.cleaned_data["last_name"]
-        if self.user.email != email:
-            self.user.email_verified = False
-            self.user.email_verified_at = None
-        self.user.email = email
-
-        # Consumidores usam e-mail como username.
-        self.user.username = email
-
-        self.user.save(
-            update_fields=[
-                "first_name",
-                "last_name",
-                "email",
-                "username",
-                "email_verified",
-                "email_verified_at",
-            ]
-        )
-
-        phone_changed = self.customer.phone != self.cleaned_data["phone"]
-        self.customer.phone = self.cleaned_data["phone"]
-        if phone_changed:
-            self.customer.phone_verified = False
-            self.customer.phone_verified_at = None
-
-        self.customer.save(update_fields=["phone", "phone_verified", "phone_verified_at", "updated_at"])
-
+        self.user, self.pending_changes = save_profile(self.user.pk, self.cleaned_data)
         return self.user
 
 
@@ -262,13 +234,16 @@ class CustomerLoginForm(forms.Form):
         widget=forms.PasswordInput,
     )
 
-    def __init__(self, *args, request=None, **kwargs):
+    def __init__(self, *args, request=None, authentication_blocked=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.request = request
+        self.authentication_blocked = authentication_blocked
         self.user = None
 
     def clean(self):
         cleaned_data = super().clean()
+        if self.authentication_blocked:
+            raise ValidationError("Muitas tentativas. Aguarde alguns minutos e tente novamente.")
 
         email = cleaned_data.get("email")
         password = cleaned_data.get("password")

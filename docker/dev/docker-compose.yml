@@ -58,6 +58,8 @@ services:
     volumes:
       - ../../deploy/nginx/conf.d:/etc/nginx/conf.d:ro
       - ../../deploy/nginx/certs:/etc/nginx/ssl:ro
+      - ../../staticfiles:/app/staticfiles:ro
+      - ../../media:/app/media:ro
     depends_on:
       - web
     restart: unless-stopped

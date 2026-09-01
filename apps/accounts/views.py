@@ -31,6 +31,8 @@ from .forms import (
     CustomerRegisterForm,
 )
 
+from .audit import login_rejected, record_event
+
 User = get_user_model()
 logger = logging.getLogger("vemdedelivery.accounts")
 
@@ -42,6 +44,7 @@ class DashboardLoginView(APIView):
         password = request.data.get("password") or ""
 
         if rate_limit_exceeded(request, "dashboard-login", username, limit=8, window=300):
+            record_event("rate_limited", scope="dashboard", request=request, identifier=username, reason="rate_limit")
             return Response({"error": "Muitas tentativas. Aguarde alguns minutos e tente novamente."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
 
         user = authenticate(request=request, username=username, password=password)
@@ -49,10 +52,12 @@ class DashboardLoginView(APIView):
             return Response({"error": "Credenciais inválidas"}, status=status.HTTP_401_UNAUTHORIZED)
 
         if not user.is_tenant_admin or user.tenant != getattr(request, "tenant", None):
+            record_event("access_denied", scope="dashboard", request=request, user_id=user.pk, reason="not_allowed")
             return Response({"error": "Acesso não autorizado"}, status=status.HTTP_403_FORBIDDEN)
 
         clear_rate_limit(request, "dashboard-login", username)
         refresh = RefreshToken.for_user(user)
+        record_event("login_succeeded", scope="dashboard", request=request, user_id=user.pk)
         return Response({
             'access': str(refresh.access_token),
             'refresh': str(refresh),
@@ -71,9 +76,14 @@ class DashboardLogoutView(APIView):
         try:
             refresh_token = request.data.get('refresh')
             token = RefreshToken(refresh_token)
+            if str(token.get("user_id")) != str(request.user.pk):
+                record_event("access_denied", scope="dashboard", request=request, user_id=request.user.pk, reason="not_allowed")
+                return Response({'error': 'Token inválido'}, status=status.HTTP_400_BAD_REQUEST)
             token.blacklist()
+            record_event("logout", scope="dashboard", request=request, user_id=request.user.pk)
             return Response({'success': True})
         except Exception:
+            record_event("access_denied", scope="dashboard", request=request, reason="rejected")
             return Response({'error': 'Token inválido'}, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -86,9 +96,12 @@ class DashboardRefreshView(APIView):
             token = RefreshToken(refresh_token)
             user = User.objects.filter(pk=token.get("user_id"), is_active=True).select_related("tenant").first()
             if not user or not user.is_tenant_admin or user.tenant != getattr(request, "tenant", None):
+                record_event("access_denied", scope="dashboard", request=request, reason="not_allowed")
                 return Response({"error": "Token inválido"}, status=status.HTTP_401_UNAUTHORIZED)
+            record_event("token_refreshed", scope="dashboard", request=request, user_id=user.pk)
             return Response({"access": str(token.access_token)})
         except Exception:
+            record_event("access_denied", scope="dashboard", request=request, reason="rejected")
             return Response({"error": "Token inválido"}, status=status.HTTP_400_BAD_REQUEST)
 
 def _safe_next_url(request):
@@ -116,6 +129,7 @@ def customer_register(request):
         form = CustomerRegisterForm(request.POST)
 
         if rate_limit_exceeded(request, "customer-register", limit=5, window=3600):
+            record_event("rate_limited", scope="registration", request=request, reason="rate_limit")
             form.add_error(None, "Muitas tentativas de cadastro. Aguarde um pouco e tente novamente.")
         elif form.is_valid():
             pending = form.save()
@@ -142,21 +156,26 @@ def customer_register(request):
     )
 
 
+@sensitive_post_parameters("password")
+@never_cache
 @require_http_methods(["GET", "POST"])
 def customer_login(request):
     if request.user.is_authenticated:
         return redirect(_safe_next_url(request))
 
     if request.method == "POST":
-        form = CustomerLoginForm(request.POST, request=request)
         email = str(request.POST.get("email") or "").strip().lower()
-
-        if rate_limit_exceeded(request, "customer-login", email, limit=8, window=300):
-            form.add_error(None, "Muitas tentativas. Aguarde alguns minutos e tente novamente.")
+        blocked = rate_limit_exceeded(request, "customer-login", email, limit=8, window=300)
+        form = CustomerLoginForm(request.POST, request=request, authentication_blocked=blocked)
+        if blocked:
+            record_event("rate_limited", request=request, identifier=email, reason="rate_limit")
+            form.is_valid()
         elif form.is_valid():
             clear_rate_limit(request, "customer-login", email)
             login(request, form.get_user())
             return redirect(_safe_next_url(request))
+        else:
+            login_rejected(request, email)
 
     else:
         form = CustomerLoginForm(
@@ -206,6 +225,10 @@ def customer_password_reset(request):
             )
 
             # Sempre retorna a mesma tela para não revelar se a conta existe.
+            if ip_limited or email_limited:
+                record_event("rate_limited", request=request, identifier=email, reason="rate_limit")
+            else:
+                record_event("password_reset_requested", request=request, identifier=email)
             if not ip_limited and not email_limited:
                 try:
                     use_https, domain = _password_reset_domain()
@@ -220,7 +243,8 @@ def customer_password_reset(request):
                     )
                 except Exception:
                     # Não expõe falha de SMTP ao visitante nem a existência da conta.
-                    logger.exception("Customer password reset email could not be sent")
+                    record_event("password_reset_failed", request=request, reason="delivery", identifier=email)
+                    logger.error("Customer password reset email could not be sent")
 
             return redirect("customer_accounts:password-reset-done")
 
@@ -539,9 +563,14 @@ def customer_address_set_default(
         "customer_accounts:addresses"
     )
 
+@never_cache
 @login_required
 @require_http_methods(["GET", "POST"])
 def customer_profile(request):
+    from .contact_otp import pending_changes
+    from .contact_views import open_contact_change
+    from .otp import OTPError
+
     customer = get_current_customer(request)
 
     if request.method == "POST":
@@ -568,18 +597,19 @@ def customer_profile(request):
 
         if form.is_valid():
             if phone_limited:
+                record_event("rate_limited", scope="contact", request=request, user_id=request.user.pk, channel="whatsapp", reason="rate_limit")
                 form.add_error("phone", "Muitas tentativas de alteração do WhatsApp. Aguarde alguns minutos e tente novamente.")
             else:
-                form.save()
-
-                messages.success(
-                    request,
-                    "Seus dados foram atualizados com sucesso.",
-                )
-
-                return redirect(
-                    "customer_accounts:profile"
-                )
+                try:
+                    form.save()
+                except OTPError as exc:
+                    form.add_error(None, str(exc))
+                else:
+                    if form.pending_changes:
+                        messages.info(request, "Nome e sobrenome salvos. Confirme os novos contatos para concluir a alteração.")
+                        return open_contact_change(request, form.pending_changes[0])
+                    messages.success(request, "Seus dados foram atualizados com sucesso.")
+                    return redirect("customer_accounts:profile")
 
     else:
         form = CustomerProfileForm(
@@ -599,10 +629,13 @@ def customer_profile(request):
         {
             "customer": customer,
             "form": form,
+            "pending_changes": pending_changes(request.user),
         },
     )
 
 
+@sensitive_post_parameters("old_password", "new_password1", "new_password2")
+@never_cache
 @login_required
 @require_http_methods(["GET", "POST"])
 def customer_change_password(request):
@@ -631,6 +664,9 @@ def customer_change_password(request):
             return redirect(
                 "customer_accounts:change-password"
             )
+
+        else:
+            record_event("access_denied", scope="account", request=request, user_id=request.user.pk, reason="invalid_input")
 
     else:
         form = CustomerPasswordChangeForm(

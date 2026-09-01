@@ -91,7 +91,7 @@
     <div class="space-y-3 mb-6">
 
       {% for message in messages %}
-        <div class="p-4 bg-green-50 border border-green-100 text-green-700 rounded-xl text-sm font-medium">
+        <div role="status" class="p-4 border rounded-xl text-sm font-medium {% if message.tags == 'error' %}bg-red-50 border-red-100 text-red-700{% else %}bg-green-50 border-green-100 text-green-700{% endif %}">
           {{ message }}
         </div>
       {% endfor %}
@@ -110,10 +110,23 @@
     </h1>
 
     <p class="text-sm text-gray-500 mt-2">
-      Atualize seus dados pessoais e de contato.
+      Atualize seus dados pessoais e de contato. Um novo e-mail ou WhatsApp só será salvo após a confirmação por código.
     </p>
 
   </div>
+
+  {% if pending_changes %}
+    <section class="mb-6 p-5 bg-amber-50 border border-amber-200 rounded-2xl" aria-label="Confirmações pendentes">
+      <h2 class="font-bold">Confirmação de contato pendente</h2>
+      <p class="text-sm mt-2">Os contatos abaixo ainda não substituíram seus dados atuais.</p>
+      {% for change in pending_changes %}
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <span class="text-sm">{{ change.get_channel_display }}: {{ change.masked_destination }}</span>
+          <a class="text-sm font-bold underline" href="{% url 'customer_accounts:verify-contact' change_id=change.pk %}">Confirmar ou cancelar</a>
+        </div>
+      {% endfor %}
+    </section>
+  {% endif %}
 
   <div class="bg-white border border-gray-100 rounded-3xl p-6 sm:p-8 shadow-sm">
 
@@ -197,6 +210,10 @@
             class="form-input"
           >
 
+          <p class="text-xs text-gray-500 mt-1.5">
+            E-mail atual: {% if request.user.email_verified %}verificado{% else %}não verificado{% endif %}.
+            Após confirmar a alteração, use o novo e-mail para entrar.
+          </p>
           {% for error in form.email.errors %}
             <p class="text-xs text-red-600 mt-1.5">
               {{ error }}
@@ -222,7 +239,7 @@
           >
 
           <p class="text-xs text-gray-400 mt-1.5">
-            Usamos este telefone para facilitar seus pedidos.
+            Telefone atual: {% if customer.phone_verified %}verificado{% else %}não verificado{% endif %}. Usamos este telefone para facilitar seus pedidos.
           </p>
 
           {% for error in form.phone.errors %}

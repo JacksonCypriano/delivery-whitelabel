@@ -81,3 +81,38 @@ class TenantUserAdmin(ModelAdmin, BaseUserAdmin):
         if not obj.pk:
             obj.tenant = request.tenant
         super().save_model(request, obj, form, change)
+
+
+from .models import SecurityEvent
+
+
+@admin.register(SecurityEvent, site=super_admin_site)
+class SecurityEventAdmin(ModelAdmin):
+    list_display = ("created_at", "event", "scope", "user", "actor", "channel", "reason", "ip_address")
+    list_filter = ("event", "scope", "channel", "reason", "created_at")
+    search_fields = ("user__username", "user__email", "actor__username", "request_id", "identifier_hash")
+    readonly_fields = tuple(field.name for field in SecurityEvent._meta.fields)
+    ordering = ("-created_at", "-pk")
+    date_hierarchy = "created_at"
+    list_select_related = ("user", "actor")
+    list_per_page = 50
+    actions = None
+
+    def has_module_permission(self, request):
+        return request.user.is_active and request.user.is_superuser
+
+    def has_view_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request)
+        return queryset if self.has_module_permission(request) else queryset.none()

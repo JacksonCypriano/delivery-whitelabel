@@ -115,6 +115,9 @@ services:
       web:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      - default
+      - evolution_network
     stop_grace_period: 15s
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider --no-check-certificate --header='Host: vemdedelivery.com.br' https://127.0.0.1/ || exit 1"]
@@ -129,3 +132,8 @@ volumes:
   redisdata:
   static_volume:
   media_volume:
+
+networks:
+  evolution_network:
+    external: true
+    name: evolution_evolution

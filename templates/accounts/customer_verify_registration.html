@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Confirme seu cadastro | VemDeDelivery</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#f8fafc;color:#172033;font:16px system-ui,sans-serif;min-height:100vh;display:grid;place-items:center;padding:24px}main{width:100%;max-width:460px;background:white;padding:32px;border:1px solid #e2e8f0;border-radius:24px;box-shadow:0 24px 60px #0f172a12}h1{font-size:26px;margin:16px 0}p{line-height:1.6}.step{font-size:14px;color:#64748b}.notice{padding:12px;background:#f1f5f9;border-radius:8px}label{display:block;margin-bottom:8px}input{width:100%;padding:14px;font-size:24px;letter-spacing:8px;border:1px solid #94a3b8;border-radius:12px}button{width:100%;padding:14px;margin-top:16px;border:0;border-radius:12px;background:{{ tenant.brand_config.primary_color|default:'#e74c3c' }};color:white;font-size:16px;cursor:pointer}.secondary{background:#e2e8f0;color:#172033}a{color:#475569}small{display:block;line-height:1.6;margin-top:16px}input:focus,button:focus,a:focus{outline:3px solid #94a3b8;outline-offset:3px}
+  </style>
+</head>
+<body><main>
+  <strong>{{ tenant.name|default:'VemDeDelivery' }}</strong>
+  <p class="step">{% if pending.channel == 'email' %}Etapa 1 de 2 · E-mail{% else %}Etapa 2 de 2 · WhatsApp{% endif %}</p>
+  <h1>Confirme seu {% if pending.channel == 'email' %}e-mail{% else %}WhatsApp{% endif %}</h1>
+  <p>Digite o código de 6 dígitos enviado para <strong>{{ destination }}</strong>.</p>
+  {% for message in messages %}<p class="notice" role="status">{{ message }}</p>{% endfor %}
+  <form method="post">
+    {% csrf_token %}<input type="hidden" name="channel" value="{{ pending.channel }}">
+    <input type="hidden" name="action" value="verify">
+    <label for="code">Código de confirmação</label>
+    <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required autofocus>
+    <button type="submit">{% if pending.channel == 'email' %}Confirmar e-mail{% else %}Confirmar e criar conta{% endif %}</button>
+  </form>
+  <form method="post">
+    {% csrf_token %}<input type="hidden" name="channel" value="{{ pending.channel }}">
+    <button class="secondary" name="action" value="send" type="submit">Reenviar código</button>
+  </form>
+  <small>O código vale por 10 minutos. Aguarde 60 segundos antes de reenviar. {% if pending.channel == 'email' %}Confira também a pasta de spam.{% endif %}</small>
+  <p><a href="{% url 'customer_accounts:register' %}">Corrigir dados e reiniciar cadastro</a></p>
+</main></body></html>

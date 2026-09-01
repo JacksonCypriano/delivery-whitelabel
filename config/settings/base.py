@@ -448,3 +448,6 @@ MARKETPLACE_CEP_URL = "https://viacep.com.br/ws/{cep}/json/"
 MARKETPLACE_CEP_TIMEOUT = 4
 MARKETPLACE_CEP_CACHE_SECONDS = 60 * 60 * 24 * 30
 MARKETPLACE_CEP_USER_AGENT = "VemDeDelivery/1.0"
+
+# Enable only behind a proxy that overwrites X-Real-IP.
+OTP_TRUST_PROXY_HEADERS = os.getenv("OTP_TRUST_PROXY_HEADERS", "false").lower() in ("1", "true", "yes", "on")

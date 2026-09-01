@@ -18,6 +18,7 @@ from .views import (
     customer_orders,
     customer_profile,
     customer_register,
+    customer_verify_registration,
 )
 
 
@@ -32,6 +33,7 @@ urlpatterns = [
     path("redefinir-senha/<uidb64>/<token>/", CustomerPasswordResetConfirmView.as_view(), name="password-reset-confirm"),
     path("redefinir-senha/concluido/", customer_password_reset_complete, name="password-reset-complete"),
     path("criar-conta/", customer_register, name="register"),
+    path("criar-conta/validar/", customer_verify_registration, name="verify-registration"),
     path("sair/", customer_logout, name="logout"),
     path("enderecos/", customer_addresses, name="addresses"),
     path("enderecos/novo/", customer_address_create, name="address-create"),

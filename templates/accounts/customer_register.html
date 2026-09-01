@@ -140,7 +140,7 @@
               </h1>
 
               <p class="text-sm text-gray-500 mt-0.5">
-                É rápido e leva menos de um minuto.
+                Confirme seu e-mail e WhatsApp para concluir.
               </p>
             </div>
 
@@ -148,6 +148,7 @@
 
         </div>
 
+        {% for message in messages %}<p role="status" class="mb-4 text-sm">{{ message }}</p>{% endfor %}
         <!-- Erros gerais -->
         {% if form.non_field_errors %}
           <div class="mb-5 p-4 rounded-xl bg-red-50 border border-red-100 text-red-700 text-sm">

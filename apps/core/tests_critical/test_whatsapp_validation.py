@@ -32,18 +32,17 @@ class WhatsAppValidationTests(CriticalTestCase):
         self.assertEqual(normalize_br_phone("11 99999-1234"), "5511999991234")
 
     @patch("apps.integrations.whatsapp.service.requests.post")
-    def test_valid_whatsapp_number_allows_registration_and_marks_verified(self, post):
+    def test_valid_whatsapp_number_creates_pending_without_proving_ownership(self, post):
         response = Mock()
         response.raise_for_status.return_value = None
         response.json.return_value = [{"exists": True, "jid": "5511999991234@s.whatsapp.net", "number": "5511999991234"}]
         post.return_value = response
         form = CustomerRegisterForm(data=self.registration_data())
         self.assertTrue(form.is_valid(), form.errors)
-        user = form.save()
-        customer = user.customer_profile
-        self.assertEqual(customer.phone, "11999991234")
-        self.assertTrue(customer.phone_verified)
-        self.assertIsNotNone(customer.phone_verified_at)
+        pending = form.save()
+        self.assertEqual(pending.phone, "11999991234")
+        self.assertIsNone(pending.email_verified_at)
+        self.assertFalse(Customer.objects.filter(phone=pending.phone).exists())
         post.assert_called_once()
 
     @patch("apps.integrations.whatsapp.service.requests.post")
@@ -68,9 +67,9 @@ class WhatsAppValidationTests(CriticalTestCase):
         post.side_effect = requests.Timeout("offline")
         form = CustomerRegisterForm(data=self.registration_data())
         self.assertTrue(form.is_valid(), form.errors)
-        user = form.save()
-        self.assertFalse(user.customer_profile.phone_verified)
-        self.assertIsNone(user.customer_profile.phone_verified_at)
+        pending = form.save()
+        self.assertIsNone(pending.email_verified_at)
+        self.assertFalse(Customer.objects.filter(phone=pending.phone).exists())
 
     @patch("apps.integrations.whatsapp.service.requests.post")
     def test_result_is_cached(self, post):
@@ -97,7 +96,7 @@ class WhatsAppValidationTests(CriticalTestCase):
         form.save()
         customer.refresh_from_db()
         self.assertEqual(customer.phone, "11977776666")
-        self.assertTrue(customer.phone_verified)
+        self.assertFalse(customer.phone_verified)
 
     @patch("apps.integrations.whatsapp.service.requests.post")
     def test_profile_rate_limit_blocks_sixth_distinct_phone_without_calling_evolution(self, post):

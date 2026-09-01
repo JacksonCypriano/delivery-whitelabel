@@ -25,6 +25,7 @@ class CustomerProfileForm(forms.Form):
     )
 
     email = forms.EmailField(
+        max_length=150,
         label="E-mail",
     )
 
@@ -84,6 +85,9 @@ class CustomerProfileForm(forms.Form):
 
         self.user.first_name = self.cleaned_data["first_name"]
         self.user.last_name = self.cleaned_data["last_name"]
+        if self.user.email != email:
+            self.user.email_verified = False
+            self.user.email_verified_at = None
         self.user.email = email
 
         # Consumidores usam e-mail como username.
@@ -95,15 +99,16 @@ class CustomerProfileForm(forms.Form):
                 "last_name",
                 "email",
                 "username",
+                "email_verified",
+                "email_verified_at",
             ]
         )
 
         phone_changed = self.customer.phone != self.cleaned_data["phone"]
         self.customer.phone = self.cleaned_data["phone"]
         if phone_changed:
-            check = getattr(self, "whatsapp_check", None)
-            self.customer.phone_verified = bool(check and check.available and check.exists)
-            self.customer.phone_verified_at = timezone.now() if self.customer.phone_verified else None
+            self.customer.phone_verified = False
+            self.customer.phone_verified_at = None
 
         self.customer.save(update_fields=["phone", "phone_verified", "phone_verified_at", "updated_at"])
 
@@ -157,6 +162,7 @@ class CustomerRegisterForm(forms.Form):
     )
 
     email = forms.EmailField(
+        max_length=150,
         label="E-mail",
     )
 
@@ -221,28 +227,8 @@ class CustomerRegisterForm(forms.Form):
         return cleaned_data
 
     def save(self):
-        email = self.cleaned_data["email"]
-
-        # Como seu AUTH_USER_MODEL ainda autentica por username,
-        # usamos o e-mail também como username do consumidor.
-        user = User.objects.create_user(
-            username=email,
-            email=email,
-            first_name=self.cleaned_data["first_name"],
-            last_name=self.cleaned_data["last_name"],
-            password=self.cleaned_data["password1"],
-
-            # Consumidor global
-            tenant=None,
-            is_tenant_admin=False,
-            is_staff=False,
-        )
-
-        check = getattr(self, "whatsapp_check", None)
-        verified = bool(check and check.available and check.exists)
-        Customer.objects.create(user=user, phone=self.cleaned_data["phone"], phone_verified=verified, phone_verified_at=timezone.now() if verified else None)
-
-        return user
+        from .otp import create_pending
+        return create_pending(self.cleaned_data)
 
 
 class CustomerPasswordResetForm(PasswordResetForm):

@@ -9,6 +9,8 @@ from django.contrib.auth.views import PasswordResetConfirmView
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.views.decorators.http import require_http_methods
+from django.views.decorators.cache import never_cache
+from django.views.decorators.debug import sensitive_post_parameters
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -103,6 +105,8 @@ def _safe_next_url(request):
     return "/"
 
 
+@sensitive_post_parameters("password1", "password2")
+@never_cache
 @require_http_methods(["GET", "POST"])
 def customer_register(request):
     if request.user.is_authenticated:
@@ -114,17 +118,16 @@ def customer_register(request):
         if rate_limit_exceeded(request, "customer-register", limit=5, window=3600):
             form.add_error(None, "Muitas tentativas de cadastro. Aguarde um pouco e tente novamente.")
         elif form.is_valid():
-            user = form.save()
-
-            login(
-                request,
-                user,
-                backend="django.contrib.auth.backends.ModelBackend",
-            )
-
-            return redirect(
-                _safe_next_url(request)
-            )
+            pending = form.save()
+            request.session.cycle_key()
+            request.session['pending_registration'] = str(pending.pk)
+            request.session['registration_next'] = _safe_next_url(request)
+            from .otp import OTPError, client_ip, send_code
+            try:
+                send_code(pending.pk, client_ip(request), 'email')
+            except OTPError as exc:
+                messages.error(request, str(exc))
+            return redirect('customer_accounts:verify-registration')
 
     else:
         form = CustomerRegisterForm()
@@ -684,3 +687,53 @@ def customer_order_detail(request, order_id):
             "order": order,
         },
     )
+
+
+@sensitive_post_parameters('code')
+@never_cache
+@require_http_methods(['GET', 'POST'])
+def customer_verify_registration(request):
+    from .models import PendingRegistration
+    from .otp import OTPError, active, client_ip, send_code, verify_code
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    if request.user.is_authenticated:
+        return redirect('customer_accounts:account')
+    pending_id = request.session.get('pending_registration')
+    pending = PendingRegistration.objects.filter(pk=pending_id).first() if pending_id else None
+    if pending is None:
+        return redirect('customer_accounts:register')
+    try:
+        active(pending)
+    except OTPError as exc:
+        request.session.pop('pending_registration', None)
+        messages.error(request, str(exc))
+        return redirect('customer_accounts:register')
+    if request.method == 'POST':
+        channel = request.POST.get('channel', '')
+        try:
+            if request.POST.get('action') == 'send':
+                send_code(pending.pk, client_ip(request), channel)
+                messages.success(request, 'Código enviado. Confira suas mensagens.')
+            elif request.POST.get('action') == 'verify':
+                user = verify_code(pending.pk, channel, request.POST.get('code', '').strip())
+                if user:
+                    next_url = request.session.pop('registration_next', '/')
+                    request.session.pop('pending_registration', None)
+                    login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+                    if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+                        next_url = '/'
+                    messages.success(request, 'Conta criada! E-mail e WhatsApp confirmados.')
+                    return redirect(next_url)
+                messages.success(request, 'E-mail confirmado. Agora confirme seu WhatsApp.')
+                send_code(pending.pk, client_ip(request), 'whatsapp')
+            else:
+                raise OTPError('Ação inválida.')
+        except OTPError as exc:
+            messages.error(request, str(exc))
+        return redirect('customer_accounts:verify-registration')
+    destination = (pending.email[:1] + '***@' + pending.email.split('@')[-1]
+                   if pending.channel == 'email' else '(**) *****-' + pending.phone[-4:])
+    return render(request, 'accounts/customer_verify_registration.html', {
+        'pending': pending, 'destination': destination,
+    })

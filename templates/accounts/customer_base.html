@@ -1,0 +1,13 @@
+{% load static %}
+<!DOCTYPE html><html lang="pt-BR"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Minha conta{% endblock %} | VemDeDelivery</title>
+<script src="https://cdn.tailwindcss.com"></script>
+{% include 'includes/customer_brand_head.html' %}
+{% block extra_head %}{% endblock %}
+</head><body class="vdd-client" data-page="{% block page_name %}{% endblock %}">
+{% include 'includes/customer_brand_header.html' %}
+<main id="vdd-content">{% block content %}{% endblock %}</main>
+{% include 'includes/customer_brand_footer.html' %}
+{% block extra_js %}{% endblock %}
+</body></html>

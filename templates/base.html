@@ -263,6 +263,7 @@
   {% block extra_head %}
   {% endblock %}
 
+{% include 'includes/customer_brand_head.html' %}
 </head>
 
 
@@ -276,6 +277,7 @@
   "
   data-page="{% block page_name %}{% endblock %}"
 >
+<div class="vdd-platform-strip"><a href="{{ CUSTOMER_PORTAL_URL|default:'/' }}" aria-label="Explorar lojas no VemDeDelivery"><img src="{% static 'images/brand/logo-vemdedelivery.svg' %}" alt="VemDeDelivery" width="365" height="72"></a><span>Encontre. Escolha. Peça.</span></div>
 
 
   <!-- Som de notificação -->
@@ -1266,6 +1268,7 @@
     {% block content %}
     {% endblock %}
   </main>
+{% include 'includes/customer_brand_footer.html' %}
 
 
   <!-- ============================================================

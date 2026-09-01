@@ -9,7 +9,7 @@
 
   <link
     rel="icon"
-    href="{% static 'images/favicon.svg' %}"
+    href="{% static 'images/brand/icone-vemdedelivery.svg' %}"
   >
 
   <script src="https://cdn.tailwindcss.com"></script>
@@ -55,33 +55,14 @@
       background: rgba(255, 90, 31, .09);
     }
   </style>
+{% include 'includes/customer_brand_head.html' %}
 </head>
 
-<body class="min-h-screen text-gray-900">
+<body class="vdd-client min-h-screen text-gray-900">
 
-<header class="bg-white border-b border-gray-100">
+{% include 'includes/customer_brand_header.html' %}
 
-  <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-
-    <a
-      href="{% url 'customer_accounts:account' %}"
-      class="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-gray-900"
-    >
-      ← Minha conta
-    </a>
-
-    <a
-      href="/"
-      class="text-sm text-gray-500 hover:text-gray-900"
-    >
-      Início
-    </a>
-
-  </div>
-
-</header>
-
-<main class="max-w-5xl mx-auto px-4 py-8 sm:py-10">
+<main id="vdd-content" class="max-w-5xl mx-auto px-4 py-8 sm:py-10">
 
   {% if messages %}
     <div class="space-y-3 mb-6">
@@ -334,5 +315,6 @@
 
 </main>
 
+{% include 'includes/customer_brand_footer.html' %}
 </body>
 </html>

@@ -1,0 +1,58 @@
+/* Identidade VemDeDelivery: componentes compartilhados e área do cliente. */
+.vdd-client{--primary:#bd441d;--secondary:#173b32;--background:#f7f8f3;--text:#173b32;--muted:#626d67;--border:#dfe5dc;--card:#fff;margin:0;padding:0;min-height:100vh;display:flex;flex-direction:column;place-items:normal;background:#f7f8f3;color:#173b32;font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.vdd-client *, .vdd-header *, .vdd-footer *{box-sizing:border-box}
+.vdd-container{width:min(1180px,calc(100% - 56px));margin-inline:auto}
+.vdd-header{flex:none;position:relative;z-index:30;background:#f7f8f3;border-bottom:1px solid #dfe5dc;color:#173b32;font-family:Inter,ui-sans-serif,system-ui,sans-serif}
+.vdd-header-inner{min-height:82px;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:12px 0}
+.vdd-header .vdd-logo{display:block;flex-shrink:1;min-width:0;text-decoration:none}
+.vdd-logo img{display:block;width:230px;max-width:100%;height:auto}
+.vdd-nav{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.vdd-nav a,.vdd-header button{display:inline-flex;align-items:center;justify-content:center;min-height:42px;width:auto;margin:0;padding:10px 14px;color:#173b32;border:1px solid transparent;border-radius:11px;background:transparent;font:650 12px/1.4 Inter,ui-sans-serif,system-ui,sans-serif;text-decoration:none;cursor:pointer;letter-spacing:normal}
+.vdd-nav a:hover,.vdd-header button:hover{background:#e9efdf}
+.vdd-nav a[aria-current],.vdd-nav a.vdd-nav-primary{background:#173b32;color:#fff}
+.vdd-nav form{margin:0}
+.vdd-skip{position:absolute;left:16px;top:-100px;background:#fff;color:#173b32;padding:12px;border-radius:10px;z-index:100}
+.vdd-skip:focus{top:12px}
+.vdd-client a:focus-visible,.vdd-client button:focus-visible,.vdd-client input:focus-visible,.vdd-client select:focus-visible,.vdd-client textarea:focus-visible,.vdd-footer a:focus-visible{outline:3px solid #bd441d;outline-offset:3px}
+.vdd-client>main{flex:1;width:100%;min-height:0;padding-top:38px;padding-bottom:48px}
+.vdd-client.vdd-auth>main{min-height:0;align-items:flex-start;padding-top:40px;padding-bottom:48px}
+.vdd-auth-kicker{text-align:center;margin:0 0 22px}
+.vdd-auth-kicker span{display:inline-block;background:#e9efdf;color:#426044;border-radius:30px;padding:7px 14px;font-size:10px;font-weight:750;text-transform:uppercase;letter-spacing:1.5px}
+.vdd-auth-kicker p{font-size:12px;color:#626d67;margin:9px 0 0}
+.vdd-client .auth-card{border:1px solid #dfe5dc;border-top:4px solid #173b32;border-radius:24px;box-shadow:0 14px 45px #173b3209;background:white}
+.vdd-client .account-card,.vdd-client .order-card,.vdd-client .address-card{border-color:#dfe5dc;border-radius:22px;box-shadow:0 5px 18px #173b3204}
+.vdd-client .account-card:hover,.vdd-client .order-card:hover,.vdd-client .address-card:hover{border-color:#afc0a8;box-shadow:0 12px 28px #173b320b}
+.vdd-client h1,.vdd-client h2,.vdd-client h3{color:#173b32;letter-spacing:-.65px}
+.vdd-client h1{font-weight:800;line-height:1.25}
+.vdd-client .form-input{border-color:#dfe5dc;background:#fbfcf8;color:#173b32;border-radius:12px;min-height:50px}
+.vdd-client .form-input:focus{border-color:#769575;box-shadow:0 0 0 3px #e9efdf}
+.vdd-client .primary-button,.vdd-client .primary-bg,.vdd-client .bg-primary{background:#173b32;color:white;border-radius:12px}
+.vdd-client .primary-button:hover,.vdd-client .primary-bg:hover{background:#285747}
+.vdd-client .primary-text,.vdd-client .text-primary{color:#bd441d}
+.vdd-client .primary-bg-soft{background:#f9eee5;color:#bd441d}
+.vdd-client .text-orange-500,.vdd-client .text-orange-600{color:#bd441d}
+.vdd-client .bg-orange-50{background:#f9eee5}
+.vdd-client .border-gray-100,.vdd-client .border-gray-200{border-color:#dfe5dc}
+.vdd-client .bg-orange-500,.vdd-client .bg-orange-600{background:#bd441d}
+.vdd-client .text-gray-900,.vdd-client .text-slate-900{color:#173b32}
+.vdd-client.vdd-otp>main{flex:0 0 auto;max-width:480px;width:calc(100% - 32px);margin:40px auto 48px;padding:30px;border:1px solid #dfe5dc;border-top:4px solid #173b32;border-radius:24px;background:white;box-shadow:0 14px 45px #173b3209}
+.vdd-otp>main h1{font-size:26px;margin:16px 0}
+.vdd-otp>main input:not([type=hidden]){background:#fbfcf8;border-color:#dfe5dc;color:#173b32}
+.vdd-otp>main button:not(.secondary):not(.cancel){background:#173b32}
+.vdd-otp>main .secondary{background:#e9efdf;color:#173b32}
+.vdd-otp>main .notice{color:#173b32;background:#edf2e6}
+.vdd-otp>main .notice.error{color:#991b1b;background:#fef2f2}
+.vdd-footer{flex:none;margin-top:auto;background:#173b32;color:#e6eee3;padding:34px 0 26px;font-family:Inter,ui-sans-serif,system-ui,sans-serif}
+.vdd-footer-inner{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px}
+.vdd-footer-logo{display:block;width:225px;max-width:100%}
+.vdd-footer-logo img{display:block;width:100%;height:auto}
+.vdd-footer p{margin:0;color:#c0d2c2;font-size:12px;line-height:1.6;letter-spacing:normal}
+.vdd-footer .vdd-company{width:min(440px,100%);border-top:1px solid #ffffff24;border-bottom:1px solid #ffffff24;padding:15px 8px}
+.vdd-footer strong{font-size:11px;letter-spacing:1.2px;color:#e6eee3}
+.vdd-footer .vdd-company p{margin-top:5px}
+.vdd-footer .vdd-copyright{font-size:10px}
+.vdd-platform-strip{background:#f7f8f3;border-bottom:1px solid #dfe5dc;padding:9px 20px;display:flex;align-items:center;justify-content:center;gap:15px;font:11px/1.4 system-ui,sans-serif;color:#626d67}
+.vdd-platform-strip img{display:block;width:160px;height:auto}
+@media(max-width:640px){.vdd-container{width:calc(100% - 32px)}.vdd-header-inner{min-height:70px;gap:8px}.vdd-logo img{width:185px}.vdd-nav{gap:3px}.vdd-nav a,.vdd-header button{font-size:11px;padding:9px 10px;min-height:40px}.vdd-nav .vdd-nav-secondary{display:none}.vdd-client>main{padding-top:26px;padding-bottom:32px}.vdd-client.vdd-auth>main{padding-top:27px;padding-bottom:32px}.vdd-client .auth-card{border-radius:20px}.vdd-auth-kicker{margin-bottom:17px}.vdd-client.vdd-otp>main{margin-top:26px;margin-bottom:32px;padding:23px}.vdd-platform-strip{gap:10px;font-size:10px}.vdd-platform-strip img{width:135px}}
+@media(max-width:380px){.vdd-logo img{width:153px}.vdd-nav a,.vdd-header button{padding:8px;font-size:10px}}
+@media(prefers-reduced-motion:reduce){.vdd-client *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}

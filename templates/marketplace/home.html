@@ -1,1286 +1,112 @@
-{% load static %}
+{% load static l10n %}
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#173b32">
+<link rel="icon" type="image/svg+xml" href="{% static 'images/brand/icone-vemdedelivery.svg' %}">
+<meta name="description" content="Descubra os comércios e produtos da sua região. Encontre seu próximo pedido no VemDeDelivery.">
+<title>VemDeDelivery — Seu próximo pedido começa aqui</title>
+<style>
+:root{--ink:#173b32;--muted:#626d67;--orange:#bd441d;--paper:#f7f8f3;--line:#dfe5dc;--white:#fff;--radius:22px}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:96px}body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:15px;line-height:1.5}a{color:inherit;text-decoration:none}button,input,select{font:inherit}button,a,input,select{-webkit-tap-highlight-color:transparent}button{cursor:pointer}button:disabled{cursor:wait;opacity:.6}button,a,input,select{outline-offset:4px}:focus-visible{outline:3px solid #d75b30}img{max-width:100%}svg{display:block}h1,h2,h3,p{margin:0}.wrap{width:min(1180px,calc(100% - 56px));margin:auto}.skip{position:absolute;top:-100px;left:20px;background:white;padding:12px;z-index:100}.skip:focus{top:10px}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.hidden{display:none!important}
+.site-header{position:sticky;top:0;z-index:40;background:rgba(247,248,243,.96);border-bottom:1px solid var(--line);backdrop-filter:blur(14px)}.header-inner{height:82px;display:flex;align-items:center;justify-content:space-between;gap:20px}.brand{display:flex;align-items:center;gap:10px}.brand-mark{width:40px;height:40px;background:var(--orange);border-radius:13px;color:#fff;display:grid;place-items:center;font-size:25px;font-weight:850;transform:rotate(-7deg)}.brand-name{font-size:19px;font-weight:800;letter-spacing:-.9px}.brand-name span{color:var(--orange)}.brand-note{font-size:10px;letter-spacing:1.8px;text-transform:uppercase;color:var(--muted)}.navigation{display:flex;align-items:center;gap:12px}.nav-explore{font-size:13px;margin-right:20px}.btn{min-height:44px;padding:11px 19px;border:1px solid var(--line);border-radius:12px;display:inline-flex;justify-content:center;align-items:center;gap:8px;font-weight:700;font-size:13px;background:white;transition:background .18s,transform .18s}.btn:hover{background:#eef1e9}.btn-dark{background:var(--ink);border-color:var(--ink);color:white}.btn-dark:hover{background:#285747}.btn-orange{background:var(--orange);border-color:var(--orange);color:white}.btn-orange:hover{background:#9c3514}.link-subtle{font-size:13px;color:var(--muted);font-weight:600}.link-subtle:hover{text-decoration:underline}
+.hero{padding:44px 0 30px}.hero-panel{position:relative;overflow:hidden;display:grid;grid-template-columns:1.2fr 1fr;align-items:center;min-height:360px;border-radius:30px;background:#e9efdf;padding:44px 48px;gap:20px}.eyebrow{display:flex;align-items:center;gap:9px;text-transform:uppercase;font-size:10px;font-weight:800;letter-spacing:2px}.eyebrow:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--orange)}h1{font-size:clamp(38px,4.6vw,61px);line-height:1.04;letter-spacing:-2.8px;font-weight:800;margin:20px 0}h1 em{font-style:normal;color:var(--orange)}.hero-copy>p{color:#4f6255;font-size:15px;max-width:370px;line-height:1.75}.hero-tags{display:flex;gap:18px;margin-top:23px;font-size:11px;font-weight:650;color:#49604d}.hero-tags span:before{content:"✓";margin-right:5px}
+.delivery-bar{display:flex;align-items:center;gap:13px;margin-top:20px;padding:17px 20px;border:1px solid var(--line);background:#fff;border-radius:17px}.pin{width:39px;height:39px;display:grid;place-items:center;flex:none;background:#f9eee5;border-radius:12px;color:var(--orange)}.pin svg{width:21px;height:21px}.delivery-copy{min-width:0;flex:1}.micro{font-size:10px;text-transform:uppercase;letter-spacing:1.1px;font-weight:750;color:var(--muted)}.delivery-copy p{font-size:13px;margin-top:3px;overflow-wrap:anywhere}.delivery-bar a{flex:none}
+.search-section{padding:0 0 27px}.search-box{border:1px solid var(--line);border-radius:20px;padding:18px;background:#fff;box-shadow:0 6px 24px #173b3204}.search-grid{display:grid;grid-template-columns:minmax(160px,1fr) 205px 205px auto;gap:10px}.field{position:relative;min-width:0}.field>svg{position:absolute;width:19px;height:19px;left:15px;top:17px;color:var(--muted)}.field input,.search-grid select{width:100%;height:52px;border:1px solid var(--line);border-radius:11px;background:#f8faf6;color:var(--ink);padding:0 13px;font-size:13px;min-width:0}.field input{padding-left:44px}.field input::placeholder{color:#65726a}.search-grid select:disabled{opacity:.65}.search-grid .btn{padding:12px 26px}.filter-row{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin-top:13px}.filter-row button,.filter-row label,.filter-row>a{border:0;border-radius:8px;padding:8px 11px;font-size:11px;font-weight:650;background:#f2f5ed;display:inline-flex;align-items:center;gap:7px;color:#465b4c;min-height:36px}.filter-row input{accent-color:var(--ink);width:15px;height:15px}.location-icon{width:15px;height:15px}.filter-row .clear{background:transparent;margin-left:auto}.location-message{margin-top:10px;font-size:12px}.gps-note{padding:10px 12px;background:#eef6ed;border-radius:10px;margin-top:12px;font-size:12px;color:#335c3b}.category-row{display:flex;gap:9px;overflow:auto;padding:19px 1px 3px;scrollbar-width:thin}.category-chip{display:inline-flex;align-items:center;gap:8px;white-space:nowrap;font-size:12px;font-weight:650;padding:10px 17px;border:1px solid var(--line);border-radius:30px;background:white;min-height:44px}.category-chip:hover{border-color:#698474}.category-chip.active{background:var(--ink);border-color:var(--ink);color:white}.category-icon{font-size:17px}
+.results{padding:10px 0 32px}.results-heading{display:flex;justify-content:space-between;align-items:end;gap:15px;margin-bottom:24px}h2{font-size:27px;letter-spacing:-1px;line-height:1.25}.results-heading p{font-size:12px;color:var(--muted);margin-top:7px}.account-links{display:flex;gap:8px;flex-wrap:wrap}.account-links .btn{font-size:11px;min-height:39px;padding:9px 12px}.account-links .active{background:#f9e9e3;border-color:#e4b8a7;color:#9a381b}.store-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.store-card{position:relative;border:1px solid var(--line);background:#fff;border-radius:var(--radius);padding:23px;display:flex;flex-direction:column;min-width:0;transition:transform .18s,box-shadow .18s,border-color .18s}.store-card:hover,.store-card:focus-within{transform:translateY(-3px);border-color:#aebfa7;box-shadow:0 15px 32px #173b320b}.store-link{position:absolute;inset:0;z-index:1;border-radius:var(--radius)}.store-card:focus-within{outline-offset:3px}.store-top{display:flex;align-items:center;gap:14px;padding-right:25px;min-height:66px}.logo{width:66px;height:66px;flex:none;border-radius:18px;overflow:hidden;background:#f2eadb;border:1px solid #eee5d6;display:grid;place-items:center;font-size:27px;font-weight:800;color:#917341}.store-card:nth-child(3n+2) .logo{background:#e9f0e5;color:#50713e;border-color:#dfe8d9}.store-card:nth-child(3n+3) .logo{background:#f8e9e4;color:#a55f45;border-color:#f1dfd6}.logo img{width:100%;height:100%;object-fit:cover}.store-identity{min-width:0}.store-identity h3{font-size:17px;line-height:1.3;letter-spacing:-.4px;overflow-wrap:anywhere}.store-location{font-size:11px;color:var(--muted);margin-top:5px;overflow-wrap:anywhere}.store-description{font-size:12px;color:var(--muted);line-height:1.7;margin:15px 0 12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.store-categories{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0 16px}.store-categories span{font-size:10px;color:#5d6b60;background:#f4f6f0;padding:4px 7px;border-radius:5px}.store-status{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:10px;color:var(--muted);margin-top:auto;padding-top:6px}.status{display:inline-flex;align-items:center;gap:5px;font-weight:750}.status:before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}.open{color:#286b42}.closed{color:#68736b}.featured{color:#8d5a0c;font-size:9px;text-transform:uppercase;letter-spacing:.6px;margin-top:6px;font-weight:800}.delivery-state{font-size:10px;margin-top:10px;color:#646d65}.delivery-state.available{color:#286b42}.delivery-state.unavailable{color:#a3422f}.card-bottom{display:flex;align-items:center;justify-content:space-between;padding-top:15px;margin-top:15px;border-top:1px solid #edf0e8;font-size:11px;font-weight:750;color:var(--orange)}.card-arrow{width:27px;height:27px;display:grid;place-items:center;background:#faf0e8;border-radius:50%;font-size:15px}.favorite-store-form{position:absolute;top:18px;right:16px;z-index:2}.favorite-store-button{background:white;border:1px solid var(--line);width:35px;height:35px;border-radius:50%;display:grid;place-items:center;font-size:19px}.favorite-store-button:hover{background:#fbf0eb}.text-rose-500{color:#b93855}.text-slate-300{color:#78857b}.matched{font-size:11px;background:#f8f5ed;padding:9px;border-radius:9px;margin:0 0 12px;overflow-wrap:anywhere}.matched strong{font-size:9px;text-transform:uppercase;display:block;margin-bottom:3px}.matched span{display:block}.pagination{display:flex;justify-content:center;align-items:center;gap:13px;margin-top:32px;font-size:12px;color:var(--muted)}.empty{border:1px dashed #bbc9b4;border-radius:24px;background:#fff;text-align:center;padding:55px 22px}.empty-icon{font-size:28px;color:var(--orange);margin-bottom:15px}.empty p{font-size:13px;margin:10px auto 23px;max-width:380px;color:var(--muted)}.empty h3{font-size:22px;letter-spacing:-.6px}
+.how-it-works{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:28px 0;border-top:1px solid var(--line);margin:20px auto 40px}.how-title{font-size:18px;font-weight:750;letter-spacing:-.5px;max-width:190px}.step{display:flex;gap:11px;align-items:center}.step-number{width:33px;height:33px;display:grid;place-items:center;border:1px solid #cbd7c2;border-radius:50%;font-size:11px;flex:none}.step strong{display:block;font-size:12px}.step p{font-size:10px;color:var(--muted);margin-top:2px}.footer{background:var(--ink);color:#e6eee3;padding:32px 0}.footer-inner{display:flex;justify-content:space-between;align-items:center;gap:20px}.footer strong{font-size:16px;letter-spacing:-.5px}.footer p{font-size:10px;color:#c0d2c2;margin-top:5px}.footer a{text-decoration:underline;text-underline-offset:3px}.footer-meta{text-align:right}.notice{padding:13px 17px;margin-top:16px;border-radius:12px;border:1px solid var(--line);background:white;font-size:13px}.notice.error{color:#a63c29;background:#fff3ee}.notice.success{color:#276741;background:#eff7ed}.text-red-600{color:#ab3927}.text-slate-500{color:var(--muted)}.text-emerald-600{color:#286b42}.opacity-60{opacity:.6}.cursor-wait{cursor:wait}.location-button-loading .location-icon{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+@media(min-width:1450px){.hero-panel{min-height:390px}}@media(max-width:1000px){.search-grid{grid-template-columns:1fr 1fr}.store-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-panel{padding:34px}.hero-tags{gap:10px}.how-it-works{flex-wrap:wrap}.how-title{max-width:none;width:100%}.nav-explore{margin-right:0}}@media(max-width:640px){.wrap{width:calc(100% - 32px)}.header-inner{height:70px;gap:8px}.brand-name{font-size:16px}.brand-note{font-size:8px}.brand-mark{width:34px;height:34px;font-size:22px}.navigation{gap:5px}.navigation .btn{font-size:12px;padding:9px 12px;min-height:40px}.desktop-only{display:none}.hero{padding-top:22px;padding-bottom:21px}.hero-panel{grid-template-columns:1fr;padding:29px 25px;min-height:0;gap:8px;border-radius:23px}.hero-copy{z-index:1}h1{font-size:42px;letter-spacing:-2px;margin:16px 0}.hero-copy>p{font-size:13px;max-width:310px}.eyebrow{font-size:9px;letter-spacing:1.5px}.hero-tags{font-size:10px;gap:13px;margin-top:16px}.delivery-bar{padding:14px;flex-wrap:wrap;gap:10px}.delivery-copy{flex-basis:calc(100% - 52px)}.delivery-copy p{font-size:12px}.delivery-bar a{margin-left:49px;font-size:11px;min-height:35px;padding:7px 11px}.search-box{padding:13px;border-radius:17px}.search-grid{gap:8px}.field{grid-column:1/-1}.search-grid .btn{grid-column:1/-1;height:46px}.search-grid select{font-size:11px;padding:0 9px;height:45px}.filter-row{gap:5px}.filter-row button,.filter-row label,.filter-row>a{font-size:10px;padding:8px}.filter-row .clear{margin-left:0}.category-row{padding-top:15px}.category-chip{padding:9px 13px;font-size:11px}.results-heading{align-items:start;flex-direction:column;gap:12px;margin-bottom:18px}h2{font-size:24px}.store-grid{grid-template-columns:1fr;gap:13px}.store-card{padding:20px}.store-description{-webkit-line-clamp:3}.store-top{min-height:60px}.logo{width:60px;height:60px}.how-it-works{display:grid;grid-template-columns:1fr;gap:19px;padding:25px 5px;margin-bottom:20px}.how-title{font-size:20px}.step strong{font-size:13px}.step p{font-size:11px}.footer-inner{align-items:start;flex-direction:column}.footer-meta{text-align:left}.pagination{gap:7px}.pagination .btn{font-size:11px;padding:9px 12px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{animation:none!important;transition:none!important}.store-card:hover{transform:none}}
 
-  <title>VemDeDelivery — Encontre lojas perto de você</title>
-  <meta
-    name="description"
-    content="Encontre restaurantes, pizzarias, lanchonetes e outras lojas disponíveis na sua região."
-  >
+/* Ajustes v2: identidade, rodapé e busca fixa. */
+:root{--header-height:82px}
+.brand-logo{display:block;width:230px;height:auto;max-width:100%}
+.search-section{position:sticky;top:var(--header-height);z-index:30;background:var(--paper);padding-top:8px;padding-bottom:0;border-radius:0}
+.search-section.is-stuck{box-shadow:none}
+.search-section .search-box{box-shadow:none}
+.search-section .category-row{padding-bottom:12px}
+#search-sentinel{height:1px;margin-bottom:-1px}
+html{scroll-padding-top:330px}
+.compact-filter-toggle{display:none}
+.footer{padding:38px 0 28px}
+.footer-inner{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;margin-inline:auto}
+.footer-brand{display:block;width:240px;max-width:100%}
+.footer-brand img{display:block;width:100%;height:auto}
+.footer-company{padding:17px 20px;margin-top:4px;border-top:1px solid #ffffff24;border-bottom:1px solid #ffffff24;width:min(100%,440px)}
+.footer-company strong{font-size:12px;letter-spacing:1.2px}
+.footer-company p{font-size:12px;color:#d0ded0}
+.footer .footer-meta{text-align:center;display:flex;flex-wrap:wrap;justify-content:center;gap:4px 18px}
+.footer .footer-tagline{font-size:12px;margin:0}
+@media(max-width:640px){
+ :root{--header-height:70px}
+ .brand-logo{width:190px}.brand{min-width:0}.navigation{flex:none}
+ html{scroll-padding-top:230px}
+ .search-section.is-stuck:not(.filters-expanded) .search-grid{grid-template-columns:minmax(0,1fr) auto}
+ .search-section.is-stuck:not(.filters-expanded) .field{grid-column:auto}
+ .search-section.is-stuck:not(.filters-expanded) .search-grid .btn{grid-column:auto;font-size:11px;padding:8px 10px;height:46px}
+ .search-section.is-stuck:not(.filters-expanded) .field input{height:46px;font-size:12px;padding-left:32px;padding-right:5px}
+ .search-section.is-stuck:not(.filters-expanded) .field>svg{left:9px;top:14px;width:16px}
+ .search-section.is-stuck:not(.filters-expanded) .search-grid select,
+ .search-section.is-stuck:not(.filters-expanded) .filter-row,
+ .search-section.is-stuck:not(.filters-expanded) .gps-note,
+ .search-section.is-stuck:not(.filters-expanded) .category-row{display:none}
+ .search-section.is-stuck .compact-filter-toggle{display:block;margin:0 0 6px auto;border:1px solid var(--line);background:white;color:var(--ink);padding:8px 12px;border-radius:9px;font-size:11px;min-height:36px}
+ .search-section.is-stuck .search-box{padding:9px}
+ .search-section.is-stuck.filters-expanded{max-height:calc(100dvh - var(--header-height) - 12px);overflow:auto;overscroll-behavior:contain}
+ .footer-inner{align-items:center;text-align:center}.footer .footer-meta{text-align:center}
+}
 
-  <script src="https://cdn.tailwindcss.com"></script>
-
-  <style>
-    body {
-      background:
-        radial-gradient(
-          circle at top left,
-          rgba(249, 115, 22, .08),
-          transparent 28rem
-        ),
-        #f8fafc;
-    }
-
-    .store-card {
-      transition:
-        transform .18s ease,
-        box-shadow .18s ease,
-        border-color .18s ease;
-    }
-
-    .store-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 18px 50px rgba(15, 23, 42, .10);
-      border-color: #fed7aa;
-    }
-
-    .location-button-loading .location-icon {
-      animation: location-spin .8s linear infinite;
-    }
-
-    @keyframes location-spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-  </style>
+/* Hero aberto a todos os tipos de comércio. */
+.hero-panel{display:flex;justify-content:center;min-height:330px;padding:48px 36px;text-align:center}
+.hero-copy{width:100%;max-width:940px}
+.hero-copy .eyebrow{justify-content:center}
+.hero-copy h1{font-size:clamp(40px,5.2vw,68px);line-height:1.08;margin:22px 0}
+.hero-copy h1 br{display:none}
+.hero-copy h1 em{white-space:nowrap}
+.hero-copy>p{max-width:600px;margin-inline:auto;font-size:16px}
+.hero-tags{justify-content:center;flex-wrap:wrap;gap:12px;margin-top:25px}
+.hero-tags span{border:1px solid #cbd8bf;border-radius:30px;padding:8px 14px;font-size:12px}
+@media(max-width:640px){.hero-panel{min-height:0;padding:32px 20px}.hero-copy h1{font-size:42px;letter-spacing:-2px}.hero-copy h1 br{display:block}.hero-copy h1 em{white-space:normal}.hero-copy>p{font-size:14px}.hero-copy .eyebrow{font-size:9px;letter-spacing:1px}.hero-tags{gap:8px;margin-top:20px}.hero-tags span{font-size:10px;padding:7px 10px}}
+</style>
 </head>
-
-<body class="min-h-screen text-slate-900">
-
-<header
-  class="
-    sticky
-    top-0
-    z-40
-
-    border-b
-    border-slate-200/80
-
-    bg-white/90
-    backdrop-blur
-  "
->
-  <div
-    class="
-      mx-auto
-      flex
-      max-w-6xl
-      items-center
-      justify-between
-      gap-4
-      px-4
-      py-3
-    "
-  >
-
-    <a href="/" class="flex items-center gap-2">
-      <div
-        class="
-          flex
-          h-10
-          w-10
-          items-center
-          justify-center
-          rounded-2xl
-          bg-orange-500
-          text-lg
-          font-black
-          text-white
-        "
-      >
-        V
-      </div>
-
-      <div>
-        <div class="text-base font-black leading-none">
-          VemDeDelivery
-        </div>
-
-        <div class="mt-1 text-[11px] text-slate-500">
-          Encontre. Escolha. Peça.
-        </div>
-      </div>
-    </a>
-
-
-    <nav class="flex items-center gap-2 text-sm font-semibold">
-
-      {% if request.user.is_authenticated %}
-
-        <a
-          href="/conta/"
-          class="rounded-xl px-3 py-2 hover:bg-slate-100"
-        >
-          Minha conta
-        </a>
-
-      {% else %}
-
-        <a
-          href="/conta/entrar/"
-          class="rounded-xl px-3 py-2 hover:bg-slate-100"
-        >
-          Entrar
-        </a>
-
-        <a
-          href="/conta/criar-conta/"
-          class="
-            hidden
-            rounded-xl
-            bg-slate-900
-            px-4
-            py-2
-            text-white
-            hover:bg-slate-800
-            sm:inline-flex
-          "
-        >
-          Criar conta
-        </a>
-
-      {% endif %}
-
-    </nav>
-
-  </div>
-</header>
-
-{% if messages %}
-  <div class="mx-auto max-w-6xl px-4 pt-4">
-    {% for message in messages %}
-      <div
-        class="
-          mb-2 rounded-2xl border px-4 py-3 text-sm font-semibold
-          {% if message.tags == 'error' %}
-            border-red-200 bg-red-50 text-red-700
-          {% elif message.tags == 'success' %}
-            border-emerald-200 bg-emerald-50 text-emerald-700
-          {% else %}
-            border-slate-200 bg-white text-slate-600
-          {% endif %}
-        "
-      >
-        {{ message }}
-      </div>
-    {% endfor %}
-  </div>
-{% endif %}
-
-
-<section class="border-b border-slate-200 bg-white">
-
-  <div class="mx-auto max-w-6xl px-4 py-8 md:py-11">
-
-    <div class="max-w-3xl">
-
-      <span
-        class="
-          inline-flex
-          rounded-full
-          bg-orange-50
-          px-3
-          py-1
-          text-xs
-          font-bold
-          text-orange-700
-        "
-      >
-        Lojas da sua região
-      </span>
-
-      <h1
-        class="
-          mt-4
-          text-3xl
-          font-black
-          tracking-tight
-          md:text-5xl
-        "
-      >
-        O que você quer pedir hoje?
-      </h1>
-
-      <p
-        class="
-          mt-3
-          max-w-2xl
-          text-sm
-          leading-6
-          text-slate-500
-          md:text-base
-        "
-      >
-        Procure por pizza, hambúrguer, Coca-Cola ou qualquer outro
-        produto e encontre lojas que atendem sua região.
-      </p>
-
-    </div>
-
-
-    <div id="endereco-entrega" class="mt-7 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-      <div class="flex min-w-0 items-center gap-3">
-        <div class="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-orange-50 text-lg">📍</div>
-        <div class="min-w-0">
-          <p class="text-[11px] font-black uppercase tracking-wide text-slate-400">Endereço de entrega</p>
-          {% if global_delivery_location %}
-            <p class="mt-0.5 truncate text-sm font-bold text-slate-800">{% if global_delivery_location.label %}{{ global_delivery_location.label }} · {% endif %}{{ global_delivery_location.neighborhood }}, {{ global_delivery_location.city }}{% if global_delivery_location.state %}/{{ global_delivery_location.state }}{% endif %}</p>
-          {% else %}
-            <p class="mt-0.5 text-sm font-semibold text-slate-600">Informe seu endereço no checkout para calcular entrega e taxa.</p>
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="flex flex-none items-center gap-2">
-        {% if request.user.is_authenticated %}
-          <a href="{% url 'customer_accounts:addresses' %}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:border-orange-200 hover:text-orange-600">{% if global_delivery_location %}Alterar{% else %}Meus endereços{% endif %}</a>
-        {% else %}
-          <a href="/conta/entrar/" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:border-orange-200 hover:text-orange-600">Entrar para salvar endereço</a>
-        {% endif %}
-      </div>
-    </div>
-
-  </div>
-</section>
-
-<div class="sticky top-[65px] z-30 border-b border-slate-200/80 bg-slate-50/95 py-3 backdrop-blur">
-  <div class="mx-auto max-w-6xl px-4">
-    <form
-      method="get"
-      id="marketplace-search-form"
-      class="
-        mt-7
-        rounded-3xl
-        border
-        border-slate-200
-        bg-white
-        p-3
-        shadow-sm
-      "
-    >
-
-      {% if location_active %}
-        <input
-          type="hidden"
-          name="lat"
-          value="{{ user_latitude }}"
-        >
-
-        <input
-          type="hidden"
-          name="lng"
-          value="{{ user_longitude }}"
-        >
-
-        {% if user_accuracy is not None %}
-          <input
-            type="hidden"
-            name="accuracy"
-            value="{{ user_accuracy|floatformat:0 }}"
-          >
-        {% endif %}
-      {% endif %}
-
-
-      <div
-        class="
-          grid
-          gap-3
-          lg:grid-cols-[1fr_220px_170px_auto]
-        "
-      >
-
-        <label class="relative block">
-
-          <span class="sr-only">
-            Buscar
-          </span>
-
-          <svg
-            class="
-              absolute
-              left-4
-              top-1/2
-              h-5
-              w-5
-              -translate-y-1/2
-              text-slate-400
-            "
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="
-                m21 21-4.35-4.35
-                m2.35-5.65
-                a8 8 0 1 1-16 0
-                8 8 0 0 1 16 0Z
-              "
-            />
-          </svg>
-
-          <input
-            type="search"
-            name="q"
-            value="{{ search }}"
-            placeholder="Pizza, Coca-Cola, hambúrguer..."
-            class="
-              h-12
-              w-full
-              rounded-2xl
-              border
-              border-slate-200
-              bg-slate-50
-              pl-12
-              pr-4
-              text-sm
-              outline-none
-
-              focus:border-orange-400
-              focus:bg-white
-              focus:ring-4
-              focus:ring-orange-100
-            "
-          >
-
-        </label>
-
-
-        <select
-          name="cidade"
-          {% if location_active %}disabled{% endif %}
-          class="
-            h-12
-            rounded-2xl
-            border
-            border-slate-200
-            bg-slate-50
-            px-4
-            text-sm
-            font-medium
-            outline-none
-
-            disabled:cursor-not-allowed
-            disabled:opacity-50
-
-            focus:border-orange-400
-            focus:ring-4
-            focus:ring-orange-100
-          "
-        >
-
-          {% if location_active %}
-            <option selected>
-              Usando localização atual
-            </option>
-          {% else %}
-            <option value="">
-              Todas as cidades
-            </option>
-
-            {% for city in cities %}
-              <option
-                value="{{ city }}"
-                {% if selected_city|lower == city|lower %}selected{% endif %}
-              >
-                {{ city }}
-              </option>
-            {% endfor %}
-          {% endif %}
-
-        </select>
-
-
-        <select
-          name="categoria"
-          class="
-            h-12
-            rounded-2xl
-            border
-            border-slate-200
-            bg-slate-50
-            px-4
-            text-sm
-            font-medium
-            outline-none
-
-            focus:border-orange-400
-            focus:ring-4
-            focus:ring-orange-100
-          "
-        >
-
-          <option value="">
-            Todas as categorias
-          </option>
-
-          {% for category in categories %}
-            <option
-              value="{{ category.slug }}"
-              {% if selected_category == category.slug %}selected{% endif %}
-            >
-              {% if category.icon %}
-                {{ category.icon }}
-              {% endif %}
-              {{ category.name }}
-            </option>
-          {% endfor %}
-
-        </select>
-
-
-        <button
-          type="submit"
-          class="
-            h-12
-            rounded-2xl
-            bg-orange-500
-            px-6
-            text-sm
-            font-black
-            text-white
-            shadow-sm
-            hover:bg-orange-600
-          "
-        >
-          Buscar
-        </button>
-
-      </div>
-
-
-      <div
-        class="
-          mt-3
-          flex
-          flex-wrap
-          items-center
-          gap-2
-          px-1
-        "
-      >
-
-        <button
-          type="button"
-          id="use-location-button"
-          class="
-            inline-flex
-            items-center
-            gap-2
-            rounded-xl
-
-            {% if location_active %}
-              bg-orange-50
-              text-orange-700
-            {% else %}
-              bg-slate-50
-              text-slate-600
-            {% endif %}
-
-            px-3
-            py-2
-            text-xs
-            font-bold
-
-            hover:bg-orange-50
-            hover:text-orange-700
-          "
-        >
-
-          <svg
-            class="location-icon h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="
-                M12 21
-                s7-5.686 7-12
-                a7 7 0 10-14 0
-                c0 6.314 7 12 7 12z
-              "
-            />
-
-            <circle
-              cx="12"
-              cy="9"
-              r="2.5"
-              stroke-width="2"
-            />
-          </svg>
-
-          {% if location_active %}
-            Atualizar minha localização
-          {% else %}
-            Usar minha localização
-          {% endif %}
-
-        </button>
-
-
-        {% if location_active %}
-          <a
-            href="?q={{ search|urlencode }}&categoria={{ selected_category|urlencode }}{% if open_only %}&abertas=1{% endif %}"
-            class="
-              rounded-xl
-              px-3
-              py-2
-              text-xs
-              font-bold
-              text-slate-500
-              hover:bg-slate-100
-            "
-          >
-            Remover localização
-          </a>
-        {% endif %}
-
-
-        <label
-          class="
-            inline-flex
-            cursor-pointer
-            items-center
-            gap-2
-            rounded-xl
-            bg-slate-50
-            px-3
-            py-2
-            text-xs
-            font-bold
-            text-slate-600
-          "
-        >
-
-          <input
-            type="checkbox"
-            name="abertas"
-            value="1"
-            {% if open_only %}checked{% endif %}
-            class="
-              h-4
-              w-4
-              rounded
-              border-slate-300
-              text-orange-500
-              focus:ring-orange-400
-            "
-          >
-
-          Abertas agora
-
-        </label>
-
-
-
-
-        {% if search or selected_city or selected_category or open_only or location_active %}
-          <a
-            href="/"
-            class="
-              rounded-xl
-              px-3
-              py-2
-              text-xs
-              font-bold
-              text-slate-500
-              hover:bg-slate-100
-            "
-          >
-            Limpar filtros
-          </a>
-        {% endif %}
-
-      </div>
-
-
-      <p
-        id="location-message"
-        class="mt-2 hidden px-1 text-xs font-semibold"
-      ></p>
-
-      {% if location_active and geocoded_location %}
-        <div
-          class="
-            mt-3
-            flex
-            flex-wrap
-            items-center
-            gap-2
-            rounded-2xl
-            bg-emerald-50
-            px-4
-            py-3
-            text-xs
-            font-semibold
-            text-emerald-800
-          "
-        >
-          <span>📍</span>
-          <span>
-            Região aproximada pelo GPS:
-            {% if geocoded_location.neighborhood %}
-              {{ geocoded_location.neighborhood }},
-            {% endif %}
-            {{ geocoded_location.city }}
-            {% if geocoded_location.state %}
-              - {{ geocoded_location.state }}
-            {% endif %}
-            {% if user_accuracy is not None %}
-              · precisão aproximada de {{ user_accuracy|floatformat:0 }} m
-            {% endif %}
-            · o endereço de entrega será confirmado antes do pedido.
-          </span>
-        </div>
-      {% endif %}
-
-    </form>
-  </div>
+<body>
+<a class="skip" href="#lojas">Ir para as lojas</a>
+<header class="site-header"><div class="wrap header-inner">
+<a class="brand" href="/" aria-label="VemDeDelivery, início"><img class="brand-logo" src="{% static 'images/brand/logo-vemdedelivery.svg' %}" alt="VemDeDelivery" width="365" height="72"></a>
+<nav class="navigation" aria-label="Navegação principal"><a class="nav-explore desktop-only" href="#lojas">Explorar lojas</a>{% if request.user.is_authenticated %}<a class="btn btn-dark" href="/conta/">Minha conta ↗</a>{% else %}<a class="btn" href="/conta/entrar/">Entrar</a><a class="btn btn-dark desktop-only" href="/conta/criar-conta/">Criar conta ↗</a>{% endif %}</nav>
+</div></header>
+{% if messages %}<div class="wrap" aria-live="polite">{% for message in messages %}<div class="notice {{ message.tags }}">{{ message }}</div>{% endfor %}</div>{% endif %}
+<section class="hero wrap" aria-labelledby="hero-title">
+<div class="hero-panel"><div class="hero-copy"><div class="eyebrow">Seu bairro tem o que você procura</div><h1 id="hero-title">Deu vontade? <br><em>Vem de delivery.</em></h1><p>Descubra as lojas da sua região e encontre o lugar certo para o seu próximo pedido.</p><div class="hero-tags"><span>Lojas da sua região</span><span>Entrega ou retirada</span></div></div>
 </div>
-
-
-<main class="mx-auto max-w-6xl px-4 py-7 md:py-9">
-
-  <div
-    class="
-      mb-5
-      flex
-      flex-wrap
-      items-end
-      justify-between
-      gap-3
-    "
-  >
-
-    <div>
-
-      <h2 class="text-xl font-black md:text-2xl">
-
-        {% if location_active %}
-          Lojas perto de você
-
-        {% elif selected_city %}
-          Lojas em {{ selected_city }}
-
-        {% else %}
-          Lojas disponíveis
-
-        {% endif %}
-
-      </h2>
-
-
-      <p class="mt-1 text-sm text-slate-500">
-
-        {{ result_count }}
-        loja{{ result_count|pluralize:"s" }}
-        encontrada{{ result_count|pluralize:"s" }}
-
-        {% if search %}
-          para “{{ search }}”
-        {% endif %}
-
-        {% if global_delivery_location %}
-          · lojas que entregam no endereço selecionado aparecem primeiro
-        {% elif location_active %}
-          · ordenadas pela distância aproximada do GPS
-        {% endif %}
-
-      </p>
-
-    </div>
-
-  </div>
-
-
-  {% if request.user.is_authenticated %}
-    <div class="mb-5 flex flex-wrap items-center gap-2">
-      <a
-        href="/meus-pedidos/"
-        class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-700"
-      >
-        Meus pedidos
-      </a>
-
-      <a
-        href="?q={{ search|urlencode }}&cidade={{ selected_city|urlencode }}&categoria={{ selected_category|urlencode }}{% if open_only %}&abertas=1{% endif %}{% if not favorites_only %}&favoritas=1{% endif %}"
-        class="rounded-xl px-4 py-2 text-sm font-black {% if favorites_only %}bg-rose-500 text-white{% else %}border border-slate-200 bg-white text-slate-700{% endif %}"
-      >
-        ♥ Favoritas{% if favorite_count %} · {{ favorite_count }}{% endif %}
-      </a>
-    </div>
-  {% endif %}
-
-
-  {% if stores %}
-
-    <div class="grid gap-4 md:grid-cols-2">
-
-      {% for store in stores %}
-
-        <article
-          class="
-            store-card
-            group
-            relative
-            flex
-            min-h-[150px]
-            gap-4
-            rounded-3xl
-            border
-            border-slate-200
-            bg-white
-            p-4
-          "
-        >
-
-          <a
-            href="{{ store.url }}"
-            class="absolute inset-0 z-0 rounded-3xl"
-            aria-label="Ver cardápio de {{ store.tenant.name }}"
-          ></a>
-
-          {% if request.user.is_authenticated %}
-            <form
-              method="post"
-              action="/favoritos/loja/{{ store.tenant.id }}/"
-              class="favorite-store-form absolute right-3 top-3 z-20"
-            >
-              {% csrf_token %}
-              <input type="hidden" name="next" value="{{ request.get_full_path }}">
-
-              <button
-                type="submit"
-                data-favorite="{% if store.is_favorite %}1{% else %}0{% endif %}"
-                class="favorite-store-button flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm transition hover:scale-105"
-                title="{% if store.is_favorite %}Remover dos favoritos{% else %}Adicionar aos favoritos{% endif %}"
-              >
-                <span class="{% if store.is_favorite %}text-rose-500{% else %}text-slate-300{% endif %}">
-                  ♥
-                </span>
-              </button>
-            </form>
-          {% endif %}
-
-          <div
-            class="
-              relative
-              z-10
-              pointer-events-none
-              flex
-              h-24
-              w-24
-              flex-none
-              items-center
-              justify-center
-              overflow-hidden
-              rounded-2xl
-              border
-              border-slate-100
-              bg-slate-50
-
-              md:h-28
-              md:w-28
-            "
-          >
-
-            {% if store.logo_url %}
-
-              <img
-                src="{{ store.logo_url }}"
-                alt="Logo {{ store.tenant.name }}"
-                class="h-full w-full object-cover"
-                loading="lazy"
-              >
-
-            {% else %}
-
-              <span
-                class="
-                  text-3xl
-                  font-black
-                  text-slate-300
-                "
-              >
-                {{ store.tenant.name|slice:":1"|upper }}
-              </span>
-
-            {% endif %}
-
-          </div>
-
-
-          <div class="relative z-10 min-w-0 flex-1 pointer-events-none">
-
-            <div class="flex items-start gap-3 {% if request.user.is_authenticated %}pr-11{% endif %}">
-
-              <div class="min-w-0 flex-1">
-
-                <div class="flex flex-wrap items-center gap-2">
-
-                  <h3
-                    class="
-                      truncate
-                      text-base
-                      font-black
-                      md:text-lg
-                    "
-                  >
-                    {{ store.tenant.name }}
-                  </h3>
-
-
-                  {% if store.profile.is_featured %}
-                    <span
-                      class="
-                        rounded-full
-                        bg-amber-50
-                        px-2
-                        py-1
-                        text-[10px]
-                        font-black
-                        text-amber-700
-                      "
-                    >
-                      Destaque
-                    </span>
-                  {% endif %}
-
-                </div>
-
-
-                {% if store.distance_km is not None %}
-
-                  <p
-                    class="
-                      mt-1
-                      flex
-                      items-center
-                      gap-1
-                      text-xs
-                      font-bold
-                      text-orange-600
-                    "
-                  >
-                    <svg
-                      class="h-3.5 w-3.5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="
-                          M12 21
-                          s7-5.686 7-12
-                          a7 7 0 10-14 0
-                          c0 6.314 7 12 7 12z
-                        "
-                      />
-                    </svg>
-
-                    {{ store.distance_km|floatformat:1 }} km de você
-
-                  </p>
-
-                {% elif location_active %}
-
-                  <p
-                    class="
-                      mt-1
-                      text-xs
-                      font-medium
-                      text-slate-400
-                    "
-                  >
-                    Distância indisponível
-                  </p>
-
-                {% elif store.profile.location_label %}
-
-                  <p
-                    class="
-                      mt-1
-                      truncate
-                      text-xs
-                      font-medium
-                      text-slate-500
-                    "
-                  >
-                    {{ store.profile.location_label }}
-                  </p>
-
-                {% endif %}
-
-              </div>
-
-
-            </div>
-
-
-            {% if store.profile.short_description %}
-
-              <p
-                class="
-                  mt-2
-                  line-clamp-2
-                  text-sm
-                  leading-5
-                  text-slate-500
-                "
-              >
-                {{ store.profile.short_description }}
-              </p>
-
-            {% endif %}
-
-
-            {% if store.categories %}
-
-              <div class="mt-3 flex flex-wrap gap-1.5">
-
-                {% for category in store.categories|slice:":3" %}
-
-                  <span
-                    class="
-                      rounded-lg
-                      bg-orange-50
-                      px-2
-                      py-1
-                      text-[10px]
-                      font-bold
-                      text-orange-700
-                    "
-                  >
-                    {% if category.icon %}
-                      {{ category.icon }}
-                    {% endif %}
-                    {{ category.name }}
-                  </span>
-
-                {% endfor %}
-
-              </div>
-
-            {% endif %}
-
-
-            {% if store.matched_products %}
-
-              <div
-                class="
-                  mt-3
-                  border-t
-                  border-slate-100
-                  pt-2
-                "
-              >
-
-                <p
-                  class="
-                    text-[10px]
-                    font-black
-                    uppercase
-                    tracking-wide
-                    text-slate-400
-                  "
-                >
-                  Encontrado nesta loja
-                </p>
-
-
-                <div
-                  class="
-                    mt-1
-                    flex
-                    flex-wrap
-                    gap-x-2
-                    gap-y-1
-                    text-xs
-                    font-semibold
-                    text-slate-600
-                  "
-                >
-
-                  {% for product in store.matched_products %}
-
-                    <span>
-                      {{ product.name }}
-                      ·
-                      R$
-
-                      {% if product.sale_price %}
-                        {{ product.sale_price }}
-                      {% else %}
-                        {{ product.price }}
-                      {% endif %}
-                    </span>
-
-                  {% endfor %}
-
-                </div>
-
-              </div>
-
-            {% endif %}
-
-
-            <div
-              class="
-                mt-3
-                flex
-                flex-wrap
-                items-center
-                gap-x-3
-                gap-y-1
-                text-[11px]
-                font-bold
-                text-slate-500
-              "
-            >
-
-              {% if store.is_open %}
-                <span class="rounded-md bg-emerald-50 px-1.5 py-0.5 text-emerald-700">Aberto</span>
-              {% else %}
-                <span class="rounded-md bg-slate-100 px-1.5 py-0.5 text-slate-500">Fechado</span>
-              {% endif %}
-
-              {% if store.tenant.accepts_delivery %}
-                <span>Entrega</span>
-              {% endif %}
-
-              {% if store.tenant.accepts_pickup %}
-                <span>Retirada</span>
-              {% endif %}
-
-
-              {% if store.delivery.status == "pickup_only" %}
-                <span
-                  class="rounded-md bg-slate-100 px-1.5 py-0.5 text-slate-500"
-                >
-                  Somente retirada
-                </span>
-
-              {% elif store.delivery.status == "available" %}
-                <span
-                  class="rounded-md bg-emerald-50 px-1.5 py-0.5 text-emerald-700"
-                >
-                  Entrega no seu endereço · {{ store.delivery.fee_display }}
-                </span>
-
-              {% elif store.delivery.status == "unavailable" %}
-                <span
-                  class="rounded-md bg-red-50 px-1.5 py-0.5 text-red-600"
-                >
-                  Não entrega neste endereço
-                </span>
-
-              {% elif store.tenant.accepts_delivery %}
-                <span
-                  class="rounded-md bg-amber-50 px-1.5 py-0.5 text-amber-700"
-                >
-                  Confirme o endereço para entrega
-                </span>
-              {% endif %}
-
-
-
-              <span
-                class="
-                  ml-auto
-                  text-orange-600
-                  group-hover:text-orange-700
-                "
-              >
-                Ver cardápio →
-              </span>
-
-            </div>
-
-          </div>
-
-        </article>
-
-      {% endfor %}
-
-    </div>
-
-
-    {% if page_obj.has_other_pages %}
-
-      <nav class="mt-8 flex items-center justify-center gap-2">
-
-        {% if page_obj.has_previous %}
-
-          <a
-            href="?page={{ page_obj.previous_page_number }}&q={{ search|urlencode }}&cidade={{ selected_city|urlencode }}&categoria={{ selected_category|urlencode }}{% if open_only %}&abertas=1{% endif %}{% if favorites_only %}&favoritas=1{% endif %}{% if location_active %}&lat={{ user_latitude }}&lng={{ user_longitude }}{% if user_accuracy is not None %}&accuracy={{ user_accuracy|floatformat:0 }}{% endif %}{% endif %}"
-            class="
-              rounded-xl
-              border
-              border-slate-200
-              bg-white
-              px-4
-              py-2
-              text-sm
-              font-bold
-              hover:bg-slate-50
-            "
-          >
-            ← Anterior
-          </a>
-
-        {% endif %}
-
-
-        <span class="px-3 py-2 text-sm font-semibold text-slate-500">
-          {{ page_obj.number }}
-          de
-          {{ page_obj.paginator.num_pages }}
-        </span>
-
-
-        {% if page_obj.has_next %}
-
-          <a
-            href="?page={{ page_obj.next_page_number }}&q={{ search|urlencode }}&cidade={{ selected_city|urlencode }}&categoria={{ selected_category|urlencode }}{% if open_only %}&abertas=1{% endif %}{% if favorites_only %}&favoritas=1{% endif %}{% if location_active %}&lat={{ user_latitude }}&lng={{ user_longitude }}{% if user_accuracy is not None %}&accuracy={{ user_accuracy|floatformat:0 }}{% endif %}{% endif %}"
-            class="
-              rounded-xl
-              border
-              border-slate-200
-              bg-white
-              px-4
-              py-2
-              text-sm
-              font-bold
-              hover:bg-slate-50
-            "
-          >
-            Próxima →
-          </a>
-
-        {% endif %}
-
-      </nav>
-
-    {% endif %}
-
-
-  {% else %}
-
-    <div
-      class="
-        rounded-3xl
-        border
-        border-dashed
-        border-slate-300
-        bg-white
-        px-6
-        py-16
-        text-center
-      "
-    >
-
-      <div class="text-4xl">
-        🔎
-      </div>
-
-      <h3 class="mt-4 text-lg font-black">
-        Nenhuma loja encontrada
-      </h3>
-
-      <p
-        class="
-          mx-auto
-          mt-2
-          max-w-md
-          text-sm
-          leading-6
-          text-slate-500
-        "
-      >
-        Tente remover algum filtro ou buscar por outro produto.
-      </p>
-
-      <a
-        href="/"
-        class="
-          mt-5
-          inline-flex
-          rounded-2xl
-          bg-slate-900
-          px-5
-          py-3
-          text-sm
-          font-black
-          text-white
-        "
-      >
-        Ver todas as lojas
-      </a>
-
-    </div>
-
-  {% endif %}
-
-</main>
-
-
-<footer class="mt-10 border-t border-slate-200 bg-white">
-
-  <div
-    class="
-      mx-auto
-      flex
-      max-w-6xl
-      flex-col
-      gap-2
-      px-4
-      py-7
-      text-xs
-      text-slate-400
-
-      sm:flex-row
-      sm:items-center
-      sm:justify-between
-    "
-  >
-
-    <span>
-      © VemDeDelivery
-    </span>
-
-    <span>
-      Encontre lojas e peça direto no cardápio.
-      · Dados de localização:
-      <a
-        href="https://www.openstreetmap.org/copyright"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="underline hover:text-slate-600"
-      >
-        © OpenStreetMap contributors
-      </a>
-    </span>
-
-  </div>
-
-</footer>
-
-
+<div id="endereco-entrega" class="delivery-bar"><span class="pin" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></span><div class="delivery-copy"><span class="micro">Onde vai ser o pedido?</span>{% if global_delivery_location %}<p>{% if global_delivery_location.label %}{{ global_delivery_location.label }} · {% endif %}{{ global_delivery_location.neighborhood }}, {{ global_delivery_location.city }}{% if global_delivery_location.state %}/{{ global_delivery_location.state }}{% endif %}</p>{% else %}<p>Encontre sua região. Você confirma o endereço e a taxa no checkout.</p>{% endif %}</div>{% if request.user.is_authenticated %}<a class="btn" href="{% url 'customer_accounts:addresses' %}">{% if global_delivery_location %}Alterar endereço{% else %}Meus endereços{% endif %} ↗</a>{% else %}<a class="btn" href="/conta/entrar/">Entrar para salvar endereço ↗</a>{% endif %}</div>
+</section>
+<div id="search-sentinel" aria-hidden="true"></div>
+<section id="sticky-search" class="wrap search-section" aria-label="Buscar e filtrar lojas"><button type="button" class="compact-filter-toggle" aria-expanded="false" aria-controls="marketplace-search-form category-navigation">Mostrar filtros</button><form method="get" id="marketplace-search-form" class="search-box">
+{% if location_active %}<input type="hidden" name="lat" value="{{ user_latitude|unlocalize }}"><input type="hidden" name="lng" value="{{ user_longitude|unlocalize }}">{% if user_accuracy is not None %}<input type="hidden" name="accuracy" value="{{ user_accuracy|floatformat:'0u' }}">{% endif %}{% endif %}
+{% if favorites_only %}<input type="hidden" name="favoritas" value="1">{% endif %}
+<div class="search-grid"><label class="field"><span class="sr-only">Buscar produto ou loja</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10.5" cy="10.5" r="7"/><path d="m16 16 5 5"/></svg><input type="search" name="q" value="{{ search }}" placeholder="O que você quer pedir hoje?"></label>
+<select name="cidade" aria-label="Cidade" {% if location_active %}disabled{% endif %}>{% if location_active %}<option>Usando localização atual</option>{% else %}<option value="">Todas as cidades</option>{% for city in cities %}<option value="{{ city }}" {% if selected_city|lower == city|lower %}selected{% endif %}>{{ city }}</option>{% endfor %}{% endif %}</select>
+<select name="categoria" aria-label="Categoria"><option value="">Todas as categorias</option>{% for category in categories %}<option value="{{ category.slug }}" {% if selected_category == category.slug %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select><button class="btn btn-orange" type="submit">Buscar lojas ↗</button></div>
+<div class="filter-row"><button type="button" id="use-location-button"><svg class="location-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 1v4m0 14v4M1 12h4m14 0h4"/></svg>{% if location_active %}Atualizar localização{% else %}Usar minha localização{% endif %}</button>{% if location_active %}<a href="{% querystring lat=None lng=None accuracy=None page=None %}">Remover localização</a>{% endif %}<label><input type="checkbox" name="abertas" value="1" {% if open_only %}checked{% endif %}> Abertas agora</label>{% if search or selected_city or selected_category or open_only or location_active or favorites_only %}<a class="clear" href="/">Limpar filtros ×</a>{% endif %}</div><p id="location-message" class="location-message hidden" role="status" aria-live="polite"></p>
+{% if location_active and geocoded_location %}<p class="gps-note">Região aproximada pelo GPS: {% if geocoded_location.neighborhood %}{{ geocoded_location.neighborhood }}, {% endif %}{{ geocoded_location.city }}{% if geocoded_location.state %} / {{ geocoded_location.state }}{% endif %}{% if user_accuracy is not None %} · precisão aproximada de {{ user_accuracy|floatformat:0 }} m{% endif %}. Confirme o endereço antes do pedido.</p>{% endif %}
+</form>
+{% if categories %}<nav id="category-navigation" class="category-row" aria-label="Categorias de lojas"><a class="category-chip {% if not selected_category %}active{% endif %}" href="{% querystring categoria=None page=None %}#lojas" {% if not selected_category %}aria-current="true"{% endif %}>Todas as lojas</a>{% for category in categories %}<a class="category-chip {% if selected_category == category.slug %}active{% endif %}" href="{% querystring categoria=category.slug page=None %}#lojas" {% if selected_category == category.slug %}aria-current="true"{% endif %}>{% if category.icon %}<span class="category-icon" aria-hidden="true">{{ category.icon }}</span>{% endif %}{{ category.name }}</a>{% endfor %}</nav>{% endif %}</section>
+<main id="lojas" class="wrap results"><div class="results-heading"><div><h2>{% if favorites_only %}Suas lojas favoritas{% elif location_active %}Perto de você{% elif selected_city %}Lojas em {{ selected_city }}{% else %}Descubra seu próximo favorito{% endif %}</h2><p>{{ result_count }} loja{{ result_count|pluralize:'s' }} encontrada{{ result_count|pluralize:'s' }}{% if search %} para “{{ search }}”{% endif %}{% if global_delivery_location %} · entrega no endereço selecionado primeiro{% elif location_active %} · por distância aproximada{% endif %}</p></div>{% if request.user.is_authenticated %}<nav class="account-links" aria-label="Seus atalhos"><a class="btn" href="/meus-pedidos/">Meus pedidos</a>{% if favorites_only %}<a class="btn active" aria-current="true" href="{% querystring favoritas=None page=None %}#lojas">♥ Favoritas{% if favorite_count %} · {{ favorite_count }}{% endif %}</a>{% else %}<a class="btn" href="{% querystring favoritas='1' page=None %}#lojas">♡ Favoritas{% if favorite_count %} · {{ favorite_count }}{% endif %}</a>{% endif %}</nav>{% endif %}</div>
+{% if stores %}<div class="store-grid">{% for store in stores %}<article class="store-card"><a class="store-link" href="{{ store.url }}" aria-label="Ver produtos de {{ store.tenant.name }}"></a>
+{% if request.user.is_authenticated %}<form method="post" action="/favoritos/loja/{{ store.tenant.id }}/" class="favorite-store-form">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button type="submit" class="favorite-store-button" data-favorite="{% if store.is_favorite %}1{% else %}0{% endif %}" aria-pressed="{% if store.is_favorite %}true{% else %}false{% endif %}" title="{% if store.is_favorite %}Remover dos favoritos{% else %}Adicionar aos favoritos{% endif %}" aria-label="Favoritar {{ store.tenant.name }}"><span aria-hidden="true" class="{% if store.is_favorite %}text-rose-500{% else %}text-slate-300{% endif %}">♥</span></button></form>{% endif %}
+<div class="store-top"><div class="logo">{% if store.logo_url %}<img src="{{ store.logo_url }}" alt="Logo {{ store.tenant.name }}" width="66" height="66" loading="lazy">{% else %}<span aria-hidden="true">{{ store.tenant.name|slice:':1'|upper }}</span>{% endif %}</div><div class="store-identity"><h3>{{ store.tenant.name }}</h3>{% if store.distance_km is not None %}<p class="store-location">{{ store.distance_km|floatformat:1 }} km de você</p>{% elif location_active %}<p class="store-location">Distância indisponível</p>{% elif store.profile.location_label %}<p class="store-location">{{ store.profile.location_label }}</p>{% endif %}{% if store.profile.is_featured %}<p class="featured">✦ Em destaque</p>{% endif %}</div></div>
+{% if store.profile.short_description %}<p class="store-description">{{ store.profile.short_description }}</p>{% endif %}{% if store.categories %}<div class="store-categories">{% for category in store.categories|slice:':3' %}<span>{{ category.name }}</span>{% endfor %}</div>{% endif %}
+{% if store.matched_products %}<div class="matched"><strong>Encontrado nesta loja</strong>{% for product in store.matched_products %}<span>{{ product.name }} · R$ {% if product.sale_price %}{{ product.sale_price }}{% else %}{{ product.price }}{% endif %}</span>{% endfor %}</div>{% endif %}
+<div class="store-status">{% if store.is_open %}<span class="status open">Aberto agora</span>{% else %}<span class="status closed">Fechado</span>{% endif %}{% if store.tenant.accepts_delivery %}<span>Entrega</span>{% endif %}{% if store.tenant.accepts_pickup %}<span>Retirada</span>{% endif %}</div>
+{% if store.delivery.status == 'pickup_only' %}<p class="delivery-state">Somente retirada</p>{% elif store.delivery.status == 'available' %}<p class="delivery-state available">Entrega no seu endereço · {{ store.delivery.fee_display }}</p>{% elif store.delivery.status == 'unavailable' %}<p class="delivery-state unavailable">Não entrega neste endereço</p>{% elif store.tenant.accepts_delivery %}<p class="delivery-state">Confirme o endereço para entrega</p>{% endif %}
+<div class="card-bottom" aria-hidden="true"><span>Explorar loja</span><span class="card-arrow">↗</span></div></article>{% endfor %}</div>
+{% if page_obj.has_other_pages %}<nav class="pagination" aria-label="Paginação">{% if page_obj.has_previous %}<a class="btn" href="{% querystring page=page_obj.previous_page_number %}#lojas">← Anterior</a>{% endif %}<span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>{% if page_obj.has_next %}<a class="btn" href="{% querystring page=page_obj.next_page_number %}#lojas">Próxima →</a>{% endif %}</nav>{% endif %}
+{% else %}<div class="empty"><div class="empty-icon" aria-hidden="true">⌕</div><h3>Vamos encontrar outra opção?</h3><p>Nenhuma loja encontrada com esses filtros. Busque outro produto ou amplie sua região.</p><a class="btn btn-dark" href="/">Ver todas as lojas ↗</a></div>{% endif %}</main>
+<section class="wrap how-it-works" aria-label="Como pedir"><p class="how-title">Da vontade<br>ao seu próximo pedido.</p><div class="step"><span class="step-number">01</span><div><strong>Encontre sua loja</strong><p>Explore as lojas da região.</p></div></div><div class="step"><span class="step-number">02</span><div><strong>Escolha os produtos</strong><p>Monte o pedido do seu jeito.</p></div></div><div class="step"><span class="step-number">03</span><div><strong>Combine com a loja</strong><p>Envie seu pedido pelo WhatsApp.</p></div></div></section>
+<footer class="footer"><div class="wrap footer-inner"><a class="footer-brand" href="/" aria-label="VemDeDelivery, início"><img src="{% static 'images/brand/logo-vemdedelivery-clara.svg' %}" alt="VemDeDelivery" width="365" height="72"></a><p class="footer-tagline">Seu bairro. Suas lojas. Seu próximo pedido.</p><div class="footer-company"><strong>COBRADEV SOLUTIONS</strong><p>CNPJ 59.198.345/0001-44</p></div><div class="footer-meta"><p>© {% now 'Y' %} VemDeDelivery</p><p>Dados de localização: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a></p></div></div></footer>
 <script>
   (function () {
     const button =
@@ -1503,6 +329,7 @@
 
           const isFavorite = !wasFavorite;
           button.dataset.favorite = isFavorite ? '1' : '0';
+          button.setAttribute('aria-pressed', String(isFavorite));
           button.title = isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos';
           heart.classList.toggle('text-rose-500', isFavorite);
           heart.classList.toggle('text-slate-300', !isFavorite);
@@ -1517,5 +344,42 @@
   })();
 </script>
 
+
+<script>
+(function () {
+ const section = document.getElementById('sticky-search');
+ const sentinel = document.getElementById('search-sentinel');
+ const toggle = document.querySelector('.compact-filter-toggle');
+ const header = document.querySelector('.site-header');
+ if (!section || !sentinel || !toggle || !header) return;
+ function resetFilters() {
+   section.classList.remove('filters-expanded');
+   toggle.setAttribute('aria-expanded', 'false');
+   toggle.textContent = 'Mostrar filtros';
+ }
+ toggle.addEventListener('click', function () {
+   const expanded = section.classList.toggle('filters-expanded');
+   toggle.setAttribute('aria-expanded', String(expanded));
+   toggle.textContent = expanded ? 'Ocultar filtros' : 'Mostrar filtros';
+ });
+ let observer;
+ function setup() {
+   const height = Math.ceil(header.getBoundingClientRect().height);
+   document.documentElement.style.setProperty('--header-height', height + 'px');
+   if (!('IntersectionObserver' in window)) return;
+   if (observer) observer.disconnect();
+   observer = new IntersectionObserver(function (entries) {
+     const entry = entries[0];
+     const stuck = !entry.isIntersecting && entry.boundingClientRect.top < height;
+     section.classList.toggle('is-stuck', stuck);
+     if (!stuck) resetFilters();
+   }, {rootMargin: '-' + height + 'px 0px 0px 0px', threshold: 0});
+   observer.observe(sentinel);
+ }
+ setup();
+ if ('ResizeObserver' in window) new ResizeObserver(setup).observe(header);
+ else window.addEventListener('resize', setup);
+})();
+</script>
 </body>
 </html>

@@ -1,0 +1,17 @@
+{% load static %}
+<a class="vdd-skip" href="#vdd-content">Ir para o conteúdo</a>
+<header class="vdd-header">
+  <div class="vdd-container vdd-header-inner">
+    <a class="vdd-logo" href="{{ CUSTOMER_PORTAL_URL|default:'/' }}" aria-label="VemDeDelivery, início"><img src="{% static 'images/brand/logo-vemdedelivery.svg' %}" alt="VemDeDelivery" width="365" height="72"></a>
+    <nav class="vdd-nav" aria-label="Navegação da conta">
+      {% if request.user.is_authenticated %}
+        <a href="{% url 'customer_accounts:account' %}" {% if request.resolver_match.url_name == 'account' %}aria-current="page"{% endif %}>Minha conta</a>
+        <a class="vdd-nav-secondary" href="{% url 'orders:history' %}">Meus pedidos</a>
+        <form method="post" action="{% url 'customer_accounts:logout' %}">{% csrf_token %}<input type="hidden" name="next" value="{{ CUSTOMER_PORTAL_URL|default:'/' }}"><button type="submit">Sair</button></form>
+      {% else %}
+        <a class="vdd-nav-secondary" href="{{ CUSTOMER_PORTAL_URL|default:'/' }}">Explorar lojas</a>
+        {% if request.resolver_match.url_name == 'login' %}<a class="vdd-nav-primary" href="{% url 'customer_accounts:register' %}">Criar conta</a>{% else %}<a class="vdd-nav-primary" href="{% url 'customer_accounts:login' %}">Entrar</a>{% endif %}
+      {% endif %}
+    </nav>
+  </div>
+</header>

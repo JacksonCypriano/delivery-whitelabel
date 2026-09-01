@@ -6,9 +6,11 @@
   <style>
     *{box-sizing:border-box}body{margin:0;background:#f8fafc;color:#172033;font:16px system-ui,sans-serif;min-height:100vh;display:grid;place-items:center;padding:24px}main{width:100%;max-width:460px;background:white;padding:32px;border:1px solid #e2e8f0;border-radius:24px;box-shadow:0 24px 60px #0f172a12}h1{font-size:26px;margin:16px 0}p{line-height:1.6}.step{font-size:14px;color:#64748b}.notice{padding:12px;background:#f1f5f9;border-radius:8px}label{display:block;margin-bottom:8px}input{width:100%;padding:14px;font-size:24px;letter-spacing:8px;border:1px solid #94a3b8;border-radius:12px}button{width:100%;padding:14px;margin-top:16px;border:0;border-radius:12px;background:{{ tenant.brand_config.primary_color|default:'#e74c3c' }};color:white;font-size:16px;cursor:pointer}.secondary{background:#e2e8f0;color:#172033}a{color:#475569}small{display:block;line-height:1.6;margin-top:16px}input:focus,button:focus,a:focus{outline:3px solid #94a3b8;outline-offset:3px}
   </style>
+{% include 'includes/customer_brand_head.html' %}
 </head>
-<body><main>
-  <strong>{{ tenant.name|default:'VemDeDelivery' }}</strong>
+<body class="vdd-client vdd-otp">
+{% include 'includes/customer_brand_header.html' %}<main id="vdd-content">
+  <div class="vdd-auth-kicker"><span>Confirmação de segurança</span></div>
   <p class="step">{% if pending.channel == 'email' %}Etapa 1 de 2 · E-mail{% else %}Etapa 2 de 2 · WhatsApp{% endif %}</p>
   <h1>Confirme seu {% if pending.channel == 'email' %}e-mail{% else %}WhatsApp{% endif %}</h1>
   <p>Digite o código de 6 dígitos enviado para <strong>{{ destination }}</strong>.</p>
@@ -26,4 +28,5 @@
   </form>
   <small>O código vale por 10 minutos. Aguarde 60 segundos antes de reenviar. {% if pending.channel == 'email' %}Confira também a pasta de spam.{% endif %}</small>
   <p><a href="{% url 'customer_accounts:register' %}">Corrigir dados e reiniciar cadastro</a></p>
-</main></body></html>
+</main>{% include 'includes/customer_brand_footer.html' %}
+</body></html>

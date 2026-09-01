@@ -7,7 +7,7 @@
 
   <title>Pedido #{{ order.id }} | VemDeDelivery</title>
 
-  <link rel="icon" href="{% static 'images/favicon.svg' %}">
+  <link rel="icon" href="{% static 'images/brand/icone-vemdedelivery.svg' %}">
 
   <script src="https://cdn.tailwindcss.com"></script>
 
@@ -31,31 +31,14 @@
       color: var(--primary);
     }
   </style>
+{% include 'includes/customer_brand_head.html' %}
 </head>
 
-<body class="min-h-screen text-gray-900">
+<body class="vdd-client min-h-screen text-gray-900">
 
-<header class="bg-white border-b border-gray-100">
-  <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+{% include 'includes/customer_brand_header.html' %}
 
-    <a
-      href="{% url 'customer_accounts:orders' %}"
-      class="text-sm font-semibold text-gray-600 hover:text-gray-900"
-    >
-      ← Meus pedidos
-    </a>
-
-    <a
-      href="/"
-      class="text-sm text-gray-400 hover:text-gray-700"
-    >
-      Início
-    </a>
-
-  </div>
-</header>
-
-<main class="max-w-4xl mx-auto px-4 py-8 sm:py-10">
+<main id="vdd-content" class="max-w-4xl mx-auto px-4 py-8 sm:py-10">
 
   <div class="mb-7">
 
@@ -226,5 +209,6 @@
 
 </main>
 
+{% include 'includes/customer_brand_footer.html' %}
 </body>
 </html>

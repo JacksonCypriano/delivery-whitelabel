@@ -345,7 +345,7 @@ class Package10Tests(CriticalTestCase):
             subtotal=20,
             delivery_fee=0,
         )
-        self.assertTrue(result["valid"])
+        self.assertTrue(result["valid"], result.get("message", str(result)))
         self.assertFalse(
             get_customer_orders_for_tenant(self.customer, self.tenant_a).exists()
         )

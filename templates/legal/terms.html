@@ -1,0 +1,59 @@
+{% extends 'legal/base.html' %}
+{% block title %}Termos de Serviço{% endblock %}
+{% block heading %}Termos de Serviço{% endblock %}
+{% block intro %}Regras para utilizar o VemDeDelivery, consultar lojas e organizar pedidos com clareza e segurança.{% endblock %}
+{% block toc %}
+<a href="#plataforma">1. Plataforma e responsável</a><a href="#conta">2. Conta e acesso</a><a href="#pedidos">3. Produtos e pedidos</a><a href="#pagamentos">4. Pagamento e entrega</a><a href="#atendimento">5. Cancelamentos e atendimento</a><a href="#lojas">6. Responsabilidades das lojas</a><a href="#uso">7. Uso permitido</a><a href="#disponibilidade">8. Disponibilidade</a><a href="#backups">9. Integração de backups</a><a href="#alteracoes">10. Alterações e contato</a>
+{% endblock %}
+{% block legal_content %}
+<section id="plataforma"><h2>1. Plataforma e responsável</h2>
+<p>O <strong>VemDeDelivery</strong> é mantido pela <strong>COBRADEV SOLUTIONS, CNPJ 59.198.345/0001-44</strong>. A plataforma permite encontrar lojas, consultar catálogos, montar carrinhos e organizar pedidos, inclusive para encaminhamento pelo WhatsApp.</p>
+<p>Os produtos são ofertados pelas lojas identificadas no catálogo. A plataforma fornece os recursos tecnológicos e responde por sua atuação nos limites da legislação. As lojas respondem pelas informações de suas ofertas e pelo atendimento que realizam. Esta divisão não exclui responsabilidades legalmente atribuídas a qualquer participante.</p>
+<p>Estes termos se aplicam às funcionalidades disponibilizadas. Condições comerciais de contratação do sistema pelas lojas, como planos e cobrança, devem constar da proposta ou contrato específico; esta página não cria uma assinatura ou cobrança por si só.</p>
+<p>Contato: <a class="email" href="mailto:backupvemdedelivery@gmail.com">backupvemdedelivery@gmail.com</a>. O tratamento de dados é descrito na <a href="{% url 'marketplace:privacy' %}">Política de Privacidade</a>.</p></section>
+<section id="conta"><h2>2. Conta, credenciais e acesso</h2>
+<p>Algumas funções exigem cadastro e validação de e-mail ou WhatsApp. Informe dados corretos, mantenha seus contatos atualizados e utilize apenas números e endereços eletrônicos que estejam sob seu controle.</p>
+<p>Proteja sua senha e os códigos de autenticação. Avise o suporte se suspeitar de acesso indevido. A existência de uma ação na conta não impede a apuração de fraude ou de falha de segurança.</p>
+<p>Para contratar, o usuário deve ter capacidade legal ou a assistência/representação exigida. Produtos com restrição etária, como bebidas alcoólicas, somente podem ser adquiridos por quem atende à idade legal; a loja deve cumprir as verificações e restrições aplicáveis.</p></section>
+<section id="pedidos"><h2>3. Catálogo, preços e confirmação do pedido</h2>
+<p>Antes de confirmar, confira a loja, os produtos, quantidades, adicionais, observações, endereço, descontos, taxa de entrega e total. As lojas podem definir horários, dias de disponibilidade, limites de quantidade e condições de atendimento.</p>
+<p>O sistema revalida os itens e valores durante o checkout. Se detectar alteração, poderá atualizar o carrinho, solicitar nova conferência ou impedir a conclusão de item indisponível. Esse procedimento não afasta os direitos relacionados à oferta e ao pedido já contratado.</p>
+<div class="callout"><strong>Abrir o WhatsApp não envia a mensagem automaticamente.</strong> No fluxo pelo WhatsApp, você precisa enviá-la e acompanhar a resposta da loja. A geração de um registro na plataforma ou a abertura do aplicativo não comprova, por si só, o recebimento ou aceite da loja.</div>
+<p>Cupons dependem das condições exibidas, como valor mínimo, período, público e limite de usos. Na revisão do pedido, um benefício pode ficar temporariamente reservado; editar ou expirar a revisão libera essa reserva conforme as regras do sistema. O encaminhamento ao WhatsApp pode registrar a utilização.</p>
+<p>Lojas identificadas como demonstração apresentam exemplos para testes. Não efetue pagamentos por produtos demonstrativos sem confirmar que existe uma oferta real e um fornecedor responsável.</p></section>
+<section id="pagamentos"><h2>4. Pagamento, entrega e retirada</h2>
+<p>No fluxo atual pelo WhatsApp, escolher uma forma de pagamento no checkout apenas informa sua preferência. O pagamento e sua confirmação são combinados com a loja. A plataforma não deve ser interpretada como comprovante de pagamento somente por registrar um pedido.</p>
+<p>Confira o destinatário e as instruções de pagamento antes de transferir valores. A loja deve informar as condições de entrega ou retirada e eventuais alterações que afetem o atendimento. O cliente deve fornecer endereço e contato adequados para a comunicação.</p>
+<p>Se uma modalidade de pagamento online for disponibilizada futuramente, seu prestador e suas condições deverão ser informados no fluxo correspondente antes da contratação.</p></section>
+<section id="atendimento"><h2>5. Cancelamentos, problemas e atendimento</h2>
+<p>Para informar produto incorreto, atraso, problema de qualidade, necessidade de cancelamento ou reembolso, entre em contato com a loja pelos canais do pedido. Para falhas da plataforma ou dificuldade de atendimento, escreva para <a class="email" href="mailto:backupvemdedelivery@gmail.com">backupvemdedelivery@gmail.com</a>, informando a loja, o número do pedido e o ocorrido.</p>
+<p>As solicitações serão avaliadas considerando a oferta, a etapa do atendimento e a legislação aplicável. Direitos de arrependimento, garantia, reparação e reembolso, quando cabíveis, permanecem assegurados. Não há renúncia a direitos do consumidor nem exigência de resolver a questão exclusivamente com a loja.</p>
+<p>As condições específicas de cada oferta devem ser apresentadas antes da contratação. Estes termos não estabelecem uma regra genérica de “sem devolução” para todos os produtos.</p></section>
+<section id="lojas"><h2>6. Responsabilidades das lojas</h2>
+<ul>
+<li>Manter identificação, contatos, catálogo, preços, adicionais, disponibilidade, horários e regiões atendidas corretos.</li>
+<li>Informar características relevantes, restrições, riscos e, quando pertinente, ingredientes e alergênicos dos produtos.</li>
+<li>Ofertar somente produtos permitidos e cumprir as exigências fiscais, sanitárias, profissionais e de proteção ao consumidor aplicáveis.</li>
+<li>Atender os pedidos recebidos, comunicar problemas e tratar solicitações de consumidores.</li>
+<li>Usar os dados recebidos de clientes para finalidades legítimas ligadas ao atendimento, respeitando a legislação de proteção de dados.</li>
+<li>Publicar apenas conteúdo e imagens próprios ou que tenham autorização para utilizar.</li>
+</ul>
+<p>O acesso ao painel deve ser restrito às pessoas autorizadas pela loja. O conteúdo de uma loja não deve ser usado para acessar dados ou administrar outra loja.</p></section>
+<section id="uso"><h2>7. Uso permitido e proteção do serviço</h2>
+<p>Não é permitido usar a plataforma para fraude, pedidos falsos, divulgação de conteúdo ilícito, tentativa de acessar dados de terceiros, exploração de vulnerabilidades, coleta abusiva de informações ou interferência no funcionamento do serviço.</p>
+<p>Podemos aplicar limites de acesso e restrições proporcionais para proteger usuários e investigar abuso, com possibilidade de solicitar revisão pelo contato informado. Quando possível e adequado à segurança, serão informados o motivo e as orientações para regularização.</p>
+<p>A marca e os elementos próprios do VemDeDelivery permanecem vinculados aos seus titulares. O uso normal da plataforma não transfere direitos de propriedade intelectual nem autoriza reproduzir catálogos de terceiros.</p></section>
+<section id="disponibilidade"><h2>8. Disponibilidade e serviços de terceiros</h2>
+<p>O serviço pode passar por manutenção ou sofrer interrupções. Seu funcionamento também depende de conexão, hospedagem e serviços como e-mail e WhatsApp. O suporte avaliará os problemas comunicados e as providências cabíveis.</p>
+<p>Não prometemos disponibilidade ininterrupta ou ausência absoluta de falhas. Essa informação não exclui obrigações legais, compromissos expressamente contratados ou responsabilidade por defeitos do serviço.</p>
+<p>Para encerrar sua conta ou solicitar análise da exclusão de dados, entre em contato pelo canal indicado na Política de Privacidade. A conservação de registros será avaliada conforme a finalidade e as obrigações aplicáveis.</p></section>
+<section id="backups"><h2>9. VemDeDelivery Backups e Google Drive</h2>
+<p><strong>VemDeDelivery Backups</strong> é a integração administrativa destinada à continuidade da operação, não um serviço público de armazenamento de arquivos. Seu acesso ao Google Drive depende da autorização do titular da conta de backups e fica limitado às permissões concedidas.</p>
+<p>Quando habilitada, a integração envia, verifica e recupera cópias de segurança no destino configurado. A autorização não transfere propriedade dos dados à plataforma ou torna os arquivos públicos. O administrador deve proteger credenciais, chaves de criptografia e meios de recuperação da conta.</p>
+<p>A revogação da conexão Google interrompe o acesso autorizado e pode impedir novos backups ou restaurações a partir do Drive. Arquivos já armazenados não são removidos automaticamente. Os critérios de tratamento e as formas de revogação e exclusão estão na <a href="{% url 'marketplace:privacy' %}#google">seção de backups da Política de Privacidade</a>.</p></section>
+<section id="alteracoes"><h2>10. Atualizações, legislação e contato</h2>
+<p>Estes termos poderão ser atualizados conforme mudanças no serviço. A data e a versão ficam no início da página. Alterações relevantes serão comunicadas pelos canais disponíveis, respeitando condições já contratadas e a necessidade de aceite específico quando aplicável.</p>
+<p>Aplica-se a legislação brasileira, preservados os direitos e as regras de competência que protegem o consumidor. Estes termos não impõem foro exclusivo que impeça o exercício de direitos.</p>
+<p><strong>COBRADEV SOLUTIONS — CNPJ 59.198.345/0001-44</strong><br>Contato para assuntos da plataforma e da integração de backups: <a class="email" href="mailto:backupvemdedelivery@gmail.com">backupvemdedelivery@gmail.com</a>.</p>
+<p class="source">Referências: <a href="https://www.planalto.gov.br/ccivil_03/leis/l8078compilado.htm">Código de Defesa do Consumidor</a> e <a href="https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2013/decreto/d7962.htm">Decreto nº 7.962/2013</a>.</p></section>
+{% endblock %}

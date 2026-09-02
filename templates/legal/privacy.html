@@ -1,0 +1,62 @@
+{% extends 'legal/base.html' %}
+{% block title %}Política de Privacidade{% endblock %}
+{% block heading %}Política de Privacidade{% endblock %}
+{% block intro %}Como tratamos dados ao conectar pessoas e lojas — e como a integração VemDeDelivery Backups utiliza o Google Drive.{% endblock %}
+{% block toc %}
+<a href="#responsavel">1. Quem somos</a><a href="#dados">2. Dados e finalidades</a><a href="#fundamentos">3. Fundamentos</a><a href="#compartilhamento">4. Compartilhamento</a><a href="#google">5. Google Drive e backups</a><a href="#cookies">6. Cookies e localização</a><a href="#retencao">7. Segurança e conservação</a><a href="#direitos">8. Seus direitos</a><a href="#menores">9. Crianças e adolescentes</a><a href="#contato">10. Contato e atualizações</a>
+{% endblock %}
+{% block legal_content %}
+<section id="responsavel"><h2>1. Quem somos e a quem esta política se aplica</h2>
+<p>O <strong>VemDeDelivery</strong> é uma plataforma de divulgação de lojas, consulta de produtos e organização de pedidos, mantida pela <strong>COBRADEV SOLUTIONS, CNPJ 59.198.345/0001-44</strong>. Esta política abrange visitantes, clientes, representantes de lojas e a integração administrativa <strong>VemDeDelivery Backups</strong>.</p>
+<p>A COBRADEV SOLUTIONS decide como tratar dados de contas, segurança e funcionamento da plataforma. Cada loja também trata os dados que recebe para atender pedidos, organizar entregas e cumprir suas obrigações. As responsabilidades de cada participante dependem da operação realizada; esta política não substitui as informações de privacidade da loja.</p>
+<p>Contato para privacidade: <a class="email" href="mailto:backupvemdedelivery@gmail.com">backupvemdedelivery@gmail.com</a>.</p></section>
+<section id="dados"><h2>2. Quais dados tratamos e para quê</h2>
+<div class="table-wrap"><table><thead><tr><th>Categoria</th><th>Dados e utilização</th></tr></thead><tbody>
+<tr><td>Conta e identificação</td><td>Nome, nome de usuário, e-mail, telefone/WhatsApp e informações de verificação, para criar a conta, autenticar acessos, recuperar credenciais e atualizar contatos. Senhas são armazenadas em formato de hash.</td></tr>
+<tr><td>Pedidos e atendimento</td><td>Produtos, quantidades, adicionais, observações, valores, cupons, forma de pagamento escolhida e histórico, para montar, revisar e acompanhar pedidos e atender solicitações.</td></tr>
+<tr><td>Entrega e localização</td><td>CEP, endereço, número, complemento, bairro, cidade, UF e referências, para identificar atendimento e taxa de entrega. Coordenadas podem ser utilizadas quando você autoriza a localização no navegador.</td></tr>
+<tr><td>Lojas</td><td>Dados dos responsáveis e da conta administrativa, contato comercial, catálogo, imagens, horários e regiões atendidas, para disponibilizar a loja e seu painel.</td></tr>
+<tr><td>Segurança e funcionamento</td><td>Endereço IP, data e hora, identificadores de sessão e requisição, registros de autenticação e de erros, para prevenir abuso, investigar incidentes e manter o serviço.</td></tr>
+</tbody></table></div>
+<p>No fluxo atual pelo WhatsApp, a plataforma registra a <strong>forma de pagamento escolhida</strong>; esse registro não é um processamento de cartão. Não informe número completo de cartão, código de segurança, senhas ou códigos OTP nas observações do pedido.</p>
+<p>Evite inserir dados sensíveis ou informações de terceiros desnecessárias em campos livres. As observações adicionadas ao pedido podem ser vistas pela loja e fazer parte de seus registros.</p></section>
+<section id="fundamentos"><h2>3. Fundamentos do tratamento</h2>
+<p>Conforme a finalidade, o tratamento se apoia na execução de contratos ou procedimentos solicitados por você, no cumprimento de obrigações legais, no exercício de direitos ou no interesse legítimo em segurança e funcionamento, considerando seus direitos. Quando o tratamento depender de consentimento, ele será solicitado de forma específica e poderá ser revogado. A leitura desta política não representa consentimento genérico para qualquer uso de dados.</p></section>
+<section id="compartilhamento"><h2>4. Com quem os dados são compartilhados</h2>
+<ul>
+<li><strong>Loja escolhida:</strong> recebe os dados necessários ao pedido e à entrega. Ao abrir o WhatsApp, os dados são preparados em uma mensagem; o envio depende da sua ação nesse aplicativo.</li>
+<li><strong>Infraestrutura e comunicações:</strong> utilizamos hospedagem da Hostinger, serviços de e-mail como SendPulse e a integração Evolution API/WhatsApp para validações e comunicações operacionais.</li>
+<li><strong>Localização:</strong> recursos de consulta de CEP e geocodificação podem consultar provedores externos. Quando a geocodificação está habilitada, coordenadas podem ser encaminhadas ao provedor configurado, como Nominatim/OpenStreetMap.</li>
+<li><strong>Diagnóstico:</strong> serviços de monitoramento, quando habilitados, podem receber dados técnicos de erros e desempenho para suporte à operação.</li>
+<li><strong>Backup:</strong> cópias do banco e da mídia são mantidas para recuperação. A seção seguinte descreve a integração administrativa com Google Drive.</li>
+<li><strong>Solicitações legais:</strong> informações podem ser fornecidas quando houver fundamento jurídico e necessidade de atender uma obrigação ou proteger direitos.</li>
+</ul>
+<p>Fornecedores podem manter infraestrutura em outros países. O tratamento internacional exige as salvaguardas aplicáveis à operação. Você pode solicitar esclarecimentos sobre fornecedores e transferências pelo contato desta política.</p></section>
+<section id="google"><h2>5. Google Drive e VemDeDelivery Backups</h2>
+<div class="callout"><strong>A conta Google conectada é a conta administrativa de backups.</strong> Clientes e lojistas não precisam autorizar acesso ao próprio Google Drive para usar o VemDeDelivery.</div>
+<p>A integração <strong>VemDeDelivery Backups</strong>, quando habilitada, utiliza o rclone para guardar e recuperar cópias de segurança em uma conta Google autorizada pelo administrador. O acesso é solicitado com o escopo <code>drive.file</code>, limitado aos arquivos e pastas criados ou autorizados para o aplicativo.</p>
+<p>A integração acessa conteúdo e metadados desses arquivos — como nome, identificador, tamanho e dados necessários à verificação de integridade — para enviar, listar, conferir e recuperar backups. Esses backups podem conter dados de contas, pedidos, lojas e imagens descritos nesta política. O envio ao Drive deve ocorrer pelo destino criptografado configurado para essa finalidade.</p>
+<p>Credenciais e tokens OAuth ficam na configuração protegida da ferramenta, para permitir acesso sem solicitar a senha Google a cada execução. Eles não são exibidos aos clientes da plataforma. As chaves de recuperação da criptografia devem ser guardadas pelo administrador em local seguro separado do servidor.</p>
+<p>Os dados obtidos por meio das APIs do Google são utilizados somente para as funções de backup e recuperação informadas. Não são vendidos, utilizados para publicidade personalizada, avaliação de crédito ou treinamento de modelos de inteligência artificial de uso geral. Acesso humano fica restrito às situações necessárias e permitidas para suporte autorizado, segurança ou cumprimento de obrigação legal.</p>
+<p>O uso e a transferência de informações recebidas das APIs do Google seguem a <a href="https://developers.google.com/terms/api-services-user-data-policy">Política de Dados do Usuário dos Serviços de API do Google</a>, incluindo os requisitos de <em>Uso Limitado</em>, quando aplicáveis.</p>
+<h3>Como revogar e excluir</h3>
+<p>O administrador pode revogar a autorização em <a href="https://myaccount.google.com/connections">Conexões da Conta Google</a>. A revogação impede novos acessos autorizados, mas não remove automaticamente arquivos já enviados nem as cópias locais. A exclusão dos arquivos deve ser realizada no Drive, incluindo a lixeira quando cabível, e nas cópias mantidas pelo administrador, respeitadas as necessidades legais de conservação. Clientes podem solicitar a exclusão de seus dados pelo canal de privacidade abaixo.</p></section>
+<section id="cookies"><h2>6. Cookies, preferências e localização</h2>
+<p>Usamos cookies de sessão e de proteção contra requisições indevidas, além de armazenamento do navegador para preferências como tema visual. Sessões também permitem manter o carrinho e o local de entrega. Desativar esses recursos pode impedir login, carrinho ou outras funções essenciais.</p>
+<p>A localização do navegador depende da permissão que você concede e pode ser desativada nas configurações do dispositivo. Quando disponível, você pode informar cidade ou endereço manualmente. A permissão técnica do navegador não autoriza usos diferentes dos descritos aqui.</p>
+<p>O carregamento de recursos externos, como bibliotecas de interface, pode transmitir dados técnicos da conexão ao respectivo fornecedor. A adoção de novas finalidades, como publicidade comportamental, exige informação e tratamento adequado antes de sua utilização.</p></section>
+<section id="retencao"><h2>7. Segurança, conservação e eliminação</h2>
+<p>Empregamos controle de acesso por loja, proteção de senhas, validação de contatos, limites de tentativas e registros de segurança. Backups e testes de restauração apoiam a recuperação de dados. Essas medidas reduzem riscos, mas não tornam qualquer sistema imune a incidentes.</p>
+<p>Os dados são conservados conforme a finalidade, a relação com o usuário e as necessidades legais ou de defesa de direitos. O encerramento da conta não elimina automaticamente registros cuja conservação seja necessária. Informações sem finalidade de conservação devem ser eliminadas ou anonimizadas.</p>
+<p>Backups seguem a retenção configurada na operação e podem manter dados até sua substituição ou exclusão. Uma solicitação de eliminação exige avaliar também as cópias de segurança; não prometemos apagamento instantâneo de todas as cópias. Os critérios e prazos aplicáveis ao seu caso podem ser solicitados pelo canal abaixo.</p></section>
+<section id="direitos"><h2>8. Seus direitos e como exercê-los</h2>
+<p>Você pode solicitar confirmação e acesso aos dados, correção, informações sobre compartilhamento e, quando cabível, portabilidade, anonimização, bloqueio, eliminação, oposição ou revogação do consentimento. Cada solicitação será analisada conforme seus requisitos legais.</p>
+<p>Envie a solicitação para <a class="email" href="mailto:backupvemdedelivery@gmail.com">backupvemdedelivery@gmail.com</a>, indicando o e-mail ou telefone da conta e o pedido desejado. Podemos solicitar confirmação de identidade proporcional à necessidade, para evitar acesso ou exclusão por terceiros. Não envie senhas ou códigos de autenticação.</p>
+<p>Se a demanda envolver tratamento realizado por uma loja, auxiliaremos no direcionamento ao responsável. Se o atendimento não resolver a questão, você pode recorrer à <a href="https://www.gov.br/pt-br/servicos/abrir-requerimento-relacionado-a-lgpd">ANPD</a> e aos demais órgãos competentes.</p></section>
+<section id="menores"><h2>9. Crianças e adolescentes</h2>
+<p>A plataforma não é dirigida a crianças. O uso por adolescentes deve observar a capacidade legal, a participação de responsáveis quando necessária e as restrições dos produtos. Se identificar uso indevido de dados de criança ou adolescente, entre em contato para avaliação e providências voltadas ao seu melhor interesse.</p></section>
+<section id="contato"><h2>10. Contato e atualizações</h2>
+<p><strong>COBRADEV SOLUTIONS — CNPJ 59.198.345/0001-44</strong><br>Canal de privacidade e integração Google: <a class="email" href="mailto:backupvemdedelivery@gmail.com">backupvemdedelivery@gmail.com</a>.</p>
+<p>Esta política poderá ser atualizada para refletir mudanças no serviço. A versão e a data ficam no início da página. Mudanças relevantes nas finalidades ou permissões serão informadas pelos canais disponíveis, com nova autorização quando necessária.</p>
+<p class="source">Referência legal: <a href="https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709compilado.htm">Lei Geral de Proteção de Dados Pessoais</a>. Veja também os <a href="{% url 'marketplace:terms' %}">Termos de Serviço</a>.</p></section>
+{% endblock %}

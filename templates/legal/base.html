@@ -1,0 +1,35 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#173b32">
+  <meta name="description" content="{% block description %}Informações sobre o VemDeDelivery e a integração VemDeDelivery Backups.{% endblock %}">
+  <title>{% block title %}{% endblock %} | VemDeDelivery</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'images/brand/icone-vemdedelivery.svg' %}">
+  <style>
+    :root{color-scheme:light;--green:#173b32;--orange:#bd441d;--paper:#f6f8f3;--line:#dce5dc;--muted:#53645e}
+    *{box-sizing:border-box}body{margin:0;background:var(--paper);color:#243c34;font-family:Arial,Helvetica,sans-serif;line-height:1.75}
+    a{color:var(--green);text-underline-offset:4px}a:hover{color:var(--orange)}a:focus-visible{outline:3px solid #d36535;outline-offset:5px;border-radius:3px}
+    .wrap{width:min(1100px,calc(100% - 40px));margin:auto}.skip{position:absolute;left:16px;top:-80px;background:white;padding:10px;z-index:2}.skip:focus{top:8px}
+    header{background:white;border-bottom:1px solid var(--line)}.header-inner{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 0}.logo{display:block;width:240px;max-width:100%;height:auto}.home-link{font-size:14px;font-weight:700;white-space:nowrap}
+    .hero{padding:48px 0 28px}.eyebrow{color:var(--orange);font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase}h1{font-size:clamp(30px,5vw,48px);line-height:1.15;letter-spacing:-1.5px;color:var(--green);margin:14px 0 18px}.intro{font-size:17px;max-width:720px;color:var(--muted)}.date{font-size:13px;color:var(--muted)}
+    .layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:30px;align-items:start;margin:12px auto 56px}.toc{position:sticky;top:24px;border:1px solid var(--line);border-radius:18px;background:#fff;padding:20px;font-size:14px}.toc strong{display:block;margin-bottom:8px}.toc a{display:block;padding:5px 0;text-decoration:none}.toc a:hover{text-decoration:underline}
+    article{background:white;border:1px solid var(--line);border-radius:24px;padding:32px 38px;min-width:0}section{scroll-margin-top:24px}section+section{border-top:1px solid var(--line);margin-top:30px;padding-top:18px}h2{font-size:22px;line-height:1.35;color:var(--green);margin:12px 0}h3{font-size:17px;margin-top:22px}p{margin:12px 0}li{margin:8px 0}ul{padding-left:22px}.callout{background:#f0f5ed;border-left:4px solid var(--orange);border-radius:0 12px 12px 0;padding:16px 20px;margin:20px 0}.email{overflow-wrap:anywhere}.table-wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px;margin:18px 0}td,th{text-align:left;padding:12px;border-bottom:1px solid var(--line);vertical-align:top}th{background:#f0f5ed}.source{font-size:13px;color:var(--muted)}
+    footer{background:var(--green);color:#e8efe7;text-align:center;padding:32px 20px;font-size:13px}footer a{color:inherit}footer a:hover{color:#ffab78}footer .logo{margin:0 auto 20px;width:220px}footer p{margin:5px 0}
+    @media(max-width:760px){.wrap{width:calc(100% - 28px)}.header-inner{padding:16px 0;gap:12px}.logo{width:195px}.home-link{font-size:12px}.hero{padding-top:30px}.layout{grid-template-columns:1fr;gap:18px}.toc{position:static}.toc nav{display:flex;flex-wrap:wrap;gap:4px 16px}article{padding:22px 20px;border-radius:18px}h2{font-size:20px}.intro{font-size:16px}}
+    @media(max-width:380px){.header-inner{flex-wrap:wrap}.home-link{padding:4px 0}}
+    @media print{header,.toc,footer,.skip{display:none}.layout{display:block}.wrap{width:100%}article{border:0;padding:0}body{background:#fff;color:#000}.hero{padding:0}a{color:inherit}section{break-inside:avoid}}
+  </style>
+</head>
+<body>
+  <a class="skip" href="#conteudo">Ir para o conteúdo</a>
+  <header><div class="wrap header-inner"><a href="{{ CUSTOMER_PORTAL_URL|default:'/' }}" aria-label="VemDeDelivery, página inicial"><img class="logo" src="{% static 'images/brand/logo-vemdedelivery.svg' %}" alt="VemDeDelivery" width="365" height="72"></a><a class="home-link" href="{{ CUSTOMER_PORTAL_URL|default:'/' }}">← Ver lojas</a></div></header>
+  <main id="conteudo">
+    <div class="wrap hero"><span class="eyebrow">Transparência e confiança</span><h1>{% block heading %}{% endblock %}</h1><p class="intro">{% block intro %}{% endblock %}</p><p class="date">Versão 1.0 · Atualização: 2 de setembro de 2026</p></div>
+    <div class="wrap layout"><aside class="toc"><strong>Nesta página</strong><nav aria-label="Índice do documento">{% block toc %}{% endblock %}</nav></aside><article>{% block legal_content %}{% endblock %}</article></div>
+  </main>
+  <footer><a href="{{ CUSTOMER_PORTAL_URL|default:'/' }}"><img class="logo" src="{% static 'images/brand/logo-vemdedelivery-clara.svg' %}" alt="VemDeDelivery" width="365" height="72"></a><p><strong>COBRADEV SOLUTIONS</strong> · CNPJ 59.198.345/0001-44</p>{% include 'includes/legal_links.html' %}<p>© {% now 'Y' %} VemDeDelivery</p></footer>
+</body>
+</html>

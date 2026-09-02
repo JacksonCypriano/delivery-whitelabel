@@ -5,12 +5,14 @@ from django.core.exceptions import ValidationError
 
 from apps.tenants.models import BrandConfig
 from apps.tenants.onboarding import get_store_setup
-from unfold.forms import AuthenticationForm
+from .admin_security import (ProtectedAdminAuthenticationForm, ProtectedAdminSiteMixin, SuperAdminAuthenticationForm)
 from unfold.sites import UnfoldAdminSite
 
 logger = logging.getLogger(__name__)
 
-class TenantAdminAuthenticationForm(AuthenticationForm):
+class TenantAdminAuthenticationForm(ProtectedAdminAuthenticationForm):
+    login_scope = "tenant"
+
     def confirm_login_allowed(self, user):
         super().confirm_login_allowed(user)
 
@@ -32,7 +34,7 @@ class TenantAdminAuthenticationForm(AuthenticationForm):
 
 
 # ── Admin do Lojista ──────────────────────────────────────────────────────────
-class TenantAdminSite(UnfoldAdminSite):
+class TenantAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
     login_form = TenantAdminAuthenticationForm
     site_title = "Painel"
     site_header = "Painel Admin"
@@ -129,7 +131,7 @@ class TenantAdminSite(UnfoldAdminSite):
         if not user.is_authenticated:
             return False
 
-        if not user.is_active or not user.is_staff:
+        if not user.is_active or not user.is_staff or not user.is_tenant_admin:
             return False
 
         if user.is_superuser:
@@ -147,7 +149,8 @@ tenant_admin_site = TenantAdminSite(name="tenant_admin")
 
 
 # ── Admin Global (Superusuário) ───────────────────────────────────────────────
-class SuperAdminSite(UnfoldAdminSite):
+class SuperAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
+    login_form = SuperAdminAuthenticationForm
     site_title = "Super Admin"
     site_header = "Painel Global"
     index_title = "Gestão do Sistema"

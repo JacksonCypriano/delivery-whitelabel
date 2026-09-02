@@ -7,10 +7,19 @@ from django.core.cache import cache
 
 
 def get_client_ip(request):
-    # Trust only X-Real-IP explicitly overwritten by the configured proxy.
     value = request.META.get("REMOTE_ADDR", "")
+    try:
+        peer = ipaddress.ip_address(value.strip())
+    except (ValueError, AttributeError):
+        return "unknown"
     if getattr(settings, "OTP_TRUST_PROXY_HEADERS", False):
-        value = request.META.get("HTTP_X_REAL_IP") or value
+        networks = getattr(settings, "OTP_TRUSTED_PROXY_CIDRS", [])
+        try:
+            trusted = any(peer in ipaddress.ip_network(cidr.strip()) for cidr in networks)
+        except ValueError:
+            trusted = False
+        if trusted:
+            value = request.META.get("HTTP_X_REAL_IP") or str(peer)
     try:
         return str(ipaddress.ip_address(value.strip()))
     except (ValueError, AttributeError):

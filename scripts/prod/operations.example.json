@@ -1,0 +1,14 @@
+{
+  "compose_file": "docker/prod/docker-compose.yml",
+  "backup_root": "/opt/vemdedelivery/backups",
+  "release_root": "/opt/vemdedelivery/releases",
+  "state_dir": "/opt/vemdedelivery/operations",
+  "base_url": "https://vemdedelivery.com.br",
+  "remote": "",
+  "require_offsite": false,
+  "retention_days": 14,
+  "max_backup_age_hours": 30,
+  "min_free_gb": 2,
+  "webhook_url": "",
+  "heartbeat_url": ""
+}

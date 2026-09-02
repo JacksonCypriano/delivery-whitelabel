@@ -324,7 +324,7 @@ class SecurityAuditTests(TransactionTestCase):
         request = factory.get("/", REMOTE_ADDR="192.0.2.10", HTTP_X_REAL_IP="198.51.100.99")
         self.assertTrue(rate_limit_exceeded(request, "audit-test", limit=5))
 
-    @override_settings(OTP_TRUST_PROXY_HEADERS=True)
+    @override_settings(OTP_TRUST_PROXY_HEADERS=True, OTP_TRUSTED_PROXY_CIDRS=["192.0.2.10/32"])
     def test_explicit_trusted_proxy_uses_validated_real_ip(self):
         request = RequestFactory().get("/", REMOTE_ADDR="192.0.2.10", HTTP_X_REAL_IP="2001:db8::1")
         self.assertEqual(get_client_ip(request), "2001:db8::1")

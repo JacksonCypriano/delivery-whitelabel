@@ -452,3 +452,9 @@ MARKETPLACE_CEP_USER_AGENT = "VemDeDelivery/1.0"
 
 # Enable only behind a proxy that overwrites X-Real-IP.
 OTP_TRUST_PROXY_HEADERS = os.getenv("OTP_TRUST_PROXY_HEADERS", "false").lower() in ("1", "true", "yes", "on")
+
+# Pacotes 11/12: confiar no IP informado somente por proxies conhecidos.
+OTP_TRUSTED_PROXY_CIDRS = [v.strip() for v in os.getenv("OTP_TRUSTED_PROXY_CIDRS", "").split(",") if v.strip()]
+ADMIN_LOGIN_WINDOW = max(60, int(os.getenv("ADMIN_LOGIN_WINDOW", "900")))
+ADMIN_LOGIN_IP_LIMIT = max(1, int(os.getenv("ADMIN_LOGIN_IP_LIMIT", "50")))
+ADMIN_LOGIN_ACCOUNT_LIMIT = max(1, int(os.getenv("ADMIN_LOGIN_ACCOUNT_LIMIT", "10")))

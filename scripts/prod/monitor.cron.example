@@ -1,0 +1,6 @@
+# Ajuste usuario e caminho antes de instalar. Usa o mesmo operations.json do backup.
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+*/5 * * * * deploy /usr/bin/python3 /opt/vemdedelivery/app/scripts/prod/operations.py monitor >> /var/log/vemdedelivery-monitor.log 2>&1
+# Teste mensal com banco e pasta temporarios. Nenhuma tabela de producao alterada.
+0 5 1 * * deploy /usr/bin/python3 /opt/vemdedelivery/app/scripts/prod/operations.py restore-test >> /var/log/vemdedelivery-monitor.log 2>&1

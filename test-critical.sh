@@ -76,6 +76,9 @@ if [[ "$DB_HEALTH" != "healthy" && "$DB_HEALTH" != "running" ]]; then
     exit 1
 fi
 
+echo "▶ Testando ferramentas operacionais (sem acessar Docker, rede ou produção)..."
+python3 -m unittest discover -s scripts/tests -p "test_*.py" -v
+
 echo "▶ Executando em banco de teste isolado, com config.settings.test..."
 echo "▶ A consulta externa de WhatsApp fica desativada neste processo de teste."
 

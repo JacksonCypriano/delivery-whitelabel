@@ -274,3 +274,24 @@ class CombinationPricingRule(models.Model):
 
     class Meta:
         unique_together = ["tenant", "combination_type"]
+
+
+class StockReservation(models.Model):
+    """Demand snapshot; active only while the parent review is valid.
+
+    Deducted quantities survive cancellation for idempotent stock returns.
+    Existing orders have no rows, so historical sends are never debited again.
+    """
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='stock_reservations')
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True)
+    product_name = models.CharField(max_length=150)
+    quantity = models.DecimalField(max_digits=12, decimal_places=2)
+    deducted_quantity = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    returned_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['order', 'product'], name='unique_stock_order_product'),
+            models.CheckConstraint(condition=Q(quantity__gt=0), name='stock_reserved_positive'),
+            models.CheckConstraint(condition=Q(deducted_quantity__gte=0), name='stock_deducted_nonnegative'),
+        ]

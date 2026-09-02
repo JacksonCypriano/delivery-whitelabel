@@ -26,6 +26,7 @@ from apps.marketplace.location import (
 from apps.coupons.models import CouponCampaign, CouponRedemption
 from apps.coupons.services import validate_coupon
 from apps.orders import cart_service as integrity
+from apps.orders import inventory
 from apps.orders.models import Cart, CartItem, CombinationPricingRule, Order, OrderItem
 from apps.stores.models import Product
 from apps.tenants.delivery import delivery_result_to_json, resolve_delivery
@@ -1427,27 +1428,35 @@ def checkout_step_one(request):
             if field.get_internal_type() == 'CharField' and isinstance(value, str) and max_length and len(value) > max_length:
                 return HttpResponseBadRequest('Um dos campos do pedido excede o tamanho permitido.')
         integrity.money(total)
-        order = Order.objects.create(**order_data)
+        try:
+            with transaction.atomic():
+                order = Order.objects.create(**order_data)
 
-        for item in cart_items:
-            OrderItem.objects.create(
-                order=order,
-                product=item.product,
-                name=item.name,
-                price=item.price,
-                quantity=item.quantity,
-                combination_details=item.combination_details,
-                product_key=item.product_key or "",
-                notes=item.notes or "",
-            )
+                for item in cart_items:
+                    OrderItem.objects.create(
+                        order=order,
+                        product=item.product,
+                        name=item.name,
+                        price=item.price,
+                        quantity=item.quantity,
+                        combination_details=item.combination_details,
+                        product_key=item.product_key or "",
+                        notes=item.notes or "",
+                    )
 
-        if applied_campaign:
-            CouponRedemption.objects.create(
-                campaign=applied_campaign,
-                customer=customer,
-                order=order,
-                discount_amount=discount_amount,
-            )
+                if applied_campaign:
+                    CouponRedemption.objects.create(
+                        campaign=applied_campaign,
+                        customer=customer,
+                        order=order,
+                        discount_amount=discount_amount,
+                    )
+
+                inventory.reserve(order, [(integrity.quote(request.tenant, integrity.item_payload(item)), item.quantity) for item in cart_items])
+
+        except integrity.CartError as exc:
+            messages.error(request, str(exc))
+            return redirect('checkout:cart')
 
         return render(
             request,

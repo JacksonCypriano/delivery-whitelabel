@@ -1,3 +1,5 @@
+from django.contrib import admin, messages
+from django.template.response import TemplateResponse
 from datetime import timedelta
 
 from django.db.models import Avg, Count, Sum
@@ -5,14 +7,15 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.html import format_html
 
-from apps.core.admin import TenantModelAdmin
+from apps.core.admin import TenantModelAdmin, TenantInlineMixin
 from apps.tenants.admin_site import tenant_admin_site
 from unfold.admin import TabularInline
 
 from .models import Order, OrderItem
 
 
-class OrderItemInline(TabularInline):
+class OrderItemInline(TenantInlineMixin, TabularInline):
+    tenant_lookup = "order__tenant"
     model = OrderItem
     extra = 0
     can_delete = False
@@ -31,6 +34,12 @@ class OrderItemInline(TabularInline):
         request,
         obj=None,
     ):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
         return False
 
     def line_total(self, obj):
@@ -53,6 +62,7 @@ class OrderAdmin(TenantModelAdmin):
         "total_display",
         "delivery_display",
         "whatsapp_badge",
+        "status",
         "created_at",
     )
 
@@ -80,6 +90,7 @@ class OrderAdmin(TenantModelAdmin):
     inlines = [OrderItemInline]
 
     readonly_fields = (
+        "status",
         "customer",
         "customer_name",
         "customer_phone",
@@ -119,6 +130,7 @@ class OrderAdmin(TenantModelAdmin):
             {
                 "fields": (
                     "delivery_type",
+                    "status",
                     "payment_method",
                     "payment_change_for",
                     "subtotal",
@@ -148,6 +160,21 @@ class OrderAdmin(TenantModelAdmin):
             },
         ),
     )
+
+    actions = ['cancel_orders']
+
+    @admin.action(description='Cancelar pedidos e devolver estoque')
+    def cancel_orders(self, request, queryset):
+        if not request.POST.get('confirm_cancel'):
+            return TemplateResponse(request, 'admin/orders/order/confirm_cancel.html', {
+                **self.admin_site.each_context(request),
+                'title': 'Confirmar cancelamento de pedidos',
+                'orders': queryset, 'opts': self.model._meta,
+                'action_checkbox_name': admin.helpers.ACTION_CHECKBOX_NAME,
+            })
+        from .inventory import cancel
+        count = sum(cancel(order_id, request.tenant) for order_id in queryset.order_by('pk').values_list('pk', flat=True))
+        self.message_user(request, f'{count} pedido(s) cancelado(s). O estoque baixado foi devolvido quando ainda está controlado.', messages.SUCCESS)
 
     def get_queryset(self, request):
         return (
@@ -256,6 +283,8 @@ class OrderAdmin(TenantModelAdmin):
         return obj.delivery_type_label
 
     def whatsapp_badge(self, obj):
+        if obj.status == 'cancelled':
+            return 'Cancelado'
         if obj.whatsapp_opened_at:
             return format_html(
                 '<span style="font-weight:700;color:#16a34a;">WhatsApp aberto</span>'

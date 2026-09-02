@@ -1,0 +1,14 @@
+{% extends 'admin/base_site.html' %}
+{% block content %}
+<p>Confirme os pedidos abaixo. As reservas serão liberadas e o estoque já baixado será devolvido uma única vez. Isso não envia mensagem ao cliente nem executa reembolso.</p>
+<form method="post">
+  {% csrf_token %}
+  <ul>{% for order in orders %}<li>#{{ order.pk }} — {{ order.customer_name }} — R$ {{ order.total|floatformat:2 }}
+    <input type="hidden" name="{{ action_checkbox_name }}" value="{{ order.pk }}">
+  </li>{% endfor %}</ul>
+  <input type="hidden" name="action" value="cancel_orders">
+  <input type="hidden" name="confirm_cancel" value="1">
+  <button type="submit" class="bg-primary-600 text-white px-4 py-2 rounded-default">Confirmar cancelamento</button>
+  <a href="{% url 'tenant_admin:orders_order_changelist' %}">Voltar sem cancelar</a>
+</form>
+{% endblock %}

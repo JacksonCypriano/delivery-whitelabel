@@ -7,7 +7,7 @@ from django.db import transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_http_methods
 
 from apps.customers.models import Customer
 from apps.tenants.delivery import resolve_delivery
@@ -19,6 +19,7 @@ from .models import (
 )
 from .services import build_whatsapp_message
 from . import cart_service as integrity
+from . import inventory
 from apps.coupons.models import CouponCampaign
 from apps.coupons.services import validate_coupon
 
@@ -56,14 +57,19 @@ def _owned_order(request, public_token):
     return order, cart
 
 
+@require_http_methods(["GET", "POST"])
 @transaction.atomic
 def open_whatsapp(request, public_token):
     order, cart = _owned_order(request, public_token)
+    if order.status == 'cancelled':
+        messages.error(request, 'Este pedido foi cancelado.')
+        return redirect('checkout:cart')
+    if request.method == 'GET':
+        # Links, previews and crawlers cannot commit stock or clear the cart.
+        return render(request, 'checkout/review.html', {'order': order})
     if order.whatsapp_opened_at is None:
         try:
             integrity.ensure_store(request.tenant)
-            if order.status == "cancelled":
-                raise integrity.CartError("Este pedido foi cancelado.")
             if cart is None or integrity.expired(order):
                 raise integrity.CartError(
                     "A revisão do pedido expirou. Confira os valores e confirme novamente."
@@ -119,6 +125,7 @@ def open_whatsapp(request, public_token):
                     raise integrity.CartError(
                         "O desconto mudou. Confira o checkout novamente."
                     )
+            inventory.consume(order, [(q, item.quantity) for item, q in quoted])
         except integrity.CartError as exc:
             order.abandoned_at = timezone.now()
             order.save(update_fields=["abandoned_at"])

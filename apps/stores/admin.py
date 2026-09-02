@@ -1,8 +1,10 @@
+from django.db import transaction
+from django.db.models import Sum
 from django import forms
 from django.contrib import admin, messages
 from django.utils.html import format_html
 
-from apps.core.admin import TenantModelAdmin
+from apps.core.admin import TenantModelAdmin, TenantInlineMixin
 from apps.tenants.admin_site import tenant_admin_site
 
 from .models import (
@@ -34,7 +36,7 @@ class ProductAdminForm(forms.ModelForm):
         return [int(d) for d in self.cleaned_data.get('available_days', [])]
 
 
-class ProductImageInline(admin.TabularInline):
+class ProductImageInline(TenantInlineMixin, admin.TabularInline):
     model = ProductImage
     extra = 1
     fields = ('image', 'alt_text', 'is_primary', 'order')
@@ -55,11 +57,28 @@ class ProductAdmin(TenantModelAdmin):
     list_display_links = ('thumbnail', 'name')
     list_editable = ('is_available', 'is_featured')
     search_fields = ('name', 'description', 'sku')
-    list_filter = ('category', 'is_available', 'is_featured')
+    list_filter = (('category', admin.RelatedOnlyFieldListFilter), 'is_available', 'is_featured')
     inlines = [ProductImageInline]
     prepopulated_fields = {"slug": ("name",)}
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = ('created_at', 'updated_at', 'reserved_stock')
     actions = ['create_half_for_selected', 'mark_as_available', 'mark_as_unavailable']
+
+    @transaction.atomic
+    def save_model(self, request, obj, form, change):
+        if change:
+            # An unrelated edit must not overwrite a concurrent stock deduction
+            # with the value read when the form was opened.
+            current = Product.objects.select_for_update().get(pk=obj.pk, tenant=request.tenant)
+            if 'stock' not in form.changed_data:
+                obj.stock = current.stock
+        super().save_model(request, obj, form, change)
+
+    def reserved_stock(self, obj):
+        if not obj.pk or obj.stock is None:
+            return 'Sem controle de estoque'
+        from apps.orders.inventory import active_reservations
+        return active_reservations().filter(product=obj).aggregate(total=Sum('quantity'))['total'] or 0
+    reserved_stock.short_description = 'Reservado em revisões válidas'
 
     def thumbnail(self, obj):
         url = obj.get_primary_image() if hasattr(obj, 'get_primary_image') else None
@@ -119,7 +138,7 @@ class CustomizationGroupLabelAdmin(TenantModelAdmin):
 
 # ── Grupos de Personalização ──────────────────────────────────────────────────
 
-class CustomizationOptionInline(admin.StackedInline):
+class CustomizationOptionInline(TenantInlineMixin, admin.StackedInline):
     model = CustomizationOption
     extra = 1
     fields = ('name', 'description', 'price', 'image', 'is_available')
@@ -131,7 +150,7 @@ class CustomizationOptionInline(admin.StackedInline):
 @admin.register(CustomizationGroup, site=tenant_admin_site)
 class CustomizationGroupAdmin(TenantModelAdmin):
     list_display = ('label', 'category', 'apply_to_display', 'min_options', 'max_options', 'is_active')
-    list_filter = ('category', 'apply_to', 'is_active')
+    list_filter = (('category', admin.RelatedOnlyFieldListFilter), 'apply_to', 'is_active')
     search_fields = ('label__name', 'category__name')
     ordering = ('category', 'label__name')
     inlines = [CustomizationOptionInline]
@@ -154,23 +173,6 @@ class CustomizationGroupAdmin(TenantModelAdmin):
         if not obj.tenant_id:
             obj.tenant = request.tenant
         super().save_model(request, obj, form, change)
-
-    def save_formset(self, request, form, formset, change):
-        """
-        Garante que as opções criadas via Inline (CustomizationOption)
-        também recebam o tenant da loja logada.
-        """
-        instances = formset.save(commit=False)
-
-        for obj in formset.deleted_objects:
-            obj.delete()
-
-        for instance in instances:
-            if hasattr(instance, "tenant_id") and not instance.tenant_id:
-                instance.tenant = request.tenant
-            instance.save()
-
-        formset.save_m2m()
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         field = super().formfield_for_foreignkey(db_field, request, **kwargs)

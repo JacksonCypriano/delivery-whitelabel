@@ -11,6 +11,7 @@ class Package10MigrationTests(TransactionTestCase):
             ("orders", "0009_cart_checkout_token_cart_unique_cart_tenant_user_and_more")
         ]
         executor = MigrationExecutor(connection)
+        latest = executor.loader.graph.leaf_nodes()
         executor.migrate(before)
         try:
             apps = executor.loader.project_state(before).apps
@@ -60,4 +61,4 @@ class Package10MigrationTests(TransactionTestCase):
             )
         finally:
             # Restore current schema even if an assertion or migration fails.
-            MigrationExecutor(connection).migrate(after)
+            MigrationExecutor(connection).migrate(latest)

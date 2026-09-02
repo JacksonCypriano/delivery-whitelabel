@@ -89,7 +89,12 @@ class Product(TenantModel):
     calories = models.PositiveIntegerField(null=True, blank=True, help_text="Calorias por porção")
     prep_time = models.PositiveIntegerField(null=True, blank=True, help_text="Tempo de preparo em minutos")
     weight = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True, help_text="Peso em gramas")
-    stock = models.IntegerField(null=True, blank=True, help_text="Quantidade em estoque (se aplicável)")
+    stock = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        verbose_name="Estoque físico",
+        help_text="Vazio: sem controle. Zero: esgotado. Inclui reservas da revisão (30 min). "
+                  "A baixa ocorre ao abrir WhatsApp; cada metade consome 0,5 unidade.",
+    )
     min_order_qty = models.PositiveIntegerField(default=1)
     max_order_qty = models.PositiveIntegerField(null=True, blank=True)
     primary_image = models.ImageField(
@@ -111,6 +116,7 @@ class Product(TenantModel):
         verbose_name_plural = "Produtos"
         ordering = ['-is_featured', 'name']
         constraints = [
+            models.CheckConstraint(condition=models.Q(stock__isnull=True) | models.Q(stock__gte=0), name='product_stock_nonnegative'),
             models.UniqueConstraint(
                 fields=['tenant', 'slug'],
                 name='unique_product_slug_per_tenant'
@@ -130,13 +136,13 @@ class Product(TenantModel):
             raise ValidationError({'price': "O preço deve ser igual ou maior que 0."})
         if self.sale_price and self.sale_price < Decimal('0.00'):
             raise ValidationError({'sale_price': "O preço promocional deve ser igual ou maior que 0."})
-        if self.sale_price and self.sale_price > self.price:
+        if self.sale_price is not None and self.price is not None and self.sale_price > self.price:
             raise ValidationError({'sale_price': "O preço promocional não pode ser maior que o preço normal."})
         if self.stock is not None and self.stock < 0:
             raise ValidationError({'stock': "Estoque não pode ser negativo."})
         if self.max_order_qty and self.max_order_qty < self.min_order_qty:
             raise ValidationError({'max_order_qty': "Quantidade máxima não pode ser menor que a mínima."})
-        if self.category and self.category.tenant_id != self.tenant_id:
+        if self.category_id and self.category.tenant_id != self.tenant_id:
             raise ValidationError({'category': "A categoria deve pertencer ao mesmo tenant do produto."})
 
     def save(self, *args, **kwargs):

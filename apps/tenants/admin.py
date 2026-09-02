@@ -1,3 +1,4 @@
+from apps.core.admin import TenantModelAdmin, TenantInlineMixin
 from django.contrib import admin
 from unfold.admin import ModelAdmin
 from unfold.admin import TabularInline
@@ -31,13 +32,13 @@ class TenantAdmin(ModelAdmin):
 super_admin_site.register(Tenant, TenantAdmin)
 
 
-class DeliveryZoneInline(TabularInline):
+class DeliveryZoneInline(TenantInlineMixin, TabularInline):
     model = DeliveryZone
     extra = 1
     fields = ('city', 'neighborhood', 'fee', 'is_active')
 
 
-class BusinessHourInline(TabularInline):
+class BusinessHourInline(TenantInlineMixin, TabularInline):
     model = BusinessHour
 
     fields = (
@@ -55,19 +56,6 @@ class BusinessHourInline(TabularInline):
     extra = 1
 
     can_delete = True
-
-    def has_view_permission(self, request, obj=None):
-        return True
-
-    def has_change_permission(self, request, obj=None):
-        return True
-
-    def has_add_permission(self, request, obj=None):
-        return True
-
-    def has_delete_permission(self, request, obj=None):
-        return True
-
 
 # ── Admin do Lojista: Configurações da Loja (Tenant) ─────────────────────────
 class StoreSettingsAdmin(ModelAdmin):
@@ -294,7 +282,7 @@ class TenantBrandConfigAdmin(ModelAdmin):
 tenant_admin_site.register(BrandConfig, TenantBrandConfigAdmin)
 
 @admin.register(DeliveryZone, site=tenant_admin_site)
-class DeliveryZoneAdmin(ModelAdmin):
+class DeliveryZoneAdmin(TenantModelAdmin):
     list_display = ("city", "neighborhood", "fee", "is_active")
     list_editable = ("is_active",)
     list_filter = ("city", "is_active")

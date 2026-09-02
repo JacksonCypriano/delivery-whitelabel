@@ -132,12 +132,15 @@
           </strong>
         </div>
 
-        <a
-          href="{% url 'orders:open_whatsapp' order.public_token %}"
+        {% if not order.whatsapp_opened %}<p class="mt-4 text-sm text-gray-600">Os itens com estoque controlado ficam reservados por até 30 minutos desde a criação desta revisão.</p>{% endif %}
+        <form method="post" action="{% url 'orders:open_whatsapp' order.public_token %}">
+          {% csrf_token %}
+        <button type="submit"
           class="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-green-500 px-5 py-4 font-black text-white shadow-lg shadow-green-500/20 transition hover:bg-green-600"
         >
           Abrir WhatsApp e enviar
-        </a>
+        </button>
+        </form>
 
         <form
           method="post"

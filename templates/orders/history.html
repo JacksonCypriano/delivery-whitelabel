@@ -51,7 +51,9 @@
               </div>
 
               <div class="mt-2 flex flex-wrap items-center gap-2">
-                {% if order.whatsapp_opened %}
+                {% if order.status == 'cancelled' %}
+                  <span class="rounded-full bg-red-50 px-2 py-1 text-[10px] font-black text-red-700">Cancelado</span>
+                {% elif order.whatsapp_opened %}
                   <span class="rounded-full bg-green-50 px-2 py-1 text-[10px] font-black text-green-700">WhatsApp aberto</span>
                 {% else %}
                   <span class="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700">Pedido gerado</span>

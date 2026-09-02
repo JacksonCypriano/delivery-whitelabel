@@ -371,7 +371,7 @@ class Package10Tests(CriticalTestCase):
                 delivery_fee=0,
             )["valid"]
         )
-        result = self.client.get(
+        result = self.client.post(
             f"/pedido/{order.public_token}/whatsapp/",
             HTTP_HOST=self.host(self.tenant_a),
         )
@@ -388,7 +388,7 @@ class Package10Tests(CriticalTestCase):
         self.submit(coupon_code="TESTE")
         order = Order.objects.get()
         url = f"/pedido/{order.public_token}/whatsapp/"
-        response = self.client.get(url, HTTP_HOST=self.host(self.tenant_a))
+        response = self.client.post(url, HTTP_HOST=self.host(self.tenant_a))
         self.assertTrue(response.url.startswith("https://wa.me"))
         self.assertFalse(
             validate_coupon(
@@ -400,7 +400,7 @@ class Package10Tests(CriticalTestCase):
             )["valid"]
         )
         self.add()
-        self.client.get(url, HTTP_HOST=self.host(self.tenant_a))
+        self.client.post(url, HTTP_HOST=self.host(self.tenant_a))
         self.assertEqual(CartItem.objects.count(), 1)
 
     def test_price_change_after_review_blocks_whatsapp(self):
@@ -410,7 +410,7 @@ class Package10Tests(CriticalTestCase):
         order = Order.objects.get()
         self.product_a.price = Decimal("70")
         self.product_a.save()
-        response = self.client.get(
+        response = self.client.post(
             f"/pedido/{order.public_token}/whatsapp/",
             HTTP_HOST=self.host(self.tenant_a),
         )
@@ -447,7 +447,7 @@ class Package10Tests(CriticalTestCase):
         self.ready()
         self.submit()
         order = Order.objects.get()
-        self.client.get(
+        self.client.post(
             f"/pedido/{order.public_token}/whatsapp/",
             HTTP_HOST=self.host(self.tenant_a),
         )
@@ -486,7 +486,7 @@ class Package10Tests(CriticalTestCase):
         )
         self.assertContains(response, "Escolha entre")
 
-    def test_half_average_and_scope_rules(self):
+    def test_half_uses_highest_price_even_with_legacy_average_rule(self):
         from apps.orders.models import CombinationPricingRule
 
         p2 = Product.objects.create(
@@ -514,7 +514,7 @@ class Package10Tests(CriticalTestCase):
             ).status_code,
             200,
         )
-        self.assertEqual(CartItem.objects.get().price, Decimal("25.51"))
+        self.assertEqual(CartItem.objects.get().price, Decimal("26.01"))
 
     def test_disabled_coupon_after_review_is_not_sent(self):
         self.login_buyer()
@@ -525,7 +525,7 @@ class Package10Tests(CriticalTestCase):
         order = Order.objects.get()
         campaign.is_active = False
         campaign.save()
-        response = self.client.get(
+        response = self.client.post(
             f"/pedido/{order.public_token}/whatsapp/",
             HTTP_HOST=self.host(self.tenant_a),
         )
@@ -570,7 +570,7 @@ class Package10Tests(CriticalTestCase):
         order = Order.objects.get()
         self.zone_a.fee = Decimal("9")
         self.zone_a.save()
-        result = self.client.get(
+        result = self.client.post(
             f"/pedido/{order.public_token}/whatsapp/",
             HTTP_HOST=self.host(self.tenant_a),
         )

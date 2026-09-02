@@ -1,11 +1,11 @@
-from django.contrib import messages
+from django.contrib import admin, messages
 from django.db.models import Count, Sum
 from django.utils import timezone
 from django.utils.html import format_html
 
-from apps.core.admin import TenantModelAdmin
+from apps.core.admin import TenantModelAdmin, TenantInlineMixin, TenantPermissionMixin, tenant_admin_allowed
 from apps.tenants.admin_site import tenant_admin_site
-from unfold.admin import TabularInline
+from unfold.admin import TabularInline, ModelAdmin
 
 from .models import (
     AudienceType,
@@ -16,7 +16,8 @@ from .models import (
 )
 
 
-class CouponAssignmentInline(TabularInline):
+class CouponAssignmentInline(TenantInlineMixin, TabularInline):
+    tenant_lookup = "campaign__tenant"
     model = CouponAssignment
 
     extra = 0
@@ -449,7 +450,16 @@ class CouponCampaignAdmin(TenantModelAdmin):
         )
 
 
-class CouponRedemptionAdmin(TenantModelAdmin):
+class CouponRedemptionAdmin(TenantPermissionMixin, ModelAdmin):
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if not tenant_admin_allowed(request):
+            return qs.none()
+        return qs.filter(campaign__tenant=request.tenant, order__tenant=request.tenant)
+
+    def has_view_permission(self, request, obj=None):
+        return tenant_admin_allowed(request) and (obj is None or self.get_queryset(request).filter(pk=obj.pk).exists())
+
     list_display = (
         "campaign",
         "customer_display",
@@ -468,7 +478,7 @@ class CouponRedemptionAdmin(TenantModelAdmin):
     )
 
     list_filter = (
-        "campaign",
+        ("campaign", admin.RelatedOnlyFieldListFilter),
         "redeemed_at",
     )
 

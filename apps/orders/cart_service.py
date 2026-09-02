@@ -284,20 +284,10 @@ def quote(tenant, data):
         }
         if any(len(details[k]) > 2000 for k in ["notes_half1", "notes_half2"]):
             raise CartError("Use até 2.000 caracteres nas observações.")
-        method = (
-            CombinationPricingRule.objects.filter(
-                tenant=tenant, combination_type="half_half"
-            )
-            .values_list("price_calculation_method", flat=True)
-            .first()
-            or "max_price"
-        )
+        # Commercial rule: the most expensive pizza, plus the chosen extras.
+        # Historical average rules must not change the advertised price.
         prices = [product_price(p) for p in products]
-        if method not in ("max_price", "average", "sum_halved"):
-            raise CartError(
-                "Regra de meio a meio inválida. Entre em contato com a loja."
-            )
-        price = max(prices) if method == "max_price" else money(sum(prices) / 2)
+        price = max(prices)
         name, product = " / ".join(p.name for p in products)[:200], None
     else:
         if any(
@@ -397,6 +387,8 @@ def check_cart_candidate(cart, q, count, exclude_ids=()):
     for item in cart.items.exclude(pk__in=exclude_ids).select_related("product"):
         lines.append((quote(cart.tenant, item_payload(item)), item.quantity))
     validate_totals(lines)
+    from .inventory import check_stock
+    check_stock(lines, exclude_cart_id=cart.pk)
 
 
 def add_item(cart, q, count):
@@ -434,6 +426,8 @@ def refresh_cart(cart):
     items = list(cart.items.select_related("product").order_by("pk"))
     quoted = [(item, quote(cart.tenant, item_payload(item))) for item in items]
     validate_totals([(q, item.quantity) for item, q in quoted])
+    from .inventory import check_stock
+    check_stock([(q, item.quantity) for item, q in quoted], exclude_cart_id=cart.pk)
     changes = []
     for item, q in quoted:
         if quote_changed(item, q):

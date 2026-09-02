@@ -55,7 +55,7 @@ class OrdersCheckoutCriticalTests(CriticalTestCase):
 
     def test_whatsapp_url_cannot_open_order_from_other_tenant(self):
         order = Order.objects.create(tenant=self.tenant_a, customer_name="Cliente", customer_phone="11999999999", subtotal=Decimal("20.00"), total=Decimal("20.00"))
-        response = self.client.get(f"/pedido/{order.public_token}/whatsapp/", HTTP_HOST=self.host(self.tenant_b))
+        response = self.client.post(f"/pedido/{order.public_token}/whatsapp/", HTTP_HOST=self.host(self.tenant_b))
         self.assertEqual(response.status_code, 404)
         order.refresh_from_db()
         self.assertIsNone(order.whatsapp_opened_at)

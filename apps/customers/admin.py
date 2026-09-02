@@ -1,3 +1,4 @@
+from apps.core.admin import tenant_admin_allowed
 from django.db.models import Count, Max, Q, Sum
 from django.utils.html import format_html
 
@@ -125,6 +126,12 @@ class CustomerAdmin(ModelAdmin):
             )
             .distinct()
         )
+
+    def has_module_permission(self, request):
+        return tenant_admin_allowed(request)
+
+    def has_view_permission(self, request, obj=None):
+        return tenant_admin_allowed(request) and (obj is None or self.get_queryset(request).filter(pk=obj.pk).exists())
 
     # --------------------------------------------------------------
     # Não permitimos criar Customer pelo admin da loja.

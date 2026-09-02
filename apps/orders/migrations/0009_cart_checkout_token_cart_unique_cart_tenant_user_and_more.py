@@ -40,6 +40,13 @@ def repair_carts(apps, schema_editor):
             abandoned_at__isnull=True,
         ).update(abandoned_at=timezone.now())
 
+    # Flush deferred FK checks created by the data repair before the following
+    # ALTER TABLE operations. Keep the entire migration atomic on PostgreSQL.
+    if schema_editor.connection.vendor == "postgresql":
+        with schema_editor.connection.cursor() as cursor:
+            cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
+            cursor.execute("SET CONSTRAINTS ALL DEFERRED")
+
 
 class Migration(migrations.Migration):
 

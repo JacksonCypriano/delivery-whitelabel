@@ -24,7 +24,7 @@ class ProductCustomizationsAPIView(View):
         data = []
         for group in groups:
             options = []
-            for opt in group.options.filter(is_available=True).order_by('id'):  # <-- order_by aqui
+            for opt in group.options.filter(tenant=tenant, is_available=True).order_by('id'):  # <-- order_by aqui
                 options.append({
                     'id':          opt.id,
                     'name':        opt.name,

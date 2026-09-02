@@ -1,6 +1,8 @@
 from decimal import Decimal, ROUND_HALF_UP
 
 from django.utils import timezone
+from django.db.models import Q
+from apps.orders.cart_service import DRAFT_TTL
 
 from apps.orders.models import Order
 
@@ -30,6 +32,8 @@ def get_customer_orders_for_tenant(
         .filter(
             customer=customer,
             tenant=tenant,
+            abandoned_at__isnull=True,
+            whatsapp_opened_at__isnull=False,
         )
         .exclude(
             status="cancelled",
@@ -56,9 +60,16 @@ def validate_campaign_period(campaign):
 def validate_usage_limits(
     campaign,
     customer,
+    exclude_order_id=None,
 ):
+    # A review reserves usage for 30 minutes; opening WhatsApp commits usage.
+    uses = campaign.redemptions.filter(order__abandoned_at__isnull=True).exclude(order__status='cancelled').filter(
+        Q(order__whatsapp_opened_at__isnull=False) | Q(order__created_at__gt=timezone.now() - DRAFT_TTL)
+    )
+    if exclude_order_id is not None:
+        uses = uses.exclude(order_id=exclude_order_id)
     if campaign.usage_limit:
-        total_uses = campaign.redemptions.count()
+        total_uses = uses.count()
 
         if total_uses >= campaign.usage_limit:
             return (
@@ -67,7 +78,7 @@ def validate_usage_limits(
             )
 
     customer_uses = (
-        campaign.redemptions
+        uses
         .filter(customer=customer)
         .count()
     )
@@ -292,6 +303,7 @@ def validate_coupon(
     customer,
     subtotal,
     delivery_fee,
+    exclude_order_id=None,
 ):
     if not customer:
         return {
@@ -325,6 +337,7 @@ def validate_coupon(
         validate_usage_limits(
             campaign,
             customer,
+            exclude_order_id=exclude_order_id,
         ),
         validate_audience(
             campaign,

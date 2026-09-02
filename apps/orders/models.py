@@ -18,6 +18,7 @@ User = settings.AUTH_USER_MODEL
 
 
 class Cart(TenantModel):
+    checkout_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name="carts")
     session_key = models.CharField(max_length=128, null=True, blank=True, db_index=True)
 
@@ -29,7 +30,9 @@ class Cart(TenantModel):
             models.CheckConstraint(
                 check=models.Q(user__isnull=False, session_key__isnull=True) | models.Q(user__isnull=True, session_key__isnull=False),
                 name="cart_user_or_session_exclusive",
-            )
+            ),
+            models.UniqueConstraint(fields=["tenant", "user"], condition=Q(user__isnull=False), name="unique_cart_tenant_user"),
+            models.UniqueConstraint(fields=["tenant", "session_key"], condition=Q(user__isnull=True), name="unique_cart_tenant_session"),
         ]
 
     def __str__(self):
@@ -62,6 +65,8 @@ class CartItem(models.Model):
                 name="unique_cart_product_key",
                 condition=Q(product_key__isnull=False),
             ),
+            models.CheckConstraint(condition=Q(quantity__gte=1), name="cart_item_quantity_positive"),
+            models.CheckConstraint(condition=Q(price__gte=0), name="cart_item_price_nonnegative"),
         ]
 
 

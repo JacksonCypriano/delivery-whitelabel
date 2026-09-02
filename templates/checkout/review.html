@@ -4,6 +4,7 @@
 {% block title %}Revisar Pedido - {{ tenant.name }}{% endblock %}
 
 {% block content %}
+{% include 'checkout/partials/_integrity_notices.html' %}
 <div class="container mx-auto max-w-4xl px-4 py-8">
 
   <div class="mb-6">
@@ -14,7 +15,7 @@
       Revise seu pedido
     </h1>
     <p class="mt-2 text-sm text-gray-500">
-      O pedido já foi registrado como gerado. Ao continuar, abriremos o WhatsApp com a mensagem pronta.
+      Esta revisão vale por 30 minutos. Ao continuar, conferiremos os valores e abriremos o WhatsApp com a mensagem pronta. Se precisar mudar algo, use Editar pedido. Um cupom fica reservado durante essa revisão e é liberado ao editar ou expirar.
     </p>
   </div>
 

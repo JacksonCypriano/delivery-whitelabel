@@ -7,6 +7,7 @@ from django.views.decorators.http import require_POST
 from apps.customers.models import Customer
 
 from .services import validate_coupon
+from apps.orders.cart_service import CartError, money
 
 
 def to_decimal(value, default="0.00"):
@@ -66,6 +67,9 @@ def validate_coupon_api(request):
             status=400,
         )
 
+    if not isinstance(data, dict) or not isinstance(data.get('code', ''), str):
+        return JsonResponse({'valid': False, 'message': 'Dados inválidos.'}, status=400)
+
     code = (
         data.get("code")
         or ""
@@ -83,13 +87,12 @@ def validate_coupon_api(request):
     # Estes valores servem somente para a prévia visual.
     # O checkout fará a validação definitiva no servidor
     # antes de criar o pedido.
-    subtotal = to_decimal(
-        data.get("subtotal")
-    )
-
-    delivery_fee = to_decimal(
-        data.get("delivery_fee")
-    )
+    try:
+        subtotal = money(data.get('subtotal', 0))
+        delivery_fee = money(data.get('delivery_fee', 0))
+        money(subtotal + delivery_fee)
+    except CartError:
+        return JsonResponse({'valid': False, 'message': 'Valores inválidos para a prévia do cupom.'}, status=400)
 
     result = validate_coupon(
         code=code,

@@ -1,276 +1,158 @@
-import hashlib
-import json
 import urllib.parse
-import uuid
-from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Avg, Count, Sum
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from apps.customers.models import Customer
+from apps.tenants.delivery import resolve_delivery
 from apps.marketplace.services import build_tenant_url
-from apps.stores.models import Product
 
 from .models import (
     Cart,
-    CartItem,
-    CombinationPricingRule,
     Order,
 )
 from .services import build_whatsapp_message
-
-
-def _rotate_checkout_token(request):
-    token = str(uuid.uuid4())
-    request.session["checkout_token"] = token
-    request.session.modified = True
-    return token
+from . import cart_service as integrity
+from apps.coupons.models import CouponCampaign
+from apps.coupons.services import validate_coupon
 
 
 def _customer_for_request(request):
     if not request.user.is_authenticated:
         return None
 
-    return (
-        Customer.objects
-        .filter(user=request.user)
-        .first()
-    )
+    return Customer.objects.filter(user=request.user).first()
 
 
 def _cart_for_tenant(request, tenant):
-    cart = (
-        Cart.objects
-        .filter(
-            tenant=tenant,
-            user=request.user,
-        )
-        .order_by("-updated_at")
-        .first()
-    )
-
-    if cart is not None:
-        return cart
-
-    return Cart.objects.create(
-        tenant=tenant,
-        user=request.user,
-        session_key=None,
-    )
+    return integrity.get_cart(request, tenant)
 
 
-def _to_decimal(value):
-    try:
-        return Decimal(str(value or "0"))
-    except Exception:
-        return Decimal("0.00")
-
-
-def _sum_customizations(items):
-    total = Decimal("0.00")
-
-    for item in items or []:
-        if not isinstance(item, dict):
-            continue
-
-        total += _to_decimal(
-            item.get("price", 0)
-        )
-
-    return total
-
-
-def _repeat_unit_price(order_item):
-    combo = order_item.combination_details or {}
-    tenant = order_item.order.tenant
-
-    product_ids = combo.get("product_ids") or []
-
-    if product_ids:
-        products = list(
-            Product.objects
-            .filter(
-                tenant=tenant,
-                id__in=product_ids,
-                is_available=True,
-            )
-        )
-
-        if len(products) != 2:
-            return None
-
-        by_id = {
-            str(product.id): product
-            for product in products
-        }
-
-        if any(
-            str(product_id) not in by_id
-            for product_id in product_ids
-        ):
-            return None
-
-        prices = [
-            _to_decimal(
-                product.sale_price
-                if product.sale_price
-                else product.price
-            )
-            for product in (
-                by_id[str(product_ids[0])],
-                by_id[str(product_ids[1])],
-            )
-        ]
-
-        try:
-            rule = CombinationPricingRule.objects.get(
-                tenant=tenant,
-                combination_type="half_half",
-            )
-            method = rule.price_calculation_method
-        except CombinationPricingRule.DoesNotExist:
-            method = "max_price"
-
-        if method == "max_price":
-            base = max(prices)
-        else:
-            base = sum(prices) / Decimal("2")
-
-        additions = (
-            _sum_customizations(
-                combo.get("customizations_whole")
-            )
-            + _sum_customizations(
-                combo.get("customizations_half1")
-            )
-            + _sum_customizations(
-                combo.get("customizations_half2")
-            )
-        )
-
-        return base + additions
-
-    product = order_item.product
-
-    if (
-        product is None
-        or not product.is_available
-        or product.tenant_id != tenant.id
-    ):
-        return None
-
-    base = _to_decimal(
-        product.sale_price
-        if product.sale_price
-        else product.price
-    )
-
-    return (
-        base
-        + _sum_customizations(
-            combo.get("customizations")
-        )
-    )
-
-
-def _repeat_product_key(order_item):
-    if order_item.product_key:
-        return order_item.product_key
-
-    payload = {
-        "name": order_item.name,
-        "combination_details": (
-            order_item.combination_details
-            or {}
-        ),
-        "notes": order_item.notes or "",
-    }
-
-    raw = json.dumps(
-        payload,
-        ensure_ascii=False,
-        sort_keys=True,
-    )
-
-    return (
-        "repeat:"
-        + hashlib.sha1(
-            raw.encode("utf-8")
-        ).hexdigest()[:32]
-    )
-
-
-def open_whatsapp(request, public_token):
-    order = get_object_or_404(
-        Order.objects.prefetch_related("items"),
-        tenant=request.tenant,
-        public_token=public_token,
-        abandoned_at__isnull=True,
-    )
-
-    if order.whatsapp_opened_at is None:
-        order.whatsapp_opened_at = timezone.now()
-        order.save(
-            update_fields=["whatsapp_opened_at"]
-        )
-
-    if (
-        order.source_cart_id
-        and getattr(request, "tenant", None)
-    ):
-        cart_filter = {
-            "id": order.source_cart_id,
-            "tenant": request.tenant,
-        }
-
-        if request.user.is_authenticated:
-            cart_filter["user"] = request.user
-        else:
-            cart_filter["session_key"] = (
-                request.session.session_key
-            )
-
-        Cart.objects.filter(
-            **cart_filter
-        ).delete()
-
-    _rotate_checkout_token(request)
-
-    message = build_whatsapp_message(order)
-
-    whatsapp_url = (
-        f"https://wa.me/"
-        f"{order.tenant.whatsapp_number}"
-        f"?text="
-        f"{urllib.parse.quote(message, safe='')}"
-    )
-
-    return redirect(whatsapp_url)
-
-
-@require_POST
-def edit_generated_order(request, public_token):
-    order = get_object_or_404(
+def _owned_order(request, public_token):
+    candidate = get_object_or_404(
         Order,
         tenant=request.tenant,
         public_token=public_token,
         abandoned_at__isnull=True,
     )
+    carts = Cart.objects.filter(pk=candidate.source_cart_id, tenant=request.tenant)
+    if request.user.is_authenticated:
+        carts = carts.filter(user=request.user)
+    else:
+        carts = carts.filter(user__isnull=True, session_key=request.session.session_key)
+    cart = carts.select_for_update().first()
+    customer = _customer_for_request(request)
+    if cart is None and (customer is None or candidate.customer_id != customer.pk):
+        raise Http404
+    order = get_object_or_404(
+        Order.objects.select_for_update(), pk=candidate.pk, abandoned_at__isnull=True
+    )
+    return order, cart
 
+
+@transaction.atomic
+def open_whatsapp(request, public_token):
+    order, cart = _owned_order(request, public_token)
+    if order.whatsapp_opened_at is None:
+        try:
+            integrity.ensure_store(request.tenant)
+            if order.status == "cancelled":
+                raise integrity.CartError("Este pedido foi cancelado.")
+            if cart is None or integrity.expired(order):
+                raise integrity.CartError(
+                    "A revisão do pedido expirou. Confira os valores e confirme novamente."
+                )
+            items = list(order.items.select_related("product"))
+            if not items:
+                raise integrity.CartError("O pedido está vazio.")
+            quoted = [
+                (item, integrity.quote(request.tenant, integrity.item_payload(item)))
+                for item in items
+            ]
+            subtotal = integrity.validate_totals(
+                [(q, item.quantity) for item, q in quoted]
+            )
+            if subtotal != order.subtotal or any(
+                integrity.quote_changed(item, q) for item, q in quoted
+            ):
+                raise integrity.CartError(
+                    "Os preços ou opções mudaram. Confira o checkout novamente."
+                )
+            delivery = resolve_delivery(
+                tenant=request.tenant,
+                delivery_type=order.delivery_type,
+                city=order.delivery_city,
+                neighborhood=order.delivery_neighborhood,
+            )
+            if not delivery["available"] or delivery["fee"] != order.delivery_fee:
+                raise integrity.CartError(
+                    "A entrega ou a taxa mudou. Confira o checkout novamente."
+                )
+            if order.coupon_code:
+                campaign = (
+                    CouponCampaign.objects.select_for_update()
+                    .filter(tenant=request.tenant, code=order.coupon_code)
+                    .first()
+                )
+                if campaign is None:
+                    raise integrity.CartError("O cupom não está mais disponível.")
+                result = validate_coupon(
+                    code=campaign.code,
+                    tenant=request.tenant,
+                    customer=order.customer,
+                    subtotal=order.subtotal,
+                    delivery_fee=order.delivery_fee,
+                    exclude_order_id=order.pk,
+                )
+                if not result["valid"]:
+                    raise integrity.CartError(result["message"])
+                if (
+                    result["discount"] != order.discount_amount
+                    or result["final_total"] != order.total
+                ):
+                    raise integrity.CartError(
+                        "O desconto mudou. Confira o checkout novamente."
+                    )
+        except integrity.CartError as exc:
+            order.abandoned_at = timezone.now()
+            order.save(update_fields=["abandoned_at"])
+            if cart:
+                integrity.invalidate_draft(cart)
+            messages.error(request, str(exc))
+            return redirect("checkout:checkout_step_one")
+        order.whatsapp_opened_at = timezone.now()
+        order.save(update_fields=["whatsapp_opened_at"])
+        cart.items.all().delete()
+        integrity.invalidate_draft(cart)
+        request.session["checkout_token"] = str(cart.checkout_token)
+    # Reopening an old order must never delete the customer's new cart.
+    message = build_whatsapp_message(order)
+    return redirect(
+        f'https://wa.me/{order.tenant.whatsapp_number}?text={urllib.parse.quote(message, safe="")}'
+    )
+
+
+@require_POST
+@transaction.atomic
+def edit_generated_order(request, public_token):
+    order, cart = _owned_order(request, public_token)
     if order.whatsapp_opened_at is None:
         order.abandoned_at = timezone.now()
-        order.save(
-            update_fields=["abandoned_at"]
+        order.save(update_fields=["abandoned_at"])
+        if cart:
+            integrity.invalidate_draft(cart)
+            request.session["checkout_token"] = str(cart.checkout_token)
+    else:
+        messages.info(
+            request,
+            "Este pedido já foi encaminhado. Para fazer outro, use Repetir pedido.",
         )
-
-    _rotate_checkout_token(request)
-
     return redirect("checkout:cart")
 
 
@@ -282,8 +164,7 @@ def order_history(request):
 
     if customer:
         orders = (
-            Order.objects
-            .filter(customer=customer, abandoned_at__isnull=True)
+            Order.objects.filter(customer=customer, abandoned_at__isnull=True)
             .select_related("tenant", "tenant__brand_config")
             .prefetch_related("items")
             .order_by("-created_at")
@@ -292,7 +173,9 @@ def order_history(request):
     paginator = Paginator(orders, 8)
     page_obj = paginator.get_page(request.GET.get("page"))
 
-    return render(request, "orders/history.html", {"orders": page_obj, "page_obj": page_obj})
+    return render(
+        request, "orders/history.html", {"orders": page_obj, "page_obj": page_obj}
+    )
 
 
 @login_required
@@ -309,9 +192,7 @@ def repeat_order(request, public_token):
         return redirect("orders:history")
 
     order = get_object_or_404(
-        Order.objects
-        .select_related("tenant")
-        .prefetch_related("items__product"),
+        Order.objects.select_related("tenant").prefetch_related("items__product"),
         public_token=public_token,
         customer=customer,
         abandoned_at__isnull=True,
@@ -324,62 +205,15 @@ def repeat_order(request, public_token):
 
     added = 0
     skipped = 0
-
     for old_item in order.items.all():
-        unit_price = _repeat_unit_price(
-            old_item
-        )
-
-        if unit_price is None:
+        try:
+            # Savepoint avoids leaving partial line changes if validation fails.
+            with transaction.atomic():
+                q = integrity.quote(order.tenant, integrity.item_payload(old_item))
+                integrity.add_item(cart, q, old_item.quantity)
+        except integrity.CartError:
             skipped += 1
             continue
-
-        key = _repeat_product_key(
-            old_item
-        )
-
-        defaults = {
-            "product": old_item.product,
-            "name": old_item.name,
-            "price": unit_price,
-            "quantity": old_item.quantity,
-            "combination_details": (
-                old_item.combination_details
-                or {}
-            ),
-            "notes": old_item.notes or "",
-        }
-
-        item, created = (
-            CartItem.objects
-            .get_or_create(
-                cart=cart,
-                product_key=key,
-                defaults=defaults,
-            )
-        )
-
-        if not created:
-            item.quantity += old_item.quantity
-            item.price = unit_price
-            item.combination_details = (
-                old_item.combination_details
-                or {}
-            )
-            item.notes = old_item.notes or ""
-            item.product = old_item.product
-            item.name = old_item.name
-            item.save(
-                update_fields=[
-                    "quantity",
-                    "price",
-                    "combination_details",
-                    "notes",
-                    "product",
-                    "name",
-                ]
-            )
-
         added += 1
 
     if added:
@@ -402,10 +236,6 @@ def repeat_order(request, public_token):
             ),
         )
 
-    cart_url = (
-        build_tenant_url(order.tenant)
-        .rstrip("/")
-        + "/carrinho/"
-    )
+    cart_url = build_tenant_url(order.tenant).rstrip("/") + "/carrinho/"
 
     return redirect(cart_url)

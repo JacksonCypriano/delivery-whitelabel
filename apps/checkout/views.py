@@ -25,6 +25,7 @@ from apps.marketplace.location import (
 )
 from apps.coupons.models import CouponCampaign, CouponRedemption
 from apps.coupons.services import validate_coupon
+from apps.orders import cart_service as integrity
 from apps.orders.models import Cart, CartItem, CombinationPricingRule, Order, OrderItem
 from apps.stores.models import Product
 from apps.tenants.delivery import delivery_result_to_json, resolve_delivery
@@ -341,7 +342,7 @@ def get_customization_min_choices(customization):
             group = group_model.objects.filter(pk=group_id).first()
 
             if group:
-                for field_name in ('min_choices', 'min_selection', 'minimum_choices', 'minimum'):
+                for field_name in ('min_options', 'min_choices', 'min_selection', 'minimum_choices', 'minimum'):
                     if hasattr(group, field_name):
                         minimum = max(minimum, _to_non_negative_int(getattr(group, field_name), default=0))
                         break
@@ -599,16 +600,7 @@ def populate_combination_images_for_items(items, tenant=None, persist=False):
 
 
 def get_or_create_cart(request):
-    if request.user.is_authenticated:
-        cart, _ = Cart.objects.get_or_create(tenant=request.tenant, user=request.user)
-    else:
-        if not request.session.session_key:
-            request.session.create()
-        cart, _ = Cart.objects.get_or_create(
-            tenant=request.tenant,
-            session_key=request.session.session_key,
-        )
-    return cart
+    return integrity.get_cart(request)
 
 
 def format_currency(value: Decimal):
@@ -675,14 +667,21 @@ def delivery_fee_api(request):
 # ---------------------------------------------------------------------------
 
 @require_POST
+@integrity.cart_errors
+@transaction.atomic
 def update_cart_item_notes(request, cart_item_id):
     cart = get_or_create_cart(request)
     cart_item = get_object_or_404(CartItem, pk=cart_item_id, cart=cart)
 
     notes = request.POST.get('notes', '').strip()
+    if len(notes) > 2000:
+        raise integrity.CartError('Use até 2.000 caracteres nas observações.')
+    integrity.invalidate_draft(cart)
     try:
         cart_item.notes = notes
-        cart_item.save(update_fields=['notes'])
+        # Keep edited notes separate from future additions using the old key.
+        cart_item.product_key = 'edited:' + uuid.uuid4().hex
+        cart_item.save(update_fields=['notes', 'product_key'])
     except Exception as exc:
         logger.exception("Erro ao salvar observação do cart_item %s: %s", cart_item_id, exc)
         return JsonResponse({"success": False, "error": "erro_salvar"}, status=500)
@@ -695,173 +694,18 @@ def update_cart_item_notes(request, cart_item_id):
 # ---------------------------------------------------------------------------
 
 @require_POST
+@integrity.cart_errors
+@transaction.atomic
 def add_to_cart(request):
-    data = {}
-    if request.content_type == 'application/json':
-        try:
-            data = json.loads(request.body.decode('utf-8') or '{}')
-        except Exception:
-            return JsonResponse({'success': False, 'error': 'JSON inválido'}, status=400)
-    else:
-        data = request.POST
-
-    is_half = data.get('is_half') in (True, 'true', 'True', '1', 1)
-    try:
-        quantity = int(data.get('quantity', 1))
-    except Exception:
-        quantity = 1
-
-    notes = get_notes_from_payload(data)
-    cart  = get_or_create_cart(request)
-
-    if is_half:
-        product_ids = data.get('product_ids') or []
-        if isinstance(product_ids, str):
-            product_ids = [p.strip() for p in product_ids.split(',') if p.strip()]
-
-        if not isinstance(product_ids, (list, tuple)) or len(product_ids) != 2:
-            return JsonResponse({'success': False, 'error': 'É preciso escolher exatamente 2 sabores'}, status=400)
-
-        try:
-            p1 = Product.objects.get(id=product_ids[0], tenant=request.tenant, is_available=True)
-            p2 = Product.objects.get(id=product_ids[1], tenant=request.tenant, is_available=True)
-        except Product.DoesNotExist:
-            return JsonResponse({'success': False, 'error': 'Um dos sabores não encontrado'}, status=404)
-
-        try:
-            rule   = CombinationPricingRule.objects.get(tenant=request.tenant, combination_type='half_half')
-            method = rule.price_calculation_method
-        except CombinationPricingRule.DoesNotExist:
-            method = 'max_price'
-
-        price_a    = to_decimal(p1.sale_price if p1.sale_price else p1.price)
-        price_b    = to_decimal(p2.sale_price if p2.sale_price else p2.price)
-        unit_price = max(price_a, price_b) if method == 'max_price' else (price_a + price_b) / Decimal(2)
-
-        customizations_whole = normalize_customization_list(data.get('customizations_whole') or [])
-        customizations_half1 = normalize_customization_list(data.get('customizations_half1') or [])
-        customizations_half2 = normalize_customization_list(data.get('customizations_half2') or [])
-        notes_half1 = (data.get('notes_half1') or '').strip()
-        notes_half2 = (data.get('notes_half2') or '').strip()
-
-        unit_price += (
-            sum_customizations_price(customizations_whole)
-            + sum_customizations_price(customizations_half1)
-            + sum_customizations_price(customizations_half2)
-        )
-
-        ids_sorted = sorted([str(p1.id), str(p2.id)], key=int)
-        name       = f"{p1.name} / {p2.name}"
-        images     = [get_image_url_from_product(p1), get_image_url_from_product(p2)]
-
-        combination_details = {
-            'product_ids':          ids_sorted,
-            'names':                [p1.name, p2.name],
-            'images':               images,
-            'customizations_whole': customizations_whole,
-            'customizations_half1': customizations_half1,
-            'customizations_half2': customizations_half2,
-            'notes_half1':          notes_half1,
-            'notes_half2':          notes_half2,
-        }
-        key_payload = {
-            'type':                 'half_half',
-            'product_ids':          ids_sorted,
-            'customizations_whole': customizations_whole,
-            'customizations_half1': customizations_half1,
-            'customizations_half2': customizations_half2,
-            'notes_half1':          notes_half1,
-            'notes_half2':          notes_half2,
-            'notes':                notes,
-        }
-        product_key = build_cart_item_key(f'half:{ids_sorted[0]}:{ids_sorted[1]}', key_payload)
-
-        defaults = {
-            'name': name, 'price': unit_price, 'quantity': quantity,
-            'combination_details': combination_details,
-        }
-        if notes:
-            defaults['notes'] = notes
-
-        cart_item, created = CartItem.objects.get_or_create(cart=cart, product_key=product_key, defaults=defaults)
-        if not created:
-            cart_item.quantity            += quantity
-            cart_item.price               = unit_price
-            cart_item.combination_details = combination_details
-            update_fields = ['quantity', 'price', 'combination_details']
-            if notes:
-                cart_item.notes = notes
-                update_fields.append('notes')
-            cart_item.save(update_fields=update_fields)
-
-        product_label = name
-
-    else:
-        product_id = data.get('product_id')
-        if not product_id:
-            return JsonResponse({'success': False, 'error': 'product_id ausente'}, status=400)
-
-        product    = get_object_or_404(Product, id=product_id, tenant=request.tenant, is_available=True)
-        base_price = to_decimal(product.sale_price if product.sale_price else product.price)
-        customizations = normalize_customization_list(data.get('customizations') or [])
-        unit_price = base_price + sum_customizations_price(customizations)
-
-        combination_details = {'customizations': customizations} if customizations else {}
-        key_payload  = {'type': 'single_product', 'product_id': str(product.id), 'customizations': customizations, 'notes': notes}
-        product_key  = build_cart_item_key(f'product:{product.id}', key_payload)
-
-        defaults = {
-            'product': product, 'name': product.name, 'price': unit_price,
-            'quantity': quantity, 'product_key': product_key, 'combination_details': combination_details,
-        }
-        if notes:
-            defaults['notes'] = notes
-
-        cart_item, created = CartItem.objects.get_or_create(cart=cart, product_key=product_key, defaults=defaults)
-        if not created:
-            cart_item.quantity            += quantity
-            cart_item.price               = unit_price
-            cart_item.combination_details = combination_details
-            update_fields = ['quantity', 'price', 'combination_details']
-            if notes:
-                cart_item.notes = notes
-                update_fields.append('notes')
-            cart_item.save(update_fields=update_fields)
-
-        product_label = product.name
-
-    total_items = (
-        cart.items
-        .aggregate(total=Sum('quantity'))['total']
-        or 0
-    )
-
-    subtotal = sum(
-        (
-            item.get_total_price()
-            for item in cart.items.all()
-        ),
-        Decimal('0.00'),
-    )
-
-    cart_summary = cart_summary_json(
-        request,
-        subtotal=subtotal,
-        total_items=total_items,
-    )
-
-    return JsonResponse({
-        'success': True,
-        'message': f'{product_label} adicionado!',
-        'cart_count': int(total_items),
-
-        # Compatibilidade com o frontend atual:
-        # cart_total continua existindo, mas agora representa
-        # o total comercial considerando o endereço global.
-        'cart_total': cart_summary['total'],
-
-        **cart_summary,
-    })
+    data = integrity.payload(request)
+    cart = get_or_create_cart(request)
+    q = integrity.quote(request.tenant, data)
+    integrity.add_item(cart, q, data.get('quantity', 1))
+    items = list(cart.items.all())
+    total_items = sum(i.quantity for i in items)
+    summary = cart_summary_json(request, subtotal=sum((i.get_total_price() for i in items), Decimal('0')), total_items=total_items)
+    return JsonResponse({'success': True, 'message': f'{q.name} adicionado!',
+                         'cart_count': total_items, 'cart_total': summary['total'], **summary})
 
 
 # ---------------------------------------------------------------------------
@@ -945,6 +789,8 @@ def cart_view(request):
 # ---------------------------------------------------------------------------
 
 @require_POST
+@integrity.cart_errors
+@transaction.atomic
 def remove_from_cart(
     request,
     cart_item_id=None,
@@ -971,6 +817,8 @@ def remove_from_cart(
         )
         .delete()
     )
+
+    integrity.invalidate_draft(cart)
 
     items = (
         cart.items
@@ -1009,12 +857,13 @@ def remove_from_cart(
 
 
 @require_POST
+@integrity.cart_errors
 @transaction.atomic
 def remove_cart_item_customization(request, cart_item_id):
     cart = get_or_create_cart(request)
 
     try:
-        data = json.loads(request.body.decode('utf-8') or '{}') if request.content_type == 'application/json' else request.POST
+        data = integrity.payload(request)
     except (TypeError, ValueError, json.JSONDecodeError):
         return JsonResponse({'success': False, 'error': 'Dados inválidos.'}, status=400)
 
@@ -1036,21 +885,11 @@ def remove_cart_item_customization(request, cart_item_id):
     if index < 0 or index >= len(customizations):
         return JsonResponse({'success': False, 'error': 'Opcional não encontrado no carrinho.'}, status=404)
 
-    if not customization_can_be_removed(customizations, index):
-        group_name = str(customizations[index].get('group_name', '') or 'este grupo')
-        return JsonResponse(
-            {'success': False, 'error': f'Não é possível remover esta opção. O grupo "{group_name}" possui uma quantidade mínima obrigatória.'},
-            status=400,
-        )
-
-    breakdown_before = get_cart_item_price_breakdown(cart_item)
-    base_unit_price = breakdown_before['base_unit_price']
     removed = customizations.pop(index)
     combo[bucket] = customizations
-
-    remaining_additions = sum_customizations_price(get_all_customizations_from_combo(combo))
-    new_unit_price = (base_unit_price + remaining_additions).quantize(Decimal('0.01'))
-    new_product_key = rebuild_cart_item_key(cart_item, combo)
+    data = {**combo, 'is_half': bool(combo.get('product_ids')), 'product_id': cart_item.product_id, 'notes': cart_item.notes or ''}
+    q = integrity.quote(request.tenant, data)
+    combo, new_unit_price, new_product_key = q.details, q.price, q.key
 
     duplicate = (
         CartItem.objects
@@ -1061,6 +900,9 @@ def remove_cart_item_customization(request, cart_item_id):
     )
 
     merged = duplicate is not None
+    count = cart_item.quantity + (duplicate.quantity if duplicate else 0)
+    integrity.check_cart_candidate(cart, q, count, [cart_item.pk] + ([duplicate.pk] if duplicate else []))
+    integrity.invalidate_draft(cart)
 
     if duplicate:
         duplicate.quantity += cart_item.quantity
@@ -1097,48 +939,25 @@ def remove_cart_item_customization(request, cart_item_id):
 
 
 @require_POST
+@integrity.cart_errors
+@transaction.atomic
 def update_cart_quantity(
     request,
     cart_item_id,
 ):
     cart = get_or_create_cart(request)
 
-    if request.content_type == 'application/json':
-        try:
-            data = json.loads(
-                request.body.decode('utf-8')
-                or '{}'
-            )
-            quantity = int(
-                data.get('quantity', 0)
-            )
-        except Exception:
-            return JsonResponse(
-                {
-                    'success': False,
-                    'error': 'JSON inválido',
-                },
-                status=400,
-            )
-    else:
-        quantity = int(
-            request.POST.get('quantity', 0)
-        )
-
+    data = integrity.payload(request)
+    quantity = integrity.quantity(data.get('quantity'))
     try:
-        cart_item = CartItem.objects.get(
-            cart=cart,
-            id=cart_item_id,
-        )
-
-        if quantity <= 0:
-            cart_item.delete()
-
-        else:
-            cart_item.quantity = quantity
-            cart_item.save(
-                update_fields=['quantity']
-            )
+        cart_item = CartItem.objects.get(cart=cart, id=cart_item_id)
+        q = integrity.quote(request.tenant, integrity.item_payload(cart_item))
+        integrity.check_cart_candidate(cart, q, quantity, [cart_item.pk])
+        cart_item.quantity = quantity
+        cart_item.price = q.price
+        cart_item.combination_details = q.details
+        cart_item.save(update_fields=['quantity', 'price', 'combination_details'])
+        integrity.invalidate_draft(cart)
 
         items = (
             cart.items
@@ -1188,21 +1007,39 @@ def update_cart_quantity(
 # Checkout
 # ---------------------------------------------------------------------------
 
+@require_http_methods(["GET", "POST"])
+@integrity.cart_errors
 @transaction.atomic
 def checkout_step_one(request):
     cart = get_or_create_cart(request)
+    try:
+        integrity.ensure_store(request.tenant)
+    except integrity.CartError as exc:
+        messages.error(request, str(exc))
+        return redirect('checkout:cart')
+    checkout_token = str(cart.checkout_token)
+    if request.method == 'POST' and request.POST.get('checkout_token', '').strip() != checkout_token:
+        return HttpResponseBadRequest('Seu carrinho mudou. Atualize o checkout e confirme novamente.')
+    existing = Order.objects.filter(tenant=request.tenant, source_cart_id=cart.pk,
+                                    checkout_token=checkout_token, abandoned_at__isnull=True).first()
+    if existing and integrity.expired(existing):
+        integrity.invalidate_draft(cart)
+        messages.warning(request, 'A revisão do pedido expirou. Confira os valores novamente.')
+        return redirect('checkout:checkout_step_one')
+    if existing:
+        return render(request, 'checkout/review.html', {'order': existing})
+    try:
+        refreshed_items, changed = integrity.refresh_cart(cart)
+    except integrity.CartError as exc:
+        messages.error(request, str(exc))
+        return redirect('checkout:cart')
+    checkout_token = str(cart.checkout_token)
+    request.session['checkout_token'] = checkout_token
+    if changed:
+        messages.info(request, 'Os valores ou opções do catálogo foram atualizados. Confira antes de confirmar.')
+        if request.method == 'POST':
+            return redirect('checkout:checkout_step_one')
     cart_items = cart.items.select_related('product')
-
-    checkout_token = request.session.get(
-        "checkout_token"
-    )
-
-    if not checkout_token:
-        checkout_token = str(uuid.uuid4())
-        request.session[
-            "checkout_token"
-        ] = checkout_token
-        request.session.modified = True
 
     # -----------------------------------------------------------------------
     # Cliente autenticado + endereços salvos
@@ -1324,6 +1161,10 @@ def checkout_step_one(request):
                 },
             )
 
+        if len(full_name) > 150 or len(phone) > 20 or len(change_for) > 30:
+            return HttpResponseBadRequest('Nome, telefone ou troco excede o tamanho permitido.')
+        if payment_method not in ('cash', 'credit_card', 'debit_card', 'pix'):
+            return HttpResponseBadRequest('Forma de pagamento inválida.')
         if not full_name:
             return HttpResponseBadRequest('Informe o nome do cliente.')
 
@@ -1355,7 +1196,7 @@ def checkout_step_one(request):
                 customer_address = (
                     CustomerAddress.objects
                     .filter(
-                        pk=customer_address_id,
+                        pk=integrity.positive_id(customer_address_id),
                         customer=customer,
                     )
                     .first()
@@ -1569,6 +1410,12 @@ def checkout_step_one(request):
                 'delivery_reference': reference,
             })
 
+        for field_name, value in order_data.items():
+            field = Order._meta.get_field(field_name)
+            max_length = getattr(field, 'max_length', None)
+            if field.get_internal_type() == 'CharField' and isinstance(value, str) and max_length and len(value) > max_length:
+                return HttpResponseBadRequest('Um dos campos do pedido excede o tamanho permitido.')
+        integrity.money(total)
         order = Order.objects.create(**order_data)
 
         for item in cart_items:
@@ -1722,114 +1569,16 @@ def order_success(request):
 # ---------------------------------------------------------------------------
 
 @require_POST
+@integrity.cart_errors
+@transaction.atomic
 def add_half_half(request):
-    try:
-        payload = json.loads(request.body.decode('utf-8')) if request.content_type == 'application/json' else request.POST
-    except Exception:
-        payload = request.POST
-
-    if hasattr(payload, 'getlist'):
-        product_ids = payload.get('product_ids') or payload.getlist('product_ids[]') or payload.getlist('product_ids')
-    else:
-        product_ids = payload.get('product_ids') or payload.get('product_ids[]')
-
-    if isinstance(product_ids, str):
-        product_ids = [p.strip() for p in product_ids.split(',') if p.strip()]
-
-    try:
-        quantity = max(1, int(payload.get('quantity', 1)))
-    except Exception:
-        quantity = 1
-
-    notes       = get_notes_from_payload(payload)
-    notes_half1 = (payload.get('notes_half1') or '').strip()
-    notes_half2 = (payload.get('notes_half2') or '').strip()
-
-    if not product_ids or not isinstance(product_ids, (list, tuple)) or len(product_ids) != 2:
-        return JsonResponse({'success': False, 'error': _('É necessário fornecer exatamente dois sabores.')}, status=400)
-
-    if str(product_ids[0]) == str(product_ids[1]):
-        return JsonResponse({'success': False, 'error': _('Escolha dois sabores diferentes para montar meio a meio.')}, status=400)
-
-    try:
-        p1 = Product.objects.get(pk=product_ids[0], tenant=request.tenant, is_available=True)
-        p2 = Product.objects.get(pk=product_ids[1], tenant=request.tenant, is_available=True)
-    except Product.DoesNotExist:
-        return JsonResponse({'success': False, 'error': _('Um dos produtos não foi encontrado.')}, status=404)
-
-    try:
-        rule   = CombinationPricingRule.objects.get(tenant=request.tenant, combination_type='half_half')
-        method = rule.price_calculation_method
-    except CombinationPricingRule.DoesNotExist:
-        method = 'max_price'
-
-    price_a    = to_decimal(p1.sale_price if p1.sale_price else p1.price)
-    price_b    = to_decimal(p2.sale_price if p2.sale_price else p2.price)
-    unit_price = max(price_a, price_b) if method == 'max_price' else (price_a + price_b) / Decimal(2)
-
-    customizations_whole = normalize_customization_list(payload.get('customizations_whole') or [])
-    customizations_half1 = normalize_customization_list(payload.get('customizations_half1') or [])
-    customizations_half2 = normalize_customization_list(payload.get('customizations_half2') or [])
-
-    unit_price += (
-        sum_customizations_price(customizations_whole)
-        + sum_customizations_price(customizations_half1)
-        + sum_customizations_price(customizations_half2)
-    )
-
-    ids_sorted = sorted([str(p1.id), str(p2.id)], key=int)
-    name       = f"{p1.name} / {p2.name} (Meio a meio)"
-    images     = [get_image_url_from_product(p1), get_image_url_from_product(p2)]
-
-    combination_details = {
-        'product_ids':          ids_sorted,
-        'names':                [p1.name, p2.name],
-        'images':               images,
-        'customizations_whole': customizations_whole,
-        'customizations_half1': customizations_half1,
-        'customizations_half2': customizations_half2,
-        'notes_half1':          notes_half1,
-        'notes_half2':          notes_half2,
-    }
-    key_payload = {
-        'type':                 'half_half',
-        'product_ids':          ids_sorted,
-        'customizations_whole': customizations_whole,
-        'customizations_half1': customizations_half1,
-        'customizations_half2': customizations_half2,
-        'notes_half1':          notes_half1,
-        'notes_half2':          notes_half2,
-        'notes':                notes,
-    }
-    product_key = build_cart_item_key(f'half:{ids_sorted[0]}:{ids_sorted[1]}', key_payload)
-
+    data = integrity.payload(request)
+    data['is_half'] = True
     cart = get_or_create_cart(request)
-
-    defaults = {
-        'name': name, 'price': unit_price, 'quantity': quantity,
-        'combination_details': combination_details, 'product_key': product_key,
-    }
-    if notes:
-        defaults['notes'] = notes
-
-    cart_item, created = CartItem.objects.get_or_create(cart=cart, product_key=product_key, defaults=defaults)
-    if not created:
-        cart_item.quantity            += quantity
-        cart_item.price               = unit_price
-        cart_item.combination_details = combination_details
-        update_fields = ['quantity', 'price', 'combination_details']
-        if notes:
-            cart_item.notes = notes
-            update_fields.append('notes')
-        cart_item.save(update_fields=update_fields)
-
-    total_items = cart.items.aggregate(total=Sum('quantity'))['total'] or 0
-    cart_total  = sum((item.price * item.quantity) for item in cart.items.all())
-
-    return JsonResponse({
-        'success':    True,
-        'added':      True,
-        'message':    f"Pizza meio a meio adicionada. Será cobrado {format_currency(unit_price)} por unidade.",
-        'cart_count': int(total_items),
-        'cart_total': str(cart_total),
-    })
+    q = integrity.quote(request.tenant, data)
+    integrity.add_item(cart, q, data.get('quantity', 1))
+    items = list(cart.items.all())
+    count = sum(i.quantity for i in items)
+    summary = cart_summary_json(request, subtotal=sum((i.get_total_price() for i in items), Decimal('0')), total_items=count)
+    return JsonResponse({'success': True, 'message': f'{q.name} adicionado!',
+                         'cart_count': count, 'cart_total': summary['total'], **summary})

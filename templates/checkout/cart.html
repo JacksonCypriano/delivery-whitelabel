@@ -5,6 +5,7 @@
 {% block title %}Carrinho - {{ tenant.name }}{% endblock %}
 
 {% block content %}
+{% include 'checkout/partials/_integrity_notices.html' %}
 
 {% csrf_token %}
 

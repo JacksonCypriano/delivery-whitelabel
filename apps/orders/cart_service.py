@@ -143,17 +143,19 @@ def product_price(product):
 def available_product(tenant, product_id):
     product = (
         Product.objects.select_related("category")
-        .filter(pk=positive_id(product_id), tenant=tenant, is_available=True)
+        .filter(pk=positive_id(product_id), tenant=tenant)
         .first()
     )
     today = timezone.localdate().weekday()
     if (
         product is None
         or product.category.tenant_id != tenant.pk
+        or not product.is_available
         or (product.available_days and today not in product.available_days)
     ):
+        name = f'O produto “{product.name}”' if product else "Este produto"
         raise CartError(
-            "Um produto não está disponível hoje. Remova-o ou escolha outro item."
+            f"{name} não está disponível hoje. Remova-o ou escolha outro item."
         )
     return product
 
@@ -432,12 +434,18 @@ def refresh_cart(cart):
     items = list(cart.items.select_related("product").order_by("pk"))
     quoted = [(item, quote(cart.tenant, item_payload(item))) for item in items]
     validate_totals([(q, item.quantity) for item, q in quoted])
-    changed = False
+    changes = []
     for item, q in quoted:
         if quote_changed(item, q):
+            changes.append({
+                "name": q.name,
+                "old_price": item.price,
+                "new_price": q.price,
+                "quantity": item.quantity,
+                "total": money(q.price * item.quantity),
+            })
             item.price, item.combination_details, item.name = q.price, q.details, q.name
             item.save(update_fields=["price", "combination_details", "name"])
-            changed = True
-    if changed:
+    if changes:
         invalidate_draft(cart)
-    return items, changed
+    return items, changes

@@ -1,7 +1,37 @@
 {% if messages %}
 <div class="mx-auto max-w-4xl px-4 pt-5" aria-live="polite">
   {% for message in messages %}
-    <div role="status" class="mb-3 rounded-xl border px-4 py-3 text-sm {% if message.tags == 'error' %}border-red-200 bg-red-50 text-red-800{% else %}border-amber-200 bg-amber-50 text-amber-900{% endif %}">{{ message }}</div>
+    <div {% if "catalog_update" in message.tags %}data-catalog-update{% endif %} role="status" class="mb-3 rounded-xl border px-4 py-3 text-sm {% if message.tags == 'error' %}border-red-200 bg-red-50 text-red-800{% else %}border-amber-200 bg-amber-50 text-amber-900{% endif %}">{{ message }}</div>
   {% endfor %}
 </div>
 {% endif %}
+
+<dialog id="catalog-update-dialog" aria-labelledby="catalog-update-title" aria-describedby="catalog-update-description">
+  <h2 id="catalog-update-title">Seu pedido foi atualizado</h2>
+  <p id="catalog-update-description">Os valores ou opções do catálogo mudaram. Confira os produtos abaixo antes de confirmar o pedido.</p>
+  <div id="catalog-update-items"></div>
+  <form method="dialog"><button type="submit" autofocus>OK</button></form>
+</dialog>
+<style>
+  #catalog-update-dialog { width: min(92vw, 520px); max-height: 85vh; overflow: auto; margin: auto; padding: 24px; border: 0; border-radius: 20px; background: #fff; color: #163d32; box-shadow: 0 24px 80px #0004; }
+  #catalog-update-dialog::backdrop { background: rgb(15 23 42 / 60%); }
+  #catalog-update-title { font-size: 1.35rem; font-weight: 800; margin-bottom: 12px; }
+  #catalog-update-description { color: #475569; margin-bottom: 16px; }
+  #catalog-update-items p { padding: 12px; background: #f1f5f3; border-radius: 12px; margin-bottom: 10px; overflow-wrap: anywhere; }
+  #catalog-update-dialog button { width: 100%; min-height: 44px; margin-top: 12px; padding: 12px; border: 0; border-radius: 12px; background: #146b50; color: white; font-weight: 700; cursor: pointer; }
+  #catalog-update-dialog button:focus-visible { outline: 3px solid #ff791f; outline-offset: 3px; }
+</style>
+<script>
+(function () {
+  const notices = document.querySelectorAll('[data-catalog-update]');
+  const dialog = document.getElementById('catalog-update-dialog');
+  if (!notices.length || typeof dialog.showModal !== 'function') return;
+  const items = document.getElementById('catalog-update-items');
+  notices.forEach(function (notice) {
+    const paragraph = document.createElement('p');
+    paragraph.textContent = notice.textContent;
+    items.appendChild(paragraph);
+  });
+  dialog.showModal();
+})();
+</script>

@@ -289,7 +289,7 @@
 
   .catalog-sticky-header {
     position: sticky;
-    top: 64px;
+    top: var(--store-header-height, 64px);
     z-index: 40;
     background: color-mix(in srgb, var(--catalog-card) 96%, transparent);
     backdrop-filter: blur(14px);
@@ -366,7 +366,7 @@
   }
 
   .category-section {
-    scroll-margin-top: 200px;
+    scroll-margin-top: calc(var(--store-header-height, 64px) + 136px);
   }
 
   .category-heading {
@@ -900,7 +900,7 @@
     }
 
     .category-section {
-      scroll-margin-top: 175px;
+      scroll-margin-top: calc(var(--store-header-height, 64px) + 111px);
     }
 
     .product-card {
@@ -1931,7 +1931,7 @@
 
     // Considera como "ativa" a seção que entrou logo
     // abaixo do header/categorias.
-    rootMargin: '-190px 0px -65% 0px',
+    rootMargin: '-' + ((document.getElementById('store-global-header')?.offsetHeight || 64) + 126) + 'px 0px -65% 0px',
 
     threshold: [
       0,

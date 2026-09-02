@@ -592,3 +592,56 @@ class Package10Tests(CriticalTestCase):
         item.refresh_from_db()
         self.assertEqual(item.notes, "Sem cebola")
         self.assertEqual(item.quantity, 1)
+
+    def test_catalog_popup_survives_post_redirect_and_is_shown_once(self):
+        self.add(quantity=2)
+        token = self.ready()
+        self.product_a.price = Decimal("30")
+        self.product_a.save()
+        response = self.submit(token)
+        self.assertEqual(response.status_code, 302)
+        response = self.client.get(response.url, HTTP_HOST=self.host(self.tenant_a))
+        self.assertContains(response, 'data-catalog-update')
+        self.assertContains(response, 'Produto Alpha: valor por unidade')
+        self.assertContains(response, 'R$ 20,00 para R$ 30,00')
+        self.assertContains(response, 'Quantidade: 2. Total do item: R$ 60,00')
+        self.assertContains(response, 'method="dialog"')
+        self.assertFalse(Order.objects.exists())
+        response = self.client.get('/checkout/checkout/', HTTP_HOST=self.host(self.tenant_a))
+        self.assertNotContains(response, 'R$ 20,00 para R$ 30,00')
+        self.assertEqual(self.submit().status_code, 200)
+        self.assertEqual(Order.objects.get().total, Decimal("60"))
+
+    def test_catalog_popup_includes_additions_and_escapes_product_name(self):
+        group, option = self.group()
+        self.product_a.name = '<img src=x onerror=alert(1)>'
+        self.product_a.save()
+        self.add(customizations=[self.choice(group, option)])
+        option.price = Decimal("7")
+        option.save()
+        response = self.client.get('/checkout/checkout/', HTTP_HOST=self.host(self.tenant_a))
+        self.assertContains(response, 'R$ 25,00 para R$ 27,00')
+        self.assertContains(response, '&lt;img src=x onerror=alert(1)&gt;')
+        self.assertNotContains(response, '<img src=x onerror=alert(1)>')
+
+    def test_unavailable_message_names_product_without_exposing_other_store(self):
+        self.add()
+        self.product_a.is_available = False
+        self.product_a.save()
+        response = self.client.get('/checkout/checkout/', HTTP_HOST=self.host(self.tenant_a), follow=True)
+        self.assertContains(response, 'O produto “Produto Alpha” não está disponível hoje.')
+        response = self.add(product_id=self.product_b.pk)
+        self.assertEqual(response.status_code, 400)
+        self.assertNotIn(self.product_b.name, response.json()['error'])
+
+    def test_checkout_navigation_is_inside_header_on_all_steps(self):
+        self.add()
+        for path in ['/checkout/cart/', '/checkout/checkout/']:
+            response = self.client.get(path, HTTP_HOST=self.host(self.tenant_a))
+            self.assertEqual(response.status_code, 200)
+            header = response.content.decode().split('<header id="store-global-header"', 1)[1].split('</header>', 1)[0]
+            self.assertIn('href="/">← Voltar ao cardápio', header)
+            self.assertIn('Ver outras lojas →', header)
+        response = self.submit()
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'store-navigation-catalog')

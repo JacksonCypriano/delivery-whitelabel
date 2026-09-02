@@ -296,7 +296,7 @@
        HEADER
        ============================================================ -->
 
-  <header
+  <header id="store-global-header"
     class="
       sticky
       top-0
@@ -325,71 +325,6 @@
         gap-3
       "
     >
-
-
-      <!-- ========================================================
-           VOLTAR PARA O MARKETPLACE
-           ======================================================== -->
-
-      <a
-        href="{{ CUSTOMER_PORTAL_URL }}/"
-        class="
-          flex
-          items-center
-          gap-1.5
-
-          flex-shrink-0
-
-          px-2
-          sm:px-3
-          py-2
-
-          rounded-xl
-
-          text-sm
-          font-semibold
-
-          text-gray-500
-          dark:text-gray-300
-
-          hover:text-primary
-          hover:bg-gray-100
-          dark:hover:bg-gray-800
-
-          transition
-        "
-        title="Ver outras lojas"
-        aria-label="Ver outras lojas"
-      >
-
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          class="
-            w-4
-            h-4
-            flex-shrink-0
-          "
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M15 19l-7-7 7-7"
-          />
-        </svg>
-
-        <span class="sm:hidden">
-          Lojas
-        </span>
-
-        <span class="hidden sm:inline">
-          Ver outras lojas
-        </span>
-
-      </a>
 
 
       <!-- ========================================================
@@ -1188,7 +1123,36 @@
 
     </nav>
 
+    <nav class="store-navigation" aria-label="Navegação da loja">
+      <div class="container mx-auto px-4 store-navigation-inner">
+        <a class="store-navigation-catalog" href="/">← Voltar ao cardápio</a>
+        <a class="store-navigation-marketplace" href="{{ CUSTOMER_PORTAL_URL }}/">Ver outras lojas →</a>
+      </div>
+    </nav>
+    <style>
+      .store-navigation { border-top: 1px solid #e5e7eb; background: #fff; }
+      .store-navigation-inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding-top: 8px; padding-bottom: 8px; }
+      .store-navigation a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 12px; border-radius: 10px; font-size: 14px; font-weight: 700; text-decoration: none; }
+      .store-navigation-catalog { background: #146b50; color: #fff; }
+      .store-navigation-marketplace { color: #146b50; border: 1px solid #cbd5d1; }
+      .store-navigation a:focus-visible { outline: 3px solid #ff791f; outline-offset: 2px; }
+      .dark .store-navigation { background: #111827; border-color: #374151; }
+      .dark .store-navigation-marketplace { color: #d1fae5; border-color: #4b5563; }
+    </style>
   </header>
+  <script>
+  (function () {
+    const header = document.getElementById('store-global-header');
+    function updateHeaderHeight() {
+      document.documentElement.style.setProperty('--store-header-height', header.offsetHeight + 'px');
+    }
+    updateHeaderHeight();
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(updateHeaderHeight).observe(header);
+    }
+    window.addEventListener('resize', updateHeaderHeight);
+  })();
+  </script>
 
   {% if tenant %}
     <div

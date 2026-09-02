@@ -1029,14 +1029,25 @@ def checkout_step_one(request):
     if existing:
         return render(request, 'checkout/review.html', {'order': existing})
     try:
-        refreshed_items, changed = integrity.refresh_cart(cart)
+        refreshed_items, changes = integrity.refresh_cart(cart)
     except integrity.CartError as exc:
         messages.error(request, str(exc))
         return redirect('checkout:cart')
     checkout_token = str(cart.checkout_token)
     request.session['checkout_token'] = checkout_token
-    if changed:
-        messages.info(request, 'Os valores ou opções do catálogo foram atualizados. Confira antes de confirmar.')
+    if changes:
+        def brl(value):
+            return f"R$ {value:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
+
+        for change in changes:
+            messages.info(
+                request,
+                f'{change["name"]}: valor por unidade com as opções selecionadas '
+                f'atualizado de {brl(change["old_price"])} para {brl(change["new_price"])}. '
+                f'Quantidade: {change["quantity"]}. Total do item: {brl(change["total"])}. '
+                'Confira também as opções antes de confirmar.',
+                extra_tags='catalog_update',
+            )
         if request.method == 'POST':
             return redirect('checkout:checkout_step_one')
     cart_items = cart.items.select_related('product')

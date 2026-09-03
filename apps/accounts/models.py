@@ -9,8 +9,12 @@ from apps.tenants.models import Tenant
 
 
 class User(AbstractUser):
-    email_verified = models.BooleanField(default=False)
-    email_verified_at = models.DateTimeField(null=True, blank=True)
+    email_verified = models.BooleanField("E-mail verificado", default=False)
+    email_verified_at = models.DateTimeField("E-mail verificado em", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Usuário"
+        verbose_name_plural = "Usuários"
 
     tenant = models.ForeignKey(
         Tenant,

@@ -113,7 +113,7 @@ class ProductAdmin(TenantModelAdmin):
             self.message_user(request, f"{created_count} meio(s) criado(s).", messages.SUCCESS)
         else:
             self.message_user(request, "Nenhum meio criado (já existiam para os produtos selecionados).", messages.INFO)
-    create_half_for_selected.short_description = "Criar HalfProduct para produtos selecionados"
+    create_half_for_selected.short_description = "Habilitar produtos para combinações meio a meio"
 
     def available_days_display(self, obj):
         if not obj.available_days:

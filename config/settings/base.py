@@ -237,12 +237,12 @@ USE_L10N = True
 
 UNFOLD = {
     "SITE_TITLE": "Painel",
-    "SITE_HEADER": "Painel Admin",
+    "SITE_HEADER": "Painel da loja",
     "SITE_SUBHEADER": "Gestão da sua loja",
     "SITE_DROPDOWN": [
         {
             "icon": "diamond",
-            "title": _("My site"),
+            "title": _("Minha loja"),
             "link": "https://example.com",
         }
     ],
@@ -407,7 +407,7 @@ UNFOLD = {
 }
 
 UNFOLD_SUPER = {
-    "SITE_TITLE": "Super Admin",
+    "SITE_TITLE": "Administração global",
     "SITE_HEADER": "Painel Global",
 }
 

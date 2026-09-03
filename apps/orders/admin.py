@@ -47,6 +47,7 @@ class OrderItemInline(TenantInlineMixin, TabularInline):
             f"R$ {obj.get_total_price():.2f}"
             .replace(".", ",")
         )
+    line_total.short_description = "Total do item"
 
 
 class OrderAdmin(TenantModelAdmin):
@@ -262,6 +263,7 @@ class OrderAdmin(TenantModelAdmin):
 
     def order_number(self, obj):
         return f"#{obj.id}"
+    order_number.short_description = "Pedido"
 
     def customer_display(self, obj):
         return (
@@ -272,15 +274,18 @@ class OrderAdmin(TenantModelAdmin):
                 else "Cliente"
             )
         )
+    customer_display.short_description = "Cliente"
 
     def total_display(self, obj):
         return (
             f"R$ {obj.total:.2f}"
             .replace(".", ",")
         )
+    total_display.short_description = "Total"
 
     def delivery_display(self, obj):
         return obj.delivery_type_label
+    delivery_display.short_description = "Recebimento"
 
     def whatsapp_badge(self, obj):
         if obj.status == 'cancelled':
@@ -293,6 +298,7 @@ class OrderAdmin(TenantModelAdmin):
         return format_html(
             '<span style="font-weight:700;color:#d97706;">Gerado</span>'
         )
+    whatsapp_badge.short_description = "Envio ao WhatsApp"
 
     def items_summary(self, obj):
         items = list(obj.items.all()[:4])
@@ -309,6 +315,7 @@ class OrderAdmin(TenantModelAdmin):
             parts.append("…")
 
         return ", ".join(parts)
+    items_summary.short_description = "Itens"
 
 
 tenant_admin_site.register(

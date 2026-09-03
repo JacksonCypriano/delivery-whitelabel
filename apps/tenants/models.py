@@ -33,7 +33,8 @@ class Tenant(models.Model):
     )
 
     created_at = models.DateTimeField(
-        auto_now_add=True
+        auto_now_add=True,
+        verbose_name="Criada em",
     )
 
     sale_mode = models.CharField(
@@ -248,6 +249,7 @@ class BusinessHour(models.Model):
         "Tenant",
         on_delete=models.CASCADE,
         related_name="business_hours",
+        verbose_name="Loja",
     )
 
     weekday = models.PositiveSmallIntegerField(

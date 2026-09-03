@@ -9,7 +9,7 @@ from apps.tenants.models import Tenant
 
 class MarketplaceCategory(models.Model):
     name = models.CharField(max_length=80, unique=True, verbose_name="Nome")
-    slug = models.SlugField(max_length=90, unique=True, blank=True)
+    slug = models.SlugField("Identificador na URL", max_length=90, unique=True, blank=True)
     icon = models.CharField(
         max_length=10,
         blank=True,
@@ -108,8 +108,8 @@ class MarketplaceProfile(models.Model):
         help_text="Opcional. Preparado para busca por proximidade no futuro.",
     )
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField("Criado em", auto_now_add=True)
+    updated_at = models.DateTimeField("Atualizado em", auto_now=True)
 
     class Meta:
         verbose_name = "Perfil no marketplace"

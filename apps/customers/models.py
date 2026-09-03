@@ -31,7 +31,7 @@ class CustomerAddress(models.Model):
     state = models.CharField(max_length=2, verbose_name="Estado")
     reference = models.CharField(max_length=255, blank=True, verbose_name="Ponto de referência")
     is_default = models.BooleanField(default=False, verbose_name="Endereço principal")
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField("Criado em", auto_now_add=True)
 
     class Meta:
         verbose_name = "Endereço"

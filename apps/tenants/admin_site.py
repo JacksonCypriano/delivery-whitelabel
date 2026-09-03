@@ -37,7 +37,7 @@ class TenantAdminAuthenticationForm(ProtectedAdminAuthenticationForm):
 class TenantAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
     login_form = TenantAdminAuthenticationForm
     site_title = "Painel"
-    site_header = "Painel Admin"
+    site_header = "Painel da loja"
     index_title = "Bem-vindo"
     settings_name = "UNFOLD"
 
@@ -125,7 +125,7 @@ class TenantAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
             ctx["show_back_button"] = False
 
         else:
-            ctx["site_header"] = "Super Admin"
+            ctx["site_header"] = "Administração global"
             ctx["site_title"] = "Painel Global"
             ctx["index_title"] = "Gestão do Sistema"
 
@@ -164,7 +164,7 @@ tenant_admin_site = TenantAdminSite(name="tenant_admin")
 # ── Admin Global (Superusuário) ───────────────────────────────────────────────
 class SuperAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
     login_form = SuperAdminAuthenticationForm
-    site_title = "Super Admin"
+    site_title = "Administração global"
     site_header = "Painel Global"
     index_title = "Gestão do Sistema"
     settings_name = "UNFOLD_SUPER"

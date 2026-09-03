@@ -45,7 +45,11 @@ class SettingsAdmin(GlobalAdmin):
 
 @admin.register(Plan, site=super_admin_site)
 class PlanAdmin(GlobalAdmin):
-    list_display = ["name", "months", "monthly_price", "discount", "price", "active"]
+    list_display = ["name", "months", "monthly_price", "discount", "plan_price", "active"]
+
+    @admin.display(description="Valor do plano")
+    def plan_price(self, obj):
+        return obj.price
 
 
 class DueFilter(admin.SimpleListFilter):
@@ -199,9 +203,31 @@ class AuditAdmin(ReadOnlyAdmin):
 class EventAdmin(ReadOnlyAdmin):
     list_display = [
         "event_id",
-        "kind",
+        "event_kind",
         "environment",
         "processed_at",
         "attempts",
         "created_at",
     ]
+
+    @admin.display(description="Tipo da notificação", ordering="kind")
+    def event_kind(self, obj):
+        labels = {
+            "PAYMENT_CREATED": "Cobrança criada",
+            "PAYMENT_UPDATED": "Cobrança atualizada",
+            "PAYMENT_CONFIRMED": "Pagamento confirmado",
+            "PAYMENT_RECEIVED": "Pagamento recebido",
+            "PAYMENT_OVERDUE": "Cobrança vencida",
+            "PAYMENT_DELETED": "Cobrança excluída",
+            "PAYMENT_RESTORED": "Cobrança restaurada",
+            "PAYMENT_REFUNDED": "Pagamento estornado",
+            "PAYMENT_PARTIALLY_REFUNDED": "Pagamento parcialmente estornado",
+            "PAYMENT_REFUND_IN_PROGRESS": "Estorno em processamento",
+            "PAYMENT_REFUND_DENIED": "Estorno recusado",
+            "PAYMENT_CHARGEBACK_REQUESTED": "Contestação solicitada",
+            "PAYMENT_CHARGEBACK_DISPUTE": "Contestação em análise",
+            "PAYMENT_AWAITING_CHARGEBACK_REVERSAL": "Aguardando reversão da contestação",
+            "PAYMENT_DUNNING_REQUESTED": "Negativação solicitada",
+            "PAYMENT_DUNNING_RECEIVED": "Negativação recebida",
+        }
+        return labels.get(obj.kind, "Notificação de cobrança")

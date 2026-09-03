@@ -26,6 +26,8 @@ class Cart(TenantModel):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        verbose_name = "Carrinho"
+        verbose_name_plural = "Carrinhos"
         constraints = [
             models.CheckConstraint(
                 check=models.Q(user__isnull=False, session_key__isnull=True) | models.Q(user__isnull=True, session_key__isnull=False),
@@ -59,6 +61,8 @@ class CartItem(models.Model):
         return f"{self.quantity}x {self.name}"
 
     class Meta:
+        verbose_name = "Item do carrinho"
+        verbose_name_plural = "Itens do carrinho"
         constraints = [
             models.UniqueConstraint(
                 fields=["cart", "product_key"],
@@ -83,7 +87,7 @@ class Order(TenantModel):
     customer_name = models.CharField(max_length=150, blank=True, verbose_name="Nome do cliente")
     customer_phone = models.CharField(max_length=20, verbose_name="Telefone do cliente")
 
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, verbose_name="Status")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, verbose_name="Situação")
 
     total = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Total")
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Subtotal")
@@ -124,6 +128,10 @@ class Order(TenantModel):
     abandoned_at = models.DateTimeField(null=True, blank=True, verbose_name="Descartado em")
 
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Data do pedido")
+
+    class Meta:
+        verbose_name = "Pedido"
+        verbose_name_plural = "Pedidos"
 
     def __str__(self):
         return f"Pedido #{self.id} - {self.customer_name or self.customer_phone}"
@@ -182,16 +190,20 @@ class Order(TenantModel):
 
 
 class OrderItem(models.Model):
-    order = models.ForeignKey(Order, related_name="items", on_delete=models.CASCADE)
-    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True)
+    order = models.ForeignKey(Order, related_name="items", on_delete=models.CASCADE, verbose_name="Pedido")
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Produto")
 
-    name = models.CharField(max_length=255, blank=True)
-    price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    quantity = models.PositiveIntegerField()
+    name = models.CharField("Nome", max_length=255, blank=True)
+    price = models.DecimalField("Preço", max_digits=10, decimal_places=2, default=0)
+    quantity = models.PositiveIntegerField("Quantidade")
 
     combination_details = models.JSONField(null=True, blank=True)
     product_key = models.CharField(max_length=100, blank=True, default="")
-    notes = models.TextField(blank=True, default="", help_text="Observações do cliente no momento do pedido")
+    notes = models.TextField("Observações", blank=True, default="", help_text="Observações do cliente no momento do pedido")
+
+    class Meta:
+        verbose_name = "Item do pedido"
+        verbose_name_plural = "Itens do pedido"
 
     def get_total_price(self):
         return self.price * self.quantity
@@ -255,6 +267,10 @@ class ProductCombination(models.Model):
     def __str__(self):
         return f"{self.name} ({self.get_combination_type_display()})"
 
+    class Meta:
+        verbose_name = "Combinação de produtos"
+        verbose_name_plural = "Combinações de produtos"
+
 
 class CombinationPricingRule(models.Model):
     """Regras de precificação para combinações"""
@@ -273,6 +289,8 @@ class CombinationPricingRule(models.Model):
     )
 
     class Meta:
+        verbose_name = "Regra de preço da combinação"
+        verbose_name_plural = "Regras de preço das combinações"
         unique_together = ["tenant", "combination_type"]
 
 
@@ -290,6 +308,8 @@ class StockReservation(models.Model):
     returned_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
+        verbose_name = "Reserva de estoque"
+        verbose_name_plural = "Reservas de estoque"
         constraints = [
             models.UniqueConstraint(fields=['order', 'product'], name='unique_stock_order_product'),
             models.CheckConstraint(condition=Q(quantity__gt=0), name='stock_reserved_positive'),

@@ -41,8 +41,8 @@ DAYS_OF_WEEK = [
 
 
 class Category(TenantModel):
-    name = models.CharField(max_length=200)
-    slug = models.SlugField(max_length=200, blank=True)
+    name = models.CharField("Nome", max_length=200)
+    slug = models.SlugField("Identificador na URL", max_length=200, blank=True)
 
     class Meta:
         verbose_name = "Categoria"
@@ -74,42 +74,44 @@ class Category(TenantModel):
 
 
 class Product(TenantModel):
-    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='products')
-    sku = models.CharField(max_length=64, null=True, blank=True)
-    name = models.CharField(max_length=150)
-    slug = models.SlugField(max_length=160, blank=True)
-    description = models.TextField(blank=True)
-    price = models.DecimalField(max_digits=10, decimal_places=2)
-    sale_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    is_available = models.BooleanField(default=True)
-    is_featured = models.BooleanField(default=False)
-    is_vegan = models.BooleanField(default=False)
-    is_spicy = models.BooleanField(default=False)
-    allergens = models.CharField(max_length=255, blank=True, help_text="Ex: glúten, leite, ovo")
-    calories = models.PositiveIntegerField(null=True, blank=True, help_text="Calorias por porção")
-    prep_time = models.PositiveIntegerField(null=True, blank=True, help_text="Tempo de preparo em minutos")
-    weight = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True, help_text="Peso em gramas")
+    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='products', verbose_name="Categoria")
+    sku = models.CharField("Código interno (SKU)", max_length=64, null=True, blank=True)
+    name = models.CharField("Nome", max_length=150)
+    slug = models.SlugField("Identificador na URL", max_length=160, blank=True)
+    description = models.TextField("Descrição", blank=True)
+    price = models.DecimalField("Preço", max_digits=10, decimal_places=2)
+    sale_price = models.DecimalField("Preço promocional", max_digits=10, decimal_places=2, null=True, blank=True)
+    is_available = models.BooleanField("Disponível", default=True)
+    is_featured = models.BooleanField("Produto em destaque", default=False)
+    is_vegan = models.BooleanField("Vegano", default=False)
+    is_spicy = models.BooleanField("Picante", default=False)
+    allergens = models.CharField("Alérgenos", max_length=255, blank=True, help_text="Ex.: glúten, leite, ovo")
+    calories = models.PositiveIntegerField("Calorias", null=True, blank=True, help_text="Calorias por porção")
+    prep_time = models.PositiveIntegerField("Tempo de preparo", null=True, blank=True, help_text="Tempo de preparo em minutos")
+    weight = models.DecimalField("Peso", max_digits=7, decimal_places=2, null=True, blank=True, help_text="Peso em gramas")
     stock = models.DecimalField(
         max_digits=12, decimal_places=2, null=True, blank=True,
         verbose_name="Estoque físico",
         help_text="Vazio: sem controle. Zero: esgotado. Inclui reservas da revisão (30 min). "
                   "A baixa ocorre ao abrir WhatsApp; cada metade consome 0,5 unidade.",
     )
-    min_order_qty = models.PositiveIntegerField(default=1)
-    max_order_qty = models.PositiveIntegerField(null=True, blank=True)
+    min_order_qty = models.PositiveIntegerField("Quantidade mínima por pedido", default=1)
+    max_order_qty = models.PositiveIntegerField("Quantidade máxima por pedido", null=True, blank=True)
     primary_image = models.ImageField(
         upload_to='products/%Y/%m/%d/',
         null=True,
         blank=True,
-        validators=[validate_image_resolution]
+        validators=[validate_image_resolution],
+        verbose_name="Imagem principal",
     )
     available_days = models.JSONField(
         default=list,
         blank=True,
-        help_text="Dias da semana em que o produto aparece no cardápio. Deixe vazio para aparecer todos os dias."
+        help_text="Dias da semana em que o produto aparece no cardápio. Deixe vazio para aparecer todos os dias.",
+        verbose_name="Dias disponíveis",
     )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField("Criado em", auto_now_add=True)
+    updated_at = models.DateTimeField("Atualizado em", auto_now=True)
 
     class Meta:
         verbose_name = "Produto"
@@ -177,14 +179,15 @@ class Product(TenantModel):
 
 
 class ProductImage(TenantModel):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images', verbose_name="Produto")
     image = models.ImageField(
         upload_to='products/images/%Y/%m/%d/',
-        validators=[validate_image_resolution]
+        validators=[validate_image_resolution],
+        verbose_name="Imagem",
     )
-    alt_text = models.CharField(max_length=200, blank=True)
-    is_primary = models.BooleanField(default=False)
-    order = models.PositiveIntegerField(default=0)
+    alt_text = models.CharField("Texto alternativo", max_length=200, blank=True)
+    is_primary = models.BooleanField("Imagem principal", default=False)
+    order = models.PositiveIntegerField("Ordem", default=0)
 
     class Meta:
         verbose_name = "Imagem de produto"
@@ -202,9 +205,9 @@ class ProductImage(TenantModel):
 
 
 class HalfProduct(TenantModel):
-    product = models.OneToOneField(Product, on_delete=models.CASCADE, related_name='half_variant')
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    product = models.OneToOneField(Product, on_delete=models.CASCADE, related_name='half_variant', verbose_name="Produto")
+    is_active = models.BooleanField("Ativo", default=True)
+    created_at = models.DateTimeField("Criado em", auto_now_add=True)
 
     class Meta:
         verbose_name = "Sabor para meio a meio"
@@ -301,7 +304,7 @@ class CustomizationGroup(TenantModel):
 
 
 class CustomizationOption(TenantModel):
-    group = models.ForeignKey(CustomizationGroup, on_delete=models.CASCADE, related_name='options')
+    group = models.ForeignKey(CustomizationGroup, on_delete=models.CASCADE, related_name='options', verbose_name="Grupo")
     name = models.CharField(max_length=100, verbose_name="Nome")
     description = models.TextField(blank=True, verbose_name="Descrição")
     price = models.DecimalField(

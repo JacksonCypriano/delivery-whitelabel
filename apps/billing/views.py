@@ -66,10 +66,13 @@ def dashboard(request):
         tenant=request.tenant, environment=environment()
     ).first()
     ctx = context(request, "Minha assinatura")
+    from django.core.paginator import Paginator
+    history = Paginator(Invoice.objects.filter(tenant=request.tenant).select_related('fiscal_note').defer('fiscal_note__pdf_content', 'fiscal_note__xml_content'), 30).get_page(request.GET.get('pagina'))
     ctx.update(
         subscription=sub,
         plans=plans,
-        invoices=Invoice.objects.filter(tenant=request.tenant)[:30],
+        invoices=history,
+        history_page=history,
         ready=configured(),
         sandbox=environment() == "sandbox",
         customer=customer,
@@ -144,6 +147,17 @@ def refresh(request, invoice_id):
     return redirect("tenant_admin:billing_invoice", invoice_id=bill.pk)
 
 
+@require_GET
+def fiscal_download(request, invoice_id, kind):
+    from .models import FiscalInvoice
+    from .fiscal_documents import attachment_response
+    from django.http import Http404
+    if kind not in ('pdf', 'xml'):
+        raise Http404
+    note = get_object_or_404(FiscalInvoice, invoice_id=invoice_id, invoice__tenant=request.tenant)
+    return attachment_response(getattr(note, kind+'_content'), getattr(note, kind+'_sha256'), f'nfse-{note.pk}.{kind}', 'application/pdf' if kind == 'pdf' else 'application/xml')
+
+
 @csrf_exempt
 @require_POST
 def webhook(request):
@@ -158,7 +172,7 @@ def webhook(request):
         data = json.loads(request.body)
         event_id = data["id"]
         kind = data["event"]
-        payment = data["payment"]
+        payment = data['invoice'] if isinstance(kind, str) and kind.startswith('INVOICE_') else data['payment']
         pid = payment["id"]
         if not all(
             isinstance(v, str) and 0 < len(v) <= 80 for v in [event_id, kind, pid]
@@ -169,7 +183,7 @@ def webhook(request):
         valid_id(pid)
     except (ValueError, KeyError, TypeError, BillingError):
         return HttpResponse(status=400)
-    if not kind.startswith("PAYMENT_"):
+    if not kind.startswith(("PAYMENT_", "INVOICE_")):
         return JsonResponse({"received": True})
     with transaction.atomic():
         event, created = BillingEvent.objects.get_or_create(

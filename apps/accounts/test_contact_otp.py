@@ -320,14 +320,14 @@ class ContactOTPTests(TestCase):
         self.assertNotIn("continuar seu cadastro", mail.outbox[0].body)
 
     @override_settings(EVOLUTION_API_URL="https://evolution.test", EVOLUTION_API_KEY="test-key", EVOLUTION_INSTANCE="delivery", EVOLUTION_API_TIMEOUT=4)
-    @patch("apps.accounts.contact_otp.requests.post")
+    @patch("apps.integrations.whatsapp.client.EvolutionClient.request")
     def test_delivery_whatsapp_uses_new_number_and_rejects_bad_response(self, post):
         pending = self.stage(email=self.user.email, phone="11988882222")[0]
-        post.return_value = Mock(json=Mock(return_value={"key": {"id": "message-id"}}))
+        post.return_value = {"key": {"id": "message-id"}}
         deliver_contact_code(pending, self.user, "123456")
-        self.assertEqual(post.call_args.kwargs["json"]["number"], "5511988882222")
-        self.assertIn("\n\n*123456*\n\n", post.call_args.kwargs["json"]["text"])
-        post.return_value.json.return_value = {}
+        self.assertEqual(post.call_args.args[2]["number"], "5511988882222")
+        self.assertIn("\n\n*123456*\n\n", post.call_args.args[2]["text"])
+        post.return_value = {}
         with self.assertRaises(OTPError):
             deliver_contact_code(pending, self.user, "123456")
 

@@ -44,6 +44,7 @@ DC=(docker compose -f "$COMPOSE_FILE")
 TEST_SUITES=(
     apps.accounts
     apps.billing.tests
+    apps.integrations.tests
     apps.core.tests_critical
 )
 

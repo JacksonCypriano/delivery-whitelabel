@@ -6,9 +6,7 @@ All entry points use the same order, including replacement and cancellation.
 import secrets
 from datetime import timedelta
 from types import SimpleNamespace
-from urllib.parse import quote
 
-import requests
 from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.exceptions import ValidationError
@@ -157,16 +155,11 @@ def deliver_contact_code(pending, user, code):
     )
     if not all([settings.EVOLUTION_API_URL, settings.EVOLUTION_API_KEY, settings.EVOLUTION_INSTANCE]):
         raise OTPError("Envio de WhatsApp indisponível.")
-    response = requests.post(
-        f'{settings.EVOLUTION_API_URL.rstrip("/")}/message/sendText/{quote(settings.EVOLUTION_INSTANCE, safe="")}',
-        headers={"apikey": settings.EVOLUTION_API_KEY},
-        json={"number": normalize_br_phone(pending.destination), "text": message},
-        timeout=settings.EVOLUTION_API_TIMEOUT,
-    )
-    response.raise_for_status()
-    payload = response.json()
-    if not isinstance(payload, dict) or not isinstance(payload.get("key"), dict) or not payload["key"].get("id"):
-        raise OTPError("Não foi possível confirmar o envio.")
+    from apps.integrations.whatsapp.client import phone_otp_transport, EvolutionError
+    try:
+        phone_otp_transport().send_phone_code(normalize_br_phone(pending.destination), message)
+    except EvolutionError:
+        raise OTPError("Não foi possível confirmar o envio.", reason="delivery") from None
 
 
 @audited_otp("contact", "send")

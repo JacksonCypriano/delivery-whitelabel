@@ -46,6 +46,7 @@ INSTALLED_APPS = [
 
     # local apps
     "apps.core",
+    "apps.integrations.apps.IntegrationsConfig",
     "apps.billing.apps.BillingConfig",
     "apps.tenants",
     "apps.accounts",
@@ -158,6 +159,11 @@ EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY", "")
 EVOLUTION_INSTANCE = os.getenv("EVOLUTION_INSTANCE", "")
 EVOLUTION_API_TIMEOUT = int(os.getenv("EVOLUTION_API_TIMEOUT", "4"))
 EVOLUTION_CHECK_CACHE_SECONDS = int(os.getenv("EVOLUTION_CHECK_CACHE_SECONDS", "86400"))
+EVOLUTION_MONITOR_ENABLED = os.getenv("EVOLUTION_MONITOR_ENABLED", "false").lower() in ("1", "true", "yes", "on")
+EVOLUTION_AUTO_RECONNECT = os.getenv("EVOLUTION_AUTO_RECONNECT", "false").lower() in ("1", "true", "yes", "on")
+EVOLUTION_MONITOR_ENVIRONMENT = os.getenv("EVOLUTION_MONITOR_ENVIRONMENT", "local")
+EVOLUTION_WEBHOOK_TOKEN = os.getenv("EVOLUTION_WEBHOOK_TOKEN", "")
+EVOLUTION_ALERT_EMAILS = [v.strip() for v in os.getenv("EVOLUTION_ALERT_EMAILS", "").split(",") if v.strip()]
 
 # E-mail / recuperação de senha
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
@@ -465,18 +471,30 @@ ADMIN_LOGIN_ACCOUNT_LIMIT = max(1, int(os.getenv("ADMIN_LOGIN_ACCOUNT_LIMIT", "1
 BILLING_ENABLED = os.getenv("BILLING_ENABLED", "false").lower() in ("1", "true", "yes", "on")
 ASAAS_ENVIRONMENT = os.getenv("ASAAS_ENVIRONMENT", "sandbox")
 ASAAS_API_KEY = os.getenv("ASAAS_API_KEY", "")
+NFSE_DOCUMENT_HOSTS = tuple(v.strip().lower() for v in os.getenv('NFSE_DOCUMENT_HOSTS', 'asaas.com,www.asaas.com,sandbox.asaas.com').split(',') if v.strip())
+NFSE_SANDBOX_EMAIL_ENABLED = os.getenv('NFSE_SANDBOX_EMAIL_ENABLED', 'false').lower() in ('true', '1', 'yes')
 ASAAS_WEBHOOK_TOKEN = os.getenv("ASAAS_WEBHOOK_TOKEN", "")
 from celery.schedules import crontab
 CELERY_TIMEZONE = "America/Sao_Paulo"
 CELERY_ENABLE_UTC = True
 CELERY_BEAT_SCHEDULE = {
     **globals().get("CELERY_BEAT_SCHEDULE", {}),
+    "evolution-monitor": {"task": "apps.integrations.tasks.monitor_whatsapp", "schedule": 60.0},
+    "evolution-alerts": {"task": "apps.integrations.tasks.send_whatsapp_alerts", "schedule": 60.0},
     "billing-suspend-daily": {
         "task": "apps.billing.tasks.suspend_expired_subscriptions",
         "schedule": crontab(hour=6, minute=0),
     },
     "billing-reconcile": {
         "task": "apps.billing.tasks.reconcile_pending_payments",
+        "schedule": crontab(minute="*/5"),
+    },
+    "billing-fiscal-reconcile": {
+        "task": "apps.billing.tasks.reconcile_fiscal_invoices",
+        "schedule": crontab(minute="*/5"),
+    },
+    "billing-nfse-documents": {
+        "task": "apps.billing.tasks.retry_nfse_documents",
         "schedule": crontab(minute="*/5"),
     },
 }

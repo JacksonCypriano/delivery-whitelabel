@@ -8,5 +8,13 @@
 {% if invoice.checkout_url %}<a class="button" href="{{ invoice.checkout_url }}" target="_blank" rel="noopener noreferrer">Pagar com segurança no Asaas</a><p>Para Pix, o QR Code e o código copia e cola aparecem na página de pagamento.</p>{% else %}<p class="notice">Estamos verificando a emissão da cobrança. Não é necessário gerar outra. Consulte novamente em alguns minutos.</p>{% endif %}
 {% endif %}
 <form method="post" action="{% url 'tenant_admin:billing_refresh' invoice.pk %}">{% csrf_token %}<button>Já paguei / consultar pagamento</button></form>
+{% if invoice.fiscal_note %}
+<section class="card"><h2>Nota fiscal de serviço</h2>
+<p>{{ invoice.fiscal_note.get_status_display }}{% if invoice.fiscal_note.number %} · Nº {{ invoice.fiscal_note.number }}{% endif %}</p>
+{% if invoice.fiscal_note.pdf_sha256 %}<a class="button" href="{% url 'tenant_admin:billing_fiscal_download' invoice.pk 'pdf' %}">Baixar PDF arquivado</a>{% else %}<p>PDF aguardando autorização ou arquivamento.</p>{% endif %}
+{% if invoice.fiscal_note.xml_sha256 %}<p><a href="{% url 'tenant_admin:billing_fiscal_download' invoice.pk 'xml' %}">Baixar XML arquivado</a></p>{% endif %}
+<p>Os documentos arquivados continuam disponíveis para novo download. Observe a situação atual da nota acima, inclusive em caso de cancelamento.</p>
+</section>
+{% endif %}
 <p>A confirmação também é automática. Abrir a página ou clicar em “Já paguei” não aprova um pagamento que ainda não foi confirmado pelo provedor.</p>
 <p><a href="{% url 'tenant_admin:billing_dashboard' %}">← Voltar à minha assinatura</a></p></main>{% endblock %}

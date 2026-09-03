@@ -8,8 +8,10 @@ from apps.tenants.admin_site import super_admin_site, tenant_admin_site
 
 
 from apps.billing.views import webhook as billing_webhook
+from apps.integrations.views import evolution_webhook
 
 urlpatterns = [
+    path("integracoes/evolution/webhook/", evolution_webhook, name="evolution_webhook"),
     path("integracoes/asaas/webhook/", billing_webhook, name="billing_webhook"),
     # Health checks (sem dados sensíveis)
     path("health/live/", health_views.live, name="health_live"),

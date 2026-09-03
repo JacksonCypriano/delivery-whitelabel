@@ -231,3 +231,6 @@ class EventAdmin(ReadOnlyAdmin):
             "PAYMENT_DUNNING_RECEIVED": "Negativação recebida",
         }
         return labels.get(obj.kind, "Notificação de cobrança")
+
+
+from . import fiscal_admin  # noqa: E402,F401

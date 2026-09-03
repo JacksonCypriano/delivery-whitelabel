@@ -294,6 +294,11 @@ def check():
     except Exception:
         problems.append('Verificação administrativa/cache/proxy ou migrações pendentes; execute check_admin_security e migrate --check.')
     try:
+        # No new public health endpoint. Disabled environments return success.
+        dc('exec', '-T', 'web', 'python', 'manage.py', 'check_whatsapp_monitor', '--require-fresh', timeout=30)
+    except Exception:
+        problems.append('Monitor WhatsApp atrasado, desconectado ou mal configurado; consulte o superadmin e check_whatsapp_monitor --require-fresh.')
+    try:
         path = latest_backup()
         age = time.time() - (path / 'COMPLETE').stat().st_mtime
         if age > float(CFG['max_backup_age_hours']) * 3600:

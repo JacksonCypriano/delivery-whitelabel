@@ -18,6 +18,8 @@
 <small>Ao confirmar, os dados serão enviados ao Asaas para gerar esta cobrança. Compra única do período, sem renovação automática.</small>
 <button type="submit">Gerar cobrança de R$ {{ option.amount|floatformat:2 }}</button></form></details>{% endif %}
 {% empty %}<p>Nenhuma forma de pagamento habilitada.</p>{% endfor %}</section>{% endfor %}</div>
-<h2>Histórico de cobranças</h2><div class="scroll"><table><thead><tr><th>Data</th><th>Plano</th><th>Valor</th><th>Situação</th><th></th></tr></thead><tbody>
-{% for bill in invoices %}<tr><td>{{ bill.created_at|date:"d/m/Y H:i" }}</td><td>{{ bill.plan_name }}</td><td>R$ {{ bill.amount|floatformat:2 }}</td><td>{{ bill.get_status_display }}</td><td><a href="{% url 'tenant_admin:billing_invoice' bill.pk %}">Ver cobrança</a></td></tr>{% empty %}<tr><td colspan="5">Nenhuma cobrança registrada.</td></tr>{% endfor %}
-</tbody></table></div></main>{% endblock %}
+<h2>Histórico de cobranças</h2><div class="scroll"><table><thead><tr><th>Data</th><th>Plano</th><th>Valor</th><th>Situação</th><th>Nota fiscal</th><th></th></tr></thead><tbody>
+{% for bill in invoices %}<tr><td>{{ bill.created_at|date:"d/m/Y H:i" }}</td><td>{{ bill.plan_name }}</td><td>R$ {{ bill.amount|floatformat:2 }}</td><td>{{ bill.get_status_display }}</td><td>{% if bill.fiscal_note %}{{ bill.fiscal_note.get_status_display }}<br>{% if bill.fiscal_note.pdf_sha256 %}<a href="{% url 'tenant_admin:billing_fiscal_download' bill.pk 'pdf' %}">PDF</a>{% endif %}{% if bill.fiscal_note.xml_sha256 %} · <a href="{% url 'tenant_admin:billing_fiscal_download' bill.pk 'xml' %}">XML</a>{% endif %}{% else %}—{% endif %}</td><td><a href="{% url 'tenant_admin:billing_invoice' bill.pk %}">Ver cobrança</a></td></tr>{% empty %}<tr><td colspan="6">Nenhuma cobrança registrada.</td></tr>{% endfor %}
+</tbody></table></div>
+{% if history_page.has_other_pages %}<nav aria-label="Páginas do histórico">{% if history_page.has_previous %}<a href="?pagina={{ history_page.previous_page_number }}">← Mais recentes</a>{% endif %} · Página {{ history_page.number }} de {{ history_page.paginator.num_pages }} · {% if history_page.has_next %}<a href="?pagina={{ history_page.next_page_number }}">Mais antigas →</a>{% endif %}</nav>{% endif %}
+</main>{% endblock %}

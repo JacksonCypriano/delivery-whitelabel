@@ -132,15 +132,15 @@ class RegistrationOTPTests(TestCase):
         self.assertIn('012345', mail.outbox[0].body)
 
     @override_settings(EVOLUTION_API_URL='https://evolution.test', EVOLUTION_API_KEY='test', EVOLUTION_INSTANCE='delivery', EVOLUTION_API_TIMEOUT=4)
-    @patch('apps.accounts.otp.requests.post')
+    @patch('apps.integrations.whatsapp.client.EvolutionClient.request')
     def test_whatsapp_delivery(self, post):
-        post.return_value = Mock(json=Mock(return_value={'key': {'id': 'message-id'}}))
+        post.return_value = {'key': {'id': 'message-id'}}
         deliver('whatsapp', self.pending, '012345')
         args = post.call_args
-        self.assertEqual(args.args[0], 'https://evolution.test/message/sendText/delivery')
-        self.assertEqual(args.kwargs['json']['number'], '5511999991234')
-        self.assertEqual(args.kwargs['headers'], {'apikey': 'test'})
-        post.return_value.json.return_value = {}
+        self.assertEqual(args.args[:2], ('POST', 'message/sendText'))
+        self.assertEqual(args.args[2]['number'], '5511999991234')
+        self.assertIn('*012345*', args.args[2]['text'])
+        post.return_value = {}
         with self.assertRaises(OTPError):
             deliver('whatsapp', self.pending, '012345')
 

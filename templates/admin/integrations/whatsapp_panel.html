@@ -1,0 +1,37 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<section style="max-width:1000px;margin:auto">
+  <h1>WhatsApp / Evolution API</h1>
+  {% if connection %}
+    <p><strong>{{ connection.get_status_display }}</strong> · {{ connection.environment }}</p>
+    {% if stale %}<p role="alert">⚠ Verificação atrasada ou ainda não executada. O estado exibido pode estar desatualizado. Confira Celery/Beat.</p>{% endif %}
+    {% if connection.manual_required %}<p role="alert">⚠ Intervenção manual necessária. As tentativas automáticas estão interrompidas neste incidente.</p>{% endif %}
+    <dl>
+      <dt>Instância</dt><dd>{{ connection.instance }}</dd>
+      <dt>Última conexão observada</dt><dd>{{ connection.observed_online_at|date:"d/m/Y H:i:s"|default:"Ainda não observada" }}</dd>
+      <dt>Última verificação</dt><dd>{{ connection.checked_at|date:"d/m/Y H:i:s"|default:"Pendente" }}</dd>
+      <dt>Último webhook</dt><dd>{{ connection.webhook_at|date:"d/m/Y H:i:s"|default:"Não recebido" }}</dd>
+      <dt>Indisponível desde</dt><dd>{{ connection.down_since|date:"d/m/Y H:i:s"|default:"—" }}</dd>
+      <dt>Tentativas de reconexão</dt><dd>{{ connection.attempts }}/3</dd>
+      <dt>Próxima tentativa (se habilitada e permitida)</dt><dd>{{ connection.next_attempt_at|date:"d/m/Y H:i:s"|default:"—" }}</dd>
+      <dt>Diagnóstico</dt><dd>{{ connection.reason|default:"Sem diagnóstico adicional" }}</dd>
+    </dl>
+    <form method="post" style="display:flex;gap:12px;flex-wrap:wrap;margin:24px 0">{% csrf_token %}
+      <button class="button" name="action" value="check">Verificar agora</button>
+      <button class="button" name="action" value="restart">Tentar reconectar</button>
+      {% if pair_allowed %}<button class="button" name="action" value="pair">Solicitar QR Code de pareamento</button>{% endif %}
+    </form>
+    {% if qr %}<div id="temporary-pairing"><img src="{{ qr }}" alt="QR Code temporário de pareamento" width="280" height="280"><p>Feche esta página após utilizar. A imagem será removida em 60 segundos; a validade do QR é definida pela Evolution.</p></div>
+    <script>setTimeout(function () { var block = document.getElementById('temporary-pairing'); if (block) { block.textContent = 'QR Code ocultado. Solicite outro se necessário.'; } }, 60000);</script>{% endif %}
+    <h2>Histórico recente</h2>
+    <table><thead><tr><th>Data</th><th>Descrição</th><th>Responsável</th></tr></thead><tbody>
+      {% for event in events %}<tr><td>{{ event.created_at|date:"d/m/Y H:i:s" }}</td><td>{{ event.description }}</td><td>{{ event.actor|default:"Sistema" }}</td></tr>{% empty %}<tr><td colspan="3">Nenhum evento registrado.</td></tr>{% endfor %}
+    </tbody></table>
+    <h2>Alertas por e-mail</h2>
+    <p>“Aceito” confirma o aceite pelo SMTP, não a entrega na caixa de entrada. Resultado incerto não é reenviado automaticamente para evitar duplicidade.</p>
+    <table><thead><tr><th>Data</th><th>Tipo</th><th>Situação</th></tr></thead><tbody>
+    {% for alert in alerts %}<tr><td>{{ alert.created_at|date:"d/m/Y H:i:s" }}</td><td>{% if alert.recovery %}Recuperação{% else %}Indisponibilidade{% endif %}</td><td>{{ alert.get_status_display }}</td></tr>{% empty %}<tr><td colspan="3">Nenhum alerta registrado.</td></tr>{% endfor %}
+    </tbody></table>
+  {% else %}<p>Monitoramento desabilitado neste ambiente. Nenhuma consulta ou recuperação será executada.</p>{% endif %}
+</section>
+{% endblock %}

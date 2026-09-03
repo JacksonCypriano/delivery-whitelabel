@@ -1,9 +1,6 @@
 """Registration OTP state machine; database locks serialize sends and verification."""
 import secrets
 from datetime import timedelta
-from urllib.parse import quote
-
-import requests
 from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.exceptions import ValidationError
@@ -16,6 +13,7 @@ from django.views.decorators.debug import sensitive_variables
 
 from apps.customers.models import Customer
 from apps.integrations.whatsapp.service import normalize_br_phone
+from apps.integrations.whatsapp.client import phone_otp_transport, EvolutionError
 from .models import PendingRegistration, RegistrationRateLimit, User
 from .audit import audited_otp
 
@@ -104,16 +102,10 @@ def deliver(channel, pending, code):
     )
     if not all([settings.EVOLUTION_API_URL, settings.EVOLUTION_API_KEY, settings.EVOLUTION_INSTANCE]):
         raise OTPError("Envio de WhatsApp indisponível. Tente novamente mais tarde.", reason="delivery")
-    response = requests.post(
-        f'{settings.EVOLUTION_API_URL.rstrip("/")}/message/sendText/{quote(settings.EVOLUTION_INSTANCE, safe="")}',
-        headers={"apikey": settings.EVOLUTION_API_KEY},
-        json={"number": normalize_br_phone(pending.phone), "text": message},
-        timeout=settings.EVOLUTION_API_TIMEOUT,
-    )
-    response.raise_for_status()
-    payload = response.json()
-    if not isinstance(payload, dict) or not isinstance(payload.get("key"), dict) or not payload["key"].get("id"):
-        raise OTPError("Não foi possível confirmar o envio. Tente reenviar em 60 segundos.", reason="delivery")
+    try:
+        phone_otp_transport().send_phone_code(normalize_br_phone(pending.phone), message)
+    except EvolutionError:
+        raise OTPError("Não foi possível confirmar o envio. Tente reenviar em 60 segundos.", reason="delivery") from None
 
 
 @audited_otp('registration', 'send')

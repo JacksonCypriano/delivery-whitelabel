@@ -1,9 +1,10 @@
 import logging
+import hashlib
 import re
 from dataclasses import dataclass
 from typing import Protocol
 
-import requests
+from .client import EvolutionClient, EvolutionError
 from django.conf import settings
 from django.core.cache import cache
 
@@ -47,26 +48,29 @@ class EvolutionWhatsAppService:
 
     def check_number(self, phone: str) -> WhatsAppCheckResult:
         number = normalize_br_phone(phone)
-        cache_key = f"whatsapp:check:{number}"
+        scope = hashlib.sha256(
+            f"{self.base_url}\0{self.instance}".encode()
+        ).hexdigest()[:20]
+        cache_key = f"whatsapp:check:{scope}:{number}"
         cached = cache.get(cache_key)
         if cached is not None:
             return WhatsAppCheckResult(**cached)
 
         if not self.base_url or not self.api_key or not self.instance:
-            logger.warning("Evolution API validation enabled but configuration is incomplete")
+            logger.warning(
+                "Evolution API validation enabled but configuration is incomplete"
+            )
             return WhatsAppCheckResult(available=False, exists=None, number=number)
 
         try:
-            response = requests.post(
-                f"{self.base_url}/chat/whatsappNumbers/{self.instance}",
-                json={"numbers": [number]},
-                headers={"apikey": self.api_key, "Content-Type": "application/json"},
-                timeout=self.timeout,
+            payload = EvolutionClient().request(
+                "POST", "chat/whatsappNumbers", {"numbers": [number]}
             )
-            response.raise_for_status()
-            item = self._extract_result(response.json(), number)
+            item = self._extract_result(payload, number)
             if item is None:
-                logger.warning("Unexpected Evolution API response while validating phone")
+                logger.warning(
+                    "Unexpected Evolution API response while validating phone"
+                )
                 return WhatsAppCheckResult(available=False, exists=None, number=number)
 
             result = WhatsAppCheckResult(
@@ -77,8 +81,11 @@ class EvolutionWhatsAppService:
             )
             cache.set(cache_key, result.__dict__, timeout=self.cache_seconds)
             return result
-        except (requests.RequestException, ValueError, TypeError) as exc:
-            logger.warning("Evolution API unavailable while validating phone: %s", exc.__class__.__name__)
+        except (EvolutionError, ValueError, TypeError) as exc:
+            logger.warning(
+                "Evolution API unavailable while validating phone: %s",
+                exc.__class__.__name__,
+            )
             return WhatsAppCheckResult(available=False, exists=None, number=number)
 
     @staticmethod
@@ -97,7 +104,9 @@ class EvolutionWhatsAppService:
         for item in items:
             if not isinstance(item, dict):
                 continue
-            candidate = str(item.get("number") or item.get("Query") or "").replace("+", "")
+            candidate = str(item.get("number") or item.get("Query") or "").replace(
+                "+", ""
+            )
             if candidate == number or len(items) == 1:
                 return item
         return None

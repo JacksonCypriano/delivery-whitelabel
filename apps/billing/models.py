@@ -1,4 +1,5 @@
 import uuid
+from .fiscal_models import FiscalSettings, TaxRate, FiscalInvoice, FiscalCustomerRule, MunicipalExport
 from decimal import Decimal
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator

@@ -49,6 +49,7 @@ class TenantAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
             path('minha-assinatura/comprar/', self.admin_view(views.purchase), name='billing_purchase'),
             path('minha-assinatura/cobranca/<uuid:invoice_id>/', self.admin_view(views.invoice_detail), name='billing_invoice'),
             path('minha-assinatura/cobranca/<uuid:invoice_id>/consultar/', self.admin_view(views.refresh), name='billing_refresh'),
+            path('minha-assinatura/cobranca/<uuid:invoice_id>/nota/<str:kind>/', self.admin_view(views.fiscal_download), name='billing_fiscal_download'),
         ] + super().get_urls()
 
     def _store_setup_app(self, tenant):

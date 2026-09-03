@@ -1,37 +1,94 @@
 {% extends "admin/base_site.html" %}
+{% block extrastyle %}
+{{ block.super }}
+<style>
+.vdd-wa { --wa-bg:#fff; --wa-soft:#f8fafc; --wa-line:#e2e8f0; --wa-text:#0f172a; --wa-muted:#64748b; --wa-green:#047857; --wa-green-bg:#ecfdf5; --wa-warn:#92400e; --wa-warn-bg:#fffbeb; --wa-red:#b91c1c; --wa-red-bg:#fef2f2; color:var(--wa-text); width:100%; max-width:1200px; margin:0 auto; font-size:14px; line-height:1.55; }
+.dark .vdd-wa, [data-theme="dark"] .vdd-wa { --wa-bg:#111827; --wa-soft:#182233; --wa-line:#334155; --wa-text:#e2e8f0; --wa-muted:#a8b6c8; --wa-green:#6ee7b7; --wa-green-bg:#063d30; --wa-warn:#fcd34d; --wa-warn-bg:#382a10; --wa-red:#fca5a5; --wa-red-bg:#431d25; }
+.vdd-wa, .vdd-wa * { box-sizing:border-box; }
+.vdd-wa h2 { color:var(--wa-text); font-size:20px; font-weight:700; line-height:1.3; margin:0; }
+.vdd-wa h3 { color:var(--wa-text); font-size:16px; font-weight:700; line-height:1.3; margin:0; }
+.vdd-wa p { margin:8px 0 0; }
+.vdd-wa .wa-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:24px; }
+.vdd-wa .wa-muted { color:var(--wa-muted); }
+.vdd-wa .wa-eyebrow { display:block; color:var(--wa-muted); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; margin-bottom:8px; }
+.vdd-wa .wa-badge { display:inline-flex; align-items:center; gap:8px; padding:7px 12px; border-radius:999px; font-size:13px; font-weight:700; background:var(--wa-soft); color:var(--wa-text); }
+.vdd-wa .wa-badge::before { content:''; width:8px; height:8px; border-radius:50%; background:currentColor; flex:0 0 8px; }
+.vdd-wa .wa-badge[data-state="open"] { color:var(--wa-green); background:var(--wa-green-bg); }
+.vdd-wa .wa-badge[data-state="close"], .vdd-wa .wa-badge[data-state="error"] { color:var(--wa-red); background:var(--wa-red-bg); }
+.vdd-wa .wa-badge[data-state="pairing"], .vdd-wa .wa-badge[data-state="connecting"] { color:var(--wa-warn); background:var(--wa-warn-bg); }
+.vdd-wa .wa-notice { padding:14px 18px; border:1px solid var(--wa-line); border-left:4px solid currentColor; border-radius:10px; margin-bottom:18px; color:var(--wa-warn); background:var(--wa-warn-bg); }
+.vdd-wa .wa-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-bottom:20px; }
+.vdd-wa .wa-card, .vdd-wa .wa-section { background:var(--wa-bg); border:1px solid var(--wa-line); border-radius:14px; min-width:0; }
+.vdd-wa .wa-card { padding:20px; }
+.vdd-wa dl { margin:0; }
+.vdd-wa dt { color:var(--wa-muted); font-size:12px; margin:18px 0 4px; }
+.vdd-wa dt:first-child { margin-top:0; }
+.vdd-wa dd { margin:0; font-size:15px; font-weight:600; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
+.vdd-wa .wa-help { font-size:12px; color:var(--wa-muted); font-weight:400; }
+.vdd-wa .wa-section { margin-bottom:20px; overflow:hidden; }
+.vdd-wa .wa-section-head { padding:20px 22px; border-bottom:1px solid var(--wa-line); }
+.vdd-wa .wa-section-head p { color:var(--wa-muted); font-size:13px; max-width:80ch; }
+.vdd-wa .wa-actions { display:flex; flex-wrap:wrap; gap:12px; margin:0; padding:20px 22px; }
+.vdd-wa .wa-button { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:10px 18px; margin:0; border:1px solid var(--wa-line); border-radius:8px; background:var(--wa-bg); color:var(--wa-text); font:inherit; font-weight:600; cursor:pointer; text-decoration:none; }
+.vdd-wa .wa-button:hover { background:var(--wa-soft); }
+.vdd-wa .wa-button:focus-visible, .vdd-wa .wa-table-scroll:focus-visible { outline:3px solid #60a5fa; outline-offset:3px; }
+.vdd-wa .wa-primary { color:#fff; background:#047857; border-color:#047857; }
+.vdd-wa .wa-primary:hover { background:#065f46; }
+.vdd-wa .wa-actions-note { padding:0 22px 20px; color:var(--wa-muted); font-size:12px; margin:0; }
+.vdd-wa .wa-table-scroll { overflow-x:auto; max-width:100%; }
+.vdd-wa table { width:100%; min-width:560px; border-collapse:collapse; border:0; margin:0; font-size:13px; color:var(--wa-text); }
+.vdd-wa table thead th { padding:13px 22px; background:var(--wa-soft); color:var(--wa-muted); font-weight:600; text-align:left; border:0; border-bottom:1px solid var(--wa-line); white-space:nowrap; }
+.vdd-wa table tbody td { padding:16px 22px; background:var(--wa-bg); color:var(--wa-text); text-align:left; vertical-align:top; border:0; border-bottom:1px solid var(--wa-line); overflow-wrap:anywhere; }
+.vdd-wa table tbody tr:last-child td { border-bottom:0; }
+.vdd-wa table .wa-date { white-space:nowrap; font-variant-numeric:tabular-nums; width:190px; }
+.vdd-wa .wa-empty { padding:32px 22px; text-align:center; color:var(--wa-muted); }
+.vdd-wa .wa-empty strong { display:block; margin-bottom:5px; color:var(--wa-text); }
+.vdd-wa .wa-pairing { padding:22px; border-top:1px solid var(--wa-line); }
+.vdd-wa .wa-pairing img { display:block; width:280px; max-width:100%; height:auto; padding:12px; background:#fff; border-radius:10px; margin-bottom:12px; }
+@media(max-width:1000px) { .vdd-wa .wa-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .vdd-wa .wa-card:last-child { grid-column:1/-1; } }
+@media(max-width:600px) { .vdd-wa .wa-grid { grid-template-columns:minmax(0,1fr); gap:12px; } .vdd-wa .wa-card, .vdd-wa .wa-section-head, .vdd-wa .wa-actions { padding:16px; } .vdd-wa .wa-button { width:100%; } .vdd-wa .wa-actions-note { padding:0 16px 16px; } }
+</style>
+{% endblock %}
 {% block content %}
-<section style="max-width:1000px;margin:auto">
-  <h1>WhatsApp / Evolution API</h1>
+<section class="vdd-wa" aria-label="Monitoramento WhatsApp">
+  <div class="wa-heading"><div><span class="wa-eyebrow">Integração da plataforma · exclusivo do superadmin</span><h2>Visão geral da conexão</h2><p class="wa-muted">Acompanhe o WhatsApp utilizado para enviar os códigos de confirmação.</p></div>
+  {% if connection %}<span class="wa-badge" data-state="{{ connection.status }}">{{ connection.get_status_display }}</span>{% endif %}</div>
   {% if connection %}
-    <p><strong>{{ connection.get_status_display }}</strong> · {{ connection.environment }}</p>
-    {% if stale %}<p role="alert">⚠ Verificação atrasada ou ainda não executada. O estado exibido pode estar desatualizado. Confira Celery/Beat.</p>{% endif %}
-    {% if connection.manual_required %}<p role="alert">⚠ Intervenção manual necessária. As tentativas automáticas estão interrompidas neste incidente.</p>{% endif %}
-    <dl>
+    {% if stale %}<div class="wa-notice" role="alert"><strong>Verificação desatualizada.</strong> O estado exibido pode não refletir a conexão atual. Confira Celery/Beat.</div>{% endif %}
+    {% if connection.manual_required %}<div class="wa-notice" role="alert"><strong>Intervenção manual necessária.</strong> As tentativas automáticas estão interrompidas neste incidente.</div>{% endif %}
+    <div class="wa-grid"><div class="wa-card"><span class="wa-eyebrow">Identificação</span><dl>
       <dt>Instância</dt><dd>{{ connection.instance }}</dd>
+      <dt>Ambiente</dt><dd>{% if connection.environment == "prod" %}Produção{% elif connection.environment == "homolog" %}Homologação{% elif connection.environment == "local" %}Desenvolvimento local{% elif connection.environment == "demo" %}Demonstração{% else %}{{ connection.environment }}{% endif %}</dd>
+      <dt>Diagnóstico</dt><dd>{{ connection.reason|default:"Sem diagnóstico adicional" }}</dd>
+    </dl></div><div class="wa-card"><span class="wa-eyebrow">Atualizações</span><dl>
       <dt>Última conexão observada</dt><dd>{{ connection.observed_online_at|date:"d/m/Y H:i:s"|default:"Ainda não observada" }}</dd>
       <dt>Última verificação</dt><dd>{{ connection.checked_at|date:"d/m/Y H:i:s"|default:"Pendente" }}</dd>
       <dt>Último webhook</dt><dd>{{ connection.webhook_at|date:"d/m/Y H:i:s"|default:"Não recebido" }}</dd>
+    </dl>{% if not connection.webhook_at %}<p class="wa-help">Este campo será atualizado ao receber um evento autenticado. Enquanto isso, a consulta periódica verifica a conexão.</p>{% endif %}</div>
+    <div class="wa-card"><span class="wa-eyebrow">Recuperação</span><dl>
       <dt>Indisponível desde</dt><dd>{{ connection.down_since|date:"d/m/Y H:i:s"|default:"—" }}</dd>
       <dt>Tentativas de reconexão</dt><dd>{{ connection.attempts }}/3</dd>
       <dt>Próxima tentativa (se habilitada e permitida)</dt><dd>{{ connection.next_attempt_at|date:"d/m/Y H:i:s"|default:"—" }}</dd>
-      <dt>Diagnóstico</dt><dd>{{ connection.reason|default:"Sem diagnóstico adicional" }}</dd>
-    </dl>
-    <form method="post" style="display:flex;gap:12px;flex-wrap:wrap;margin:24px 0">{% csrf_token %}
-      <button class="button" name="action" value="check">Verificar agora</button>
-      <button class="button" name="action" value="restart">Tentar reconectar</button>
-      {% if pair_allowed %}<button class="button" name="action" value="pair">Solicitar QR Code de pareamento</button>{% endif %}
+    </dl><p class="wa-help">O painel não habilita a reconexão automática. As tentativas seguem as configurações e o estado da sessão.</p></div></div>
+    <section class="wa-section" aria-labelledby="wa-actions-title"><div class="wa-section-head"><h3 id="wa-actions-title">Ações da integração</h3><p>A verificação consulta o estado atual. As operações de recuperação seguem as proteções do sistema.</p></div>
+    <form method="post" class="wa-actions">{% csrf_token %}
+      <button type="submit" class="wa-button wa-primary" name="action" value="check">Verificar agora</button>
+      <button type="submit" class="wa-button" name="action" value="restart">Tentar reconectar</button>
+      {% if pair_allowed %}<button type="submit" class="wa-button" name="action" value="pair">Solicitar QR Code de pareamento</button>{% endif %}
     </form>
-    {% if qr %}<div id="temporary-pairing"><img src="{{ qr }}" alt="QR Code temporário de pareamento" width="280" height="280"><p>Feche esta página após utilizar. A imagem será removida em 60 segundos; a validade do QR é definida pela Evolution.</p></div>
+    <p class="wa-actions-note">Aguarde pelo menos 60 segundos entre ações. Atualize a página para consultar o resultado.</p>
+    {% if qr %}<div id="temporary-pairing" class="wa-pairing"><img src="{{ qr }}" alt="QR Code temporário de pareamento" width="280" height="280"><p>Feche esta página após utilizar. A imagem será removida em 60 segundos; a validade do QR é definida pela Evolution.</p></div>
     <script>setTimeout(function () { var block = document.getElementById('temporary-pairing'); if (block) { block.textContent = 'QR Code ocultado. Solicite outro se necessário.'; } }, 60000);</script>{% endif %}
-    <h2>Histórico recente</h2>
-    <table><thead><tr><th>Data</th><th>Descrição</th><th>Responsável</th></tr></thead><tbody>
-      {% for event in events %}<tr><td>{{ event.created_at|date:"d/m/Y H:i:s" }}</td><td>{{ event.description }}</td><td>{{ event.actor|default:"Sistema" }}</td></tr>{% empty %}<tr><td colspan="3">Nenhum evento registrado.</td></tr>{% endfor %}
-    </tbody></table>
-    <h2>Alertas por e-mail</h2>
-    <p>“Aceito” confirma o aceite pelo SMTP, não a entrega na caixa de entrada. Resultado incerto não é reenviado automaticamente para evitar duplicidade.</p>
-    <table><thead><tr><th>Data</th><th>Tipo</th><th>Situação</th></tr></thead><tbody>
-    {% for alert in alerts %}<tr><td>{{ alert.created_at|date:"d/m/Y H:i:s" }}</td><td>{% if alert.recovery %}Recuperação{% else %}Indisponibilidade{% endif %}</td><td>{{ alert.get_status_display }}</td></tr>{% empty %}<tr><td colspan="3">Nenhum alerta registrado.</td></tr>{% endfor %}
-    </tbody></table>
-  {% else %}<p>Monitoramento desabilitado neste ambiente. Nenhuma consulta ou recuperação será executada.</p>{% endif %}
+    </section>
+    <section class="wa-section" aria-labelledby="wa-history-title"><div class="wa-section-head"><h3 id="wa-history-title">Histórico recente</h3><p>Mudanças de estado e operações realizadas pelo sistema ou pelo superadministrador.</p></div>
+    {% if events %}<div class="wa-table-scroll" tabindex="0" role="region" aria-label="Histórico; role horizontalmente em telas pequenas"><table><thead><tr><th scope="col">Data</th><th scope="col">Descrição</th><th scope="col">Responsável</th></tr></thead><tbody>
+      {% for event in events %}<tr><td class="wa-date">{{ event.created_at|date:"d/m/Y H:i:s" }}</td><td>{{ event.description }}</td><td>{{ event.actor|default:"Sistema" }}</td></tr>{% endfor %}
+    </tbody></table></div>{% else %}<div class="wa-empty"><strong>Nenhum evento registrado.</strong>As mudanças de estado aparecerão aqui.</div>{% endif %}</section>
+    <section class="wa-section" aria-labelledby="wa-alerts-title"><div class="wa-section-head"><h3 id="wa-alerts-title">Alertas por e-mail</h3>
+    <p>“Aceito” confirma o aceite pelo SMTP, não a entrega na caixa de entrada. Resultado incerto não é reenviado automaticamente para evitar duplicidade.</p></div>
+    {% if alerts %}<div class="wa-table-scroll" tabindex="0" role="region" aria-label="Alertas; role horizontalmente em telas pequenas"><table><thead><tr><th scope="col">Data</th><th scope="col">Tipo</th><th scope="col">Situação</th></tr></thead><tbody>
+    {% for alert in alerts %}<tr><td class="wa-date">{{ alert.created_at|date:"d/m/Y H:i:s" }}</td><td>{% if alert.recovery %}Recuperação{% else %}Indisponibilidade{% endif %}</td><td>{{ alert.get_status_display }}</td></tr>{% endfor %}
+    </tbody></table></div>{% else %}<div class="wa-empty"><strong>Nenhum alerta registrado.</strong>Alertas de indisponibilidade e recuperação aparecerão nesta seção.</div>{% endif %}</section>
+  {% else %}<div class="wa-card"><h3>Monitoramento desabilitado neste ambiente</h3><p class="wa-muted">Nenhuma consulta ou recuperação será executada.</p></div>{% endif %}
 </section>
 {% endblock %}

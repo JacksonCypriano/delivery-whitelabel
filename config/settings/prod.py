@@ -47,3 +47,7 @@ if SENTRY_DSN:
         profiles_sample_rate=0.0,
     )
 
+
+# Produção usa somente a API real; homologação permanece sandbox por padrão.
+ASAAS_ENVIRONMENT = os.getenv("ASAAS_ENVIRONMENT", "production")
+BILLING_ALLOW_SANDBOX = False

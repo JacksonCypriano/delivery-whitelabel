@@ -46,6 +46,7 @@ INSTALLED_APPS = [
 
     # local apps
     "apps.core",
+    "apps.billing.apps.BillingConfig",
     "apps.tenants",
     "apps.accounts",
     "apps.stores",
@@ -458,3 +459,29 @@ OTP_TRUSTED_PROXY_CIDRS = [v.strip() for v in os.getenv("OTP_TRUSTED_PROXY_CIDRS
 ADMIN_LOGIN_WINDOW = max(60, int(os.getenv("ADMIN_LOGIN_WINDOW", "900")))
 ADMIN_LOGIN_IP_LIMIT = max(1, int(os.getenv("ADMIN_LOGIN_IP_LIMIT", "50")))
 ADMIN_LOGIN_ACCOUNT_LIMIT = max(1, int(os.getenv("ADMIN_LOGIN_ACCOUNT_LIMIT", "10")))
+
+
+# Assinaturas: implantação inicial não emite cobranças nem suspende lojas.
+BILLING_ENABLED = os.getenv("BILLING_ENABLED", "false").lower() in ("1", "true", "yes", "on")
+ASAAS_ENVIRONMENT = os.getenv("ASAAS_ENVIRONMENT", "sandbox")
+ASAAS_API_KEY = os.getenv("ASAAS_API_KEY", "")
+ASAAS_WEBHOOK_TOKEN = os.getenv("ASAAS_WEBHOOK_TOKEN", "")
+from celery.schedules import crontab
+CELERY_TIMEZONE = "America/Sao_Paulo"
+CELERY_ENABLE_UTC = True
+CELERY_BEAT_SCHEDULE = {
+    **globals().get("CELERY_BEAT_SCHEDULE", {}),
+    "billing-suspend-daily": {
+        "task": "apps.billing.tasks.suspend_expired_subscriptions",
+        "schedule": crontab(hour=6, minute=0),
+    },
+    "billing-reconcile": {
+        "task": "apps.billing.tasks.reconcile_pending_payments",
+        "schedule": crontab(minute="*/5"),
+    },
+}
+UNFOLD["SIDEBAR"]["navigation"].append({
+    "title": _("Assinatura"), "separator": True,
+    "items": [{"title": _("Minha assinatura"), "icon": "payments",
+               "link": reverse_lazy("tenant_admin:billing_dashboard")}],
+})

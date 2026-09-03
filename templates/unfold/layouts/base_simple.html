@@ -1,0 +1,12 @@
+{% extends "unfold/layouts/base_simple.html" %}
+{% block content_before %}
+{{ block.super }}
+{% if billing_subscription.managed %}
+<div style="margin:12px 24px;padding:14px 18px;border:1px solid #da9d42;border-radius:12px;background:#fff5dd;color:#523810;line-height:1.5">
+<strong>Assinatura: {{ billing_subscription.situation }}</strong>
+{% if billing_subscription.valid_until %} · Vencimento: {{ billing_subscription.valid_until|date:"d/m/Y" }}{% endif %}
+{% if billing_subscription.days_remaining > 0 and billing_subscription.days_remaining <= 7 %} · Faltam {{ billing_subscription.days_remaining }} dias para vencer.{% endif %}
+<a href="{% url 'tenant_admin:billing_dashboard' %}" style="margin-left:12px;font-weight:700;text-decoration:underline">Ver assinatura e renovar</a>
+</div>
+{% endif %}
+{% endblock %}

@@ -23,6 +23,21 @@ class TenantAdmin(ModelAdmin):
         ("Informações", {"fields": ("created_at",), "classes": ("collapse",)}),
     )
 
+    def save_model(self, request, obj, form, change):
+        from django.db import transaction
+        from apps.billing.models import Subscription
+        from apps.billing.services import set_store, audit
+        if not change:
+            return super().save_model(request, obj, form, change)
+        with transaction.atomic():
+            sub=Subscription.objects.select_for_update().get(tenant=obj)
+            if 'is_active' in form.changed_data:
+                sub.manually_blocked = not obj.is_active
+                sub.save(update_fields=['manually_blocked'])
+                audit(sub,'Ativação manual da loja', 'Ativar' if obj.is_active else 'Suspender',request.user)
+            super().save_model(request,obj,form,change)
+            set_store(sub)
+
     @admin.display(description="Configuração")
     def setup_status(self, obj):
         setup = get_store_setup(obj)
@@ -113,6 +128,16 @@ class StoreSettingsAdmin(ModelAdmin):
             },
         ),
     )
+
+    def save_model(self, request, obj, form, change):
+        from django.db import transaction
+        from apps.billing.models import Subscription
+        from apps.billing.services import set_store
+        with transaction.atomic():
+            sub=Subscription.objects.select_for_update().get(tenant=obj)
+            obj.is_active = Tenant.objects.get(pk=obj.pk).is_active
+            super().save_model(request,obj,form,change)
+            set_store(sub)
 
     def get_inlines(self, request, obj=None):
         inlines = [BusinessHourInline]

@@ -7,7 +7,10 @@ from apps.marketplace import views as marketplace_views
 from apps.tenants.admin_site import super_admin_site, tenant_admin_site
 
 
+from apps.billing.views import webhook as billing_webhook
+
 urlpatterns = [
+    path("integracoes/asaas/webhook/", billing_webhook, name="billing_webhook"),
     # Health checks (sem dados sensíveis)
     path("health/live/", health_views.live, name="health_live"),
     path("health/ready/", health_views.ready, name="health_ready"),

@@ -1,0 +1,23 @@
+{% extends "admin/base_site.html" %}
+{% block content %}{% include 'billing/style.html' %}
+<main class="vdd-billing">
+<section class="intro"><h1>Minha assinatura</h1><p>{{ request.tenant.name }} · {{ subscription.situation }}</p>
+{% if subscription.valid_until %}<p>Vencimento: <strong>{{ subscription.valid_until|date:"d/m/Y" }}</strong></p>{% endif %}
+<p>Adicione meses quando quiser. O tempo restante da sua assinatura é preservado.</p></section>
+{% if sandbox %}<p class="notice"><strong>Ambiente de testes:</strong> cobranças simuladas, sem pagamento real.</p>{% endif %}
+{% if not ready %}<p class="notice">Os pagamentos online ainda estão sendo configurados. Fale com o responsável pela plataforma para regularizar sua assinatura.</p>{% endif %}
+{% if subscription.manually_blocked or subscription.payment_review %}<p class="notice">Há um bloqueio que exige revisão administrativa. O pagamento acrescenta meses, mas não remove esse bloqueio. Entre em contato com o responsável pela plataforma.</p>{% endif %}
+<h2>Renovar ou adicionar meses</h2>
+<div class="grid">{% for row in plans %}<section class="card"><h2>{{ row.plan.name }}</h2><p>{{ row.plan.months }} meses{% if row.plan.discount %} · {{ row.plan.discount }}% de desconto{% endif %}</p>
+{% for option in row.options %}<div class="price">R$ {{ option.amount|floatformat:2 }}</div><p>Total por {{ option.label }}</p>
+{% if ready %}<details><summary>Escolher {{ option.label }}</summary>
+<form method="post" action="{% url 'tenant_admin:billing_purchase' %}">{% csrf_token %}<input type="hidden" name="quote" value="{{ option.quote }}">
+<label>Nome / razão social<input name="name" maxlength="150" required value="{{ customer.name|default:'' }}"></label>
+<label>CPF / CNPJ do pagador<input name="document" maxlength="20" required value="{{ customer.document|default:'' }}"></label>
+<label>E-mail financeiro<input name="email" type="email" required value="{{ customer.email|default:'' }}"></label>
+<small>Ao confirmar, os dados serão enviados ao Asaas para gerar esta cobrança. Compra única do período, sem renovação automática.</small>
+<button type="submit">Gerar cobrança de R$ {{ option.amount|floatformat:2 }}</button></form></details>{% endif %}
+{% empty %}<p>Nenhuma forma de pagamento habilitada.</p>{% endfor %}</section>{% endfor %}</div>
+<h2>Histórico de cobranças</h2><div class="scroll"><table><thead><tr><th>Data</th><th>Plano</th><th>Valor</th><th>Situação</th><th></th></tr></thead><tbody>
+{% for bill in invoices %}<tr><td>{{ bill.created_at|date:"d/m/Y H:i" }}</td><td>{{ bill.plan_name }}</td><td>R$ {{ bill.amount|floatformat:2 }}</td><td>{{ bill.get_status_display }}</td><td><a href="{% url 'tenant_admin:billing_invoice' bill.pk %}">Ver cobrança</a></td></tr>{% empty %}<tr><td colspan="5">Nenhuma cobrança registrada.</td></tr>{% endfor %}
+</tbody></table></div></main>{% endblock %}

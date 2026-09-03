@@ -41,6 +41,16 @@ class TenantAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
     index_title = "Bem-vindo"
     settings_name = "UNFOLD"
 
+    def get_urls(self):
+        from django.urls import path
+        from apps.billing import views
+        return [
+            path('minha-assinatura/', self.admin_view(views.dashboard), name='billing_dashboard'),
+            path('minha-assinatura/comprar/', self.admin_view(views.purchase), name='billing_purchase'),
+            path('minha-assinatura/cobranca/<uuid:invoice_id>/', self.admin_view(views.invoice_detail), name='billing_invoice'),
+            path('minha-assinatura/cobranca/<uuid:invoice_id>/consultar/', self.admin_view(views.refresh), name='billing_refresh'),
+        ] + super().get_urls()
+
     def _store_setup_app(self, tenant):
         setup = get_store_setup(tenant)
         status = "Pronta para publicar" if setup["complete"] else "Finalize a configuração da sua loja"
@@ -122,6 +132,9 @@ class TenantAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
             ctx["site_logo"] = "/static/images/logo.png"
             ctx["site_symbol"] = "admin_panel_settings"
 
+        if tenant and request.user.is_authenticated and self.has_permission(request):
+            from apps.billing.services import get_subscription
+            ctx['billing_subscription'] = get_subscription(tenant)
         return ctx
 
     def has_permission(self, request):

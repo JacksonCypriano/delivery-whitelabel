@@ -43,6 +43,7 @@ DC=(docker compose -f "$COMPOSE_FILE")
 # Ao adicionar testes críticos de outros apps, inclua o módulo nesta lista.
 TEST_SUITES=(
     apps.accounts
+    apps.billing.tests
     apps.core.tests_critical
 )
 

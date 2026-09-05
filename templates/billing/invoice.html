@@ -1,8 +1,8 @@
 {% extends "admin/base_site.html" %}{% block content %}{% include 'billing/style.html' %}
-<main class="vdd-billing"><section class="intro"><h1>Pagamento da assinatura</h1><p>{{ invoice.plan_name }} · {{ invoice.months }} meses · {{ invoice.get_method_display }}</p><div class="price">R$ {{ invoice.amount|floatformat:2 }}</div></section>
+<main class="vdd-billing"><section class="intro"><h1>{% if invoice.additional_service_id %}Pagamento do serviço adicional{% else %}Pagamento da assinatura{% endif %}</h1><p>{{ invoice.plan_name }}{% if not invoice.additional_service_id %} · {{ invoice.months }} meses{% endif %} · {{ invoice.get_method_display }}</p><div class="price">R$ {{ invoice.amount|floatformat:2 }}</div></section>
 <p><strong>Situação:</strong> {{ invoice.get_status_display }}</p><p>Vencimento desta cobrança: {{ invoice.due_date|date:"d/m/Y" }}</p>
 {% if invoice.environment == 'sandbox' %}<p class="notice">Cobrança de teste: sem pagamento real.</p>{% endif %}
-{% if invoice.status == 'PAID' %}<p class="notice">Pagamento confirmado. O período foi acrescentado à assinatura.</p>
+{% if invoice.status == 'PAID' %}<p class="notice">Pagamento confirmado. {% if invoice.additional_service_id %}O serviço adicional foi contratado.{% else %}O período foi acrescentado à assinatura.{% endif %}</p>
 {% elif invoice.status == 'REVIEW' %}<p class="notice">Esta cobrança exige revisão administrativa. Entre em contato com o responsável pela plataforma.</p>
 {% else %}
 {% if invoice.checkout_url %}<a class="button" href="{{ invoice.checkout_url }}" target="_blank" rel="noopener noreferrer">Pagar com segurança no Asaas</a><p>Para Pix, o QR Code e o código copia e cola aparecem na página de pagamento.</p>{% else %}<p class="notice">Estamos verificando a emissão da cobrança. Não é necessário gerar outra. Consulte novamente em alguns minutos.</p>{% endif %}

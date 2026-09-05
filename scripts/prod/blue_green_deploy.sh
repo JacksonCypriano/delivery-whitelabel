@@ -21,7 +21,9 @@ git diff --quiet && git diff --cached --quiet || { echo "Há alterações locais
 git pull --ff-only origin main
 
 # Testa o código que será publicado antes de subir a nova cor.
-"${COMPOSE[@]}" run --rm --no-deps "web-$NEXT" python manage.py test --settings=config.settings.test
+# entrypoint.sh interprets its first argument as ROLE; override it so the
+# command runs Django directly instead of trying to start role "python".
+"${COMPOSE[@]}" run --rm --no-deps --entrypoint python "web-$NEXT" manage.py test --settings=config.settings.test
 "${COMPOSE[@]}" build "web-$NEXT"
 "${COMPOSE[@]}" up -d "web-$NEXT"
 

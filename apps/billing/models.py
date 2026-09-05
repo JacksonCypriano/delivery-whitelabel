@@ -251,7 +251,115 @@ class Invoice(models.Model):
 
     @property
     def reference(self):
+        """Stable external reference used to reconcile this invoice in Asaas."""
         return f"vdd-billing:{self.environment}:{self.pk}"
+
+
+class TenantPaymentAccount(models.Model):
+    """Asaas subconta that receives a tenant's online orders.
+
+    The API key is encrypted at rest and is never exposed to tenant users.
+    This account is intentionally separate from the platform billing customer
+    used for subscription invoices.
+    """
+    class Status(models.TextChoices):
+        REQUESTED = "REQUESTED", "Solicitação registrada"
+        PENDING = "PENDING", "Aguardando ativação no Asaas"
+        APPROVED = "APPROVED", "Aprovada"
+        REJECTED = "REJECTED", "Revisar cadastro"
+        ERROR = "ERROR", "Falha de configuração"
+
+    tenant = models.OneToOneField(
+        "tenants.Tenant", on_delete=models.PROTECT, related_name="payment_account", verbose_name="Loja"
+    )
+    enabled = models.BooleanField("Pagamento online solicitado", default=False)
+    terms_accepted = models.BooleanField("Concordou com taxas e condições", default=False)
+    terms_accepted_at = models.DateTimeField("Concordância registrada em", null=True, blank=True)
+    status = models.CharField("Situação", max_length=20, choices=Status.choices, default=Status.REQUESTED)
+    legal_name = models.CharField("Nome / razão social", max_length=150, blank=True)
+    document = models.CharField("CPF / CNPJ", max_length=14, blank=True)
+    email = models.EmailField("E-mail de ativação", blank=True)
+    mobile_phone = models.CharField("Celular", max_length=20, blank=True)
+    phone = models.CharField("Telefone fixo", max_length=20, blank=True)
+    birth_date = models.DateField("Data de nascimento (CPF)", null=True, blank=True)
+    company_type = models.CharField("Tipo de empresa", max_length=20, blank=True)
+    income_value = models.DecimalField("Faturamento / renda mensal", max_digits=12, decimal_places=2, null=True, blank=True)
+    address = models.CharField("Logradouro", max_length=255, blank=True)
+    address_number = models.CharField("Número", max_length=20, blank=True)
+    complement = models.CharField("Complemento", max_length=100, blank=True)
+    province = models.CharField("Bairro", max_length=100, blank=True)
+    postal_code = models.CharField("CEP", max_length=9, blank=True)
+    provider_account_id = models.CharField("ID da subconta Asaas", max_length=80, blank=True)
+    wallet_id = models.CharField("Wallet ID Asaas", max_length=80, blank=True)
+    encrypted_api_key = models.TextField("Chave Asaas criptografada", blank=True, editable=False)
+    activation_url = models.URLField("Link de ativação", max_length=600, blank=True)
+    last_error = models.CharField("Último erro", max_length=500, blank=True)
+    requested_at = models.DateTimeField("Solicitada em", null=True, blank=True)
+    approved_at = models.DateTimeField("Aprovada em", null=True, blank=True)
+    created_at = models.DateTimeField("Criada em", auto_now_add=True)
+    updated_at = models.DateTimeField("Atualizada em", auto_now=True)
+
+    class Meta:
+        verbose_name = "Conta de pagamentos online"
+        verbose_name_plural = "Contas de pagamentos online"
+
+    def __str__(self):
+        return f"{self.tenant} · {self.get_status_display()}"
+
+    @property
+    def is_ready(self):
+        return self.enabled and self.status == self.Status.APPROVED and bool(self.provider_account_id and self.encrypted_api_key)
+
+    def set_api_key(self, value):
+        from .secrets import encrypt_secret
+        self.encrypted_api_key = encrypt_secret(value)
+
+    def save(self, *args, **kwargs):
+        if self.terms_accepted and self.terms_accepted_at is None:
+            self.terms_accepted_at = timezone.now()
+        if not self.terms_accepted:
+            self.enabled = False
+        super().save(*args, **kwargs)
+
+    def get_api_key(self):
+        from .secrets import decrypt_secret
+        return decrypt_secret(self.encrypted_api_key)
+
+
+class OrderPayment(models.Model):
+    """Hosted Asaas Checkout created in the store subaccount."""
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Aguardando pagamento"
+        PAID = "PAID", "Pagamento confirmado"
+        CANCELED = "CANCELED", "Cancelado"
+        EXPIRED = "EXPIRED", "Expirado"
+        ERROR = "ERROR", "Falha no pagamento"
+
+    order = models.OneToOneField("orders.Order", on_delete=models.PROTECT, related_name="online_payment", verbose_name="Pedido")
+    tenant = models.ForeignKey("tenants.Tenant", on_delete=models.PROTECT, verbose_name="Loja")
+    provider_account_id = models.CharField("Subconta Asaas", max_length=80)
+    checkout_id = models.CharField("Checkout Asaas", max_length=100, unique=True, blank=True)
+    checkout_url = models.URLField("Link de pagamento", max_length=600, blank=True)
+    external_reference = models.CharField("Referência externa", max_length=120, unique=True)
+    confirmation_code = models.CharField("Código de confirmação", max_length=24, unique=True)
+    method = models.CharField("Forma de pagamento", max_length=20)
+    amount = models.DecimalField("Valor", max_digits=10, decimal_places=2)
+    status = models.CharField("Situação", max_length=12, choices=Status.choices, default=Status.PENDING)
+    paid_at = models.DateTimeField("Confirmado em", null=True, blank=True)
+    created_at = models.DateTimeField("Criado em", auto_now_add=True)
+    updated_at = models.DateTimeField("Atualizado em", auto_now=True)
+
+    class Meta:
+        verbose_name = "Pagamento de pedido"
+        verbose_name_plural = "Pagamentos de pedidos"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Pedido #{self.order_id} · {self.get_status_display()}"
+
+    @property
+    def reference(self):
+        return self.external_reference
 
 
 class Credit(models.Model):

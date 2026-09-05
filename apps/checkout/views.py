@@ -31,6 +31,7 @@ from apps.orders.models import Cart, CartItem, CombinationPricingRule, Order, Or
 from apps.stores.models import Product
 from apps.tenants.delivery import delivery_result_to_json, resolve_delivery
 from apps.tenants.models import DeliveryZone
+from apps.billing.online import online_payment_available
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -1028,7 +1029,10 @@ def checkout_step_one(request):
         messages.warning(request, 'A revisão do pedido expirou. Confira os valores novamente.')
         return redirect('checkout:checkout_step_one')
     if existing:
-        return render(request, 'checkout/review.html', {'order': existing})
+        return render(request, 'checkout/review.html', {
+            'order': existing,
+            'online_payment_available': online_payment_available(request.tenant),
+        })
     try:
         refreshed_items, changes = integrity.refresh_cart(cart)
     except integrity.CartError as exc:
@@ -1170,6 +1174,7 @@ def checkout_step_one(request):
                 "checkout/review.html",
                 {
                     "order": existing_order,
+                    "online_payment_available": online_payment_available(request.tenant),
                 },
             )
 
@@ -1177,6 +1182,10 @@ def checkout_step_one(request):
             return HttpResponseBadRequest('Nome, telefone ou troco excede o tamanho permitido.')
         if payment_method not in ('cash', 'credit_card', 'debit_card', 'pix'):
             return HttpResponseBadRequest('Forma de pagamento inválida.')
+        if request.tenant.sale_mode == 'online' and payment_method == 'debit_card':
+            return HttpResponseBadRequest('Cartão de débito não está disponível para pagamento online. Use Pix ou crédito.')
+        if request.tenant.sale_mode == 'online' and payment_method in ('pix', 'credit_card') and not online_payment_available(request.tenant):
+            return HttpResponseBadRequest('O pagamento online desta loja ainda está sendo ativado. Escolha outra forma de recebimento.')
         if not full_name:
             return HttpResponseBadRequest('Informe o nome do cliente.')
 
@@ -1463,6 +1472,7 @@ def checkout_step_one(request):
             "checkout/review.html",
             {
                 "order": order,
+                "online_payment_available": online_payment_available(request.tenant),
             },
         )
 
@@ -1576,6 +1586,7 @@ def checkout_step_one(request):
             'initial_full_name': initial_full_name,
             'initial_phone': initial_phone,
             'checkout_token': checkout_token,
+            'online_payment_available': online_payment_available(request.tenant),
         },
     )
 

@@ -172,6 +172,17 @@ def build_whatsapp_message(order):
         f"*Total: {brl(order.total)}*"
     )
 
+    paid_block = ""
+    try:
+        payment = order.online_payment
+    except Exception:
+        payment = None
+    if payment and payment.status == "PAID":
+        paid_block = (
+            "\n*Pagamento online confirmado*\n"
+            f"Código de confirmação: *{payment.confirmation_code}*\n"
+        )
+
     if order.delivery_type == "pickup":
         delivery_block = "Retirada na loja"
     else:
@@ -198,7 +209,8 @@ def build_whatsapp_message(order):
         + "\n".join(totals)
         + "\n"
         f"*Pagamento: {order.payment_label}*\n\n"
-        f"*{order.delivery_type_label}*\n"
+        + paid_block
+        + f"*{order.delivery_type_label}*\n"
         f"{delivery_block}\n"
         f"{separator}"
     )

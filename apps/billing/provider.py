@@ -25,14 +25,14 @@ def environment():
     return value
 
 
-def configured():
+def configured(api_key=None):
     allowed = environment() != "sandbox" or getattr(
         settings, "BILLING_ALLOW_SANDBOX", True
     )
     return bool(
         allowed
         and settings.BILLING_ENABLED
-        and settings.ASAAS_API_KEY
+        and (api_key or settings.ASAAS_API_KEY)
         and len(settings.ASAAS_WEBHOOK_TOKEN) >= 32
     )
 
@@ -68,8 +68,11 @@ def payment_url(value):
 
 
 class Asaas:
+    def __init__(self, api_key=None):
+        self.api_key = api_key or settings.ASAAS_API_KEY
+
     def request(self, method, path, **kwargs):
-        if not configured():
+        if not configured(self.api_key):
             raise BillingError("Pagamentos ainda não configurados. Fale com o suporte.")
         base = (
             "https://api.asaas.com/v3"
@@ -81,7 +84,7 @@ class Asaas:
                 method,
                 base + path,
                 headers={
-                    "access_token": settings.ASAAS_API_KEY,
+                    "access_token": self.api_key,
                     "User-Agent": "VemDeDelivery-Billing/1.0",
                 },
                 timeout=(4, 12),
@@ -115,6 +118,18 @@ class Asaas:
 
     def create_payment(self, body):
         return self.request("POST", "/payments", json=body)
+
+    def create_subaccount(self, body):
+        return self.request("POST", "/accounts", json=body)
+
+    def get_account(self, identifier):
+        return self.request("GET", "/accounts/" + valid_id(identifier))
+
+    def create_checkout(self, body):
+        return self.request("POST", "/checkouts", json=body)
+
+    def get_checkout(self, identifier):
+        return self.request("GET", "/checkouts/" + valid_id(identifier))
 
     def find_customer(self, reference):
         return self.request(

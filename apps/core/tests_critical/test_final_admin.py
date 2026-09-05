@@ -190,7 +190,10 @@ class FinalAdminTests(CriticalTestCase):
     def test_store_settings_delivery_inline_available(self):
         parent = tenant_admin_site._registry[Tenant]
         inlines = parent.get_inline_instances(self.request, self.tenant_a)
-        self.assertEqual({inline.model._meta.model_name for inline in inlines}, {'deliveryzone', 'businesshour'})
+        self.assertEqual(
+            {inline.model._meta.model_name for inline in inlines},
+            {'deliveryzone', 'businesshour', 'tenantpaymentaccount'},
+        )
         self.assertTrue(all(not inline.has_change_permission(self.request, self.tenant_b) for inline in inlines))
 
     def test_coupon_redemptions_list_uses_related_tenant_scope(self):

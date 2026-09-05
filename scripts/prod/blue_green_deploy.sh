@@ -33,7 +33,8 @@ git pull --ff-only origin main
 "${COMPOSE[@]}" up -d "web-$NEXT"
 
 for _ in $(seq 1 30); do
-  status="$(${COMPOSE[@]} ps --format json "web-$NEXT" | grep -o 'healthy' || true)"
+  container="$(${COMPOSE[@]} ps -q "web-$NEXT" || true)"
+  status="$(docker inspect --format='{{.State.Health.Status}}' "$container" 2>/dev/null || true)"
   [[ "$status" == healthy ]] && break
   sleep 2
 done

@@ -16,6 +16,7 @@ class FreeSubscriptionOnTenantCreationTests(TestCase):
         form = TenantCreateForm(data={
             "name": "Loja cortesia", "slug": "loja-cortesia",
             "whatsapp_number": "5511999991111", "is_active": "on",
+            "sale_mode": "whatsapp", "fulfillment_mode": "delivery_and_pickup",
             "grant_free_month": "on",
         })
         self.assertTrue(form.is_valid(), form.errors)

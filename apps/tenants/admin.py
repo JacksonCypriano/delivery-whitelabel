@@ -1,5 +1,6 @@
 from apps.core.admin import TenantModelAdmin, TenantInlineMixin
 from django.contrib import admin
+from django import forms
 from unfold.admin import ModelAdmin
 from unfold.admin import TabularInline
 
@@ -9,8 +10,21 @@ from .admin_site import super_admin_site, tenant_admin_site
 from .models import BrandConfig, Tenant, DeliveryZone, BusinessHour
 
 
+class TenantCreateForm(forms.ModelForm):
+    grant_free_month = forms.BooleanField(
+        label="Conceder 1 mês de assinatura grátis",
+        required=False,
+        help_text="Ativa a loja por um mês e registra o crédito como cortesia administrativa.",
+    )
+
+    class Meta:
+        model = Tenant
+        fields = "__all__"
+
+
 # ── Admin Global (só Tenant) ──────────────────────────────────────────────────
 class TenantAdmin(ModelAdmin):
+    form = TenantCreateForm
     list_display = ("name", "slug", "whatsapp_number", "fulfillment_mode", "setup_status", "is_active", "created_at")
     list_filter = ("is_active", "fulfillment_mode")
     search_fields = ("name", "slug", "whatsapp_number")
@@ -18,7 +32,7 @@ class TenantAdmin(ModelAdmin):
     readonly_fields = ("created_at",)
 
     fieldsets = (
-        ("Loja", {"fields": ("name", "slug", "whatsapp_number")}),
+        ("Loja", {"fields": ("name", "slug", "whatsapp_number", "grant_free_month")}),
         ("Operação", {"fields": ("fulfillment_mode", "is_active")}),
         ("Informações", {"fields": ("created_at",), "classes": ("collapse",)}),
     )
@@ -26,16 +40,21 @@ class TenantAdmin(ModelAdmin):
     def save_model(self, request, obj, form, change):
         from django.db import transaction
         from apps.billing.models import Subscription
-        from apps.billing.services import set_store, audit
-        if not change:
-            return super().save_model(request, obj, form, change)
+        from apps.billing.services import set_store, audit, extend_locked
         with transaction.atomic():
+            super().save_model(request, obj, form, change)
             sub=Subscription.objects.select_for_update().get(tenant=obj)
+            if not change and form.cleaned_data.get("grant_free_month"):
+                extend_locked(
+                    sub,
+                    1,
+                    actor=request.user,
+                    reason="Cortesia administrativa: 1 mês grátis no cadastro",
+                )
             if 'is_active' in form.changed_data:
                 sub.manually_blocked = not obj.is_active
                 sub.save(update_fields=['manually_blocked'])
                 audit(sub,'Ativação manual da loja', 'Ativar' if obj.is_active else 'Suspender',request.user)
-            super().save_model(request,obj,form,change)
             set_store(sub)
 
     @admin.display(description="Configuração")

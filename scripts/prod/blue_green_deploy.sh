@@ -7,6 +7,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 COMPOSE=(docker compose -f docker/prod/docker-compose.bluegreen.yml)
 ACTIVE_FILE="docker/prod/nginx/conf.d/active-upstream.conf"
+# Este arquivo é estado operacional gerado pelo deploy, não código versionado.
+# Mantemos o conteúdo local para a alternância, sem bloquear o próximo pull.
+git update-index --assume-unchanged "$ACTIVE_FILE" 2>/dev/null || true
 ACTIVE="$(grep -oE 'web-(blue|green)' "$ACTIVE_FILE" | head -1 || true)"
 [[ "$ACTIVE" == "web-blue" ]] && NEXT=green || NEXT=blue
 

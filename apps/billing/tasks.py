@@ -44,6 +44,17 @@ def process_event(event_pk):
         return
     BillingEvent.objects.filter(pk=event.pk).update(attempts=F("attempts") + 1)
     try:
+        if event.kind.startswith('ACCOUNT_STATUS_'):
+            from .online import account_status_from_event, apply_subaccount_status
+
+            status = account_status_from_event(event.kind)
+            if status:
+                reason = "O cadastro da subconta foi rejeitado; revise os dados no Asaas."
+                apply_subaccount_status(event.payment_id, status, reason)
+            # Unknown account-status variants are acknowledged so a newly
+            # introduced Asaas event cannot block the provider queue.
+            BillingEvent.objects.filter(pk=event.pk).update(processed_at=timezone.now())
+            return
         if event.kind.startswith('CHECKOUT_'):
             from .online import apply_checkout_event
             from .provider import valid_id
@@ -131,6 +142,10 @@ def reconcile_pending_payments():
             refresh_order_payment(payment)
         except BillingError:
             log.warning("Pagamento de pedido aguardando conciliação. order_id=%s", payment.order_id)
+    # Webhooks are the primary path; this bounded fallback covers a temporary
+    # callback/DNS outage without making approval depend on a manual action.
+    from .online import sync_pending_subaccounts
+    sync_pending_subaccounts(limit=50)
 
 
 @shared_task

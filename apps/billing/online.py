@@ -1,4 +1,5 @@
 """Online order payments routed to the store's Asaas subaccount."""
+import logging
 import re
 import uuid
 from decimal import Decimal
@@ -14,9 +15,126 @@ from .provider import Asaas, BillingError, configured, environment, payment_url,
 
 ONLINE_METHODS = {"pix": "PIX", "credit_card": "CREDIT_CARD"}
 
+ACCOUNT_STATUS_EVENTS = (
+    "ACCOUNT_STATUS_BANK_ACCOUNT_INFO_APPROVED",
+    "ACCOUNT_STATUS_BANK_ACCOUNT_INFO_AWAITING_APPROVAL",
+    "ACCOUNT_STATUS_BANK_ACCOUNT_INFO_PENDING",
+    "ACCOUNT_STATUS_BANK_ACCOUNT_INFO_REJECTED",
+    "ACCOUNT_STATUS_COMMERCIAL_INFO_APPROVED",
+    "ACCOUNT_STATUS_COMMERCIAL_INFO_AWAITING_APPROVAL",
+    "ACCOUNT_STATUS_COMMERCIAL_INFO_PENDING",
+    "ACCOUNT_STATUS_COMMERCIAL_INFO_REJECTED",
+    "ACCOUNT_STATUS_DOCUMENT_APPROVED",
+    "ACCOUNT_STATUS_DOCUMENT_AWAITING_APPROVAL",
+    "ACCOUNT_STATUS_DOCUMENT_PENDING",
+    "ACCOUNT_STATUS_DOCUMENT_REJECTED",
+    "ACCOUNT_STATUS_GENERAL_APPROVAL_APPROVED",
+    "ACCOUNT_STATUS_GENERAL_APPROVAL_AWAITING_APPROVAL",
+    "ACCOUNT_STATUS_GENERAL_APPROVAL_PENDING",
+    "ACCOUNT_STATUS_GENERAL_APPROVAL_REJECTED",
+)
+
+log = logging.getLogger("vemdedelivery.billing")
+
 
 def _clean_document(value):
     return re.sub(r"[^0-9A-Za-z]", "", value or "").upper()
+
+
+def account_status_from_event(event_kind):
+    """Translate an Asaas account-status event into our local state."""
+    kind = str(event_kind or "").upper()
+    if kind == "ACCOUNT_STATUS_GENERAL_APPROVAL_APPROVED":
+        return TenantPaymentAccount.Status.APPROVED
+    if kind.endswith("_REJECTED"):
+        return TenantPaymentAccount.Status.REJECTED
+    if kind.endswith("_AWAITING_APPROVAL") or kind.endswith("_PENDING"):
+        return TenantPaymentAccount.Status.PENDING
+    return None
+
+
+@transaction.atomic
+def apply_subaccount_status(account_id, status, reason=""):
+    """Persist a status transition without ever exposing the API key."""
+    account = TenantPaymentAccount.objects.select_for_update().filter(
+        provider_account_id=account_id
+    ).first()
+    if not account or status not in {
+        TenantPaymentAccount.Status.PENDING,
+        TenantPaymentAccount.Status.APPROVED,
+        TenantPaymentAccount.Status.REJECTED,
+    }:
+        return None
+    account.status = status
+    fields = ["status", "updated_at"]
+    if status == TenantPaymentAccount.Status.APPROVED:
+        account.approved_at = account.approved_at or timezone.now()
+        account.last_error = ""
+        fields.extend(["approved_at", "last_error"])
+    elif status == TenantPaymentAccount.Status.REJECTED:
+        account.approved_at = None
+        account.last_error = (reason or "O cadastro da subconta precisa ser revisado no Asaas.")[:500]
+        fields.extend(["approved_at", "last_error"])
+    account.save(update_fields=fields)
+    return account
+
+
+def configure_subaccount_webhook(api_key, email):
+    """Provision account-status notifications when a public URL is configured."""
+    url = str(getattr(settings, "ASAAS_WEBHOOK_URL", "") or "").strip()
+    if not url:
+        return False
+    payload = {
+        "name": "VemDeDelivery - aprovação da conta",
+        "url": url,
+        "email": email,
+        "enabled": True,
+        "interrupted": False,
+        "apiVersion": 3,
+        "authToken": settings.ASAAS_WEBHOOK_TOKEN,
+        "sendType": "SEQUENTIALLY",
+        "events": list(ACCOUNT_STATUS_EVENTS),
+    }
+    try:
+        Asaas(api_key=api_key).request("POST", "/webhooks", json=payload)
+        return True
+    except BillingError as exc:
+        # A periodic status reconciliation remains available if provisioning is
+        # unavailable (for example, while DNS/TLS is being configured).
+        log.warning("Não foi possível provisionar o webhook da subconta: %s", exc)
+        return False
+
+
+def sync_subaccount_status(account):
+    """Fallback consultation used when Asaas retries or misses a webhook."""
+    if not account.provider_account_id or not account.encrypted_api_key:
+        return None
+    data = Asaas(api_key=account.get_api_key()).request("GET", "/myAccount/status/")
+    status_data = data.get("accountStatus") if isinstance(data.get("accountStatus"), dict) else data
+    general = str((status_data or {}).get("general") or "").upper()
+    mapping = {
+        "APPROVED": TenantPaymentAccount.Status.APPROVED,
+        "REJECTED": TenantPaymentAccount.Status.REJECTED,
+        "PENDING": TenantPaymentAccount.Status.PENDING,
+        "AWAITING_APPROVAL": TenantPaymentAccount.Status.PENDING,
+    }
+    local_status = mapping.get(general)
+    if local_status:
+        apply_subaccount_status(account.provider_account_id, local_status)
+    return local_status
+
+
+def sync_pending_subaccounts(limit=50):
+    """Reconcile pending stores so approval does not depend on one delivery."""
+    rows = TenantPaymentAccount.objects.filter(
+        enabled=True,
+        status=TenantPaymentAccount.Status.PENDING,
+    ).exclude(provider_account_id="").exclude(encrypted_api_key="")[:limit]
+    for account in rows:
+        try:
+            sync_subaccount_status(account)
+        except (BillingError, ValueError):
+            log.warning("Subconta aguardando consulta no Asaas. account_id=%s", account.pk)
 
 
 def request_subaccount(account):
@@ -77,7 +195,10 @@ def request_subaccount(account):
             locked.requested_at = timezone.now()
             locked.last_error = ""
             locked.save()
-            return locked
+        # The activation email is sent by Asaas.  The webhook is provisioned
+        # with the subaccount credential when a public callback URL is set.
+        configure_subaccount_webhook(api_key, account.email)
+        return TenantPaymentAccount.objects.get(pk=account.pk)
     except BillingError as exc:
         TenantPaymentAccount.objects.filter(pk=account.pk).update(status=TenantPaymentAccount.Status.ERROR, last_error=str(exc)[:500])
         raise

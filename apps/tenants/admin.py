@@ -103,10 +103,11 @@ class TenantPaymentAccountForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["enabled"].label = "Quero receber pagamentos online"
-        self.fields["enabled"].help_text = (
-            "Ao marcar, leia e aceite as condições no aviso para liberar o cadastro da subconta Asaas."
-        )
+        self.fields["enabled"].help_text = ""
         self.fields["enabled"].widget.attrs["class"] = "payment-online-toggle"
+        # O controle visível é o botão criado pelo JavaScript. O checkbox
+        # permanece no formulário apenas para enviar o valor ao Django.
+        self.fields["enabled"].widget.attrs["style"] = "display:none !important;"
         self.fields["terms_accepted"].label = "Condições aceitas"
         self.fields["terms_accepted"].widget = forms.HiddenInput()
         onboarding_fields = (
@@ -118,7 +119,9 @@ class TenantPaymentAccountForm(forms.ModelForm):
             self.fields[name].widget.attrs["class"] = "payment-onboarding-field"
 
     class Media:
-        js = ("js/admin/payment-account.js",)
+        # Nome versionado para evitar que o admin reutilize o JavaScript antigo
+        # em navegadores/proxies que ainda tenham o arquivo em cache.
+        js = ("js/admin/payment-account-v4.js",)
 
     def clean(self):
         cleaned = super().clean()

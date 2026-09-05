@@ -474,6 +474,9 @@ ASAAS_API_KEY = os.getenv("ASAAS_API_KEY", "")
 NFSE_DOCUMENT_HOSTS = tuple(v.strip().lower() for v in os.getenv('NFSE_DOCUMENT_HOSTS', 'asaas.com,www.asaas.com,sandbox.asaas.com').split(',') if v.strip())
 NFSE_SANDBOX_EMAIL_ENABLED = os.getenv('NFSE_SANDBOX_EMAIL_ENABLED', 'false').lower() in ('true', '1', 'yes')
 ASAAS_WEBHOOK_TOKEN = os.getenv("ASAAS_WEBHOOK_TOKEN", "")
+# URL pública HTTPS que receberá eventos de aprovação das subcontas. Quando
+# vazia, a sincronização periódica continua funcionando como contingência.
+ASAAS_WEBHOOK_URL = os.getenv("ASAAS_WEBHOOK_URL", "").strip()
 from celery.schedules import crontab
 CELERY_TIMEZONE = "America/Sao_Paulo"
 CELERY_ENABLE_UTC = True

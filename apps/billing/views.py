@@ -180,7 +180,10 @@ def webhook(request):
         data = json.loads(request.body)
         event_id = data["id"]
         kind = data["event"]
-        if isinstance(kind, str) and kind.startswith('INVOICE_'):
+        if isinstance(kind, str) and kind.startswith('ACCOUNT_STATUS_'):
+            account = data['account']
+            payment = {"id": account["id"]}
+        elif isinstance(kind, str) and kind.startswith('INVOICE_'):
             payment = data['invoice']
         elif isinstance(kind, str) and kind.startswith('CHECKOUT_'):
             payment = data.get('checkout') or data.get('payment')
@@ -196,7 +199,7 @@ def webhook(request):
         valid_id(pid)
     except (ValueError, KeyError, TypeError, BillingError):
         return HttpResponse(status=400)
-    if not kind.startswith(("PAYMENT_", "INVOICE_", "CHECKOUT_")):
+    if not kind.startswith(("PAYMENT_", "INVOICE_", "CHECKOUT_", "ACCOUNT_STATUS_")):
         return JsonResponse({"received": True})
     with transaction.atomic():
         event, created = BillingEvent.objects.get_or_create(

@@ -142,13 +142,17 @@ def refresh(request, invoice_id):
     bill = get_object_or_404(Invoice, pk=invoice_id, tenant=request.tenant)
     try:
         bill = reconcile_invoice(bill.pk)
+        if bill.status == "PAID":
+            message = (
+                "Pagamento confirmado. O serviço adicional foi contratado."
+                if bill.additional_service_id
+                else "Pagamento confirmado. O período foi acrescentado à assinatura."
+            )
+        else:
+            message = "Consulta concluída: " + bill.get_status_display() + "."
         messages.success(
             request,
-            (
-                "Pagamento confirmado e meses acrescentados."
-                if bill.status == "PAID"
-                else "Consulta concluída: " + bill.get_status_display() + "."
-            ),
+            message,
         )
     except BillingError as exc:
         messages.warning(request, str(exc))

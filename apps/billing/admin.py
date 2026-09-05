@@ -15,8 +15,11 @@ from .models import (
     Credit,
     BillingAudit,
     BillingEvent,
+    TenantPaymentAccount,
 )
 from .services import set_store, audit
+from .online import request_subaccount
+from .provider import BillingError
 
 
 class GlobalAdmin(ModelAdmin):
@@ -235,10 +238,30 @@ class EventAdmin(ReadOnlyAdmin):
             "PAYMENT_CHARGEBACK_REQUESTED": "Contestação solicitada",
             "PAYMENT_CHARGEBACK_DISPUTE": "Contestação em análise",
             "PAYMENT_AWAITING_CHARGEBACK_REVERSAL": "Aguardando reversão da contestação",
+            "CHECKOUT_PAID": "Checkout pago",
+            "CHECKOUT_EXPIRED": "Checkout expirado",
+            "CHECKOUT_CANCELED": "Checkout cancelado",
             "PAYMENT_DUNNING_REQUESTED": "Negativação solicitada",
             "PAYMENT_DUNNING_RECEIVED": "Negativação recebida",
         }
         return labels.get(obj.kind, "Notificação de cobrança")
+
+
+@admin.register(TenantPaymentAccount, site=super_admin_site)
+class TenantPaymentAccountAdmin(GlobalAdmin):
+    list_display = ["tenant", "status", "enabled", "provider_account_id", "updated_at"]
+    list_filter = ["status", "enabled"]
+    search_fields = ["tenant__name", "tenant__slug", "document", "provider_account_id"]
+    readonly_fields = ["provider_account_id", "wallet_id", "encrypted_api_key", "activation_url", "requested_at", "approved_at", "last_error", "terms_accepted_at", "created_at", "updated_at"]
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if obj.enabled and not obj.provider_account_id:
+            try:
+                request_subaccount(obj)
+                self.message_user(request, "Subconta solicitada ao Asaas; aguarde a aprovação cadastral.")
+            except BillingError as exc:
+                self.message_user(request, str(exc), level="ERROR")
 
 
 from . import fiscal_admin  # noqa: E402,F401

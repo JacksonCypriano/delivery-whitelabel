@@ -11,6 +11,7 @@ from apps.customers.models import Customer
 from apps.coupons.models import CouponCampaign, CouponAssignment
 from apps.orders.models import Order, StockReservation
 from apps.stores.models import Category, CustomizationGroup, CustomizationGroupLabel, CustomizationOption, Product
+from apps.tenants.admin import TenantPaymentAccountForm
 from apps.tenants.admin_site import tenant_admin_site, super_admin_site
 from apps.tenants.models import Tenant, BrandConfig
 from .base import CriticalTestCase
@@ -190,8 +191,16 @@ class FinalAdminTests(CriticalTestCase):
     def test_store_settings_delivery_inline_available(self):
         parent = tenant_admin_site._registry[Tenant]
         inlines = parent.get_inline_instances(self.request, self.tenant_a)
-        self.assertEqual({inline.model._meta.model_name for inline in inlines}, {'deliveryzone', 'businesshour'})
+        self.assertEqual(
+            {inline.model._meta.model_name for inline in inlines},
+            {'deliveryzone', 'businesshour', 'tenantpaymentaccount'},
+        )
         self.assertTrue(all(not inline.has_change_permission(self.request, self.tenant_b) for inline in inlines))
+
+    def test_online_payment_uses_versioned_button_asset_and_hides_checkbox(self):
+        form = TenantPaymentAccountForm()
+        self.assertIn("display:none", form.fields["enabled"].widget.attrs["style"])
+        self.assertEqual(form.media._js, ["js/admin/payment-account-v4.js"])
 
     def test_coupon_redemptions_list_uses_related_tenant_scope(self):
         from apps.coupons.models import CouponRedemption

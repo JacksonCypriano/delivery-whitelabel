@@ -20,6 +20,7 @@ from apps.integrations.models import (
 from .client import EvolutionClient, EvolutionError
 
 BACKOFF = (60, 180, 600)
+MAX_RESTART_ATTEMPTS = 3
 REASONS = {
     "configuration": "Configuração incompleta ou inválida.",
     "credentials": "Credencial recusada pela Evolution.",
@@ -186,7 +187,7 @@ def check_connection():
                         "stalled",
                         "Reconexão sem conclusão por 15 minutos; verifique manualmente.",
                     )
-            if row.status != "open" and row.attempts >= 3:
+            if row.status != "open" and row.attempts >= MAX_RESTART_ATTEMPTS:
                 if not row.manual_required:
                     row.manual_required = True
                     event(
@@ -196,8 +197,12 @@ def check_connection():
                     )
             if (
                 row.status == "close"
-                and not row.manual_required
-                and row.attempts < 3
+                and row.attempts < MAX_RESTART_ATTEMPTS
+                # The third attempt is always consumed when it is due.  A
+                # stale/manual flag must not silently reduce the durable
+                # three-attempt budget; after it is consumed the exhausted
+                # branch below marks the incident for intervention.
+                and (not row.manual_required or row.attempts == MAX_RESTART_ATTEMPTS - 1)
                 and (manual or settings.EVOLUTION_AUTO_RECONNECT)
                 and (
                     manual or row.next_attempt_at is None or row.next_attempt_at <= now
@@ -211,7 +216,7 @@ def check_connection():
                 event(
                     row,
                     "restart_attempt",
-                    f"Tentativa {row.attempts}/3 de reconexão da instância.",
+                    f"Tentativa {row.attempts}/{MAX_RESTART_ATTEMPTS} de reconexão da instância.",
                     row.manual_actor_id if manual else None,
                 )
                 should_restart = True
@@ -260,7 +265,7 @@ def request_action(action, actor):
             row.lease_until and row.lease_until > now
         ):
             raise EvolutionError("rate_limit")
-        if action == "restart" and (row.attempts >= 3 or row.manual_required):
+        if action == "restart" and (row.attempts >= MAX_RESTART_ATTEMPTS or row.manual_required):
             raise EvolutionError("configuration")
         if action == "pair" and not (
             row.manual_required and row.status in {"pairing", "close", "connecting"}

@@ -7,7 +7,7 @@ from django.db import transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.views.decorators.http import require_POST, require_http_methods
+from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
 from apps.customers.models import Customer
 from apps.tenants.delivery import resolve_delivery
@@ -22,6 +22,9 @@ from . import cart_service as integrity
 from . import inventory
 from apps.coupons.models import CouponCampaign
 from apps.coupons.services import validate_coupon
+from apps.billing.models import OrderPayment
+from apps.billing.online import create_order_checkout, refresh_order_payment
+from apps.billing.provider import BillingError
 
 
 def _customer_for_request(request):
@@ -67,10 +70,15 @@ def open_whatsapp(request, public_token):
     if request.method == 'GET':
         # Links, previews and crawlers cannot commit stock or clear the cart.
         return render(request, 'checkout/review.html', {'order': order})
+    if order.tenant.sale_mode == 'online' and order.payment_method in ('pix', 'credit_card'):
+        payment = getattr(order, 'online_payment', None)
+        if not payment or payment.status != OrderPayment.Status.PAID:
+            messages.info(request, 'Conclua o pagamento online antes de enviar o pedido para a loja.')
+            return redirect('orders:payment_status', public_token=order.public_token)
     if order.whatsapp_opened_at is None:
         try:
             integrity.ensure_store(request.tenant)
-            if cart is None or integrity.expired(order):
+            if integrity.expired(order):
                 raise integrity.CartError(
                     "A revisão do pedido expirou. Confira os valores e confirme novamente."
                 )
@@ -135,14 +143,66 @@ def open_whatsapp(request, public_token):
             return redirect("checkout:checkout_step_one")
         order.whatsapp_opened_at = timezone.now()
         order.save(update_fields=["whatsapp_opened_at"])
-        cart.items.all().delete()
-        integrity.invalidate_draft(cart)
-        request.session["checkout_token"] = str(cart.checkout_token)
+        if cart is not None:
+            cart.items.all().delete()
+            integrity.invalidate_draft(cart)
+            request.session["checkout_token"] = str(cart.checkout_token)
     # Reopening an old order must never delete the customer's new cart.
     message = build_whatsapp_message(order)
     return redirect(
         f'https://wa.me/{order.tenant.whatsapp_number}?text={urllib.parse.quote(message, safe="")}'
     )
+
+
+@require_POST
+@transaction.atomic
+def start_payment(request, public_token):
+    order, _cart = _owned_order(request, public_token)
+    if order.status == 'cancelled':
+        messages.error(request, 'Este pedido foi cancelado.')
+        return redirect('checkout:cart')
+    try:
+        payment = create_order_checkout(order, request)
+    except BillingError as exc:
+        messages.error(request, str(exc))
+        return redirect('orders:payment_status', public_token=order.public_token)
+    if not payment.checkout_url:
+        messages.error(request, 'O Asaas não retornou um link de pagamento válido.')
+        return redirect('orders:payment_status', public_token=order.public_token)
+    return redirect(payment.checkout_url)
+
+
+@require_GET
+@transaction.atomic
+def payment_status(request, public_token):
+    order, _cart = _owned_order(request, public_token)
+    payment = getattr(order, 'online_payment', None)
+    return render(request, 'checkout/payment_status.html', {
+        'order': order,
+        'payment': payment,
+    })
+
+
+@require_POST
+@transaction.atomic
+def refresh_payment(request, public_token):
+    order, _cart = _owned_order(request, public_token)
+    payment = getattr(order, 'online_payment', None)
+    if not payment:
+        messages.error(request, 'Ainda não existe uma cobrança para este pedido.')
+    else:
+        try:
+            payment = refresh_order_payment(payment)
+            if payment.status == OrderPayment.Status.PAID:
+                messages.success(request, 'Pagamento confirmado. Agora você pode enviar o pedido para a loja.')
+            else:
+                messages.info(request, f'Situação do pagamento: {payment.get_status_display()}.')
+        except BillingError as exc:
+            messages.warning(request, str(exc))
+    return redirect('orders:payment_status', public_token=order.public_token)
+
+
+payment_return = payment_status
 
 
 @require_POST

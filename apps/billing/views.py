@@ -142,17 +142,13 @@ def refresh(request, invoice_id):
     bill = get_object_or_404(Invoice, pk=invoice_id, tenant=request.tenant)
     try:
         bill = reconcile_invoice(bill.pk)
-        if bill.status == "PAID":
-            message = (
-                "Pagamento confirmado. O serviço adicional foi contratado."
-                if bill.additional_service_id
-                else "Pagamento confirmado. O período foi acrescentado à assinatura."
-            )
-        else:
-            message = "Consulta concluída: " + bill.get_status_display() + "."
         messages.success(
             request,
-            message,
+            (
+                "Pagamento confirmado e meses acrescentados."
+                if bill.status == "PAID"
+                else "Consulta concluída: " + bill.get_status_display() + "."
+            ),
         )
     except BillingError as exc:
         messages.warning(request, str(exc))
@@ -184,7 +180,15 @@ def webhook(request):
         data = json.loads(request.body)
         event_id = data["id"]
         kind = data["event"]
-        payment = data['invoice'] if isinstance(kind, str) and kind.startswith('INVOICE_') else data['payment']
+        if isinstance(kind, str) and kind.startswith('ACCOUNT_STATUS_'):
+            account = data['account']
+            payment = {"id": account["id"]}
+        elif isinstance(kind, str) and kind.startswith('INVOICE_'):
+            payment = data['invoice']
+        elif isinstance(kind, str) and kind.startswith('CHECKOUT_'):
+            payment = data.get('checkout') or data.get('payment')
+        else:
+            payment = data['payment']
         pid = payment["id"]
         if not all(
             isinstance(v, str) and 0 < len(v) <= 80 for v in [event_id, kind, pid]
@@ -195,7 +199,7 @@ def webhook(request):
         valid_id(pid)
     except (ValueError, KeyError, TypeError, BillingError):
         return HttpResponse(status=400)
-    if not kind.startswith(("PAYMENT_", "INVOICE_")):
+    if not kind.startswith(("PAYMENT_", "INVOICE_", "CHECKOUT_", "ACCOUNT_STATUS_")):
         return JsonResponse({"received": True})
     with transaction.atomic():
         event, created = BillingEvent.objects.get_or_create(

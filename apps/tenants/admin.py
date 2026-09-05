@@ -1,5 +1,5 @@
 from apps.core.admin import TenantModelAdmin, TenantInlineMixin
-from django.contrib import admin
+from django.contrib import admin, messages
 from django import forms
 from unfold.admin import ModelAdmin
 from unfold.admin import TabularInline
@@ -8,6 +8,9 @@ from .onboarding import get_store_setup
 
 from .admin_site import super_admin_site, tenant_admin_site
 from .models import BrandConfig, Tenant, DeliveryZone, BusinessHour
+from apps.billing.models import TenantPaymentAccount
+from apps.billing.online import request_subaccount
+from apps.billing.provider import BillingError
 
 
 class TenantCreateForm(forms.ModelForm):
@@ -26,14 +29,14 @@ class TenantCreateForm(forms.ModelForm):
 class TenantAdmin(ModelAdmin):
     form = TenantCreateForm
     list_display = ("name", "slug", "whatsapp_number", "fulfillment_mode", "setup_status", "is_active", "created_at")
-    list_filter = ("is_active", "fulfillment_mode")
+    list_filter = ("is_active", "sale_mode", "fulfillment_mode")
     search_fields = ("name", "slug", "whatsapp_number")
     prepopulated_fields = {"slug": ("name",)}
     readonly_fields = ("created_at",)
 
     fieldsets = (
         ("Loja", {"fields": ("name", "slug", "whatsapp_number", "grant_free_month")}),
-        ("Operação", {"fields": ("fulfillment_mode", "is_active")}),
+        ("Operação", {"fields": ("sale_mode", "fulfillment_mode", "is_active")}),
         ("Informações", {"fields": ("created_at",), "classes": ("collapse",)}),
     )
 
@@ -91,6 +94,54 @@ class BusinessHourInline(TenantInlineMixin, TabularInline):
 
     can_delete = True
 
+
+class TenantPaymentAccountForm(forms.ModelForm):
+    class Meta:
+        model = TenantPaymentAccount
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["enabled"].label = "Quero receber pagamentos online"
+        self.fields["enabled"].help_text = ""
+        self.fields["enabled"].widget.attrs["class"] = "payment-online-toggle"
+        # O controle visível é o botão criado pelo JavaScript. O checkbox
+        # permanece no formulário apenas para enviar o valor ao Django.
+        self.fields["enabled"].widget.attrs["style"] = "display:none !important;"
+        self.fields["terms_accepted"].label = "Condições aceitas"
+        self.fields["terms_accepted"].widget = forms.HiddenInput()
+        onboarding_fields = (
+            "legal_name", "document", "email", "mobile_phone", "phone", "birth_date",
+            "company_type", "income_value", "address", "address_number", "complement",
+            "province", "postal_code",
+        )
+        for name in onboarding_fields:
+            self.fields[name].widget.attrs["class"] = "payment-onboarding-field"
+
+    class Media:
+        # Nome versionado para evitar que o admin reutilize o JavaScript antigo
+        # em navegadores/proxies que ainda tenham o arquivo em cache.
+        js = ("js/admin/payment-account-v4.js",)
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("enabled") and not cleaned.get("terms_accepted"):
+            self.add_error("terms_accepted", "Leia o aviso e confirme a concordância antes de ativar o pagamento online.")
+        return cleaned
+
+
+class TenantPaymentAccountInline(TenantInlineMixin, TabularInline):
+    model = TenantPaymentAccount
+    form = TenantPaymentAccountForm
+    extra = 1
+    can_delete = False
+    fields = (
+        "terms_accepted", "enabled", "status", "legal_name", "document", "email", "mobile_phone", "phone", "birth_date",
+        "company_type", "income_value", "address", "address_number", "complement",
+        "province", "postal_code", "provider_account_id", "activation_url", "last_error",
+    )
+    readonly_fields = ("status", "provider_account_id", "activation_url", "last_error")
+
 # ── Admin do Lojista: Configurações da Loja (Tenant) ─────────────────────────
 class StoreSettingsAdmin(ModelAdmin):
     """
@@ -105,7 +156,6 @@ class StoreSettingsAdmin(ModelAdmin):
 
     readonly_fields = (
         "slug",
-        "sale_mode",
         "is_active",
         "created_at",
     )
@@ -118,6 +168,7 @@ class StoreSettingsAdmin(ModelAdmin):
                     "name",
                     "slug",
                     "whatsapp_number",
+                    "sale_mode",
                     "fulfillment_mode",
                 ),
             },
@@ -139,7 +190,6 @@ class StoreSettingsAdmin(ModelAdmin):
             "Status",
             {
                 "fields": (
-                    "sale_mode",
                     "is_active",
                     "created_at",
                 ),
@@ -159,12 +209,22 @@ class StoreSettingsAdmin(ModelAdmin):
             set_store(sub)
 
     def get_inlines(self, request, obj=None):
-        inlines = [BusinessHourInline]
+        inlines = [BusinessHourInline, TenantPaymentAccountInline]
 
         if obj is None or obj.accepts_delivery:
             inlines.append(DeliveryZoneInline)
 
         return inlines
+
+    def save_formset(self, request, form, formset, change):
+        super().save_formset(request, form, formset, change)
+        if formset.model is TenantPaymentAccount:
+            account = TenantPaymentAccount.objects.filter(tenant=request.tenant).first()
+            if account and account.enabled and not account.provider_account_id:
+                try:
+                    request_subaccount(account)
+                except BillingError as exc:
+                    messages.error(request, str(exc))
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)

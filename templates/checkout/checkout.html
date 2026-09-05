@@ -446,20 +446,30 @@
           <h2 class="text-lg font-semibold text-gray-800">Forma de Pagamento</h2>
         </div>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {% if tenant.sale_mode == 'online' and not online_payment_available %}
+            <div class="col-span-full rounded-xl bg-amber-50 p-3 text-sm text-amber-800">O pagamento online desta loja está em ativação. Você poderá concluir o pedido pelo WhatsApp enquanto isso.</div>
+          {% endif %}
+          {% if tenant.sale_mode == 'online' and online_payment_available %}
+            <div class="col-span-full rounded-xl bg-blue-50 p-3 text-sm text-blue-800">Pagamento online processado pelo Asaas: Pix e cartão de crédito. As taxas de cada operação são cobradas pelo Asaas e variam conforme a modalidade e as condições da conta. A VemDeDelivery não recebe comissão. O lojista pode consultar os valores vigentes em Configurações de Conta &gt; Taxas no Asaas.</div>
+          {% endif %}
+          {% if tenant.sale_mode != 'online' or online_payment_available %}
           <label class="payment-option relative flex flex-col items-center justify-center p-4 border rounded-2xl cursor-pointer hover:bg-gray-50 transition border-primary bg-primary/5 text-primary" data-value="pix">
             <input type="radio" name="payment_method" value="pix" class="hidden" checked>
             <span class="text-sm font-medium">Pix</span>
-          </label>
-          <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition" data-value="debit_card">
-            <input type="radio" name="payment_method" value="debit_card" class="hidden">
-            <span class="text-sm font-medium">Cartão de Débito</span>
           </label>
           <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition" data-value="credit_card">
             <input type="radio" name="payment_method" value="credit_card" class="hidden">
             <span class="text-sm font-medium">Cartão de Crédito</span>
           </label>
+          {% endif %}
+          {% if tenant.sale_mode != 'online' %}
+          <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition" data-value="debit_card">
+            <input type="radio" name="payment_method" value="debit_card" class="hidden">
+            <span class="text-sm font-medium">Cartão de Débito</span>
+          </label>
+          {% endif %}
           <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition" data-value="cash">
-            <input type="radio" name="payment_method" value="cash" class="hidden">
+            <input type="radio" name="payment_method" value="cash" class="hidden" {% if tenant.sale_mode == 'online' and not online_payment_available %}checked{% endif %}>
             <span class="text-sm font-medium">Dinheiro</span>
           </label>
         </div>

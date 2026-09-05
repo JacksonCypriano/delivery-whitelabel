@@ -5,7 +5,7 @@ from datetime import timedelta
 from celery import shared_task
 from django.db.models import F, Q
 from django.utils import timezone
-from .models import BillingEvent, Invoice
+from .models import BillingEvent, Invoice, OrderPayment
 from .provider import Asaas, BillingError, environment, configured
 from .services import reconcile_invoice, apply_payment, suspend_due
 
@@ -44,6 +44,29 @@ def process_event(event_pk):
         return
     BillingEvent.objects.filter(pk=event.pk).update(attempts=F("attempts") + 1)
     try:
+        if event.kind.startswith('ACCOUNT_STATUS_'):
+            from .online import account_status_from_event, apply_subaccount_status
+
+            status = account_status_from_event(event.kind)
+            if status:
+                reason = "O cadastro da subconta foi rejeitado; revise os dados no Asaas."
+                apply_subaccount_status(event.payment_id, status, reason)
+            # Unknown account-status variants are acknowledged so a newly
+            # introduced Asaas event cannot block the provider queue.
+            BillingEvent.objects.filter(pk=event.pk).update(processed_at=timezone.now())
+            return
+        if event.kind.startswith('CHECKOUT_'):
+            from .online import apply_checkout_event
+            from .provider import valid_id
+            payment = OrderPayment.objects.filter(checkout_id=valid_id(event.payment_id)).first()
+            if payment:
+                account = getattr(payment.tenant, 'payment_account', None)
+                if not account or not account.is_ready:
+                    raise BillingError('Subconta do pedido não está disponível.')
+                checkout = Asaas(api_key=account.get_api_key()).get_checkout(payment.checkout_id)
+                apply_checkout_event(payment.checkout_id, checkout, event.kind)
+            BillingEvent.objects.filter(pk=event.pk).update(processed_at=timezone.now())
+            return
         if event.kind.startswith('INVOICE_'):
             from .fiscal import process_fiscal
             from .models import FiscalInvoice
@@ -112,6 +135,17 @@ def reconcile_pending_payments():
             reconcile_invoice(pk)
         except BillingError:
             log.warning("Cobrança aguardando conciliação. invoice_id=%s", pk)
+    # Também consulta checkouts dos pedidos online caso o webhook tenha sido perdido.
+    from .online import refresh_order_payment
+    for payment in OrderPayment.objects.filter(status="PENDING").select_related("tenant")[:50]:
+        try:
+            refresh_order_payment(payment)
+        except BillingError:
+            log.warning("Pagamento de pedido aguardando conciliação. order_id=%s", payment.order_id)
+    # Webhooks are the primary path; this bounded fallback covers a temporary
+    # callback/DNS outage without making approval depend on a manual action.
+    from .online import sync_pending_subaccounts
+    sync_pending_subaccounts(limit=50)
 
 
 @shared_task

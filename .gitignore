@@ -243,3 +243,6 @@ logs/
 !.env.example
 
 deploy/nginx/certs/
+
+# Arquivos de segurança do Windows
+*Zone.Identifier*

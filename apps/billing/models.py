@@ -91,6 +91,23 @@ class Plan(models.Model):
         return self.name
 
 
+class AdditionalService(models.Model):
+    """Serviço avulso contratado por uma loja, sem alterar a assinatura."""
+    code = models.SlugField("Código", unique=True)
+    name = models.CharField("Serviço", max_length=120)
+    description = models.CharField("Descrição", max_length=300, blank=True)
+    price = models.DecimalField("Valor", max_digits=9, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))])
+    active = models.BooleanField("Disponível para contratação", default=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "Serviço adicional"
+        verbose_name_plural = "Serviços adicionais"
+
+    def __str__(self):
+        return self.name
+
+
 class Subscription(models.Model):
     tenant = models.OneToOneField(
         "tenants.Tenant",
@@ -199,8 +216,9 @@ class Invoice(models.Model):
     tenant = models.ForeignKey(
         "tenants.Tenant", on_delete=models.PROTECT, verbose_name="Loja"
     )
+    additional_service = models.ForeignKey(AdditionalService, null=True, blank=True, on_delete=models.PROTECT, verbose_name="Serviço adicional")
     plan_name = models.CharField("Plano comprado", max_length=80)
-    months = models.PositiveSmallIntegerField("Meses comprados")
+    months = models.PositiveSmallIntegerField("Meses comprados", default=0)
     amount = models.DecimalField("Valor cobrado", max_digits=12, decimal_places=2)
     method = models.CharField("Forma de pagamento", max_length=12, choices=METHODS)
     environment = models.CharField("Ambiente", max_length=12, choices=ENVIRONMENTS)

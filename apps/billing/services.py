@@ -14,6 +14,7 @@ from .models import (
     Credit,
     BillingAudit,
     Plan,
+    AdditionalService,
 )
 from .provider import (
     Asaas,
@@ -214,6 +215,30 @@ def reserve_invoice(tenant, plan, method, amount, token, name, document, email):
         )
 
 
+def reserve_additional_service_invoice(tenant, service, method, amount, token, name, document, email):
+    """Cria cobrança de serviço avulso; não concede meses de assinatura."""
+    if not configured():
+        raise BillingError("Pagamentos ainda não configurados. Fale com o suporte.")
+    with transaction.atomic():
+        sub = Subscription.objects.select_for_update().get_or_create(tenant=tenant)[0]
+        if not sub.managed or sub.billing_suspended or sub.manually_blocked or sub.payment_review:
+            raise BillingError("Serviços adicionais estão disponíveis somente para lojas com assinatura ativa.")
+        existing = Invoice.objects.filter(pk=token).first()
+        if existing:
+            if existing.tenant_id != tenant.pk:
+                raise BillingError("Operação inválida.")
+            return existing
+        service = AdditionalService.objects.select_for_update().get(pk=service.pk, active=True)
+        value = price_for(service, method)
+        if value != amount:
+            raise BillingError("O preço do serviço mudou. Confira e tente novamente.")
+        customer, _ = BillingCustomer.objects.get_or_create(tenant=tenant, environment=environment(), defaults={"name": name, "document": document, "email": email})
+        if not customer.provider_id and not customer.attempted:
+            customer.name, customer.document, customer.email = name, document, email
+            customer.save()
+        return Invoice.objects.create(id=token, tenant=tenant, additional_service=service, plan_name=service.name, months=0, amount=value, method=method, environment=environment(), due_date=timezone.localdate() + timedelta(days=2))
+
+
 def issue_invoice(invoice_id):
     api = Asaas()
     # Marcadores de tentativa são commitados ANTES da chamada externa: timeout/crash
@@ -396,9 +421,11 @@ def apply_payment(invoice_id, payment):
             invoice.status != "REVIEW"
             and not Credit.objects.filter(invoice=invoice).exists()
         ):
-            extend_locked(
-                sub, invoice.months, invoice=invoice, reason=f"Pagamento {invoice.pk}"
-            )
+            # Serviço avulso é pago e faturado, mas não renova a assinatura.
+            if invoice.months:
+                extend_locked(
+                    sub, invoice.months, invoice=invoice, reason=f"Pagamento {invoice.pk}"
+                )
             invoice.paid_at = timezone.now()
         if invoice.status != "REVIEW":
             invoice.status = "PAID"

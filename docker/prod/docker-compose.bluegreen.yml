@@ -1,0 +1,52 @@
+# Compose de produção blue/green. Não use junto com docker-compose.yml.
+services:
+  web-blue: &web
+    build: {context: ../../}
+    env_file: [.env]
+    environment: {RUN_MIGRATIONS: "true", COLLECTSTATIC: "true"}
+    command: ["web"]
+    depends_on: {db: {condition: service_healthy}, redis: {condition: service_healthy}}
+    restart: unless-stopped
+    init: true
+    volumes: [static_volume:/app/staticfiles, media_volume:/app/media]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; r=urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8000/health/live/', headers={'Host':'vemdedelivery.com.br','X-Forwarded-Proto':'https'}), timeout=3); raise SystemExit(0 if r.status == 200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+  web-green:
+    <<: *web
+  db:
+    image: postgres:15
+    env_file: [.env]
+    restart: unless-stopped
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: {test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"], interval: 10s, timeout: 5s, retries: 5}
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    restart: unless-stopped
+    volumes: [redisdata:/data]
+    healthcheck: {test: ["CMD", "redis-cli", "ping"], interval: 10s, timeout: 5s, retries: 5}
+  celery:
+    <<: *web
+    command: ["celery"]
+    volumes: []
+  celery-beat:
+    <<: *web
+    command: ["beat"]
+    volumes: []
+  nginx:
+    image: nginx:stable-alpine
+    ports: ["80:80", "443:443"]
+    restart: unless-stopped
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - /opt/vemdedelivery/ssl:/etc/nginx/ssl:ro
+      - static_volume:/app/staticfiles:ro
+      - media_volume:/app/media:ro
+    networks: [default, evolution_network]
+volumes: {pgdata: {}, redisdata: {}, static_volume: {}, media_volume: {}}
+networks:
+  evolution_network: {external: true, name: evolution_evolution}

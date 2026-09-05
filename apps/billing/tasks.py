@@ -123,6 +123,7 @@ def reconcile_fiscal_invoices():
     config = FiscalSettings.objects.filter(environment=environment(), enabled=True).first()
     if not config or not config.start_at:
         return
+    # Planos e serviços avulsos possuem a mesma obrigação fiscal: uma NFS-e por cobrança paga.
     for bill in Invoice.objects.filter(status='PAID', environment=environment(), paid_at__gte=config.start_at, fiscal_note__isnull=True)[:100]:
         FiscalInvoice.objects.get_or_create(invoice=bill, defaults={'amount': bill.amount})
     stale = timezone.now() - timedelta(hours=6)

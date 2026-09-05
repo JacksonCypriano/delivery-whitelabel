@@ -9,6 +9,7 @@ from apps.tenants.admin_site import super_admin_site
 from .models import (
     BillingSettings,
     Plan,
+    AdditionalService,
     Subscription,
     Invoice,
     Credit,
@@ -50,6 +51,13 @@ class PlanAdmin(GlobalAdmin):
     @admin.display(description="Valor do plano")
     def plan_price(self, obj):
         return obj.price
+
+
+@admin.register(AdditionalService, site=super_admin_site)
+class AdditionalServiceAdmin(GlobalAdmin):
+    list_display = ["name", "code", "price", "active"]
+    list_editable = ["price", "active"]
+    search_fields = ["name", "code"]
 
 
 class DueFilter(admin.SimpleListFilter):
@@ -167,7 +175,7 @@ class ReadOnlyAdmin(GlobalAdmin):
 class InvoiceAdmin(ReadOnlyAdmin):
     list_display = [
         "tenant",
-        "plan_name",
+        "plan_name", "additional_service",
         "method",
         "amount",
         "status",

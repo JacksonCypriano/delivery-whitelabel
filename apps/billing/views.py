@@ -18,6 +18,7 @@ from .models import (
     BillingSettings,
     Invoice,
     Plan,
+    AdditionalService,
     Subscription,
 )
 from .forms import PurchaseForm, ManualCreditForm
@@ -29,6 +30,7 @@ from .services import (
     issue_invoice,
     reconcile_invoice,
     manual_credit,
+    reserve_additional_service_invoice,
 )
 
 log = logging.getLogger("vemdedelivery.billing")
@@ -62,6 +64,17 @@ def dashboard(request):
             )
             options.append({"label": label, "amount": amount, "quote": quote})
         plans.append({"plan": plan, "options": options})
+    services = []
+    if sub.situation == "Em dia":
+        for service in AdditionalService.objects.filter(active=True):
+            options = []
+            for method, label in Invoice.METHODS:
+                try:
+                    amount = price_for(service, method, policy)
+                except BillingError:
+                    continue
+                options.append({"label": label, "amount": amount, "quote": signing.dumps({"tenant": request.tenant.pk, "service": service.pk, "method": method, "amount": str(amount), "token": str(uuid.uuid4())}, salt="billing-quote")})
+            services.append({"service": service, "options": options})
     customer = BillingCustomer.objects.filter(
         tenant=request.tenant, environment=environment()
     ).first()
@@ -71,6 +84,7 @@ def dashboard(request):
     ctx.update(
         subscription=sub,
         plans=plans,
+        services=services,
         invoices=history,
         history_page=history,
         ready=configured(),
@@ -98,19 +112,13 @@ def purchase(request):
             )
         if quote["tenant"] != request.tenant.pk:
             raise BillingError("Oferta não pertence a esta loja.")
-        plan = get_object_or_404(Plan, pk=quote["plan"])
         from decimal import Decimal
-
-        bill = reserve_invoice(
-            request.tenant,
-            plan,
-            quote["method"],
-            Decimal(quote["amount"]),
-            uuid.UUID(quote["token"]),
-            form.cleaned_data["name"],
-            form.cleaned_data["document"],
-            form.cleaned_data["email"],
-        )
+        if "service" in quote:
+            service = get_object_or_404(AdditionalService, pk=quote["service"])
+            bill = reserve_additional_service_invoice(request.tenant, service, quote["method"], Decimal(quote["amount"]), uuid.UUID(quote["token"]), form.cleaned_data["name"], form.cleaned_data["document"], form.cleaned_data["email"])
+        else:
+            plan = get_object_or_404(Plan, pk=quote["plan"])
+            bill = reserve_invoice(request.tenant, plan, quote["method"], Decimal(quote["amount"]), uuid.UUID(quote["token"]), form.cleaned_data["name"], form.cleaned_data["document"], form.cleaned_data["email"])
         try:
             issue_invoice(bill.pk)
         except BillingError as exc:

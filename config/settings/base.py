@@ -70,6 +70,7 @@ MIDDLEWARE = [
     "apps.accounts.audit.AuditContextMiddleware",
 
     "apps.tenants.middleware.TenantMiddleware",
+    "apps.tenants.middleware.ForceInitialPasswordChangeMiddleware",
     "apps.marketplace.middleware.GlobalDeliveryLocationMiddleware",
 
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -285,7 +286,7 @@ UNFOLD = {
     #     "form": "app.forms.CustomLoginForm",
     # },
     "STYLES": [
-        lambda request: "/static/css/admin.css",
+        lambda request: "/static/css/admin-v2.css",
     ],
     "BORDER_RADIUS": "6px",
     "COLORS": {
@@ -339,6 +340,38 @@ UNFOLD = {
         "show_all_applications": False,
         "navigation": [
             {
+                "title": _("Comece por aqui"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Minha loja"),
+                        "icon": "store",
+                        "link": reverse_lazy("tenant_admin:tenants_tenant_changelist"),
+                    },
+                    {
+                        "title": _("Perfil público"),
+                        "icon": "public",
+                        "link": reverse_lazy("tenant_admin:marketplace_marketplaceprofile_changelist"),
+                    },
+                    {
+                        "title": _("Identidade visual"),
+                        "icon": "palette",
+                        "link": reverse_lazy("tenant_admin:tenants_brandconfig_changelist"),
+                    },
+                    {
+                        "title": _("Horários de funcionamento"),
+                        "icon": "schedule",
+                        "link": reverse_lazy("tenant_admin:tenants_businesshour_changelist"),
+                    },
+                    {
+                        "title": _("Locais e taxas de entrega"),
+                        "icon": "local_shipping",
+                        "link": reverse_lazy("tenant_admin:tenants_deliveryzone_changelist"),
+                    },
+                ],
+            },
+            {
                 "title": _("Cardápio"),
                 "separator": True,
                 "collapsible": True,
@@ -353,39 +386,20 @@ UNFOLD = {
                         "icon": "fastfood",
                         "link": reverse_lazy("tenant_admin:stores_product_changelist"),
                     },
-                ],
-            },
-            {
-                "title": _("Personalizações"),
-                "separator": True,
-                "collapsible": True,
-                "items": [
                     {
-                        "title": _("Rótulos"),
-                        "icon": "label",
-                        "link": reverse_lazy("tenant_admin:stores_customizationgrouplabel_changelist"),
-                    },
-                    {
-                        "title": _("Grupos de Personalização"),
+                        "title": _("Grupos de personalização"),
                         "icon": "tune",
                         "link": reverse_lazy("tenant_admin:stores_customizationgroup_changelist"),
                     },
-                ],
-            },
-            {
-                "title": _("Entrega"),
-                "separator": True,
-                "collapsible": True,
-                "items": [
                     {
-                        "title": _("Zonas de Entrega"),
-                        "icon": "local_shipping",
-                        "link": reverse_lazy("tenant_admin:tenants_deliveryzone_changelist"),
+                        "title": _("Rótulos de personalização"),
+                        "icon": "label",
+                        "link": reverse_lazy("tenant_admin:stores_customizationgrouplabel_changelist"),
                     },
                 ],
             },
             {
-                "title": _("Pedidos"),
+                "title": _("Operação"),
                 "separator": True,
                 "collapsible": True,
                 "items": [
@@ -394,17 +408,39 @@ UNFOLD = {
                         "icon": "receipt_long",
                         "link": reverse_lazy("tenant_admin:orders_order_changelist"),
                     },
+                    {
+                        "title": _("Clientes"),
+                        "icon": "groups",
+                        "link": reverse_lazy("tenant_admin:customers_customer_changelist"),
+                    },
                 ],
             },
             {
-                "title": _("Configurações"),
+                "title": _("Marketing"),
                 "separator": True,
                 "collapsible": True,
                 "items": [
                     {
-                        "title": _("Minha Loja"),
-                        "icon": "store",
-                        "link": reverse_lazy("tenant_admin:tenants_tenant_changelist"),
+                        "title": _("Campanhas de cupons"),
+                        "icon": "local_activity",
+                        "link": reverse_lazy("tenant_admin:coupons_couponcampaign_changelist"),
+                    },
+                    {
+                        "title": _("Usos de cupons"),
+                        "icon": "history",
+                        "link": reverse_lazy("tenant_admin:coupons_couponredemption_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("Financeiro"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Minha assinatura"),
+                        "icon": "payments",
+                        "link": reverse_lazy("tenant_admin:billing_dashboard"),
                     },
                 ],
             },
@@ -414,7 +450,144 @@ UNFOLD = {
 
 UNFOLD_SUPER = {
     "SITE_TITLE": "Administração global",
+    "STYLES": [
+        lambda request: "/static/css/admin-v2.css",
+    ],
     "SITE_HEADER": "Painel Global",
+    "SITE_SUBHEADER": "Gestão do VemDeDelivery",
+    "SHOW_UI_WARNINGS": False,
+    "SIDEBAR": {
+        "show_search": False,
+        "command_search": False,
+        "show_all_applications": False,
+        "navigation": [
+            {
+                "title": _("Lojas e acessos"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Cadastrar loja + usuário"),
+                        "icon": "person_add",
+                        "link": reverse_lazy("super_admin:tenants_tenant_add"),
+                    },
+                    {
+                        "title": _("Lojas"),
+                        "icon": "store",
+                        "link": reverse_lazy("super_admin:tenants_tenant_changelist"),
+                    },
+                    {
+                        "title": _("Usuários"),
+                        "icon": "group",
+                        "link": reverse_lazy("super_admin:accounts_user_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("Financeiro"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Assinaturas"),
+                        "icon": "subscriptions",
+                        "link": reverse_lazy("super_admin:billing_subscription_changelist"),
+                    },
+                    {
+                        "title": _("Cobranças"),
+                        "icon": "receipt_long",
+                        "link": reverse_lazy("super_admin:billing_invoice_changelist"),
+                    },
+                    {
+                        "title": _("Créditos e cortesias"),
+                        "icon": "redeem",
+                        "link": reverse_lazy("super_admin:billing_credit_changelist"),
+                    },
+                    {
+                        "title": _("Planos"),
+                        "icon": "sell",
+                        "link": reverse_lazy("super_admin:billing_plan_changelist"),
+                    },
+                    {
+                        "title": _("Serviços adicionais"),
+                        "icon": "add_business",
+                        "link": reverse_lazy("super_admin:billing_additionalservice_changelist"),
+                    },
+                    {
+                        "title": _("Contas de pagamento"),
+                        "icon": "account_balance",
+                        "link": reverse_lazy("super_admin:billing_tenantpaymentaccount_changelist"),
+                    },
+                    {
+                        "title": _("Configurações de cobrança"),
+                        "icon": "settings",
+                        "link": reverse_lazy("super_admin:billing_billingsettings_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("WhatsApp"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Painel Evolution API"),
+                        "icon": "chat",
+                        "link": reverse_lazy("super_admin:evolution_panel"),
+                    },
+                    {
+                        "title": _("Estado da integração"),
+                        "icon": "sync",
+                        "link": reverse_lazy("super_admin:integrations_whatsappintegrationstate_changelist"),
+                    },
+                    {
+                        "title": _("Eventos"),
+                        "icon": "history",
+                        "link": reverse_lazy("super_admin:integrations_whatsappintegrationevent_changelist"),
+                    },
+                    {
+                        "title": _("Alertas"),
+                        "icon": "notifications",
+                        "link": reverse_lazy("super_admin:integrations_whatsappalert_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("Marketplace"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Categorias"),
+                        "icon": "category",
+                        "link": reverse_lazy("super_admin:marketplace_marketplacecategory_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("Auditoria e segurança"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Eventos de segurança"),
+                        "icon": "security",
+                        "link": reverse_lazy("super_admin:accounts_securityevent_changelist"),
+                    },
+                    {
+                        "title": _("Auditoria financeira"),
+                        "icon": "fact_check",
+                        "link": reverse_lazy("super_admin:billing_billingaudit_changelist"),
+                    },
+                    {
+                        "title": _("Eventos de cobrança"),
+                        "icon": "event_note",
+                        "link": reverse_lazy("super_admin:billing_billingevent_changelist"),
+                    },
+                ],
+            },
+        ],
+    },
 }
 
 # Marketplace - reverse geocoding
@@ -501,8 +674,3 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(minute="*/5"),
     },
 }
-UNFOLD["SIDEBAR"]["navigation"].append({
-    "title": _("Assinatura"), "separator": True,
-    "items": [{"title": _("Minha assinatura"), "icon": "payments",
-               "link": reverse_lazy("tenant_admin:billing_dashboard")}],
-})

@@ -50,6 +50,13 @@ def user_after(sender, instance, created, raw=False, update_fields=None, **kwarg
             record_event("email_changed", scope="account", user_id=instance.pk, channel="email", identifier=instance.email)
         if (update_fields is None or "password" in update_fields) and previous["password"] != instance.password:
             record_event("password_changed", scope="account", user_id=instance.pk)
+            if instance.must_change_password:
+                # Uma senha nova encerra o fluxo de credencial temporária. QuerySet.update
+                # evita recursão do próprio signal e não grava nenhum segredo em auditoria.
+                User.objects.filter(pk=instance.pk, must_change_password=True).update(
+                    must_change_password=False
+                )
+                instance.must_change_password = False
 
 
 @receiver(pre_save, sender=Customer, dispatch_uid="security.customer.before")

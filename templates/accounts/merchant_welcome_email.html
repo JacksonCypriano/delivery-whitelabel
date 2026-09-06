@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bem-vindo ao VemDeDelivery</title>
+</head>
+<body style="margin:0;background:#f7f8f3;font-family:Arial,Helvetica,sans-serif;color:#173b32;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f7f8f3;padding:28px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #dfe5dc;border-radius:22px;overflow:hidden;">
+          <tr>
+            <td style="background:#173b32;padding:28px 34px;color:#ffffff;">
+              <div style="font-size:12px;letter-spacing:1.7px;text-transform:uppercase;color:#c0d2c2;font-weight:700;">VemDeDelivery</div>
+              <div style="font-size:28px;line-height:1.2;font-weight:800;margin-top:8px;">Sua loja já pode começar 🚀</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:34px;">
+              <p style="font-size:17px;line-height:1.6;margin:0 0 16px;">Olá{% if user.first_name %}, <strong>{{ user.first_name }}</strong>{% endif %}!</p>
+              <p style="font-size:15px;line-height:1.7;margin:0 0 24px;color:#52615b;">
+                A conta de administração da <strong>{{ tenant.name }}</strong> foi criada. Abaixo estão os dados para o seu primeiro acesso.
+              </p>
+
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f7f8f3;border:1px solid #dfe5dc;border-radius:16px;margin:0 0 24px;">
+                <tr>
+                  <td style="padding:20px 22px 8px;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#6b756f;font-weight:700;">Login</td>
+                </tr>
+                <tr>
+                  <td style="padding:0 22px 18px;font-size:17px;font-weight:700;color:#173b32;word-break:break-all;">{{ login }}</td>
+                </tr>
+                <tr>
+                  <td style="padding:0 22px 8px;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#6b756f;font-weight:700;">Senha temporária</td>
+                </tr>
+                <tr>
+                  <td style="padding:0 22px 22px;">
+                    <span style="display:inline-block;background:#ffffff;border:1px solid #dfe5dc;border-radius:10px;padding:11px 14px;font-family:Consolas,Monaco,monospace;font-size:17px;font-weight:700;color:#bd441d;letter-spacing:.4px;word-break:break-all;">{{ temporary_password }}</span>
+                  </td>
+                </tr>
+              </table>
+
+              <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 14px;">
+                <tr>
+                  <td style="background:#bd441d;border-radius:12px;">
+                    <a href="{{ admin_url }}" style="display:inline-block;padding:14px 22px;color:#ffffff;text-decoration:none;font-weight:800;font-size:15px;">Acessar painel da loja</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:13px;line-height:1.6;margin:0 0 24px;color:#69746e;">Painel: <a href="{{ admin_url }}" style="color:#173b32;">{{ admin_url }}</a></p>
+
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#edf2e6;border-radius:14px;margin:0 0 24px;">
+                <tr>
+                  <td style="padding:18px 20px;font-size:14px;line-height:1.65;color:#314b3f;">
+                    <strong>🔐 Primeiro acesso protegido</strong><br>
+                    Essa senha é temporária. Ao entrar no painel pela primeira vez, o sistema vai pedir automaticamente que você crie uma nova senha antes de liberar o restante do painel.
+                  </td>
+                </tr>
+              </table>
+
+              <p style="font-size:14px;line-height:1.7;margin:0 0 8px;color:#52615b;">Quer ver como sua loja aparece para os clientes?</p>
+              <p style="margin:0 0 28px;"><a href="{{ store_url }}" style="color:#bd441d;font-weight:800;text-decoration:none;">Ver minha loja →</a></p>
+              <p style="font-size:12px;line-height:1.7;margin:0;color:#7a8580;">Por segurança, não compartilhe sua senha. Se você não esperava receber este acesso, entre em contato com o responsável pelo cadastro da sua loja.</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="border-top:1px solid #e8ece7;padding:20px 34px;font-size:12px;color:#7a8580;text-align:center;">
+              VemDeDelivery · sua loja, seu cardápio, seus pedidos.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

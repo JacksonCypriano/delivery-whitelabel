@@ -47,6 +47,44 @@ class DashboardLoginView(APIView):
             record_event("rate_limited", scope="dashboard", request=request, identifier=username, reason="rate_limit")
             return Response({"error": "Muitas tentativas. Aguarde alguns minutos e tente novamente."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
 
+        # Credenciais temporárias são válidas, mas não podem gerar JWT.
+        # Fazemos esta checagem antes do authenticate() para que o primeiro
+        # acesso tenha semântica de autorização (403), e não de credencial
+        # inválida (401), sem liberar o painel/API.
+        temporary_user = (
+            User.objects.select_related("tenant")
+            .filter(username=username, is_active=True, must_change_password=True)
+            .first()
+        )
+        if temporary_user and temporary_user.check_password(password):
+            if (
+                not temporary_user.is_tenant_admin
+                or temporary_user.tenant != getattr(request, "tenant", None)
+            ):
+                record_event(
+                    "access_denied",
+                    scope="dashboard",
+                    request=request,
+                    user_id=temporary_user.pk,
+                    reason="not_allowed",
+                )
+                return Response({"error": "Acesso não autorizado"}, status=status.HTTP_403_FORBIDDEN)
+
+            record_event(
+                "access_denied",
+                scope="dashboard",
+                request=request,
+                user_id=temporary_user.pk,
+                reason="not_allowed",
+            )
+            return Response(
+                {
+                    "error": "Troque sua senha temporária no painel da loja antes de continuar.",
+                    "code": "password_change_required",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         user = authenticate(request=request, username=username, password=password)
         if not user:
             return Response({"error": "Credenciais inválidas"}, status=status.HTTP_401_UNAUTHORIZED)
@@ -54,6 +92,16 @@ class DashboardLoginView(APIView):
         if not user.is_tenant_admin or user.tenant != getattr(request, "tenant", None):
             record_event("access_denied", scope="dashboard", request=request, user_id=user.pk, reason="not_allowed")
             return Response({"error": "Acesso não autorizado"}, status=status.HTTP_403_FORBIDDEN)
+
+        if user.must_change_password:
+            record_event("access_denied", scope="dashboard", request=request, user_id=user.pk, reason="not_allowed")
+            return Response(
+                {
+                    "error": "Troque sua senha temporária no painel da loja antes de continuar.",
+                    "code": "password_change_required",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         clear_rate_limit(request, "dashboard-login", username)
         refresh = RefreshToken.for_user(user)
@@ -98,6 +146,12 @@ class DashboardRefreshView(APIView):
             if not user or not user.is_tenant_admin or user.tenant != getattr(request, "tenant", None):
                 record_event("access_denied", scope="dashboard", request=request, reason="not_allowed")
                 return Response({"error": "Token inválido"}, status=status.HTTP_401_UNAUTHORIZED)
+            if user.must_change_password:
+                record_event("access_denied", scope="dashboard", request=request, user_id=user.pk, reason="not_allowed")
+                return Response(
+                    {"error": "Troca de senha obrigatória", "code": "password_change_required"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
             record_event("token_refreshed", scope="dashboard", request=request, user_id=user.pk)
             return Response({"access": str(token.access_token)})
         except Exception:

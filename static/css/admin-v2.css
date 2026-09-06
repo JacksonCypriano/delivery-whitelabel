@@ -1,0 +1,204 @@
+/* ===========================================================================
+   Ajustes visuais do painel administrativo (django-unfold)
+   Carregado via UNFOLD["STYLES"] em config/settings/base.py
+   =========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Tabelas de listagem
+   -------------------------------------------------------------------------- */
+.unfold-table td,
+.unfold-table th {
+  vertical-align: middle;
+}
+
+/* --------------------------------------------------------------------------
+   Input de cor
+   -------------------------------------------------------------------------- */
+input[type="color"] {
+  min-height: 2.25rem;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+/* --------------------------------------------------------------------------
+   Badge de status de pedido
+   -------------------------------------------------------------------------- */
+.order-status-badge {
+  display: inline-block;
+  padding: 0.2rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.4rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* --------------------------------------------------------------------------
+   Fix: campos de formulário invisíveis no tema dark do django-unfold
+   Cobre classes Django nativas (vTextField, etc.) e inputs sem classe
+   -------------------------------------------------------------------------- */
+
+.vTextField,
+.vLargeTextField,
+.vURLField,
+.vIntegerField,
+.vForeignKeyRawIdAdminField,
+.grow > input[type="text"],
+.grow > input[type="number"],
+.grow > input[type="email"],
+.grow > input[type="url"],
+.grow > input[type="password"],
+.grow > input[type="search"],
+.grow > input[type="tel"],
+.grow > input[type="date"],
+.grow > input[type="time"],
+.grow > textarea,
+#main input[type="text"],
+#main input[type="number"],
+#main input[type="email"],
+#main input[type="url"],
+#main input[type="password"],
+#main input[type="search"],
+#main input[type="tel"],
+#main input[type="date"],
+#main input[type="time"],
+#main textarea,
+#main select {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-base-700) !important;
+  background-color: var(--color-base-950) !important;
+  color: var(--color-base-100) !important;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Focus */
+.vTextField:focus,
+.vLargeTextField:focus,
+.grow > input:focus,
+.grow > textarea:focus,
+#main input:focus,
+#main textarea:focus,
+#main select:focus {
+  border-color: var(--color-primary-500) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-primary-500) 20%, transparent) !important;
+}
+
+/* Placeholder */
+.vTextField::placeholder,
+.vLargeTextField::placeholder,
+.grow > input::placeholder,
+.grow > textarea::placeholder,
+#main input::placeholder,
+#main textarea::placeholder {
+  color: var(--color-base-500) !important;
+  opacity: 1 !important;
+}
+
+/* Select options */
+#main select option {
+  background-color: var(--color-base-950) !important;
+  color: var(--color-base-100) !important;
+}
+
+/* Input file */
+.grow > input[type="file"],
+#main input[type="file"] {
+  color: var(--color-base-300) !important;
+  font-size: 0.875rem;
+  padding: 0.4rem 0;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   Controles de formulário sempre visíveis
+   --------------------------------------------------------------------------
+   Os dois AdminSite (lojista e superadmin) podem renderizar campos vindos de
+   ModelForm customizado sem todas as classes do Unfold. Por isso a regra
+   abaixo cobre também widgets Django puros. Excluímos apenas controles que
+   não devem parecer caixas de texto (checkbox, radio, hidden, botões e file).
+   -------------------------------------------------------------------------- */
+body input[type="text"],
+body input[type="number"],
+body input[type="email"],
+body input[type="url"],
+body input[type="password"],
+body input[type="search"],
+body input[type="tel"],
+body input[type="date"],
+body input[type="time"],
+body input[type="datetime-local"],
+body input[type="month"],
+body input[type="week"],
+body textarea,
+body select,
+body .select2-container .select2-selection {
+  min-height: 2.5rem;
+  border: 1px solid var(--color-base-300) !important;
+  border-radius: 6px !important;
+  background: #ffffff !important;
+  color: var(--color-base-900) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06) !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.dark body input[type="text"],
+.dark body input[type="number"],
+.dark body input[type="email"],
+.dark body input[type="url"],
+.dark body input[type="password"],
+.dark body input[type="search"],
+.dark body input[type="tel"],
+.dark body input[type="date"],
+.dark body input[type="time"],
+.dark body input[type="datetime-local"],
+.dark body input[type="month"],
+.dark body input[type="week"],
+.dark body textarea,
+.dark body select,
+.dark body .select2-container .select2-selection {
+  border-color: var(--color-base-600) !important;
+  background: var(--color-base-900) !important;
+  color: var(--color-base-100) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25) !important;
+}
+
+body input[type="text"]:focus,
+body input[type="number"]:focus,
+body input[type="email"]:focus,
+body input[type="url"]:focus,
+body input[type="password"]:focus,
+body input[type="search"]:focus,
+body input[type="tel"]:focus,
+body input[type="date"]:focus,
+body input[type="time"]:focus,
+body input[type="datetime-local"]:focus,
+body input[type="month"]:focus,
+body input[type="week"]:focus,
+body textarea:focus,
+body select:focus,
+body .select2-container--focus .select2-selection,
+body .select2-container--open .select2-selection {
+  border-color: var(--color-primary-500) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-primary-500) 22%, transparent) !important;
+  outline: none !important;
+}
+
+/* Campos somente leitura continuam distinguíveis, mas nunca transparentes. */
+body input[readonly]:not([type="checkbox"]):not([type="radio"]),
+body textarea[readonly],
+body select:disabled,
+body input:disabled:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) {
+  opacity: 0.78 !important;
+}

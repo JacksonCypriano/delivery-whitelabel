@@ -200,7 +200,7 @@ class FinalAdminTests(CriticalTestCase):
     def test_online_payment_uses_versioned_button_asset_and_hides_checkbox(self):
         form = TenantPaymentAccountForm()
         self.assertIn("display:none", form.fields["enabled"].widget.attrs["style"])
-        self.assertEqual(form.media._js, ["js/admin/payment-account-v4.js"])
+        self.assertEqual(form.media._js, ["js/admin/payment-account-v7.js"])
 
     def test_coupon_redemptions_list_uses_related_tenant_scope(self):
         from apps.coupons.models import CouponRedemption

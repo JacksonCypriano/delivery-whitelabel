@@ -1,0 +1,205 @@
+/* Recebimento online: layout compacto e progressivo no admin do lojista. */
+.payment-account-inline .payment-online-control-section,
+.payment-account-inline .payment-online-details-section {
+    max-width: 920px;
+}
+
+.payment-account-inline .payment-online-control-section .form-row,
+.payment-account-inline .payment-online-details-section .form-row {
+    max-width: 760px;
+}
+
+.payment-account-inline .payment-online-details-section .form-row {
+    margin-bottom: 8px;
+}
+
+.payment-account-inline .payment-online-details-section input:not([type="checkbox"]):not([type="hidden"]),
+.payment-account-inline .payment-online-details-section select,
+.payment-account-inline .payment-online-details-section textarea {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 640px;
+    min-height: 40px;
+    border-width: 1px;
+    border-style: solid;
+}
+
+/* Campos naturalmente curtos não precisam ocupar a largura inteira. */
+.payment-account-inline input[name$="-document"],
+.payment-account-inline input[name$="-mobile_phone"],
+.payment-account-inline input[name$="-phone"],
+.payment-account-inline input[name$="-birth_date"],
+.payment-account-inline input[name$="-postal_code"],
+.payment-account-inline input[name$="-address_number"],
+.payment-account-inline input[name$="-income_value"],
+.payment-account-inline select[name$="-company_type"] {
+    max-width: 300px;
+}
+
+.payment-account-inline input[name$="-postal_code"] {
+    max-width: 190px;
+}
+
+.payment-account-inline input[name$="-address_number"] {
+    max-width: 180px;
+}
+
+.payment-account-inline input[name$="-birth_date"] {
+    max-width: 230px;
+}
+
+.payment-account-inline .payment-online-control-source,
+.payment-account-inline .payment-status-source {
+    display: none !important;
+}
+
+.payment-online-compact {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 2px;
+}
+
+.payment-online-compact-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.payment-online-switch {
+    position: relative;
+    width: 46px;
+    height: 26px;
+    flex: 0 0 46px;
+    padding: 0;
+    border: 1px solid #94a3b8;
+    border-radius: 999px;
+    background: #e2e8f0;
+    cursor: pointer;
+    transition: background .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+
+.payment-online-switch::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: #ffffff;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, .25);
+    transition: transform .16s ease;
+}
+
+.payment-online-switch[aria-checked="true"] {
+    border-color: #c8471e;
+    background: #c8471e;
+}
+
+.payment-online-switch[aria-checked="true"]::after {
+    transform: translateX(20px);
+}
+
+.payment-online-switch:focus-visible {
+    outline: 2px solid #c8471e;
+    outline-offset: 3px;
+}
+
+.payment-online-label {
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.payment-online-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 2px 9px;
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    background: #f8fafc;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.payment-online-status.is-on {
+    border-color: #bbf7d0;
+    background: #f0fdf4;
+    color: #166534;
+}
+
+.payment-online-note {
+    margin: 0;
+    max-width: 720px;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.payment-cep-status {
+    margin: 7px 0 0;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #64748b;
+}
+
+.payment-cep-status.is-success { color: #15803d; }
+.payment-cep-status.is-error { color: #b91c1c; }
+.payment-cep-status.is-loading { color: #475569; }
+
+@media (prefers-color-scheme: dark) {
+    .payment-online-switch {
+        border-color: #64748b;
+        background: #334155;
+    }
+
+    .payment-online-status {
+        border-color: #475569;
+        background: rgba(255,255,255,.04);
+        color: #cbd5e1;
+    }
+
+    .payment-online-status.is-on {
+        border-color: #166534;
+        background: rgba(22, 101, 52, .18);
+        color: #bbf7d0;
+    }
+
+    .payment-online-note,
+    .payment-cep-status {
+        color: #94a3b8;
+    }
+}
+
+@media (max-width: 767px) {
+    .payment-account-inline .payment-online-details-section input:not([type="checkbox"]):not([type="hidden"]),
+    .payment-account-inline .payment-online-details-section select,
+    .payment-account-inline .payment-online-details-section textarea {
+        max-width: 100%;
+    }
+
+    .payment-online-compact-main {
+        align-items: flex-start;
+    }
+}
+
+/* v8: o Unfold não usa .inline-related em todas as versões/layouts.
+   Os detalhes ficam ocultos até o controle progressivo inicializar e decidir
+   que enabled + terms_accepted estão ativos. */
+.payment-account-inline .payment-online-details-section {
+    display: none;
+}
+
+.payment-account-inline.payment-online-details-visible .payment-online-details-section,
+.payment-online-details-visible .payment-online-details-section {
+    display: block;
+}
+
+.payment-account-inline .payment-online-compact {
+    display: flex;
+}

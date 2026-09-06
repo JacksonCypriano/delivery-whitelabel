@@ -1,4 +1,5 @@
 import re
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core import mail
@@ -66,6 +67,13 @@ class MerchantInitialAccessCriticalTests(CriticalTestCase):
         match = re.search(r"Senha temporária: ([^\s]+)", message.body)
         self.assertIsNotNone(match)
         self.assertTrue(user.check_password(match.group(1)))
+
+    @patch("apps.accounts.admin.generate_temporary_password", return_value="Abc123&Senha!XY")
+    def test_plain_text_welcome_email_preserves_temporary_password_exactly(self, _generate):
+        user = self._create_merchant_through_admin()
+        self.assertIn("Senha temporária: Abc123&Senha!XY", mail.outbox[0].body)
+        self.assertNotIn("Abc123&amp;Senha!XY", mail.outbox[0].body)
+        self.assertTrue(user.check_password("Abc123&Senha!XY"))
 
     def test_first_login_is_redirected_to_password_change(self):
         user = self._create_merchant_through_admin()

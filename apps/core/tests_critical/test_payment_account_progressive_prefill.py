@@ -36,7 +36,9 @@ class PaymentAccountProgressivePrefillCriticalTests(TestCase):
         form = TenantPaymentAccountForm(tenant_context=self.tenant)
         self.assertEqual(form.initial["legal_name"], "Maria Silva")
         self.assertEqual(form.initial["email"], "lojista-prefill@example.com")
-        self.assertEqual(form.initial["mobile_phone"], "5511999993333")
+        # O formulário já apresenta o telefone no padrão consumido pelo Asaas:
+        # DDD + número, sem o código do país 55.
+        self.assertEqual(form.initial["mobile_phone"], "11999993333")
         self.assertEqual(form.initial["postal_code"], "06653-000")
         self.assertEqual(form.initial["address"], "Rua do Cadastro")
         self.assertEqual(form.initial["address_number"], "321")
@@ -73,7 +75,7 @@ class PaymentAccountProgressivePrefillCriticalTests(TestCase):
 
     def test_birth_date_uses_native_date_input(self):
         form = TenantPaymentAccountForm(tenant_context=self.tenant)
-        self.assertEqual(form.fields["birth_date"].widget.attrs.get("type"), "date")
+        self.assertEqual(form.fields["birth_date"].widget.input_type, "date")
 
     def test_details_sections_are_marked_for_progressive_reveal(self):
         sections = {

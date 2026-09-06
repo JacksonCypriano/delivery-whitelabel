@@ -114,5 +114,5 @@ class AdminFormVisibilityAndSaleChannelCriticalTests(TestCase):
 
         self.assertTrue(tenant_styles)
         self.assertTrue(super_styles)
-        self.assertEqual(tenant_styles[0](None), "/static/css/admin-v2.css")
-        self.assertEqual(super_styles[0](None), "/static/css/admin-v2.css")
+        self.assertEqual(tenant_styles[0](None), "/static/css/admin.css")
+        self.assertEqual(super_styles[0](None), "/static/css/admin.css")

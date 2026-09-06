@@ -203,3 +203,102 @@
 .payment-account-inline .payment-online-compact {
     display: flex;
 }
+
+/* v9: acabamento visual do bloco de recebimento online. */
+.payment-account-inline .inline-related > h3,
+.payment-account-inline h3.inline-heading {
+    display: none !important;
+}
+
+.payment-account-inline .payment-online-control-section {
+    box-sizing: border-box;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    padding-bottom: 14px !important;
+}
+
+.payment-account-inline .payment-online-control-section > h2,
+.payment-account-inline .payment-online-control-section > legend {
+    margin-left: 0 !important;
+}
+
+.payment-online-compact {
+    box-sizing: border-box;
+    width: min(100%, 760px);
+    margin: 8px 0 4px !important;
+    padding: 14px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: rgba(248, 250, 252, .72);
+    gap: 7px;
+}
+
+.payment-online-compact-main {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 46px minmax(220px, 1fr) auto;
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 8px;
+}
+
+.payment-online-label {
+    margin: 0;
+}
+
+.payment-online-status {
+    justify-self: end;
+    white-space: nowrap;
+}
+
+.payment-online-note {
+    box-sizing: border-box;
+    margin: 0 0 0 58px;
+    max-width: calc(100% - 58px);
+}
+
+@media (prefers-color-scheme: dark) {
+    .payment-online-compact {
+        border-color: #334155;
+        background: rgba(255,255,255,.025);
+    }
+}
+
+@media (max-width: 767px) {
+    .payment-account-inline .payment-online-control-section {
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+    }
+
+    .payment-online-compact {
+        padding: 12px;
+    }
+
+    .payment-online-compact-main {
+        grid-template-columns: 46px minmax(0, 1fr);
+    }
+
+    .payment-online-status {
+        grid-column: 2;
+        justify-self: start;
+    }
+
+    .payment-online-note {
+        margin-left: 58px;
+        max-width: calc(100% - 58px);
+    }
+}
+
+/* Campos guiados pela referência do Asaas. */
+.payment-account-inline .payment-online-details-section .help,
+.payment-account-inline .payment-online-details-section .helptext,
+.payment-account-inline .payment-online-details-section p.help {
+    max-width: 640px;
+    margin-top: 5px;
+    line-height: 1.45;
+}
+
+.payment-account-inline select[name$="-company_type"] {
+    min-width: 300px;
+    max-width: 420px;
+}

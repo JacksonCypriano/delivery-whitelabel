@@ -35,10 +35,10 @@ class PaymentAccountLayoutCepCriticalTests(TestCase):
             ("postal_code", "address", "address_number", "complement", "province"),
         )
 
-    def test_form_uses_v9_assets_and_cep_marker(self):
+    def test_form_uses_stable_assets_and_cep_marker(self):
         form = TenantPaymentAccountForm()
-        self.assertEqual(form.media._js, ["js/admin/payment-account-v9.js"])
-        self.assertIn("css/admin/payment-account-v9.css", form.media._css.get("all", []))
+        self.assertEqual(form.media._js, ["js/admin/payment-account.js"])
+        self.assertIn("css/admin/payment-account.css", form.media._css.get("all", []))
         self.assertEqual(form.fields["postal_code"].widget.attrs["data-payment-cep"], "1")
         self.assertEqual(form.fields["postal_code"].widget.attrs["placeholder"], "00000-000")
 
@@ -54,20 +54,20 @@ class PaymentAccountLayoutCepCriticalTests(TestCase):
         self.assertEqual(inline.get_extra(request, self.tenant), 1)
 
 
-class PaymentAccountProgressiveAssetsV9CriticalTests(TestCase):
-    def test_v9_initializes_from_enabled_field_instead_of_inline_related(self):
-        js = (Path(settings.BASE_DIR) / "static/js/admin/payment-account-v9.js").read_text(encoding="utf-8")
+class PaymentAccountProgressiveAssetsCriticalTests(TestCase):
+    def test_initializes_from_enabled_field_instead_of_inline_related(self):
+        js = (Path(settings.BASE_DIR) / "static/js/admin/payment-account.js").read_text(encoding="utf-8")
         self.assertIn("input.payment-online-toggle", js)
         self.assertIn("inlineRootFor(enabledInput)", js)
         self.assertNotIn("querySelectorAll('.payment-account-inline .inline-related')", js)
 
-    def test_v9_hides_detail_sections_until_progressive_flow_is_active(self):
-        css = (Path(settings.BASE_DIR) / "static/css/admin/payment-account-v9.css").read_text(encoding="utf-8")
+    def test_hides_detail_sections_until_progressive_flow_is_active(self):
+        css = (Path(settings.BASE_DIR) / "static/css/admin/payment-account.css").read_text(encoding="utf-8")
         self.assertIn(".payment-account-inline .payment-online-details-section", css)
         self.assertIn(".payment-online-details-visible", css)
 
 
-class PaymentAccountCompactHeaderV9CriticalTests(TestCase):
+class PaymentAccountCompactHeaderCriticalTests(TestCase):
     def test_status_is_not_rendered_as_separate_form_row(self):
         control_fields = None
         for title, options in TenantPaymentAccountInline.fieldsets:
@@ -92,9 +92,9 @@ class PaymentAccountCompactHeaderV9CriticalTests(TestCase):
             account.get_status_display(),
         )
 
-    def test_v9_hides_technical_inline_heading_and_aligns_compact_card(self):
-        js = (Path(settings.BASE_DIR) / "static/js/admin/payment-account-v9.js").read_text(encoding="utf-8")
-        css = (Path(settings.BASE_DIR) / "static/css/admin/payment-account-v9.css").read_text(encoding="utf-8")
+    def test_hides_technical_inline_heading_and_aligns_compact_card(self):
+        js = (Path(settings.BASE_DIR) / "static/js/admin/payment-account.js").read_text(encoding="utf-8")
+        css = (Path(settings.BASE_DIR) / "static/css/admin/payment-account.css").read_text(encoding="utf-8")
         self.assertIn("hideTechnicalInlineHeading", js)
         self.assertIn("data-payment-account-status", (Path(settings.BASE_DIR) / "apps/tenants/admin.py").read_text(encoding="utf-8"))
         self.assertIn("grid-template-columns: 46px", css)

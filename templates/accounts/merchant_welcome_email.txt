@@ -4,7 +4,7 @@ Sua loja {{ tenant.name }} já tem acesso ao VemDeDelivery.
 
 DADOS DO PRIMEIRO ACESSO
 Login: {{ login }}
-Senha temporária: {{ temporary_password }}
+Senha temporária: {{ temporary_password|safe }}
 
 Painel da loja: {{ admin_url }}
 Link da sua loja: {{ store_url }}

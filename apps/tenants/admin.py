@@ -12,6 +12,12 @@ from .choices import SaleMode
 from apps.billing.models import TenantPaymentAccount
 from apps.billing.online import request_subaccount
 from apps.billing.provider import BillingError
+from apps.billing.asaas_fields import (
+    COMPANY_TYPE_CHOICES,
+    clean_document as clean_asaas_document,
+    document_kind,
+    normalize_brazilian_phone,
+)
 
 
 class TenantCreateForm(forms.ModelForm):
@@ -242,6 +248,44 @@ class BusinessHourInline(TenantInlineMixin, TabularInline):
 
 
 class TenantPaymentAccountForm(forms.ModelForm):
+    # Campos declarados explicitamente para a interface seguir a referência do
+    # Asaas sem transformar a decisão de ativar em obrigatoriedade permanente
+    # quando o recebimento online está desligado.
+    document = forms.CharField(
+        label="CPF / CNPJ",
+        required=False,
+        max_length=18,
+        help_text="CPF: 000.000.000-00. CNPJ: 00.000.000/0000-00. A pontuação é apenas visual; o sistema envia o documento normalizado ao Asaas.",
+    )
+    mobile_phone = forms.CharField(
+        label="Celular",
+        required=False,
+        max_length=20,
+        help_text="Informe DDD + número. Ex.: (11) 99999-9999. Se o cadastro tiver +55, o sistema remove o código do país antes de enviar ao Asaas.",
+    )
+    phone = forms.CharField(
+        label="Telefone fixo",
+        required=False,
+        max_length=20,
+        help_text="Opcional. Informe DDD + número. Ex.: (11) 3230-0606.",
+    )
+    company_type = forms.ChoiceField(
+        label="Tipo de empresa",
+        required=False,
+        choices=COMPANY_TYPE_CHOICES,
+        help_text="Obrigatório para CNPJ. Escolha a natureza aceita pelo cadastro de subconta do Asaas.",
+    )
+    income_value = forms.DecimalField(
+        label="Faturamento / renda mensal",
+        required=False,
+        min_value=0.01,
+        max_digits=12,
+        decimal_places=2,
+        localize=True,
+        widget=forms.TextInput(),
+        help_text="Obrigatório. Informe o faturamento mensal (CNPJ) ou renda mensal (CPF), em reais. Ex.: 25000,00.",
+    )
+
     class Meta:
         model = TenantPaymentAccount
         fields = "__all__"
@@ -249,24 +293,26 @@ class TenantPaymentAccountForm(forms.ModelForm):
     def __init__(self, *args, tenant_context=None, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # A conta já existente é sempre a fonte principal. Para o primeiro
-        # cadastro, reaproveitamos o que a plataforma já conhece sobre a loja,
-        # evitando pedir a mesma informação duas vezes ao lojista.
         tenant = tenant_context
         if tenant is None and getattr(self.instance, "tenant_id", None):
             tenant = self.instance.tenant
 
         self.fields["enabled"].label = "Quero receber pagamentos online além do WhatsApp"
         self.fields["enabled"].help_text = ""
-        self.fields["enabled"].widget.attrs["class"] = "payment-online-toggle"
-        # O controle visual é um switch compacto criado pelo JavaScript. O
-        # checkbox original permanece apenas para transportar o valor no POST.
-        self.fields["enabled"].widget.attrs["style"] = "display:none !important;"
-        self.fields["enabled"].widget.attrs["data-payment-account-status"] = (
-            self.instance.get_status_display()
-            if getattr(self.instance, "pk", None)
-            else ""
-        )
+        self.fields["enabled"].widget.attrs.update({
+            "class": "payment-online-toggle",
+            "style": "display:none !important;",
+            "data-payment-account-status": (
+                self.instance.get_status_display()
+                if getattr(self.instance, "pk", None)
+                else ""
+            ),
+            # Estado realmente persistido. O JS usa este valor para que uma
+            # tentativa não salva nunca finja estar ativa ao voltar à tela.
+            "data-payment-account-saved-enabled": (
+                "1" if bool(getattr(self.instance, "enabled", False)) else "0"
+            ),
+        })
         self.fields["terms_accepted"].label = "Condições aceitas"
         self.fields["terms_accepted"].widget = forms.HiddenInput()
 
@@ -281,8 +327,38 @@ class TenantPaymentAccountForm(forms.ModelForm):
                 f"{current_class} payment-onboarding-field".strip()
             )
 
-        # Widget nativo de data evita o antigo alinhamento com atalhos do
-        # calendário do admin (o "|" que aparecia ao lado do campo).
+        self.fields["legal_name"].help_text = (
+            "Use o nome completo (CPF) ou a razão social (CNPJ) exatamente como consta no documento."
+        )
+        self.fields["legal_name"].widget.attrs.update({
+            "placeholder": "Nome completo ou razão social",
+            "autocomplete": "name",
+        })
+        self.fields["email"].help_text = (
+            "O Asaas utiliza este e-mail na ativação da subconta. Confira antes de salvar."
+        )
+        self.fields["email"].widget.attrs.update({
+            "placeholder": "financeiro@loja.com.br",
+            "autocomplete": "email",
+        })
+        self.fields["document"].widget.attrs.update({
+            "placeholder": "000.000.000-00 ou 00.000.000/0000-00",
+            "autocomplete": "off",
+            "data-payment-document": "1",
+        })
+        self.fields["mobile_phone"].widget.attrs.update({
+            "placeholder": "(11) 99999-9999",
+            "inputmode": "tel",
+            "autocomplete": "tel",
+            "data-payment-phone": "mobile",
+        })
+        self.fields["phone"].widget.attrs.update({
+            "placeholder": "(11) 3230-0606",
+            "inputmode": "tel",
+            "autocomplete": "tel",
+            "data-payment-phone": "landline",
+        })
+
         self.fields["birth_date"].widget = forms.DateInput(
             format="%Y-%m-%d",
             attrs={
@@ -292,7 +368,16 @@ class TenantPaymentAccountForm(forms.ModelForm):
             },
         )
         self.fields["birth_date"].input_formats = ["%Y-%m-%d", "%d/%m/%Y"]
+        self.fields["birth_date"].help_text = "Obrigatório somente quando o titular for pessoa física (CPF)."
 
+        self.fields["income_value"].widget.attrs.update({
+            "placeholder": "Ex.: 25000,00",
+            "inputmode": "decimal",
+            "autocomplete": "off",
+        })
+        self.fields["postal_code"].help_text = (
+            "Informe um CEP válido. O Asaas usa o CEP para identificar a cidade e pode recusar um CEP não localizado."
+        )
         self.fields["postal_code"].widget.attrs.update({
             "placeholder": "00000-000",
             "inputmode": "numeric",
@@ -303,13 +388,16 @@ class TenantPaymentAccountForm(forms.ModelForm):
             "placeholder": "Preenchido automaticamente pelo CEP",
             "autocomplete": "street-address",
         })
+        self.fields["address_number"].help_text = "Obrigatório. Informe o número do endereço; quando aplicável, use S/N."
         self.fields["address_number"].widget.attrs.update({
-            "placeholder": "Número",
+            "placeholder": "Ex.: 544",
             "autocomplete": "address-line2",
         })
+        self.fields["complement"].help_text = "Opcional. Ex.: Sala 502, Fundos, Loja 2."
         self.fields["complement"].widget.attrs.update({
             "placeholder": "Complemento (opcional)",
         })
+        self.fields["province"].help_text = "Bairro do endereço. Normalmente é preenchido automaticamente pelo CEP."
         self.fields["province"].widget.attrs.update({
             "placeholder": "Preenchido automaticamente pelo CEP",
         })
@@ -328,9 +416,6 @@ class TenantPaymentAccountForm(forms.ModelForm):
         self.initial[field_name] = value
 
     def _prefill_from_existing_data(self, tenant):
-        # Dados financeiros já informados ao comprar a assinatura são os mais
-        # confiáveis para nome/documento/e-mail e têm prioridade sobre os dados
-        # genéricos da loja.
         from apps.billing.models import BillingCustomer
 
         billing_customer = (
@@ -358,10 +443,14 @@ class TenantPaymentAccountForm(forms.ModelForm):
             "email",
             (billing_customer.email if billing_customer else "") or merchant_email,
         )
-        self._set_initial_if_blank("mobile_phone", tenant.whatsapp_number)
+        # O cadastro da loja usa 55 + DDD + telefone. Para o campo Asaas
+        # mostramos DDD + número e o backend normaliza novamente no envio.
+        try:
+            mobile = normalize_brazilian_phone(tenant.whatsapp_number, mobile=True)
+        except ValueError:
+            mobile = tenant.whatsapp_number
+        self._set_initial_if_blank("mobile_phone", mobile)
 
-        # O endereço de retirada normalmente já foi preenchido durante o
-        # onboarding da loja e pode ser reutilizado no cadastro da subconta.
         self._set_initial_if_blank("postal_code", tenant.pickup_zip_code)
         self._set_initial_if_blank("address", tenant.pickup_address)
         self._set_initial_if_blank("address_number", tenant.pickup_number)
@@ -369,16 +458,70 @@ class TenantPaymentAccountForm(forms.ModelForm):
         self._set_initial_if_blank("province", tenant.pickup_neighborhood)
 
     class Media:
-        css = {"all": ("css/admin/payment-account-v9.css",)}
-        js = ("js/admin/payment-account-v9.js",)
+        css = {"all": ("css/admin/payment-account.css",)}
+        js = ("js/admin/payment-account.js",)
+
 
     def clean(self):
         cleaned = super().clean()
-        if cleaned.get("enabled") and not cleaned.get("terms_accepted"):
+        if not cleaned.get("enabled"):
+            return cleaned
+
+        # Só validamos os dados Asaas quando o lojista está realmente
+        # solicitando o recebimento online. Com o switch desligado, os campos
+        # ficam preservados sem bloquear outras alterações da loja.
+        document = cleaned.get("document", "")
+        if document:
+            try:
+                cleaned["document"] = clean_asaas_document(document)
+            except ValueError as exc:
+                self.add_error("document", str(exc))
+
+        mobile_phone = cleaned.get("mobile_phone", "")
+        if mobile_phone:
+            try:
+                cleaned["mobile_phone"] = normalize_brazilian_phone(
+                    mobile_phone, required=False, mobile=True
+                )
+            except ValueError as exc:
+                self.add_error("mobile_phone", str(exc))
+
+        phone = cleaned.get("phone", "")
+        if phone:
+            try:
+                cleaned["phone"] = normalize_brazilian_phone(
+                    phone, required=False, mobile=False
+                )
+            except ValueError as exc:
+                self.add_error("phone", str(exc))
+
+        if not cleaned.get("terms_accepted"):
             self.add_error(
                 "terms_accepted",
                 "Leia o aviso e confirme a concordância antes de ativar o pagamento online.",
             )
+
+        required_labels = {
+            "legal_name": "Informe o nome completo ou a razão social.",
+            "document": "Informe um CPF ou CNPJ válido.",
+            "email": "Informe o e-mail que será usado na ativação da conta Asaas.",
+            "mobile_phone": "Informe o celular com DDD.",
+            "income_value": "Informe o faturamento ou a renda mensal.",
+            "postal_code": "Informe o CEP.",
+            "address": "Informe o logradouro.",
+            "address_number": "Informe o número do endereço.",
+            "province": "Informe o bairro.",
+        }
+        for field_name, message in required_labels.items():
+            if cleaned.get(field_name) in (None, "") and field_name not in self.errors:
+                self.add_error(field_name, message)
+
+        kind = document_kind(cleaned.get("document"))
+        if kind == "CPF" and not cleaned.get("birth_date"):
+            self.add_error("birth_date", "A data de nascimento é obrigatória para cadastro com CPF.")
+        elif kind == "CNPJ" and not cleaned.get("company_type"):
+            self.add_error("company_type", "Selecione o tipo da empresa para cadastro com CNPJ.")
+
         return cleaned
 
 

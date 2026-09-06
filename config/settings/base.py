@@ -286,7 +286,7 @@ UNFOLD = {
     #     "form": "app.forms.CustomLoginForm",
     # },
     "STYLES": [
-        lambda request: "/static/css/admin-v2.css",
+        lambda request: "/static/css/admin.css",
     ],
     "BORDER_RADIUS": "6px",
     "COLORS": {
@@ -451,7 +451,7 @@ UNFOLD = {
 UNFOLD_SUPER = {
     "SITE_TITLE": "Administração global",
     "STYLES": [
-        lambda request: "/static/css/admin-v2.css",
+        lambda request: "/static/css/admin.css",
     ],
     "SITE_HEADER": "Painel Global",
     "SITE_SUBHEADER": "Gestão do VemDeDelivery",

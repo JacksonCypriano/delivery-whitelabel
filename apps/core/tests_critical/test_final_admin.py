@@ -197,10 +197,10 @@ class FinalAdminTests(CriticalTestCase):
         )
         self.assertTrue(all(not inline.has_change_permission(self.request, self.tenant_b) for inline in inlines))
 
-    def test_online_payment_uses_versioned_button_asset_and_hides_checkbox(self):
+    def test_online_payment_uses_stable_button_asset_and_hides_checkbox(self):
         form = TenantPaymentAccountForm()
         self.assertIn("display:none", form.fields["enabled"].widget.attrs["style"])
-        self.assertEqual(form.media._js, ["js/admin/payment-account-v4.js"])
+        self.assertEqual(form.media._js, ["js/admin/payment-account.js"])
 
     def test_coupon_redemptions_list_uses_related_tenant_scope(self):
         from apps.coupons.models import CouponRedemption

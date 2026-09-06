@@ -91,9 +91,27 @@ class Asaas:
                 allow_redirects=False,
                 **kwargs
             )
-            if r.status_code in (400, 401, 403, 422):
+            if r.status_code in (400, 422):
+                detail = ""
+                try:
+                    body = r.json()
+                    errors = body.get("errors", []) if isinstance(body, dict) else []
+                    descriptions = [
+                        str(item.get("description") or "").strip()
+                        for item in errors
+                        if isinstance(item, dict) and item.get("description")
+                    ]
+                    if descriptions:
+                        detail = " ".join(descriptions[:3])[:600]
+                except (ValueError, TypeError):
+                    detail = ""
                 raise ProviderRejected(
-                    "O Asaas recusou a operação. Confira os dados do pagador e a configuração da conta antes de tentar novamente."
+                    "O Asaas recusou os dados informados."
+                    + ((" " + detail) if detail else " Confira os campos e tente novamente.")
+                )
+            if r.status_code in (401, 403):
+                raise ProviderRejected(
+                    "O Asaas recusou a operação. Confira a configuração e as credenciais da integração."
                 )
             if r.status_code >= 400 or r.status_code < 200 or r.status_code >= 300:
                 raise ProviderUnavailable(

@@ -30,6 +30,18 @@ class User(AbstractUser):
         verbose_name="Administrador da loja",
     )
 
+    must_change_password = models.BooleanField(
+        default=False,
+        verbose_name="Troca de senha obrigatória",
+        help_text="Quando ativo, o lojista precisa definir uma nova senha antes de usar o painel.",
+    )
+
+    welcome_email_sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="E-mail de boas-vindas enviado em",
+    )
+
     def clean(self):
         super().clean()
 

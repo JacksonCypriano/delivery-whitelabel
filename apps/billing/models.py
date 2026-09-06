@@ -319,7 +319,21 @@ class TenantPaymentAccount(models.Model):
             self.terms_accepted_at = timezone.now()
         if not self.terms_accepted:
             self.enabled = False
+
         super().save(*args, **kwargs)
+
+        # sale_mode é um estado interno derivado da decisão do lojista.
+        # A loja sempre continua aceitando o fluxo via WhatsApp; quando a
+        # subconta é habilitada, também liberamos o pagamento online.
+        from apps.tenants.choices import SaleMode
+        from apps.tenants.models import Tenant
+
+        desired_sale_mode = (
+            SaleMode.ONLINE if self.is_ready else SaleMode.WHATSAPP
+        )
+        Tenant.objects.filter(pk=self.tenant_id).exclude(
+            sale_mode=desired_sale_mode
+        ).update(sale_mode=desired_sale_mode)
 
     def get_api_key(self):
         from .secrets import decrypt_secret

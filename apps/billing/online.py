@@ -10,6 +10,12 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .models import OrderPayment, TenantPaymentAccount
+from .asaas_fields import (
+    COMPANY_TYPES,
+    clean_document as clean_asaas_document,
+    document_kind,
+    normalize_brazilian_phone,
+)
 from .provider import Asaas, BillingError, configured, environment, payment_url, valid_id
 
 
@@ -137,54 +143,95 @@ def sync_pending_subaccounts(limit=50):
             log.warning("Subconta aguardando consulta no Asaas. account_id=%s", account.pk)
 
 
+def _disable_failed_activation(account, message):
+    """Persist a failed activation attempt as OFF without losing accepted terms/data."""
+    account.refresh_from_db()
+    account.enabled = False
+    account.status = TenantPaymentAccount.Status.ERROR
+    account.last_error = str(message or "Falha ao solicitar a subconta.")[:500]
+    account.save(update_fields=["enabled", "status", "last_error", "updated_at"])
+    return account
+
+
 def request_subaccount(account):
     """Create the Asaas subaccount once, keeping the returned API key encrypted."""
-    if not account.terms_accepted:
-        raise BillingError("Confirme que está de acordo com as taxas e condições do Asaas antes de continuar.")
-    if not configured():
-        raise BillingError("Pagamentos online ainda não estão configurados.")
-    if account.provider_account_id and account.encrypted_api_key:
-        return account
-    required = {
-        "legal_name": account.legal_name,
-        "document": account.document,
-        "email": account.email,
-        "mobile_phone": account.mobile_phone,
-        "income_value": account.income_value,
-        "address": account.address,
-        "address_number": account.address_number,
-        "province": account.province,
-        "postal_code": account.postal_code,
-    }
-    if len(_clean_document(account.document)) == 11:
-        required["birth_date"] = account.birth_date
-    if any(value in (None, "") for value in required.values()):
-        raise BillingError("Complete os dados financeiros da loja antes de solicitar a ativação.")
-    payload = {
-        "name": account.legal_name,
-        "email": account.email,
-        "cpfCnpj": _clean_document(account.document),
-        "mobilePhone": re.sub(r"\D", "", account.mobile_phone),
-        "incomeValue": float(account.income_value),
-        "address": account.address,
-        "addressNumber": account.address_number,
-        "complement": account.complement,
-        "province": account.province,
-        "postalCode": re.sub(r"\D", "", account.postal_code),
-    }
-    if account.phone:
-        payload["phone"] = re.sub(r"\D", "", account.phone)
-    if account.birth_date:
-        payload["birthDate"] = account.birth_date.isoformat()
-    if account.company_type:
-        payload["companyType"] = account.company_type
     try:
+        if not account.terms_accepted:
+            raise BillingError(
+                "Confirme que está de acordo com as taxas e condições do Asaas antes de continuar."
+            )
+        if not configured():
+            raise BillingError("Pagamentos online ainda não estão configurados.")
+        if account.provider_account_id and account.encrypted_api_key:
+            # Reativação de uma conta que já foi criada: não cria uma segunda
+            # subconta e mantém o switch ligado.
+            if not account.enabled:
+                account.enabled = True
+                account.save(update_fields=["enabled", "updated_at"])
+            return account
+
+        try:
+            document = clean_asaas_document(account.document)
+            mobile_phone = normalize_brazilian_phone(
+                account.mobile_phone, required=True, mobile=True
+            )
+            phone = normalize_brazilian_phone(account.phone, mobile=False) if account.phone else ""
+        except ValueError as exc:
+            raise BillingError(str(exc)) from exc
+
+        required = {
+            "legal_name": account.legal_name,
+            "email": account.email,
+            "mobile_phone": mobile_phone,
+            "income_value": account.income_value,
+            "address": account.address,
+            "address_number": account.address_number,
+            "province": account.province,
+            "postal_code": account.postal_code,
+        }
+        if any(value in (None, "") for value in required.values()):
+            raise BillingError(
+                "Complete os campos obrigatórios destacados antes de solicitar a ativação."
+            )
+
+        kind = document_kind(document)
+        if kind == "CPF" and not account.birth_date:
+            raise BillingError("Informe a data de nascimento do titular do CPF.")
+        if kind == "CNPJ" and account.company_type not in COMPANY_TYPES:
+            raise BillingError("Selecione um tipo de empresa aceito pelo Asaas.")
+
+        postal_code = re.sub(r"\D", "", account.postal_code or "")
+        if len(postal_code) != 8:
+            raise BillingError("Informe um CEP válido com 8 dígitos.")
+        if account.income_value is None or Decimal(account.income_value) <= 0:
+            raise BillingError("O faturamento ou a renda mensal deve ser maior que zero.")
+
+        payload = {
+            "name": account.legal_name.strip(),
+            "email": account.email.strip(),
+            "cpfCnpj": document,
+            "mobilePhone": mobile_phone,
+            "incomeValue": float(account.income_value),
+            "address": account.address.strip(),
+            "addressNumber": account.address_number.strip(),
+            "complement": (account.complement or "").strip(),
+            "province": account.province.strip(),
+            "postalCode": postal_code,
+        }
+        if phone:
+            payload["phone"] = phone
+        if kind == "CPF":
+            payload["birthDate"] = account.birth_date.isoformat()
+        elif kind == "CNPJ":
+            payload["companyType"] = account.company_type
+
         data = Asaas().create_subaccount(payload)
         provider_id = valid_id(data.get("id"))
         wallet_id = valid_id(data.get("walletId"))
         api_key = data.get("apiKey")
         if not isinstance(api_key, str) or not api_key:
             raise BillingError("O Asaas não retornou a credencial da subconta.")
+
         with transaction.atomic():
             locked = TenantPaymentAccount.objects.select_for_update().get(pk=account.pk)
             locked.provider_account_id = provider_id
@@ -195,12 +242,14 @@ def request_subaccount(account):
             locked.requested_at = timezone.now()
             locked.last_error = ""
             locked.save()
-        # The activation email is sent by Asaas.  The webhook is provisioned
-        # with the subaccount credential when a public callback URL is set.
+
         configure_subaccount_webhook(api_key, account.email)
         return TenantPaymentAccount.objects.get(pk=account.pk)
     except BillingError as exc:
-        TenantPaymentAccount.objects.filter(pk=account.pk).update(status=TenantPaymentAccount.Status.ERROR, last_error=str(exc)[:500])
+        # O aceite e os dados ficam salvos, mas o switch só permanece ligado
+        # quando a solicitação realmente foi criada/reaproveitada com sucesso.
+        if getattr(account, "pk", None):
+            _disable_failed_activation(account, exc)
         raise
 
 

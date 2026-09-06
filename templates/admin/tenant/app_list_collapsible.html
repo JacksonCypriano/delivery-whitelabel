@@ -1,0 +1,54 @@
+{% load i18n %}
+
+{% if app_list %}
+    {% for app in app_list %}
+        <details class="app-{{ app.app_label }} module">
+            <summary class="bg-base-100 cursor-pointer font-semibold px-3 py-2.5 rounded-default text-important dark:bg-white/[.02]">
+                {{ app.name }}
+            </summary>
+
+            <table class="border border-base-200 border-spacing-none border-separate mt-3 rounded-default overflow-hidden shadow-xs w-full dark:border-base-800">
+                {% for model in app.models %}
+                    <tr class="model-{{ model.object_name|lower }} vdd-admin-hover-row *:border-b *:border-base-200 dark:*:border-base-800 last:*:border-b-0">
+                        {% if model.admin_url %}
+                            <th scope="row" class="font-normal px-3 py-2.5 text-left text-important">
+                                <a href="{{ model.admin_url }}">{{ model.name }}</a>
+                            </th>
+                        {% else %}
+                            <th scope="row" class="font-normal px-3 py-2.5 text-left text-important">
+                                {{ model.name }}
+                            </th>
+                        {% endif %}
+
+                        <td class="pl-3 text-right w-px">
+                            <div class="flex flex-row items-center ml-auto justify-end text-icon *:border-l *:flex *:items-center *:justify-center *:h-[22px] *:w-[40px] *:hover:text-primary-600 *:dark:border-base-700 *:dark:hover:text-primary-500 *:first:border-l-0">
+                                {% if model.admin_url and show_changelinks %}
+                                    {% if model.view_only %}
+                                        <a href="{{ model.admin_url }}" class="viewlink" title="{% translate 'View' %}">
+                                            <span class="material-symbols-outlined">visibility</span>
+                                        </a>
+                                    {% else %}
+                                        <a href="{{ model.admin_url }}" class="changelink" title="{% translate 'Change' %}">
+                                            <span class="material-symbols-outlined">edit</span>
+                                        </a>
+                                    {% endif %}
+                                {% endif %}
+
+                                {% if model.add_url %}
+                                    <a href="{{ model.add_url }}" class="addlink" title="{% translate 'Add' %}">
+                                        <span class="material-symbols-outlined">add</span>
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </table>
+        </details>
+    {% endfor %}
+{% else %}
+    <p>
+        {% trans "You don’t have permission to view or edit anything." as error_message %}
+        {% include "unfold/helpers/messages/error.html" with error=error_message %}
+    </p>
+{% endif %}

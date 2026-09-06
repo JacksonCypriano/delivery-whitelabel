@@ -119,3 +119,153 @@ input[type="color"] {
   border: none !important;
   box-shadow: none !important;
 }
+
+/* --------------------------------------------------------------------------
+   Controles de formulário sempre visíveis
+   --------------------------------------------------------------------------
+   Os dois AdminSite (lojista e superadmin) podem renderizar campos vindos de
+   ModelForm customizado sem todas as classes do Unfold. Por isso a regra
+   abaixo cobre também widgets Django puros. Excluímos apenas controles que
+   não devem parecer caixas de texto (checkbox, radio, hidden, botões e file).
+   -------------------------------------------------------------------------- */
+body input[type="text"],
+body input[type="number"],
+body input[type="email"],
+body input[type="url"],
+body input[type="password"],
+body input[type="search"],
+body input[type="tel"],
+body input[type="date"],
+body input[type="time"],
+body input[type="datetime-local"],
+body input[type="month"],
+body input[type="week"],
+body textarea,
+body select,
+body .select2-container .select2-selection {
+  min-height: 2.5rem;
+  border: 1px solid var(--color-base-300) !important;
+  border-radius: 6px !important;
+  background: #ffffff !important;
+  color: var(--color-base-900) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06) !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.dark body input[type="text"],
+.dark body input[type="number"],
+.dark body input[type="email"],
+.dark body input[type="url"],
+.dark body input[type="password"],
+.dark body input[type="search"],
+.dark body input[type="tel"],
+.dark body input[type="date"],
+.dark body input[type="time"],
+.dark body input[type="datetime-local"],
+.dark body input[type="month"],
+.dark body input[type="week"],
+.dark body textarea,
+.dark body select,
+.dark body .select2-container .select2-selection {
+  border-color: var(--color-base-600) !important;
+  background: var(--color-base-900) !important;
+  color: var(--color-base-100) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25) !important;
+}
+
+body input[type="text"]:focus,
+body input[type="number"]:focus,
+body input[type="email"]:focus,
+body input[type="url"]:focus,
+body input[type="password"]:focus,
+body input[type="search"]:focus,
+body input[type="tel"]:focus,
+body input[type="date"]:focus,
+body input[type="time"]:focus,
+body input[type="datetime-local"]:focus,
+body input[type="month"]:focus,
+body input[type="week"]:focus,
+body textarea:focus,
+body select:focus,
+body .select2-container--focus .select2-selection,
+body .select2-container--open .select2-selection {
+  border-color: var(--color-primary-500) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-primary-500) 22%, transparent) !important;
+  outline: none !important;
+}
+
+/* Campos somente leitura continuam distinguíveis, mas nunca transparentes. */
+body input[readonly]:not([type="checkbox"]):not([type="radio"]),
+body textarea[readonly],
+body select:disabled,
+body input:disabled:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) {
+  opacity: 0.78 !important;
+}
+
+/* --------------------------------------------------------------------------
+   Formulários administrativos: tamanhos coerentes para dados estruturados
+   -------------------------------------------------------------------------- */
+[data-store-whatsapp="1"] {
+    max-width: 260px;
+}
+
+[data-store-cep="1"] {
+    max-width: 180px;
+}
+
+[data-business-time="1"] {
+    max-width: 130px;
+    font-variant-numeric: tabular-nums;
+}
+
+input[type="color"] {
+    min-height: 42px;
+    max-width: 110px;
+    padding: 4px;
+    cursor: pointer;
+}
+
+
+/* --------------------------------------------------------------------------
+   Hover dos dashboards administrativos com contraste estável
+   -------------------------------------------------------------------------- */
+.vdd-admin-hover-row {
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.vdd-admin-hover-row:hover {
+  background-color: var(--color-base-50) !important;
+}
+
+.vdd-admin-hover-row:hover th,
+.vdd-admin-hover-row:hover td,
+.vdd-admin-hover-row:hover a,
+.vdd-admin-hover-row:hover span {
+  color: var(--color-base-900) !important;
+}
+
+.vdd-admin-hover-row:hover .text-font-subtle-light {
+  color: var(--color-base-600) !important;
+}
+
+html.dark .vdd-admin-hover-row:hover,
+.dark .vdd-admin-hover-row:hover {
+  background-color: var(--color-base-800) !important;
+}
+
+html.dark .vdd-admin-hover-row:hover th,
+html.dark .vdd-admin-hover-row:hover td,
+html.dark .vdd-admin-hover-row:hover a,
+html.dark .vdd-admin-hover-row:hover span,
+.dark .vdd-admin-hover-row:hover th,
+.dark .vdd-admin-hover-row:hover td,
+.dark .vdd-admin-hover-row:hover a,
+.dark .vdd-admin-hover-row:hover span {
+  color: var(--color-base-100) !important;
+}
+
+html.dark .vdd-admin-hover-row:hover .dark\:text-font-subtle-dark,
+.dark .vdd-admin-hover-row:hover .dark\:text-font-subtle-dark {
+  color: var(--color-base-300) !important;
+}

@@ -50,10 +50,10 @@ def _customer_default_location(request):
 
 
 def _available_cities():
-    profile_cities = MarketplaceProfile.objects.filter(
+    pickup_cities = MarketplaceProfile.objects.filter(
         is_listed=True,
         tenant__is_active=True,
-    ).exclude(city="").values_list("city", flat=True)
+    ).exclude(tenant__pickup_city="").values_list("tenant__pickup_city", flat=True)
 
     delivery_cities = DeliveryZone.objects.filter(
         is_active=True,
@@ -63,7 +63,7 @@ def _available_cities():
 
     cities = {
         city.strip()
-        for city in list(profile_cities) + list(delivery_cities)
+        for city in list(pickup_cities) + list(delivery_cities)
         if city and city.strip()
     }
 
@@ -530,7 +530,7 @@ def home(request):
 
     if city and not location_active:
         profiles = profiles.filter(
-            Q(city__iexact=city)
+            Q(tenant__pickup_city__iexact=city)
             | Q(
                 tenant__delivery_zones__city__iexact=city,
                 tenant__delivery_zones__is_active=True,

@@ -39,18 +39,12 @@ def get_store_setup(tenant, marketplace_data=None):
         marketplace_ok = bool(
             profile
             and _has_value(profile.short_description)
-            and _has_value(profile.city)
-            and _has_value(profile.state)
-            and _has_value(profile.neighborhood)
             and profile.categories.exists()
         )
     else:
         categories = marketplace_data.get("categories")
         marketplace_ok = all((
             _has_value(marketplace_data.get("short_description")),
-            _has_value(marketplace_data.get("city")),
-            _has_value(marketplace_data.get("state")),
-            _has_value(marketplace_data.get("neighborhood")),
             bool(categories),
         ))
 
@@ -100,14 +94,6 @@ def get_store_setup(tenant, marketplace_data=None):
             "url": _admin_url("tenants_tenant_change", tenant.pk),
         },
         {
-            "key": "marketplace",
-            "title": "Perfil público da loja",
-            "description": "Descrição, categoria e localização exibidas no VemDeDelivery.",
-            "complete": marketplace_ok,
-            "required": True,
-            "url": profile_url,
-        },
-        {
             "key": "brand",
             "title": "Identidade visual",
             "description": "Configure a identidade da loja e envie pelo menos o logotipo.",
@@ -138,6 +124,14 @@ def get_store_setup(tenant, marketplace_data=None):
             "complete": catalog_ok,
             "required": True,
             "url": _admin_url("stores_product_changelist"),
+        },
+        {
+            "key": "marketplace",
+            "title": "Perfil público da loja",
+            "description": "Finalize a descrição e as categorias públicas da loja e publique quando o checklist estiver concluído.",
+            "complete": marketplace_ok,
+            "required": True,
+            "url": profile_url,
         },
     ]
 

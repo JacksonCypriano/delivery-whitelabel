@@ -1,0 +1,17 @@
+Olá{% if user.first_name %}, {{ user.first_name }}{% endif %}!
+
+Sua loja {{ tenant.name }} já tem acesso ao VemDeDelivery.
+
+DADOS DO PRIMEIRO ACESSO
+Login: {{ login }}
+Senha temporária: {{ temporary_password|safe }}
+
+Painel da loja: {{ admin_url }}
+Link da sua loja: {{ store_url }}
+
+IMPORTANTE
+Esta senha é temporária. No primeiro acesso ao painel, você será direcionado automaticamente para criar uma nova senha antes de continuar.
+
+Por segurança, não compartilhe sua senha. Se você não esperava receber este acesso, entre em contato com o responsável pelo cadastro da sua loja.
+
+Bem-vindo ao VemDeDelivery!

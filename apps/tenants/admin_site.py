@@ -2,6 +2,7 @@ import pprint
 import logging
 
 from django.core.exceptions import ValidationError
+from django.contrib.auth.forms import PasswordChangeForm
 
 from apps.tenants.models import BrandConfig
 from apps.tenants.onboarding import get_store_setup
@@ -36,10 +37,73 @@ class TenantAdminAuthenticationForm(ProtectedAdminAuthenticationForm):
 # ── Admin do Lojista ──────────────────────────────────────────────────────────
 class TenantAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
     login_form = TenantAdminAuthenticationForm
+    password_change_form = PasswordChangeForm
     site_title = "Painel"
     site_header = "Painel da loja"
     index_title = "Bem-vindo"
     settings_name = "UNFOLD"
+    index_template = "admin/tenant/index.html"
+
+    # Ordem pensada para o lojista configurar a operação antes de entrar
+    # nos módulos de uso recorrente. O bloco de primeiros passos aparece
+    # separadamente no topo do dashboard.
+    _app_order = {
+        "tenants": 10,
+        "stores": 20,
+        "marketplace": 30,
+        "orders": 40,
+        "customers": 50,
+        "coupons": 60,
+    }
+
+    _app_display_names = {
+        "tenants": "Gestão da Loja",
+        "stores": "Cardápio",
+        "marketplace": "Finalize e publique",
+    }
+
+    _model_order = {
+        "tenants": {
+            "Tenant": 10,
+            "BrandConfig": 20,
+            "BusinessHour": 30,
+            "DeliveryZone": 40,
+        },
+        "marketplace": {"MarketplaceProfile": 10},
+        "stores": {
+            "Category": 10,
+            "Product": 20,
+            "CustomizationGroup": 30,
+            "CustomizationGroupLabel": 40,
+        },
+        "orders": {"Order": 10},
+        "customers": {"Customer": 10},
+        "coupons": {
+            "CouponCampaign": 10,
+            "CouponRedemption": 20,
+        },
+    }
+
+    def get_app_list(self, request, app_label=None):
+        app_list = super().get_app_list(request, app_label)
+
+        for app in app_list:
+            app["name"] = self._app_display_names.get(app["app_label"], app["name"])
+            model_order = self._model_order.get(app["app_label"], {})
+            app["models"].sort(
+                key=lambda model: (
+                    model_order.get(model["object_name"], 9999),
+                    str(model["name"]).casefold(),
+                )
+            )
+
+        app_list.sort(
+            key=lambda app: (
+                self._app_order.get(app["app_label"], 9999),
+                str(app["name"]).casefold(),
+            )
+        )
+        return app_list
 
     def get_urls(self):
         from django.urls import path
@@ -52,51 +116,14 @@ class TenantAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
             path('minha-assinatura/cobranca/<uuid:invoice_id>/nota/<str:kind>/', self.admin_view(views.fiscal_download), name='billing_fiscal_download'),
         ] + super().get_urls()
 
-    def _store_setup_app(self, tenant):
-        setup = get_store_setup(tenant)
-        status = "Pronta para publicar" if setup["complete"] else "Finalize a configuração da sua loja"
-
-        models = [
-            {
-                "name": f"Progresso da configuração — {setup['percent']}% ({setup['completed']}/{setup['total']} concluídos)",
-                "object_name": "StoreSetupProgress",
-                "perms": {"add": False, "change": False, "delete": False, "view": True},
-                "admin_url": "",
-                "add_url": None,
-                "view_only": True,
-            }
-        ]
-
-        for index, step in enumerate(setup["steps"], start=1):
-            if not step.get("required", True):
-                continue
-
-            step_status = "Concluído" if step["complete"] else "Pendente"
-            models.append({
-                "name": f"{step['title']} — {step_status}",
-                "object_name": f"StoreSetupStep{index}",
-                "perms": {"add": False, "change": True, "delete": False, "view": True},
-                "admin_url": step.get("url") or "",
-                "add_url": None,
-                "view_only": False,
-            })
-
-        return {
-            "name": f"{status} · {setup['percent']}%",
-            "app_label": "store_setup",
-            "app_url": "",
-            "has_module_perms": True,
-            "models": models,
-        }
-
     def index(self, request, extra_context=None):
         tenant = getattr(request, "tenant", None)
-        app_list = self.get_app_list(request)
+        store_setup = get_store_setup(tenant) if tenant else None
 
-        if tenant:
-            app_list = [self._store_setup_app(tenant), *app_list]
-
-        extra_context = {**(extra_context or {}), "app_list": app_list}
+        extra_context = {
+            **(extra_context or {}),
+            "store_setup": store_setup,
+        }
         return super().index(request, extra_context=extra_context)
 
     def each_context(self, request):
@@ -120,6 +147,9 @@ class TenantAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
 
             ctx["site_logo"] = logo_url
             ctx["site_symbol"] = "store"
+
+            from apps.marketplace.services import build_tenant_url
+            ctx["store_public_url"] = build_tenant_url(tenant)
 
             ctx["show_history"] = True
             ctx["show_view_on_site"] = False
@@ -169,6 +199,62 @@ class SuperAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
     site_header = "Painel Global"
     index_title = "Gestão do Sistema"
     settings_name = "UNFOLD_SUPER"
+    index_template = "admin/super/index.html"
+
+    _app_order = {
+        "tenants": 10,
+        "accounts": 20,
+        "billing": 30,
+        "integrations": 40,
+        "marketplace": 50,
+    }
+
+    _model_order = {
+        "tenants": {"Tenant": 10},
+        "accounts": {"User": 10, "SecurityEvent": 20},
+        "billing": {
+            "Subscription": 10,
+            "Invoice": 20,
+            "Credit": 30,
+            "Plan": 40,
+            "AdditionalService": 50,
+            "TenantPaymentAccount": 60,
+            "BillingSettings": 70,
+            "BillingEvent": 80,
+            "BillingAudit": 90,
+            "FiscalInvoice": 100,
+            "FiscalSettings": 110,
+            "FiscalCustomerRule": 120,
+            "TaxRate": 130,
+            "MunicipalExport": 140,
+        },
+        "integrations": {
+            "WhatsAppIntegrationState": 10,
+            "WhatsAppIntegrationEvent": 20,
+            "WhatsAppAlert": 30,
+        },
+        "marketplace": {"MarketplaceCategory": 10},
+    }
+
+    def get_app_list(self, request, app_label=None):
+        app_list = super().get_app_list(request, app_label)
+
+        for app in app_list:
+            model_order = self._model_order.get(app["app_label"], {})
+            app["models"].sort(
+                key=lambda model: (
+                    model_order.get(model["object_name"], 9999),
+                    str(model["name"]).casefold(),
+                )
+            )
+
+        app_list.sort(
+            key=lambda app: (
+                self._app_order.get(app["app_label"], 9999),
+                str(app["name"]).casefold(),
+            )
+        )
+        return app_list
 
     def has_permission(self, request):
         user = request.user

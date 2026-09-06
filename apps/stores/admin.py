@@ -32,6 +32,36 @@ class ProductAdminForm(forms.ModelForm):
         model = Product
         fields = '__all__'
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        examples = {
+            "sku": ("Ex.: BURGER-001", "Opcional. Código interno para localizar o produto rapidamente."),
+            "price": ("Ex.: 29,90", "Preço normal do produto em reais."),
+            "sale_price": ("Ex.: 24,90", "Opcional. Informe somente quando houver preço promocional."),
+            "calories": ("Ex.: 650", "Opcional. Calorias aproximadas por porção."),
+            "prep_time": ("Ex.: 25", "Tempo médio de preparo em minutos. Ex.: 25."),
+            "weight": ("Ex.: 350,00", "Opcional. Peso aproximado em gramas."),
+            "stock": ("Ex.: 20", "Vazio significa sem controle de estoque; 0 significa esgotado."),
+            "min_order_qty": ("Ex.: 1", "Quantidade mínima que o cliente pode adicionar ao pedido."),
+            "max_order_qty": ("Ex.: 10", "Opcional. Limite máximo por pedido."),
+        }
+        for name, (placeholder, help_text) in examples.items():
+            field = self.fields.get(name)
+            if not field:
+                continue
+            field.widget.attrs.setdefault("placeholder", placeholder)
+            field.help_text = help_text
+            if name in {"price", "sale_price", "weight", "stock"}:
+                field.localize = True
+                field.widget.is_localized = True
+                field.widget.attrs.setdefault("inputmode", "decimal")
+            elif name in {"calories", "prep_time", "min_order_qty", "max_order_qty"}:
+                field.widget.attrs.setdefault("inputmode", "numeric")
+
+        if "allergens" in self.fields:
+            self.fields["allergens"].widget.attrs.setdefault("placeholder", "Ex.: glúten, leite, ovo")
+
     def clean_available_days(self):
         return [int(d) for d in self.cleaned_data.get('available_days', [])]
 

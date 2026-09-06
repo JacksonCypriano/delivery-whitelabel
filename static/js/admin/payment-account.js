@@ -41,6 +41,24 @@
     );
   }
 
+  function paymentRowForField(field, suffix) {
+    if (!field) return null;
+    var name = String(field.name || '');
+    var marker = '-' + suffix;
+    var prefix = name.endsWith(marker) ? name.slice(0, -marker.length) : '';
+    var enabled = prefix ? document.getElementsByName(prefix + '-enabled')[0] : null;
+    var row = inlineRootFor(enabled || field);
+    if (row && prefix) row._paymentPrefix = prefix;
+    return row;
+  }
+
+  function setFieldValue(field, value) {
+    if (!field || value === undefined || value === null || value === '') return;
+    field.value = value;
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    field.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
   function digitsOnly(value) {
     return String(value || '').replace(/\D/g, '');
   }
@@ -173,10 +191,10 @@
         postalInput.value = formatCep(data.cep || cep);
         postalInput.dataset.cepLoaded = cep;
 
-        if (address && data.street) address.value = data.street;
-        if (province && data.neighborhood) province.value = data.neighborhood;
+        if (address && data.street) setFieldValue(address, data.street);
+        if (province && data.neighborhood) setFieldValue(province, data.neighborhood);
         if (complement && data.complement && !String(complement.value || '').trim()) {
-          complement.value = data.complement;
+          setFieldValue(complement, data.complement);
         }
 
         var location = [data.city, data.state].filter(Boolean).join(' / ');
@@ -480,15 +498,57 @@
 
     postalInput.dataset.cepBound = '1';
     postalInput.value = formatCep(postalInput.value);
+  }
 
-    postalInput.addEventListener('input', function () {
-      postalInput.value = formatCep(postalInput.value);
+  function handleCepInput(postalInput, forceLookup) {
+    if (!postalInput || !postalInput.matches('[data-payment-cep="1"], input[name$="-postal_code"]')) return;
+
+    var row = paymentRowForField(postalInput, 'postal_code');
+    if (!row) return;
+
+    var before = String(postalInput.value || '');
+    postalInput.value = formatCep(before);
+
+    var cep = digitsOnly(postalInput.value);
+    if (postalInput.dataset.cepLoaded && postalInput.dataset.cepLoaded !== cep) {
       delete postalInput.dataset.cepLoaded;
-      if (digitsOnly(postalInput.value).length === 8) fillFromCep(row, postalInput);
+    }
+
+    if (cep.length === 8 && (forceLookup || postalInput.dataset.cepLoaded !== cep)) {
+      fillFromCep(row, postalInput);
+    }
+  }
+
+  function bindDelegatedCepLookup() {
+    if (document.documentElement.dataset.paymentCepDelegated === '1') return;
+    document.documentElement.dataset.paymentCepDelegated = '1';
+
+    document.addEventListener('input', function (event) {
+      var target = event.target;
+      if (target && target.matches && target.matches('[data-payment-cep="1"], input[name$="-postal_code"]')) {
+        handleCepInput(target, false);
+      }
     });
 
-    postalInput.addEventListener('blur', function () {
-      fillFromCep(row, postalInput);
+    document.addEventListener('change', function (event) {
+      var target = event.target;
+      if (target && target.matches && target.matches('[data-payment-cep="1"], input[name$="-postal_code"]')) {
+        handleCepInput(target, true);
+      }
+    });
+
+    document.addEventListener('focusout', function (event) {
+      var target = event.target;
+      if (target && target.matches && target.matches('[data-payment-cep="1"], input[name$="-postal_code"]')) {
+        handleCepInput(target, true);
+      }
+    });
+
+    document.addEventListener('paste', function (event) {
+      var target = event.target;
+      if (target && target.matches && target.matches('[data-payment-cep="1"], input[name$="-postal_code"]')) {
+        window.setTimeout(function () { handleCepInput(target, true); }, 0);
+      }
     });
   }
 
@@ -525,6 +585,7 @@
   }
 
   function initializeAll() {
+    bindDelegatedCepLookup();
     document.querySelectorAll(
       'input.payment-online-toggle[name$="-enabled"]'
     ).forEach(initializeInput);

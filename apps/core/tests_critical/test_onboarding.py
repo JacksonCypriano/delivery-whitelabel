@@ -12,9 +12,6 @@ class OnboardingCriticalTests(CriticalTestCase):
         profile = MarketplaceProfile.objects.get(tenant=tenant)
         profile.is_listed = False
         profile.short_description = "Uma loja completa para testes"
-        profile.city = "São Paulo"
-        profile.state = "SP"
-        profile.neighborhood = "Centro"
         profile.save()
 
         marketplace_category = MarketplaceCategory.objects.create(name=f"Categoria {tenant.slug}")
@@ -49,3 +46,19 @@ class OnboardingCriticalTests(CriticalTestCase):
 
         profile.refresh_from_db()
         self.assertFalse(profile.is_listed)
+    def test_public_profile_is_last_onboarding_step_and_does_not_require_discovery_location(self):
+        profile = self._complete_tenant(self.tenant_a, self.category_a)
+        profile.city = ""
+        profile.state = ""
+        profile.neighborhood = ""
+        profile.latitude = None
+        profile.longitude = None
+        profile.service_radius_km = None
+        profile.save()
+
+        setup = get_store_setup(self.tenant_a)
+        required_steps = [step for step in setup["steps"] if step.get("required", True)]
+        self.assertEqual(required_steps[-1]["key"], "marketplace")
+        self.assertTrue(required_steps[-1]["complete"])
+        self.assertTrue(setup["complete"])
+

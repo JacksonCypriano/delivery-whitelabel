@@ -14,7 +14,7 @@ class TenantAdminPriorityDropdownCriticalTests(CriticalTestCase):
         navigation = settings.UNFOLD["SIDEBAR"]["navigation"]
         self.assertEqual(
             [str(group["title"]) for group in navigation],
-            ["Comece por aqui", "Cardápio", "Operação", "Marketing", "Financeiro"],
+            ["Comece por aqui", "Cardápio", "Finalize e publique", "Operação", "Marketing", "Financeiro"],
         )
         self.assertTrue(all(group.get("collapsible") for group in navigation))
 
@@ -23,11 +23,16 @@ class TenantAdminPriorityDropdownCriticalTests(CriticalTestCase):
             [str(item["title"]) for item in first_group["items"]],
             [
                 "Minha loja",
-                "Perfil público",
                 "Identidade visual",
                 "Horários de funcionamento",
                 "Locais e taxas de entrega",
             ],
+        )
+
+        publish_group = navigation[2]
+        self.assertEqual(
+            [str(item["title"]) for item in publish_group["items"]],
+            ["Perfil público"],
         )
 
         for group in navigation:
@@ -40,6 +45,7 @@ class TenantAdminPriorityDropdownCriticalTests(CriticalTestCase):
         response = self.client.get("/admin/", HTTP_HOST=self.host(self.tenant_a))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Comece por aqui — configuração inicial")
+        self.assertContains(response, "vdd-admin-hover-row")
         self.assertContains(response, '<details class="app-tenants module">', html=False)
         self.assertContains(response, '<details class="app-stores module">', html=False)
         self.assertNotContains(response, '<details class="app-tenants module" open', html=False)
@@ -53,10 +59,16 @@ class TenantAdminPriorityDropdownCriticalTests(CriticalTestCase):
         labels = [app["app_label"] for app in app_list]
         expected = [
             label
-            for label in ("tenants", "marketplace", "stores", "orders", "customers", "coupons")
+            for label in ("tenants", "stores", "marketplace", "orders", "customers", "coupons")
             if label in labels
         ]
         self.assertEqual(labels[:len(expected)], expected)
+
+        names_by_label = {app["app_label"]: str(app["name"]) for app in app_list}
+        if "stores" in names_by_label:
+            self.assertEqual(names_by_label["stores"], "Cardápio")
+        if "marketplace" in names_by_label:
+            self.assertEqual(names_by_label["marketplace"], "Finalize e publique")
 
         tenants_app = next((app for app in app_list if app["app_label"] == "tenants"), None)
         if tenants_app:

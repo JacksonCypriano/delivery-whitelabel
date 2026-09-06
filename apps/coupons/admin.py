@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin, messages
 from django.db.models import Count, Sum
 from django.utils import timezone
@@ -14,6 +15,52 @@ from .models import (
     CouponRedemption,
     DiscountType,
 )
+
+
+
+
+class CouponCampaignAdminForm(forms.ModelForm):
+    class Meta:
+        model = CouponCampaign
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if "code" in self.fields:
+            self.fields["code"].help_text = "Código que o cliente digita. Ex.: BEMVINDO10. O sistema salva em maiúsculas."
+            self.fields["code"].widget.attrs.update({"placeholder": "Ex.: BEMVINDO10", "autocomplete": "off"})
+        if "discount_type" in self.fields:
+            self.fields["discount_type"].help_text = "Escolha entre percentual, valor fixo ou frete grátis."
+        if "discount_value" in self.fields:
+            self.fields["discount_value"].localize = True
+            self.fields["discount_value"].widget.is_localized = True
+            self.fields["discount_value"].help_text = (
+                "Percentual: 10 significa 10%. Valor fixo: 10,00 significa R$ 10,00. "
+                "Para frete grátis, deixe 0,00."
+            )
+            self.fields["discount_value"].widget.attrs.update({"placeholder": "Ex.: 10,00", "inputmode": "decimal"})
+        if "minimum_order_value" in self.fields:
+            self.fields["minimum_order_value"].localize = True
+            self.fields["minimum_order_value"].widget.is_localized = True
+            self.fields["minimum_order_value"].help_text = "Valor mínimo do carrinho para o cupom funcionar. Use 0,00 para não exigir mínimo."
+            self.fields["minimum_order_value"].widget.attrs.update({"placeholder": "Ex.: 50,00", "inputmode": "decimal"})
+        if "inactive_days" in self.fields:
+            self.fields["inactive_days"].help_text = "Usado somente para público 'Clientes inativos'. Ex.: 30 dias."
+            self.fields["inactive_days"].widget.attrs.update({"placeholder": "Ex.: 30", "inputmode": "numeric"})
+        if "minimum_orders" in self.fields:
+            self.fields["minimum_orders"].help_text = "Usado para público 'Clientes frequentes'. Ex.: 5 pedidos."
+            self.fields["minimum_orders"].widget.attrs.update({"placeholder": "Ex.: 5", "inputmode": "numeric"})
+        if "minimum_spent" in self.fields:
+            self.fields["minimum_spent"].localize = True
+            self.fields["minimum_spent"].widget.is_localized = True
+            self.fields["minimum_spent"].help_text = "Opcional. Valor total já gasto pelo cliente. Ex.: 200,00."
+            self.fields["minimum_spent"].widget.attrs.update({"placeholder": "Ex.: 200,00", "inputmode": "decimal"})
+        if "usage_limit" in self.fields:
+            self.fields["usage_limit"].help_text = "Opcional. Quantidade máxima de usos do cupom no total. Vazio = sem limite global."
+            self.fields["usage_limit"].widget.attrs.update({"placeholder": "Ex.: 100", "inputmode": "numeric"})
+        if "usage_limit_per_customer" in self.fields:
+            self.fields["usage_limit_per_customer"].help_text = "Quantidade máxima que cada cliente pode usar este cupom. Ex.: 1."
+            self.fields["usage_limit_per_customer"].widget.attrs.update({"placeholder": "Ex.: 1", "inputmode": "numeric"})
 
 
 class CouponAssignmentInline(TenantInlineMixin, TabularInline):
@@ -45,6 +92,7 @@ class CouponAssignmentInline(TenantInlineMixin, TabularInline):
 
 
 class CouponCampaignAdmin(TenantModelAdmin):
+    form = CouponCampaignAdminForm
     list_display = (
         "code_display",
         "name",

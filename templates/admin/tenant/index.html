@@ -6,16 +6,12 @@
             {% if store_setup %}
                 <details class="module">
                     <summary class="bg-base-100 cursor-pointer font-semibold px-3 py-2.5 rounded-default text-important dark:bg-white/[.02]">
-                        <span class="flex items-center justify-between gap-3">
-                            <span>
-                                {% if store_setup.complete %}
-                                    Configuração inicial — concluída
-                                {% else %}
-                                    Comece por aqui — configuração inicial
-                                {% endif %}
-                            </span>
-                            <span>{{ store_setup.percent }}%</span>
-                        </span>
+                        {% if store_setup.complete %}
+                            Configuração inicial — concluída
+                        {% else %}
+                            Comece por aqui — configuração inicial
+                        {% endif %}
+                        <span class="float-right ml-3">{{ store_setup.percent }}%</span>
                     </summary>
 
                     <div class="mt-3">
@@ -34,7 +30,7 @@
                         <table class="border border-base-200 border-spacing-none border-separate mt-3 rounded-default overflow-hidden shadow-xs w-full dark:border-base-800">
                             {% for step in store_setup.steps %}
                                 {% if step.required %}
-                                    <tr class="*:border-b *:border-base-200 dark:*:border-base-800 last:*:border-b-0 hover:bg-base-50 dark:hover:bg-white/[.02]">
+                                    <tr class="vdd-admin-hover-row *:border-b *:border-base-200 dark:*:border-base-800 last:*:border-b-0">
                                         <th scope="row" class="font-normal px-3 py-2.5 text-left text-important">
                                             {% if step.url %}
                                                 <a href="{{ step.url }}" class="font-medium">{{ step.title }}</a>

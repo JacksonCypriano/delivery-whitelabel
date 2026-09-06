@@ -350,11 +350,6 @@ UNFOLD = {
                         "link": reverse_lazy("tenant_admin:tenants_tenant_changelist"),
                     },
                     {
-                        "title": _("Perfil público"),
-                        "icon": "public",
-                        "link": reverse_lazy("tenant_admin:marketplace_marketplaceprofile_changelist"),
-                    },
-                    {
                         "title": _("Identidade visual"),
                         "icon": "palette",
                         "link": reverse_lazy("tenant_admin:tenants_brandconfig_changelist"),
@@ -395,6 +390,18 @@ UNFOLD = {
                         "title": _("Rótulos de personalização"),
                         "icon": "label",
                         "link": reverse_lazy("tenant_admin:stores_customizationgrouplabel_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("Finalize e publique"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Perfil público"),
+                        "icon": "public",
+                        "link": reverse_lazy("tenant_admin:marketplace_marketplaceprofile_changelist"),
                     },
                 ],
             },

@@ -20,6 +20,14 @@ class MarketplaceProfileTenantForm(forms.ModelForm):
     class Meta:
         model = MarketplaceProfile
         fields = "__all__"
+        exclude = (
+            "city",
+            "state",
+            "neighborhood",
+            "latitude",
+            "longitude",
+            "service_radius_km",
+        )
 
     def __init__(self, *args, request=None, **kwargs):
         self.request = request
@@ -27,13 +35,28 @@ class MarketplaceProfileTenantForm(forms.ModelForm):
         if not self.instance.pk and "is_listed" in self.fields:
             self.fields["is_listed"].initial = False
 
+        if "short_description" in self.fields:
+            self.fields["short_description"].widget.attrs.setdefault(
+                "placeholder",
+                "Ex.: Pizzas artesanais, porções e bebidas.",
+            )
+        if "search_keywords" in self.fields:
+            self.fields["search_keywords"].widget.attrs.setdefault(
+                "placeholder",
+                "Ex.: pizza, artesanal, porções, bebidas",
+            )
+
     def clean(self):
         cleaned = super().clean()
         tenant = getattr(self.request, "tenant", None) or getattr(self.instance, "tenant", None)
         if cleaned.get("is_listed") and tenant:
             setup = get_store_setup(tenant, marketplace_data=cleaned)
             if not setup["complete"]:
-                missing = ", ".join(step["title"] for step in setup["steps"] if step.get("required", True) and not step["complete"])
+                missing = ", ".join(
+                    step["title"]
+                    for step in setup["steps"]
+                    if step.get("required", True) and not step["complete"]
+                )
                 raise ValidationError(
                     f"A loja ainda não pode ser publicada. Conclua primeiro: {missing}."
                 )
@@ -58,13 +81,6 @@ class MarketplaceProfileTenantAdmin(ModelAdmin):
             {
                 "fields": ("short_description", "search_keywords", "categories"),
                 "description": "Essas informações ajudam o cliente a encontrar e entender sua loja.",
-            },
-        ),
-        (
-            "Localização para descoberta",
-            {
-                "fields": ("city", "state", "neighborhood", "latitude", "longitude", "service_radius_km"),
-                "description": "Cidade, UF e bairro são obrigatórios. Latitude, longitude e raio são opcionais.",
             },
         ),
         (

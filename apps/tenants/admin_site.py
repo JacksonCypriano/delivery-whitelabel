@@ -49,11 +49,17 @@ class TenantAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
     # separadamente no topo do dashboard.
     _app_order = {
         "tenants": 10,
-        "marketplace": 20,
-        "stores": 30,
+        "stores": 20,
+        "marketplace": 30,
         "orders": 40,
         "customers": 50,
         "coupons": 60,
+    }
+
+    _app_display_names = {
+        "tenants": "Gestão da Loja",
+        "stores": "Cardápio",
+        "marketplace": "Finalize e publique",
     }
 
     _model_order = {
@@ -82,6 +88,7 @@ class TenantAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
         app_list = super().get_app_list(request, app_label)
 
         for app in app_list:
+            app["name"] = self._app_display_names.get(app["app_label"], app["name"])
             model_order = self._model_order.get(app["app_label"], {})
             app["models"].sort(
                 key=lambda model: (
@@ -140,6 +147,9 @@ class TenantAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
 
             ctx["site_logo"] = logo_url
             ctx["site_symbol"] = "store"
+
+            from apps.marketplace.services import build_tenant_url
+            ctx["store_public_url"] = build_tenant_url(tenant)
 
             ctx["show_history"] = True
             ctx["show_view_on_site"] = False

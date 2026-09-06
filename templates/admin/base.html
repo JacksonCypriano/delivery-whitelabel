@@ -1,6 +1,19 @@
 {% extends "admin/base.html" %}
 {% block messages %}
 {{ block.super }}
+{% if store_public_url %}
+<div class="flex justify-end px-6 pt-3">
+  <a
+    href="{{ store_public_url }}"
+    target="_blank"
+    rel="noopener noreferrer"
+    class="bg-primary-600 border border-transparent flex font-medium gap-2 items-center px-3 py-2 rounded-default text-sm text-white hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600"
+  >
+    <span class="material-symbols-outlined text-[18px]">open_in_new</span>
+    Ver minha loja
+  </a>
+</div>
+{% endif %}
 {% if billing_subscription.managed %}
 <div style="margin:12px 24px;padding:14px 18px;border:1px solid #da9d42;border-radius:12px;background:#fff5dd;color:#523810;line-height:1.5">
 <strong>Assinatura: {{ billing_subscription.situation }}</strong>

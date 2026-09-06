@@ -30,10 +30,16 @@ class MerchantUserCreationForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["username"].label = "Login"
-        self.fields["username"].help_text = "Login que será enviado ao lojista por e-mail."
+        self.fields["username"].help_text = "Login que será enviado ao lojista por e-mail. Preferencialmente use o mesmo e-mail de acesso."
+        self.fields["username"].widget.attrs.update({"placeholder": "Ex.: lojista@minhaloja.com.br", "autocomplete": "username"})
+        self.fields["first_name"].widget.attrs.setdefault("placeholder", "Ex.: João")
+        self.fields["last_name"].widget.attrs.setdefault("placeholder", "Ex.: da Silva")
         self.fields["email"].required = True
+        self.fields["email"].help_text = "E-mail que receberá a senha temporária e os links da loja e do painel."
+        self.fields["email"].widget.attrs.update({"placeholder": "Ex.: lojista@minhaloja.com.br", "autocomplete": "email"})
         self.fields["tenant"].required = True
         self.fields["tenant"].label = "Loja"
+        self.fields["tenant"].help_text = "Selecione a loja à qual este acesso administrativo pertence."
 
     def clean_username(self):
         username = (self.cleaned_data.get("username") or "").strip()

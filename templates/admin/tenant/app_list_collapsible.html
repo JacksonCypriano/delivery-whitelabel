@@ -9,7 +9,7 @@
 
             <table class="border border-base-200 border-spacing-none border-separate mt-3 rounded-default overflow-hidden shadow-xs w-full dark:border-base-800">
                 {% for model in app.models %}
-                    <tr class="model-{{ model.object_name|lower }} *:border-b *:border-base-200 dark:*:border-base-800 last:*:border-b-0 hover:bg-base-50 dark:hover:bg-white/[.02]">
+                    <tr class="model-{{ model.object_name|lower }} vdd-admin-hover-row *:border-b *:border-base-200 dark:*:border-base-800 last:*:border-b-0">
                         {% if model.admin_url %}
                             <th scope="row" class="font-normal px-3 py-2.5 text-left text-important">
                                 <a href="{{ model.admin_url }}">{{ model.name }}</a>

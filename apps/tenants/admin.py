@@ -8,6 +8,12 @@ from .onboarding import get_store_setup
 
 from .admin_site import super_admin_site, tenant_admin_site
 from .models import BrandConfig, Tenant, DeliveryZone, BusinessHour
+from .admin_ux import (
+    BrandConfigAdminForm,
+    BusinessHourAdminForm,
+    DeliveryZoneAdminForm,
+    TenantAdminUXMixin,
+)
 from .choices import SaleMode
 from apps.billing.models import TenantPaymentAccount
 from apps.billing.online import request_subaccount
@@ -20,7 +26,7 @@ from apps.billing.asaas_fields import (
 )
 
 
-class TenantCreateForm(forms.ModelForm):
+class TenantCreateForm(TenantAdminUXMixin, forms.ModelForm):
     # Estes campos permanecem opcionais no formulário-base para preservar
     # criações internas/legadas de Tenant. O Superadmin usa a subclasse
     # TenantSuperAdminCreateForm, onde ambos são obrigatórios.
@@ -87,7 +93,7 @@ class TenantSuperAdminCreateForm(TenantCreateForm):
     )
 
 
-class TenantChangeForm(forms.ModelForm):
+class TenantChangeForm(TenantAdminUXMixin, forms.ModelForm):
     class Meta:
         model = Tenant
         fields = "__all__"
@@ -223,16 +229,18 @@ super_admin_site.register(Tenant, TenantAdmin)
 
 class DeliveryZoneInline(TenantInlineMixin, TabularInline):
     model = DeliveryZone
+    form = DeliveryZoneAdminForm
     extra = 1
     fields = ('city', 'neighborhood', 'fee', 'is_active')
 
 
 class BusinessHourInline(TenantInlineMixin, TabularInline):
     model = BusinessHour
+    form = BusinessHourAdminForm
 
     fields = (
         "weekday",
-        "is_closed",
+        "is_open",
         "opening_time",
         "closing_time",
     )
@@ -242,7 +250,10 @@ class BusinessHourInline(TenantInlineMixin, TabularInline):
         "opening_time",
     )
 
-    extra = 1
+    # O Tenant já cria os sete dias uma única vez. Não exibimos uma oitava
+    # linha vazia automaticamente; o botão "Adicionar outro" continua
+    # disponível para lojas com dois ou mais intervalos no mesmo dia.
+    extra = 0
 
     can_delete = True
 
@@ -610,6 +621,7 @@ class TenantPaymentAccountInline(TenantInlineMixin, StackedInline):
 
 # ── Admin do Lojista: Configurações da Loja (Tenant) ─────────────────────────
 class StoreSettingsAdmin(ModelAdmin):
+    form = TenantChangeForm
     """
     Permite ao lojista editar as informações da própria loja.
     """
@@ -642,12 +654,16 @@ class StoreSettingsAdmin(ModelAdmin):
             "Endereço para retirada",
             {
                 "fields": (
+                    "pickup_zip_code",
                     "pickup_address",
                     "pickup_number",
                     "pickup_complement",
                     "pickup_neighborhood",
                     "pickup_city",
-                    "pickup_zip_code",
+                ),
+                "description": (
+                    "Informe primeiro o CEP. O ViaCEP preencherá automaticamente "
+                    "logradouro, bairro e cidade; depois informe o número e o complemento, se houver."
                 ),
             },
         ),
@@ -722,6 +738,7 @@ tenant_admin_site.register(Tenant, StoreSettingsAdmin)
 
 # ── Admin do Lojista (BrandConfig) ───────────────────────────────────────────
 class TenantBrandConfigAdmin(ModelAdmin):
+    form = BrandConfigAdminForm
     list_display = (
         "tenant",
         "primary_color",
@@ -852,6 +869,7 @@ tenant_admin_site.register(BrandConfig, TenantBrandConfigAdmin)
 
 @admin.register(DeliveryZone, site=tenant_admin_site)
 class DeliveryZoneAdmin(TenantModelAdmin):
+    form = DeliveryZoneAdminForm
     list_display = ("city", "neighborhood", "fee", "is_active")
     list_editable = ("is_active",)
     list_filter = ("city", "is_active")
@@ -898,53 +916,75 @@ class DeliveryZoneAdmin(TenantModelAdmin):
         return bool(tenant and tenant.accepts_delivery)
 
 
+class BusinessHourOpenFilter(admin.SimpleListFilter):
+    title = "Situação"
+    parameter_name = "open_status"
+
+    def lookups(self, request, model_admin):
+        return (("open", "Aberta"), ("closed", "Fechada"))
+
+    def queryset(self, request, queryset):
+        if self.value() == "open":
+            return queryset.filter(is_closed=False)
+        if self.value() == "closed":
+            return queryset.filter(is_closed=True)
+        return queryset
+
+
 @admin.register(BusinessHour, site=tenant_admin_site)
 class BusinessHourAdmin(ModelAdmin):
+    form = BusinessHourAdminForm
+
     list_display = (
-        "tenant",
         "weekday",
-        "is_closed",
+        "is_open_display",
         "opening_time",
         "closing_time",
     )
 
     list_filter = (
-        "tenant",
         "weekday",
-        "is_closed",
+        BusinessHourOpenFilter,
     )
 
     ordering = (
-        "tenant",
         "weekday",
+        "opening_time",
     )
 
     readonly_fields = (
         "tenant",
-        "weekday",
     )
+
+    @admin.display(boolean=True, description="Aberta")
+    def is_open_display(self, obj):
+        return not obj.is_closed
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-
         tenant = getattr(request, "tenant", None)
-
         if not tenant:
             return qs.none()
-
         return qs.filter(tenant=tenant)
 
+    def save_model(self, request, obj, form, change):
+        if not obj.tenant_id:
+            obj.tenant = request.tenant
+        super().save_model(request, obj, form, change)
+
     def has_module_permission(self, request):
-        return True
+        return bool(getattr(request, "tenant", None))
 
     def has_view_permission(self, request, obj=None):
-        return True
+        tenant = getattr(request, "tenant", None)
+        return bool(tenant and (obj is None or obj.tenant_id == tenant.id))
 
     def has_change_permission(self, request, obj=None):
-        return True
+        return self.has_view_permission(request, obj)
 
     def has_add_permission(self, request):
-        return False
+        return bool(getattr(request, "tenant", None))
 
     def has_delete_permission(self, request, obj=None):
-        return False
+        return self.has_view_permission(request, obj)
+

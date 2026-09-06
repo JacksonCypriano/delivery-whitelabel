@@ -427,7 +427,12 @@
   {% endif %}
 
   .product-card-content {
+    position: relative;
     min-width: 0;
+  }
+
+  .product-card-featured h3 {
+    padding-right: 6.5rem !important;
   }
 
   .product-card h3 {
@@ -1474,22 +1479,22 @@
 
               <div data-product-wrapper>
 
-                <article class="product-card"
+                <article class="product-card{% if product.is_featured %} product-card-featured{% endif %}"
                          data-product-id="{{ product.id }}"
                          data-product-name="{{ product.name|lower|escape }}"
                          data-product-price="{{ product.price|stringformat:'.2f' }}"
                          data-product-image="{{ product.get_primary_image|default:'' }}">
 
-                  {% if product.is_featured %}
-                    <span class="product-featured absolute top-3 left-3 z-10 inline-flex items-center gap-1 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow">
-                      <svg class="w-3 h-3 fill-current" viewBox="0 0 20 20">
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.955a1 1 0 00.95.69h4.162c.969 0 1.371 1.24.588 1.81l-3.368 2.446a1 1 0 00-.364 1.118l1.287 3.955c.3.921-.755 1.688-1.54 1.118l-3.367-2.446a1 1 0 00-1.175 0l-3.367 2.446c-.784.57-1.838-.197-1.539-1.118l1.286-3.955a1 1 0 00-.363-1.118L2.076 9.372c-.783-.57-.38-1.81.588-1.81h4.163a1 1 0 00.95-.69l1.286-3.955z"/>
-                      </svg>
-                      Destaque
-                    </span>
-                  {% endif %}
-
                   <div class="product-card-content flex-grow p-4 flex flex-col">
+
+                    {% if product.is_featured %}
+                      <span class="product-featured absolute top-3 right-3 z-10 inline-flex items-center gap-1 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow">
+                        <svg class="w-3 h-3 fill-current" viewBox="0 0 20 20">
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.955a1 1 0 00.95.69h4.162c.969 0 1.371 1.24.588 1.81l-3.368 2.446a1 1 0 00-.364 1.118l1.287 3.955c.3.921-.755 1.688-1.54 1.118l-3.367-2.446a1 1 0 00-1.175 0l-3.367 2.446c-.784.57-1.838-.197-1.539-1.118l1.286-3.955a1 1 0 00-.363-1.118L2.076 9.372c-.783-.57-.38-1.81.588-1.81h4.163a1 1 0 00.95-.69l1.286-3.955z"/>
+                        </svg>
+                        Destaque
+                      </span>
+                    {% endif %}
 
                     <div class="flex-1">
                       <h3 class="font-bold text-gray-900 text-base md:text-lg line-clamp-1 pr-2">{{ product.name }}</h3>

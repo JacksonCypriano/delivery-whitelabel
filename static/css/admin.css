@@ -202,3 +202,70 @@ body select:disabled,
 body input:disabled:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) {
   opacity: 0.78 !important;
 }
+
+/* --------------------------------------------------------------------------
+   Formulários administrativos: tamanhos coerentes para dados estruturados
+   -------------------------------------------------------------------------- */
+[data-store-whatsapp="1"] {
+    max-width: 260px;
+}
+
+[data-store-cep="1"] {
+    max-width: 180px;
+}
+
+[data-business-time="1"] {
+    max-width: 130px;
+    font-variant-numeric: tabular-nums;
+}
+
+input[type="color"] {
+    min-height: 42px;
+    max-width: 110px;
+    padding: 4px;
+    cursor: pointer;
+}
+
+
+/* --------------------------------------------------------------------------
+   Hover dos dashboards administrativos com contraste estável
+   -------------------------------------------------------------------------- */
+.vdd-admin-hover-row {
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.vdd-admin-hover-row:hover {
+  background-color: var(--color-base-50) !important;
+}
+
+.vdd-admin-hover-row:hover th,
+.vdd-admin-hover-row:hover td,
+.vdd-admin-hover-row:hover a,
+.vdd-admin-hover-row:hover span {
+  color: var(--color-base-900) !important;
+}
+
+.vdd-admin-hover-row:hover .text-font-subtle-light {
+  color: var(--color-base-600) !important;
+}
+
+html.dark .vdd-admin-hover-row:hover,
+.dark .vdd-admin-hover-row:hover {
+  background-color: var(--color-base-800) !important;
+}
+
+html.dark .vdd-admin-hover-row:hover th,
+html.dark .vdd-admin-hover-row:hover td,
+html.dark .vdd-admin-hover-row:hover a,
+html.dark .vdd-admin-hover-row:hover span,
+.dark .vdd-admin-hover-row:hover th,
+.dark .vdd-admin-hover-row:hover td,
+.dark .vdd-admin-hover-row:hover a,
+.dark .vdd-admin-hover-row:hover span {
+  color: var(--color-base-100) !important;
+}
+
+html.dark .vdd-admin-hover-row:hover .dark\:text-font-subtle-dark,
+.dark .vdd-admin-hover-row:hover .dark\:text-font-subtle-dark {
+  color: var(--color-base-300) !important;
+}

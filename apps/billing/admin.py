@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin
 from django.db import transaction
 from django.urls import path, reverse
@@ -22,6 +23,71 @@ from .online import request_subaccount
 from .provider import BillingError
 
 
+
+
+class BillingSettingsAdminForm(forms.ModelForm):
+    class Meta:
+        model = BillingSettings
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        helpers = {
+            "grace_days": ("Ex.: 3", "Dias de tolerância após o vencimento. Máximo: 90."),
+            "fixed_pix_fee": ("Ex.: 1,99", "Taxa fixa usada no cálculo do Pix/boleto, em reais."),
+            "card_percent": ("Ex.: 2,99", "Percentual da taxa do cartão. Ex.: 2,99 significa 2,99%."),
+            "card_fixed_fee": ("Ex.: 0,49", "Taxa fixa adicional do cartão, em reais."),
+        }
+        for name, (placeholder, help_text) in helpers.items():
+            field = self.fields.get(name)
+            if field:
+                if name != "grace_days":
+                    field.localize = True
+                    field.widget.is_localized = True
+                field.widget.attrs.setdefault("placeholder", placeholder)
+                field.widget.attrs.setdefault("inputmode", "decimal" if name != "grace_days" else "numeric")
+                field.help_text = help_text
+
+
+class PlanAdminForm(forms.ModelForm):
+    class Meta:
+        model = Plan
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if "months" in self.fields:
+            self.fields["months"].help_text = "Duração do plano em meses. Permitido: 1 a 36."
+            self.fields["months"].widget.attrs.update({"placeholder": "Ex.: 12", "inputmode": "numeric"})
+        if "monthly_price" in self.fields:
+            self.fields["monthly_price"].localize = True
+            self.fields["monthly_price"].widget.is_localized = True
+            self.fields["monthly_price"].help_text = "Valor mensal de referência em reais. Ex.: 199,00."
+            self.fields["monthly_price"].widget.attrs.update({"placeholder": "Ex.: 199,00", "inputmode": "decimal"})
+        if "discount" in self.fields:
+            self.fields["discount"].localize = True
+            self.fields["discount"].widget.is_localized = True
+            self.fields["discount"].help_text = "Desconto percentual sobre o total do período. Ex.: 10 significa 10%. Máximo: 90%."
+            self.fields["discount"].widget.attrs.update({"placeholder": "Ex.: 10,00", "inputmode": "decimal"})
+
+
+class AdditionalServiceAdminForm(forms.ModelForm):
+    class Meta:
+        model = AdditionalService
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if "code" in self.fields:
+            self.fields["code"].help_text = "Identificador técnico estável. Use letras minúsculas, números e hífen. Ex.: cadastro-cardapio."
+            self.fields["code"].widget.attrs.setdefault("placeholder", "Ex.: cadastro-cardapio")
+        if "price" in self.fields:
+            self.fields["price"].localize = True
+            self.fields["price"].widget.is_localized = True
+            self.fields["price"].help_text = "Valor cobrado pelo serviço, em reais. Ex.: 49,90."
+            self.fields["price"].widget.attrs.update({"placeholder": "Ex.: 49,90", "inputmode": "decimal"})
+
+
 class GlobalAdmin(ModelAdmin):
     def has_module_permission(self, request):
         return request.user.is_active and request.user.is_superuser
@@ -41,6 +107,7 @@ class GlobalAdmin(ModelAdmin):
 
 @admin.register(BillingSettings, site=super_admin_site)
 class SettingsAdmin(GlobalAdmin):
+    form = BillingSettingsAdminForm
     def has_add_permission(self, request):
         return (
             super().has_add_permission(request) and not BillingSettings.objects.exists()
@@ -49,6 +116,7 @@ class SettingsAdmin(GlobalAdmin):
 
 @admin.register(Plan, site=super_admin_site)
 class PlanAdmin(GlobalAdmin):
+    form = PlanAdminForm
     list_display = ["name", "months", "monthly_price", "discount", "plan_price", "active"]
 
     @admin.display(description="Valor do plano")
@@ -58,6 +126,7 @@ class PlanAdmin(GlobalAdmin):
 
 @admin.register(AdditionalService, site=super_admin_site)
 class AdditionalServiceAdmin(GlobalAdmin):
+    form = AdditionalServiceAdminForm
     list_display = ["name", "code", "price", "active"]
     list_editable = ["price", "active"]
     search_fields = ["name", "code"]

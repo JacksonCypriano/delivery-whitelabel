@@ -24,7 +24,7 @@ from apps.billing.fiscal import (
     monthly_warning,
 )
 from apps.billing.fiscal_models import fiscal_today
-from apps.billing.provider import ProviderUnavailable, BillingError
+from apps.billing.provider import ProviderUnavailable, ProviderRejected, BillingError
 from apps.billing.tasks import process_event, reconcile_fiscal_invoices
 
 
@@ -40,7 +40,15 @@ class FiscalTests(TestCase):
         enqueue.start()
         self.addCleanup(enqueue.stop)
         self.tenant = Tenant.objects.create(
-            name="Fiscal", slug="fiscal", whatsapp_number="5511999994411"
+            name="Fiscal", slug="fiscal", whatsapp_number="5511999994411",
+            pickup_zip_code="01310000", pickup_address="Av. Paulista", pickup_number="1000",
+            pickup_complement="Sala 1", pickup_neighborhood="Bela Vista", pickup_city="São Paulo",
+        )
+        self.customer = BillingCustomer.objects.create(
+            tenant=self.tenant, environment="sandbox", provider_id="cus_fiscal",
+            name="Pagador", document="123", email="test@example.com",
+            postal_code="01310000", address="Av. Paulista", address_number="1000",
+            complement="Sala 1", province="Bela Vista",
         )
         self.bill = Invoice.objects.create(
             tenant=self.tenant,
@@ -217,6 +225,22 @@ class FiscalTests(TestCase):
         self.assertTrue(FiscalInvoice.objects.get().review_required)
         self.assertFalse(self.posts)
 
+    def test_explicit_provider_rejection_allows_safe_corrected_retry(self):
+        original = self.request
+
+        def rejected(method, path, **kwargs):
+            if method == "POST" and path == "/invoices":
+                raise ProviderRejected("Endereço do cliente incompleto.; CEP do cliente é inválido.")
+            return original(method, path, **kwargs)
+
+        self.api.request.side_effect = rejected
+        self.assertFalse(process_fiscal(self.bill.pk))
+        note = FiscalInvoice.objects.get(invoice=self.bill)
+        self.assertEqual(note.status, "ERROR")
+        self.assertFalse(note.attempted)
+        self.assertFalse(note.provider_id)
+        self.assertIn("Endereço do cliente incompleto", note.notice)
+
     def test_refund_after_authorization_never_cancels_automatically(self):
         process_fiscal(self.bill.pk)
         self.bill.status = "REVIEW"
@@ -233,15 +257,8 @@ class FiscalTests(TestCase):
         self.assertEqual(FiscalInvoice.objects.get().iss, Decimal("2.01"))
 
     def test_customer_exception_hold_and_retention(self):
-        customer = BillingCustomer.objects.create(
-            tenant=self.tenant,
-            environment="sandbox",
-            name="Pagador",
-            document="123",
-            email="test@example.com",
-        )
         rule = FiscalCustomerRule.objects.create(
-            customer=customer,
+            customer=self.customer,
             hold=True,
             retain_iss=True,
             reason="Orientação do contador",
@@ -396,6 +413,44 @@ class FiscalTests(TestCase):
         self.rate.refresh_from_db()
         self.assertEqual(self.rate.checked_by, root)
         self.assertEqual(self.rate.iss, Decimal("2.03"))
+
+    def test_global_monthly_iss_alert_prefills_last_rate_and_disappears_after_confirmation(self):
+        root = get_user_model().objects.create_superuser(
+            username="fiscal-alert-root",
+            email="fiscal-alert@example.com",
+            password="test",
+        )
+        client = Client(HTTP_HOST="localhost")
+        client.force_login(root)
+
+        next_month = (fiscal_today().replace(day=28) + timedelta(days=5)).replace(day=1)
+        with patch("apps.billing.fiscal.fiscal_today", return_value=next_month):
+            response = client.get(reverse("super_admin:billing_plan_changelist"))
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "Conferência mensal do ISS pendente")
+            self.assertContains(response, "Última alíquota confirmada")
+            alert = response.context["global_tax_rate_alert"]
+            self.assertIn(f"month={next_month.isoformat()}", alert["action_url"] )
+            self.assertIn("iss=2.01", alert["action_url"] )
+
+            # O alerta vem do contexto global do superadmin, não de uma tela fiscal específica.
+            response = client.get(reverse("super_admin:accounts_user_changelist"))
+            self.assertContains(response, "Conferência mensal do ISS pendente")
+
+        with patch("apps.billing.fiscal_models.fiscal_today", return_value=next_month):
+            new_rate = TaxRate(
+                configuration=self.config,
+                month=next_month,
+                iss="2.01",
+                checked_at=timezone.now(),
+                checked_by=root,
+            )
+            new_rate.full_clean()
+            new_rate.save()
+
+        with patch("apps.billing.fiscal.fiscal_today", return_value=next_month):
+            response = client.get(reverse("super_admin:billing_plan_changelist"))
+            self.assertNotContains(response, "Conferência mensal do ISS pendente")
 
     def test_webhook_rejects_wrong_auth(self):
         response = Client(HTTP_HOST="localhost").post(

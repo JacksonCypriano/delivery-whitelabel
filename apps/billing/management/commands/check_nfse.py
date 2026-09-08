@@ -20,6 +20,11 @@ class Command(BaseCommand):
                 "Configure primeiro o módulo de cobranças e a conta Asaas."
             )
         config.full_clean()
+        missing = config.fiscal_account_missing_fields()
+        if missing:
+            raise CommandError(
+                "Dados fiscais locais incompletos: " + ", ".join(missing)
+            )
         self.stdout.write(monthly_warning(config))
         if not config.taxrate_set.filter(
             month=fiscal_today().replace(day=1), checked_at__isnull=False

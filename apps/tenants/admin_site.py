@@ -226,7 +226,8 @@ class SuperAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
             "FiscalSettings": 110,
             "FiscalCustomerRule": 120,
             "TaxRate": 130,
-            "MunicipalExport": 140,
+            "TaxRateWhatsAppReminder": 140,
+            "MunicipalExport": 150,
         },
         "integrations": {
             "WhatsAppIntegrationState": 10,
@@ -255,6 +256,45 @@ class SuperAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
             )
         )
         return app_list
+
+    def each_context(self, request):
+        ctx = super().each_context(request)
+        user = request.user
+
+        if user.is_authenticated and user.is_active and user.is_superuser:
+            # Importação tardia evita ciclo de imports durante o carregamento do admin.
+            from django.urls import reverse
+            from urllib.parse import urlencode
+            from apps.billing.fiscal import current_tax_rate_alert
+
+            alert = current_tax_rate_alert()
+            if alert:
+                current = alert["current"]
+                previous = alert["previous"]
+                if current:
+                    action_url = reverse(
+                        "super_admin:billing_taxrate_change", args=[current.pk]
+                    )
+                else:
+                    query = {
+                        "configuration": alert["configuration"].pk,
+                        "month": alert["month"].isoformat(),
+                    }
+                    if previous:
+                        query["iss"] = str(previous.iss)
+                    action_url = (
+                        reverse("super_admin:billing_taxrate_add")
+                        + "?"
+                        + urlencode(query)
+                    )
+
+                ctx["global_tax_rate_alert"] = {
+                    "month": alert["month"],
+                    "previous": previous,
+                    "action_url": action_url,
+                }
+
+        return ctx
 
     def has_permission(self, request):
         user = request.user

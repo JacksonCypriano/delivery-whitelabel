@@ -11,6 +11,15 @@ from apps.tenants.models import Tenant
 class User(AbstractUser):
     email_verified = models.BooleanField("E-mail verificado", default=False)
     email_verified_at = models.DateTimeField("E-mail verificado em", null=True, blank=True)
+    administrative_whatsapp = models.CharField(
+        "WhatsApp para alertas administrativos",
+        max_length=20,
+        blank=True,
+        help_text=(
+            "Usado para lembretes operacionais do Superadmin, como a conferência mensal do ISS. "
+            "Informe DDD + número; o sistema salva no formato 55DDDNUMERO."
+        ),
+    )
 
     class Meta:
         verbose_name = "Usuário"
@@ -44,6 +53,22 @@ class User(AbstractUser):
 
     def clean(self):
         super().clean()
+
+        if self.administrative_whatsapp:
+            from apps.integrations.whatsapp.service import normalize_br_phone
+
+            try:
+                self.administrative_whatsapp = normalize_br_phone(
+                    self.administrative_whatsapp
+                )
+            except ValueError as exc:
+                raise ValidationError(
+                    {
+                        "administrative_whatsapp": (
+                            "Informe um WhatsApp válido com DDD, por exemplo (11) 99999-9999."
+                        )
+                    }
+                ) from exc
 
         # Superusuário é global e nunca pertence a uma loja.
         if self.is_superuser and self.tenant_id:

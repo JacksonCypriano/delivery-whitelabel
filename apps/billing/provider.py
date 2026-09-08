@@ -157,5 +157,8 @@ class Asaas:
     def create_customer(self, body):
         return self.request("POST", "/customers", json=body)
 
+    def update_customer(self, identifier, body):
+        return self.request("PUT", "/customers/" + valid_id(identifier), json=body)
+
     def pix(self, identifier):
         return self.request("GET", "/payments/" + valid_id(identifier) + "/pixQrCode")

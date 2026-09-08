@@ -98,6 +98,23 @@ class CustomUserAdmin(ModelAdmin, BaseUserAdmin):
 
     actions = ("resend_initial_access",)
 
+    def get_fieldsets(self, request, obj=None):
+        fieldsets = list(super().get_fieldsets(request, obj))
+        if obj and obj.is_superuser:
+            fieldsets.append(
+                (
+                    "Alertas do gestor global",
+                    {
+                        "fields": ("administrative_whatsapp",),
+                        "description": (
+                            "Este WhatsApp recebe lembretes operacionais do Superadmin. "
+                            "A conferência mensal do ISS continua exigindo confirmação manual no painel."
+                        ),
+                    },
+                )
+            )
+        return fieldsets
+
     @admin.display(description="Tipo de acesso", ordering="is_superuser")
     def access_type(self, obj):
         if obj.is_superuser:

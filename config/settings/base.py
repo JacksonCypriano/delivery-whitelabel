@@ -12,6 +12,15 @@ DEBUG = False
 
 CUSTOMER_PORTAL_URL = os.getenv("CUSTOMER_PORTAL_URL", "http://lvh.me:8000").rstrip("/")
 
+# URL pública do Superadmin usada em links enviados fora do navegador (ex.: WhatsApp).
+# Em produção, se vazia, o código usa CUSTOMER_PORTAL_URL. Em homologação pode
+# apontar temporariamente para um Cloudflare Tunnel para o link abrir no celular.
+SUPERADMIN_PUBLIC_URL = os.getenv("SUPERADMIN_PUBLIC_URL", "").rstrip("/")
+CONTABILIZEI_TAX_RATES_URL = os.getenv(
+    "CONTABILIZEI_TAX_RATES_URL",
+    "https://app.contabilizei.com.br/painel-de-controle/#/minhas-aliquotas",
+).strip()
+
 ALLOWED_HOSTS = [
     h.strip() for h in os.getenv("ALLOWED_HOSTS", "localhost").split(",") if h.strip()
 ]
@@ -533,6 +542,43 @@ UNFOLD_SUPER = {
                 ],
             },
             {
+                "title": _("Fiscal / NFS-e"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Configurações de NFS-e"),
+                        "icon": "settings_suggest",
+                        "link": reverse_lazy("super_admin:billing_fiscalsettings_changelist"),
+                    },
+                    {
+                        "title": _("Alíquotas mensais de ISS"),
+                        "icon": "percent",
+                        "link": reverse_lazy("super_admin:billing_taxrate_changelist"),
+                    },
+                    {
+                        "title": _("Lembretes WhatsApp de ISS"),
+                        "icon": "notifications_active",
+                        "link": reverse_lazy("super_admin:billing_taxratewhatsappreminder_changelist"),
+                    },
+                    {
+                        "title": _("Notas fiscais de assinaturas"),
+                        "icon": "request_quote",
+                        "link": reverse_lazy("super_admin:billing_fiscalinvoice_changelist"),
+                    },
+                    {
+                        "title": _("Regras fiscais de clientes"),
+                        "icon": "rule",
+                        "link": reverse_lazy("super_admin:billing_fiscalcustomerrule_changelist"),
+                    },
+                    {
+                        "title": _("Exportações fiscais"),
+                        "icon": "download",
+                        "link": reverse_lazy("super_admin:billing_municipalexport_changelist"),
+                    },
+                ],
+            },
+            {
                 "title": _("WhatsApp"),
                 "separator": True,
                 "collapsible": True,
@@ -679,5 +725,9 @@ CELERY_BEAT_SCHEDULE = {
     "billing-nfse-documents": {
         "task": "apps.billing.tasks.retry_nfse_documents",
         "schedule": crontab(minute="*/5"),
+    },
+    "billing-tax-rate-whatsapp-reminder": {
+        "task": "apps.billing.tasks.send_tax_rate_whatsapp_reminders",
+        "schedule": crontab(hour=8, minute=5),
     },
 }

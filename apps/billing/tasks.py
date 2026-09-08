@@ -2,10 +2,15 @@ import logging
 import uuid
 import time
 from datetime import timedelta
+from urllib.parse import urlencode, urlsplit
 from celery import shared_task
+from django.db import transaction
 from django.db.models import F, Q
+from django.contrib.auth import get_user_model
+from django.conf import settings
+from django.urls import reverse
 from django.utils import timezone
-from .models import BillingEvent, Invoice, OrderPayment
+from .models import BillingEvent, Invoice, OrderPayment, TaxRateWhatsAppReminder
 from .provider import Asaas, BillingError, environment, configured
 from .services import reconcile_invoice, apply_payment, suspend_due
 
@@ -174,3 +179,152 @@ def reconcile_fiscal_invoices():
         except Exception:
             FiscalInvoice.objects.filter(invoice_id=pk).update(notice='Falha fiscal inesperada; revisão técnica necessária. O pagamento permanece preservado.', last_checked_at=timezone.now())
             log.error('Falha fiscal pendente de revisão. invoice_id=%s', pk)
+
+
+
+def _tax_rate_admin_url(alert):
+    current = alert["current"]
+    if current:
+        path = reverse("super_admin:billing_taxrate_change", args=[current.pk])
+    else:
+        query = {
+            "configuration": alert["configuration"].pk,
+            "month": alert["month"].isoformat(),
+        }
+        previous = alert["previous"]
+        if previous:
+            query["iss"] = str(previous.iss)
+        path = reverse("super_admin:billing_taxrate_add") + "?" + urlencode(query)
+
+    base = (getattr(settings, "SUPERADMIN_PUBLIC_URL", "") or "").strip().rstrip("/")
+    if not base:
+        base = (getattr(settings, "CUSTOMER_PORTAL_URL", "") or "").strip().rstrip("/")
+    parsed = urlsplit(base)
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+    ):
+        return ""
+    return base + path
+
+
+def _tax_rate_whatsapp_message(alert, action_url):
+    month = alert["month"]
+    previous = alert["previous"]
+    previous_line = ""
+    if previous:
+        previous_line = (
+            f"\nÚltima alíquota confirmada: {previous.iss}% "
+            f"({previous.month:%m/%Y})."
+        )
+    contabilizei_url = getattr(
+        settings,
+        "CONTABILIZEI_TAX_RATES_URL",
+        "https://app.contabilizei.com.br/painel-de-controle/#/minhas-aliquotas",
+    )
+    return (
+        "⚠️ VemDeDelivery — conferência mensal do ISS\n\n"
+        f"A alíquota de ISS de {month:%m/%Y} ainda não foi confirmada."
+        f"{previous_line}\n\n"
+        "1) Confira a alíquota na Contabilizei:\n"
+        f"{contabilizei_url}\n\n"
+        "2) Depois confirme ou ajuste no Superadmin do VemDeDelivery:\n"
+        f"{action_url}\n\n"
+        "Enquanto a competência não for confirmada, a emissão automática de NFS-e fica bloqueada. "
+        "Cobranças e acesso às lojas continuam funcionando."
+    )
+
+
+@shared_task(soft_time_limit=60, time_limit=90)
+def send_tax_rate_whatsapp_reminders():
+    """Envia uma confirmação mensal do ISS aos superusuários com WhatsApp.
+
+    Roda diariamente para recuperar indisponibilidades do Celery/Evolution, mas um
+    envio confirmado é persistido por usuário + competência e não é repetido.
+    """
+    from apps.billing.fiscal import current_tax_rate_alert
+    from apps.integrations.whatsapp.client import EvolutionClient, EvolutionError
+    from apps.integrations.whatsapp.service import normalize_br_phone
+
+    alert = current_tax_rate_alert()
+    if not alert:
+        return 0
+    action_url = _tax_rate_admin_url(alert)
+    if not action_url:
+        log.error("Lembrete mensal de ISS não enviado: SUPERADMIN_PUBLIC_URL inválida.")
+        return 0
+
+    User = get_user_model()
+    sent = 0
+    for user in (
+        User.objects.filter(is_superuser=True, is_active=True)
+        .exclude(administrative_whatsapp="")
+        .order_by("pk")
+    ):
+        try:
+            phone = normalize_br_phone(user.administrative_whatsapp)
+        except ValueError:
+            log.error("WhatsApp administrativo inválido para superusuário pk=%s.", user.pk)
+            continue
+
+        now = timezone.now()
+        with transaction.atomic():
+            reminder, _ = TaxRateWhatsAppReminder.objects.select_for_update().get_or_create(
+                configuration=alert["configuration"],
+                month=alert["month"],
+                recipient=user,
+                defaults={"phone": phone},
+            )
+            if reminder.status == "SENT":
+                continue
+            if (
+                reminder.status == "SENDING"
+                and reminder.attempted_at
+                and reminder.attempted_at > now - timedelta(hours=1)
+            ):
+                continue
+            reminder.phone = phone
+            reminder.status = "SENDING"
+            reminder.attempts = F("attempts") + 1
+            reminder.attempted_at = now
+            reminder.last_error = ""
+            reminder.save(
+                update_fields=[
+                    "phone",
+                    "status",
+                    "attempts",
+                    "attempted_at",
+                    "last_error",
+                ]
+            )
+
+        try:
+            EvolutionClient().send_text(
+                phone,
+                _tax_rate_whatsapp_message(alert, action_url),
+            )
+        except EvolutionError as exc:
+            TaxRateWhatsAppReminder.objects.filter(pk=reminder.pk).update(
+                status="FAILED",
+                last_error=str(getattr(exc, "reason", "unavailable"))[:80],
+            )
+            continue
+        except Exception:
+            log.exception("Falha inesperada ao enviar lembrete mensal de ISS.")
+            TaxRateWhatsAppReminder.objects.filter(pk=reminder.pk).update(
+                status="FAILED",
+                last_error="unexpected",
+            )
+            continue
+
+        TaxRateWhatsAppReminder.objects.filter(pk=reminder.pk).update(
+            status="SENT",
+            sent_at=timezone.now(),
+            last_error="",
+        )
+        sent += 1
+    return sent

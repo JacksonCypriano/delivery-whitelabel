@@ -246,3 +246,8 @@ deploy/nginx/certs/
 
 # Arquivos de segurança do Windows
 *Zone.Identifier*
+
+# Certificados/segredos fiscais locais
+.secrets/
+*.pfx
+*.p12

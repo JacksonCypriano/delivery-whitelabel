@@ -1,5 +1,5 @@
 import uuid
-from .fiscal_models import FiscalSettings, TaxRate, FiscalInvoice, FiscalCustomerRule, MunicipalExport
+from .fiscal_models import FiscalSettings, TaxRate, TaxRateWhatsAppReminder, FiscalInvoice, FiscalCustomerRule, MunicipalExport
 from decimal import Decimal
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -188,6 +188,11 @@ class BillingCustomer(models.Model):
     name = models.CharField("Nome / razão social", max_length=150)
     document = models.CharField("CPF / CNPJ", max_length=14)
     email = models.EmailField("E-mail")
+    postal_code = models.CharField("CEP de faturamento", max_length=8, blank=True)
+    address = models.CharField("Logradouro de faturamento", max_length=255, blank=True)
+    address_number = models.CharField("Número de faturamento", max_length=20, blank=True)
+    complement = models.CharField("Complemento de faturamento", max_length=100, blank=True)
+    province = models.CharField("Bairro de faturamento", max_length=100, blank=True)
     attempted = models.BooleanField("Cadastro já solicitado ao Asaas", default=False)
 
     class Meta:

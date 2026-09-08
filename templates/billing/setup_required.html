@@ -1,0 +1,20 @@
+{% extends "admin/base_site.html" %}
+{% block content %}{% include 'billing/style.html' %}
+<main class="vdd-billing">
+  <section class="blocker">
+    <p class="eyebrow">Etapa necessária antes dos pagamentos</p>
+    <h1>Conclua os dados da sua loja</h1>
+    <p>Para sua segurança e para conseguirmos gerar cobranças e notas fiscais corretamente, a área de assinatura só é liberada depois que o endereço mínimo da loja estiver preenchido.</p>
+    <div class="notice"><strong>Nenhuma cobrança será criada enquanto houver dados pendentes.</strong> Assim você não corre o risco de ficar com um pagamento em estado indefinido.</div>
+    <h2>Falta preencher</h2>
+    <ul class="checklist">
+      {% for field in billing_profile_missing %}<li>○ {{ field|capfirst }}</li>{% endfor %}
+    </ul>
+    <p class="muted">Precisamos apenas de CEP, logradouro, número e bairro nesta etapa. Os dados do pagador (nome/razão social, CPF/CNPJ e e-mail financeiro) serão confirmados no momento da contratação.</p>
+    <div class="actions">
+      <a class="button" href="{{ billing_profile_url }}">Completar cadastro da loja</a>
+      <a class="button secondary" href="{% url 'tenant_admin:index' %}">Voltar ao painel</a>
+    </div>
+  </section>
+</main>
+{% endblock %}

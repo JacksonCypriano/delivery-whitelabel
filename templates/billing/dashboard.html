@@ -1,29 +1,68 @@
 {% extends "admin/base_site.html" %}
 {% block content %}{% include 'billing/style.html' %}
 <main class="vdd-billing">
-<section class="intro"><h1>Minha assinatura</h1><p>{{ request.tenant.name }} · {{ subscription.situation }}</p>
-{% if subscription.valid_until %}<p>Vencimento: <strong>{{ subscription.valid_until|date:"d/m/Y" }}</strong></p>{% endif %}
-<p>Adicione meses quando quiser. O tempo restante da sua assinatura é preservado.</p></section>
-{% if sandbox %}<p class="notice"><strong>Ambiente de testes:</strong> cobranças simuladas, sem pagamento real.</p>{% endif %}
-{% if not ready %}<p class="notice">Os pagamentos online ainda estão sendo configurados. Fale com o responsável pela plataforma para regularizar sua assinatura.</p>{% endif %}
-{% if subscription.manually_blocked or subscription.payment_review %}<p class="notice">Há um bloqueio que exige revisão administrativa. O pagamento acrescenta meses, mas não remove esse bloqueio. Entre em contato com o responsável pela plataforma.</p>{% endif %}
-<h2>Renovar ou adicionar meses</h2>
-<div class="grid">{% for row in plans %}<section class="card"><h2>{{ row.plan.name }}</h2><p>{{ row.plan.months }} meses{% if row.plan.discount %} · {{ row.plan.discount }}% de desconto{% endif %}</p>
-{% for option in row.options %}<div class="price">R$ {{ option.amount|floatformat:2 }}</div><p>Total por {{ option.label }}</p>
-{% if ready %}<details><summary>Escolher {{ option.label }}</summary>
-<form method="post" action="{% url 'tenant_admin:billing_purchase' %}">{% csrf_token %}<input type="hidden" name="quote" value="{{ option.quote }}">
-<label>Nome / razão social<input name="name" maxlength="150" required value="{{ customer.name|default:'' }}"></label>
-<label>CPF / CNPJ do pagador<input name="document" maxlength="20" required value="{{ customer.document|default:'' }}"></label>
-<label>E-mail financeiro<input name="email" type="email" required value="{{ customer.email|default:'' }}"></label>
-<small>Ao confirmar, os dados serão enviados ao Asaas para gerar esta cobrança. Compra única do período, sem renovação automática.</small>
-<button type="submit">Gerar cobrança de R$ {{ option.amount|floatformat:2 }}</button></form></details>{% endif %}
-{% empty %}<p>Nenhuma forma de pagamento habilitada.</p>{% endfor %}</section>{% endfor %}</div>
-{% if services %}<h2>Serviços adicionais</h2><p>Serviços avulsos, cobrados separadamente. A contratação não altera o vencimento da assinatura.</p>
-<div class="grid">{% for row in services %}<section class="card"><h2>{{ row.service.name }}</h2>{% if row.service.description %}<p>{{ row.service.description }}</p>{% endif %}
-{% for option in row.options %}<div class="price">R$ {{ option.amount|floatformat:2 }}</div><p>Pagamento por {{ option.label }}</p>
-{% if ready %}<details><summary>Contratar por {{ option.label }}</summary><form method="post" action="{% url 'tenant_admin:billing_purchase' %}">{% csrf_token %}<input type="hidden" name="quote" value="{{ option.quote }}"><label>Nome / razão social<input name="name" maxlength="150" required value="{{ customer.name|default:'' }}"></label><label>CPF / CNPJ do pagador<input name="document" maxlength="20" required value="{{ customer.document|default:'' }}"></label><label>E-mail financeiro<input name="email" type="email" required value="{{ customer.email|default:'' }}"></label><small>Após a confirmação do pagamento, o serviço será registrado e a nota fiscal será emitida conforme a configuração fiscal.</small><button type="submit">Gerar cobrança de R$ {{ option.amount|floatformat:2 }}</button></form></details>{% endif %}{% empty %}<p>Nenhuma forma de pagamento habilitada.</p>{% endfor %}</section>{% endfor %}</div>{% endif %}
-<h2>Histórico de cobranças</h2><div class="scroll"><table><thead><tr><th>Data</th><th>Plano</th><th>Valor</th><th>Situação</th><th>Nota fiscal</th><th></th></tr></thead><tbody>
-{% for bill in invoices %}<tr><td>{{ bill.created_at|date:"d/m/Y H:i" }}</td><td>{{ bill.plan_name }}</td><td>R$ {{ bill.amount|floatformat:2 }}</td><td>{{ bill.get_status_display }}</td><td>{% if bill.fiscal_note %}{{ bill.fiscal_note.get_status_display }}<br>{% if bill.fiscal_note.pdf_sha256 %}<a href="{% url 'tenant_admin:billing_fiscal_download' bill.pk 'pdf' %}">PDF</a>{% endif %}{% if bill.fiscal_note.xml_sha256 %} · <a href="{% url 'tenant_admin:billing_fiscal_download' bill.pk 'xml' %}">XML</a>{% endif %}{% else %}—{% endif %}</td><td><a href="{% url 'tenant_admin:billing_invoice' bill.pk %}">Ver cobrança</a></td></tr>{% empty %}<tr><td colspan="6">Nenhuma cobrança registrada.</td></tr>{% endfor %}
-</tbody></table></div>
-{% if history_page.has_other_pages %}<nav aria-label="Páginas do histórico">{% if history_page.has_previous %}<a href="?pagina={{ history_page.previous_page_number }}">← Mais recentes</a>{% endif %} · Página {{ history_page.number }} de {{ history_page.paginator.num_pages }} · {% if history_page.has_next %}<a href="?pagina={{ history_page.next_page_number }}">Mais antigas →</a>{% endif %}</nav>{% endif %}
-</main>{% endblock %}
+  <section class="intro">
+    <div class="intro-row">
+      <div>
+        <p class="eyebrow">Financeiro da loja</p>
+        <h1>Minha assinatura</h1>
+        <p>{{ request.tenant.name }}</p>
+      </div>
+      <span class="badge">{{ subscription.situation }}</span>
+    </div>
+    <div class="actions">
+      <a class="button secondary" href="{% url 'tenant_admin:billing_fiscal_list' %}">Ver notas fiscais{% if fiscal_count %} ({{ fiscal_count }}){% endif %}</a>
+    </div>
+  </section>
+
+  {% if sandbox %}<p class="notice"><strong>Ambiente de testes:</strong> as cobranças deste ambiente são simuladas e não movimentam dinheiro real.</p>{% endif %}
+  {% if not ready %}<p class="notice">Os pagamentos ainda estão sendo configurados pela plataforma. Você pode consultar sua situação, mas novas cobranças estão temporariamente indisponíveis.</p>{% endif %}
+  {% if subscription.manually_blocked or subscription.payment_review %}<p class="notice">Existe uma pendência administrativa nesta assinatura. Um novo pagamento pode acrescentar período, mas não remove esse bloqueio. Entre em contato com o suporte.</p>{% endif %}
+
+  <section class="summary-grid" aria-label="Resumo da assinatura">
+    <article class="summary-card"><div class="label">Situação</div><div class="value">{{ subscription.situation }}</div><p class="muted">Estado atual da sua loja em relação à assinatura.</p></article>
+    <article class="summary-card"><div class="label">Vencimento</div><div class="value">{% if subscription.valid_until %}{{ subscription.valid_until|date:"d/m/Y" }}{% else %}Ainda não definido{% endif %}</div>{% if subscription.valid_until %}<p class="muted">{% if subscription.days_remaining == 1 %}1 dia restante.{% else %}{{ subscription.days_remaining }} dias restantes.{% endif %}</p>{% else %}<p class="muted">O vencimento será definido após o primeiro período contratado.</p>{% endif %}</article>
+    <article class="summary-card"><div class="label">Última cobrança</div><div class="value">{% if latest_invoice %}{{ latest_invoice.get_status_display }}{% else %}Nenhuma{% endif %}</div>{% if latest_invoice %}<p class="muted">R$ {{ latest_invoice.amount|floatformat:2 }} · {{ latest_invoice.created_at|date:"d/m/Y" }}</p>{% else %}<p class="muted">Você ainda não possui cobranças registradas.</p>{% endif %}</article>
+  </section>
+
+  <div class="section-head"><div><h2>Planos disponíveis</h2><p class="muted">Escolha o período que deseja adicionar. Se ainda houver tempo vigente, ele é preservado e os novos meses são somados ao final.</p></div></div>
+  <div class="grid">
+    {% for row in plans %}
+      <section class="card">
+        <h3>{{ row.plan.name }}</h3>
+        <p>{% if row.plan.months == 1 %}1 mês{% else %}{{ row.plan.months }} meses{% endif %}{% if row.plan.discount %} · {{ row.plan.discount }}% de desconto{% endif %}</p>
+        {% for option in row.options %}
+          <div class="price">R$ {{ option.amount|floatformat:2 }}</div><p class="muted">Pagamento por {{ option.label }}</p>
+          {% if ready %}
+            <details><summary>Contratar este período</summary>
+              <form method="post" action="{% url 'tenant_admin:billing_purchase' %}">{% csrf_token %}<input type="hidden" name="quote" value="{{ option.quote }}">
+                <label>Nome / razão social<input name="name" maxlength="150" required value="{{ customer.name|default:'' }}"></label>
+                <label>CPF / CNPJ do pagador<input name="document" maxlength="20" required value="{{ customer.document|default:'' }}"></label>
+                <label>E-mail financeiro<input name="email" type="email" required value="{{ customer.email|default:'' }}"></label>
+                <small>Esses dados identificam o pagador e serão usados na cobrança e na nota fiscal. A compra é única, sem renovação automática.</small>
+                <button type="submit">Gerar cobrança de R$ {{ option.amount|floatformat:2 }}</button>
+              </form>
+            </details>
+          {% endif %}
+        {% empty %}<p>Nenhuma forma de pagamento habilitada.</p>{% endfor %}
+      </section>
+    {% empty %}<section class="card"><p>Nenhum plano está disponível para contratação no momento.</p></section>{% endfor %}
+  </div>
+
+  {% if services %}
+    <div class="section-head"><div><h2>Serviços adicionais</h2><p class="muted">Contratações avulsas. Elas não alteram o vencimento da sua assinatura e também geram nota fiscal após o pagamento.</p></div></div>
+    <div class="grid">
+      {% for row in services %}<section class="card"><h3>{{ row.service.name }}</h3>{% if row.service.description %}<p>{{ row.service.description }}</p>{% endif %}
+        {% for option in row.options %}<div class="price">R$ {{ option.amount|floatformat:2 }}</div><p class="muted">Pagamento por {{ option.label }}</p>
+          {% if ready %}<details><summary>Contratar serviço</summary><form method="post" action="{% url 'tenant_admin:billing_purchase' %}">{% csrf_token %}<input type="hidden" name="quote" value="{{ option.quote }}"><label>Nome / razão social<input name="name" maxlength="150" required value="{{ customer.name|default:'' }}"></label><label>CPF / CNPJ do pagador<input name="document" maxlength="20" required value="{{ customer.document|default:'' }}"></label><label>E-mail financeiro<input name="email" type="email" required value="{{ customer.email|default:'' }}"></label><small>A nota fiscal será emitida após a confirmação do pagamento.</small><button type="submit">Gerar cobrança de R$ {{ option.amount|floatformat:2 }}</button></form></details>{% endif %}
+        {% empty %}<p>Nenhuma forma de pagamento habilitada.</p>{% endfor %}</section>{% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="section-head"><div><h2>Histórico de cobranças</h2><p class="muted">Aqui ficam seus pagamentos e cobranças. As notas fiscais possuem uma área própria no menu Financeiro.</p></div><a class="button secondary" href="{% url 'tenant_admin:billing_fiscal_list' %}">Consultar notas fiscais</a></div>
+  <div class="scroll"><table><thead><tr><th>Data</th><th>Referência</th><th>Valor</th><th>Forma</th><th>Situação</th><th></th></tr></thead><tbody>
+    {% for bill in invoices %}<tr><td>{{ bill.created_at|date:"d/m/Y H:i" }}</td><td>{{ bill.plan_name }}</td><td>R$ {{ bill.amount|floatformat:2 }}</td><td>{{ bill.get_method_display }}</td><td>{{ bill.get_status_display }}</td><td><a href="{% url 'tenant_admin:billing_invoice' bill.pk %}">Ver detalhes</a></td></tr>{% empty %}<tr><td colspan="6" class="empty">Nenhuma cobrança registrada.</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% if history_page.has_other_pages %}<nav class="pagination" aria-label="Páginas do histórico">{% if history_page.has_previous %}<a href="?pagina={{ history_page.previous_page_number }}">← Mais recentes</a>{% endif %}<span>Página {{ history_page.number }} de {{ history_page.paginator.num_pages }}</span>{% if history_page.has_next %}<a href="?pagina={{ history_page.next_page_number }}">Mais antigas →</a>{% endif %}</nav>{% endif %}
+</main>
+{% endblock %}

@@ -169,7 +169,7 @@ def deliver_documents(note_id):
         )
         message = EmailMessage(
             subject=f"{prefix}VemDeDelivery — sua nota fiscal",
-            body=f"Olá!\n\nA nota fiscal nº {note.number or note.provider_id} da assinatura {note.invoice.plan_name} foi autorizada. Segue o PDF em anexo e o XML, quando disponibilizado pelo emissor.\n\nUma cópia permanece disponível no painel da sua loja, em Minha assinatura → Histórico de cobranças → Nota fiscal.\n\nVemDeDelivery — COBRADEV SOLUTIONS",
+            body=f"Olá!\n\nA nota fiscal nº {note.number or note.provider_id} da assinatura {note.invoice.plan_name} foi autorizada. Segue o PDF em anexo e o XML, quando disponibilizado pelo emissor.\n\nUma cópia permanece disponível no painel da sua loja, em Financeiro → Notas fiscais.\n\nVemDeDelivery — COBRADEV SOLUTIONS",
             to=[note.delivery_email],
             headers={
                 "Message-ID": f"<nfse-{note.invoice.environment}-{note.invoice_id}@vemdedelivery.com.br>"

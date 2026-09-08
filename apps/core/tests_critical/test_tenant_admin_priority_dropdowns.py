@@ -35,6 +35,13 @@ class TenantAdminPriorityDropdownCriticalTests(CriticalTestCase):
             ["Perfil público"],
         )
 
+        finance_group = navigation[-1]
+        self.assertEqual(str(finance_group["title"]), "Financeiro")
+        self.assertEqual(
+            [str(item["title"]) for item in finance_group["items"]],
+            ["Minha assinatura", "Notas fiscais"],
+        )
+
         for group in navigation:
             for item in group["items"]:
                 self.assertTrue(str(item["link"]).startswith("/admin/"))

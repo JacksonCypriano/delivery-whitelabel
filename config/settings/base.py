@@ -458,6 +458,11 @@ UNFOLD = {
                         "icon": "payments",
                         "link": reverse_lazy("tenant_admin:billing_dashboard"),
                     },
+                    {
+                        "title": _("Notas fiscais"),
+                        "icon": "request_quote",
+                        "link": reverse_lazy("tenant_admin:billing_fiscal_list"),
+                    },
                 ],
             },
         ],

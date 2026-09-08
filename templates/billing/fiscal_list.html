@@ -1,0 +1,28 @@
+{% extends "admin/base_site.html" %}
+{% block content %}{% include 'billing/style.html' %}
+<main class="vdd-billing">
+  <section class="intro">
+    <div class="intro-row"><div><p class="eyebrow">Financeiro da loja</p><h1>Notas fiscais</h1><p>Consulte as NFS-e geradas pelas suas assinaturas e serviços adicionais.</p></div><a class="button secondary" href="{% url 'tenant_admin:billing_dashboard' %}">Minha assinatura</a></div>
+  </section>
+
+  <section class="summary-grid" aria-label="Resumo de notas fiscais">
+    <article class="summary-card"><div class="label">Total</div><div class="value">{{ total_notes }}</div><p class="muted">Notas registradas para esta loja.</p></article>
+    <article class="summary-card"><div class="label">Autorizadas</div><div class="value">{{ authorized_notes }}</div><p class="muted">Notas já autorizadas pela prefeitura.</p></article>
+    <article class="summary-card"><div class="label">Em processamento</div><div class="value">{{ processing_notes }}</div><p class="muted">Notas aguardando conclusão do processamento fiscal.</p></article>
+  </section>
+
+  <div class="section-head"><div><h2>Histórico de NFS-e</h2><p class="muted">PDF e XML aparecem assim que forem autorizados e arquivados pelo sistema.</p></div></div>
+  <div class="scroll"><table><thead><tr><th>Data</th><th>Referência</th><th>Valor</th><th>Número</th><th>Situação</th><th>Documentos</th><th>Cobrança</th></tr></thead><tbody>
+    {% for note in notes %}<tr>
+      <td>{% if note.effective_date %}{{ note.effective_date|date:"d/m/Y" }}{% else %}{{ note.created_at|date:"d/m/Y" }}{% endif %}</td>
+      <td>{{ note.invoice.plan_name }}</td>
+      <td>R$ {{ note.amount|floatformat:2 }}</td>
+      <td>{{ note.number|default:"—" }}</td>
+      <td>{{ note.get_status_display }}{% if note.review_required %}<br><small>Revisão fiscal necessária</small>{% endif %}</td>
+      <td>{% if note.pdf_sha256 %}<a href="{% url 'tenant_admin:billing_fiscal_download' note.invoice_id 'pdf' %}">PDF</a>{% else %}<span class="muted">PDF pendente</span>{% endif %}{% if note.xml_sha256 %} · <a href="{% url 'tenant_admin:billing_fiscal_download' note.invoice_id 'xml' %}">XML</a>{% endif %}</td>
+      <td><a href="{% url 'tenant_admin:billing_invoice' note.invoice_id %}">Ver cobrança</a></td>
+    </tr>{% empty %}<tr><td colspan="7" class="empty">Nenhuma nota fiscal registrada ainda. Depois que um pagamento elegível for confirmado, a NFS-e aparecerá aqui automaticamente.</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% if notes_page.has_other_pages %}<nav class="pagination" aria-label="Páginas das notas">{% if notes_page.has_previous %}<a href="?pagina={{ notes_page.previous_page_number }}">← Mais recentes</a>{% endif %}<span>Página {{ notes_page.number }} de {{ notes_page.paginator.num_pages }}</span>{% if notes_page.has_next %}<a href="?pagina={{ notes_page.next_page_number }}">Mais antigas →</a>{% endif %}</nav>{% endif %}
+</main>
+{% endblock %}

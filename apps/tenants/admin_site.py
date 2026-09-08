@@ -115,6 +115,7 @@ class TenantAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
             path('minha-assinatura/cobranca/<uuid:invoice_id>/consultar/', self.admin_view(views.refresh), name='billing_refresh'),
             path('minha-assinatura/cobranca/<uuid:invoice_id>/nota/<str:kind>/', self.admin_view(views.fiscal_download), name='billing_fiscal_download'),
             path('notas-fiscais/', self.admin_view(views.fiscal_list), name='billing_fiscal_list'),
+            path('taxas-pagamentos-online/', self.admin_view(views.online_fees), name='billing_online_fees'),
         ] + super().get_urls()
 
     def index(self, request, extra_context=None):
@@ -221,14 +222,15 @@ class SuperAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
             "AdditionalService": 50,
             "TenantPaymentAccount": 60,
             "BillingSettings": 70,
-            "BillingEvent": 80,
-            "BillingAudit": 90,
-            "FiscalInvoice": 100,
-            "FiscalSettings": 110,
-            "FiscalCustomerRule": 120,
-            "TaxRate": 130,
-            "TaxRateWhatsAppReminder": 140,
-            "MunicipalExport": 150,
+            "AsaasFeeSnapshot": 80,
+            "BillingEvent": 90,
+            "BillingAudit": 100,
+            "FiscalInvoice": 110,
+            "FiscalSettings": 120,
+            "FiscalCustomerRule": 130,
+            "TaxRate": 140,
+            "TaxRateWhatsAppReminder": 150,
+            "MunicipalExport": 160,
         },
         "integrations": {
             "WhatsAppIntegrationState": 10,
@@ -293,6 +295,16 @@ class SuperAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
                     "month": alert["month"],
                     "previous": previous,
                     "action_url": action_url,
+                }
+
+            from apps.billing.models import AsaasFeeSnapshot
+            from apps.billing.provider import environment
+
+            latest_fees = AsaasFeeSnapshot.current(environment())
+            if latest_fees and latest_fees.reviewed_at is None:
+                ctx["global_asaas_fee_alert"] = {
+                    "snapshot": latest_fees,
+                    "action_url": reverse("super_admin:billing_asaasfeesnapshot_changelist"),
                 }
 
         return ctx

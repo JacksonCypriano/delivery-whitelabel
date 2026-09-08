@@ -134,6 +134,7 @@ def sync_pending_subaccounts(limit=50):
     """Reconcile pending stores so approval does not depend on one delivery."""
     rows = TenantPaymentAccount.objects.filter(
         enabled=True,
+        tenant__online_payments_allowed=True,
         status=TenantPaymentAccount.Status.PENDING,
     ).exclude(provider_account_id="").exclude(encrypted_api_key="")[:limit]
     for account in rows:
@@ -156,6 +157,10 @@ def _disable_failed_activation(account, message):
 def request_subaccount(account):
     """Create the Asaas subaccount once, keeping the returned API key encrypted."""
     try:
+        if not account.tenant.online_payments_allowed:
+            raise BillingError(
+                "Pagamentos online ainda não foram liberados para esta loja pelo VemDeDelivery."
+            )
         if not account.terms_accepted:
             raise BillingError(
                 "Confirme que está de acordo com as taxas e condições do Asaas antes de continuar."
@@ -254,6 +259,8 @@ def request_subaccount(account):
 
 
 def online_payment_available(tenant):
+    if not tenant.online_payments_allowed:
+        return False
     account = getattr(tenant, "payment_account", None)
     return bool(tenant.sale_mode == "online" and account and account.terms_accepted and account.is_ready)
 
@@ -267,6 +274,8 @@ def create_order_checkout(order, request):
     """Create an Asaas hosted Checkout in the tenant subaccount."""
     if order.payment_method not in ONLINE_METHODS:
         raise BillingError("Este pedido não utiliza pagamento online.")
+    if not order.tenant.online_payments_allowed:
+        raise BillingError("O pagamento online desta loja não está liberado.")
     account = getattr(order.tenant, "payment_account", None)
     if not account or not account.is_ready:
         raise BillingError("O pagamento online desta loja ainda não foi aprovado pelo Asaas.")
@@ -350,7 +359,12 @@ def refresh_order_payment(payment):
         tenant=payment.tenant,
         provider_account_id=payment.provider_account_id,
     ).first()
-    if not account or not account.is_ready or not payment.checkout_id:
+    if (
+        not account
+        or not account.provider_account_id
+        or not account.encrypted_api_key
+        or not payment.checkout_id
+    ):
         raise BillingError("Pagamento online ainda não está disponível para consulta.")
     checkout = Asaas(api_key=account.get_api_key()).get_checkout(payment.checkout_id)
     return apply_checkout_event(payment.checkout_id, checkout, "")

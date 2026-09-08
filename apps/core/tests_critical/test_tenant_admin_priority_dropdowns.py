@@ -39,8 +39,17 @@ class TenantAdminPriorityDropdownCriticalTests(CriticalTestCase):
         self.assertEqual(str(finance_group["title"]), "Financeiro")
         self.assertEqual(
             [str(item["title"]) for item in finance_group["items"]],
-            ["Minha assinatura", "Notas fiscais"],
+            ["Minha assinatura", "Notas fiscais", "Taxas de pagamentos online"],
         )
+        fees_item = finance_group["items"][-1]
+        request = RequestFactory().get("/admin/")
+        request.user = self.admin_a
+        request.tenant = self.tenant_a
+        self.assertFalse(fees_item["permission"](request))
+        self.tenant_a.online_payments_allowed = True
+        self.tenant_a.save(update_fields=["online_payments_allowed"])
+        request.tenant = self.tenant_a
+        self.assertTrue(fees_item["permission"](request))
 
         for group in navigation:
             for item in group["items"]:

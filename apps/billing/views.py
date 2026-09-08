@@ -6,7 +6,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.core import signing
 from django.db import transaction
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
@@ -21,6 +21,7 @@ from .models import (
     AdditionalService,
     Subscription,
     FiscalInvoice,
+    TenantPaymentAccount,
 )
 from .forms import PurchaseForm, ManualCreditForm
 from .provider import BillingError, configured, environment
@@ -186,6 +187,43 @@ def refresh(request, invoice_id):
     except BillingError as exc:
         messages.warning(request, str(exc))
     return redirect("tenant_admin:billing_invoice", invoice_id=bill.pk)
+
+
+@require_GET
+def online_fees(request):
+    if not request.tenant.online_payments_allowed:
+        raise Http404
+
+    account = TenantPaymentAccount.objects.filter(tenant=request.tenant).first()
+    fee_summary = None
+    fee_error = ""
+    if account and account.provider_account_id and account.encrypted_api_key:
+        try:
+            from .fees import parse_asaas_fees
+            from .provider import Asaas
+
+            payload = Asaas(api_key=account.get_api_key()).request("GET", "/myAccount/fees/")
+            fee_summary = parse_asaas_fees(payload)
+        except (BillingError, ValueError) as exc:
+            fee_error = str(exc)
+
+    card_fee_rows = []
+    if fee_summary:
+        card_fee_rows = [
+            ("Cartão de crédito à vista", fee_summary["card"]["effective"]["1"]),
+            ("Cartão de crédito — 2 a 6 parcelas", fee_summary["card"]["effective"]["2_6"]),
+            ("Cartão de crédito — 7 a 12 parcelas", fee_summary["card"]["effective"]["7_12"]),
+            ("Cartão de crédito — 13 a 21 parcelas", fee_summary["card"]["effective"]["13_21"]),
+        ]
+
+    ctx = context(request, "Taxas de pagamentos online")
+    ctx.update(
+        payment_account=account,
+        fee_summary=fee_summary,
+        card_fee_rows=card_fee_rows,
+        fee_error=fee_error,
+    )
+    return render(request, "billing/online_fees.html", ctx)
 
 
 @require_GET

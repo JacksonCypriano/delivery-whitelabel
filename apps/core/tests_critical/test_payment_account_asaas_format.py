@@ -28,6 +28,7 @@ class PaymentAccountAsaasFormatCriticalTests(TestCase):
             name="Loja Formato Asaas",
             slug="loja-formato-asaas",
             whatsapp_number="5511999991111",
+            online_payments_allowed=True,
             pickup_address="Rua A",
             pickup_number="10",
             pickup_neighborhood="Centro",
@@ -123,6 +124,7 @@ class PaymentAccountActivationPersistenceCriticalTests(TestCase):
             name="Loja Persistência",
             slug="loja-persistencia",
             whatsapp_number="5511999991111",
+            online_payments_allowed=True,
         )
         self.account = TenantPaymentAccount.objects.create(
             tenant=self.tenant,

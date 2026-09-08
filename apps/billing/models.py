@@ -55,6 +55,50 @@ class BillingSettings(models.Model):
         return cls.objects.get_or_create(pk=1)[0]
 
 
+class AsaasFeeSnapshot(models.Model):
+    """Historical snapshot of the fees returned by the platform Asaas account."""
+
+    environment = models.CharField("Ambiente", max_length=12, choices=ENVIRONMENTS)
+    fingerprint = models.CharField("Assinatura das taxas", max_length=64, db_index=True)
+    payload = models.JSONField("Retorno do Asaas", default=dict)
+
+    pix_fee = models.DecimalField("Pix (R$)", max_digits=8, decimal_places=2, null=True, blank=True)
+    boleto_fee = models.DecimalField("Boleto (R$)", max_digits=8, decimal_places=2, null=True, blank=True)
+    card_fixed_fee = models.DecimalField("Fixa do cartão (R$)", max_digits=8, decimal_places=2, null=True, blank=True)
+    card_1x_percent = models.DecimalField("Cartão 1x (%)", max_digits=6, decimal_places=2, null=True, blank=True)
+    card_2_6_percent = models.DecimalField("Cartão 2 a 6x (%)", max_digits=6, decimal_places=2, null=True, blank=True)
+    card_7_12_percent = models.DecimalField("Cartão 7 a 12x (%)", max_digits=6, decimal_places=2, null=True, blank=True)
+    card_13_21_percent = models.DecimalField("Cartão 13 a 21x (%)", max_digits=6, decimal_places=2, null=True, blank=True)
+    nfse_fee = models.DecimalField("NFS-e (R$)", max_digits=8, decimal_places=2, null=True, blank=True)
+    child_account_fee = models.DecimalField("Criação de subconta (R$)", max_digits=8, decimal_places=2, null=True, blank=True)
+    discount_expires_at = models.DateTimeField("Promoção até", null=True, blank=True)
+
+    observed_at = models.DateTimeField("Consultado em", auto_now_add=True)
+    reviewed_at = models.DateTimeField("Revisado em", null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_asaas_fee_snapshots",
+        verbose_name="Revisado por",
+    )
+    notification_state = models.JSONField("Alertas enviados", default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-observed_at"]
+        verbose_name = "Taxas do Asaas"
+        verbose_name_plural = "Taxas do Asaas"
+        indexes = [models.Index(fields=["environment", "-observed_at"], name="billing_asa_environ_96d573_idx")]
+
+    def __str__(self):
+        return f"Asaas {self.environment} · {self.observed_at:%d/%m/%Y %H:%M}"
+
+    @classmethod
+    def current(cls, environment_value):
+        return cls.objects.filter(environment=environment_value).order_by("-observed_at").first()
+
+
 class Plan(models.Model):
     name = models.CharField("Plano", max_length=80)
     months = models.PositiveSmallIntegerField(
@@ -313,7 +357,12 @@ class TenantPaymentAccount(models.Model):
 
     @property
     def is_ready(self):
-        return self.enabled and self.status == self.Status.APPROVED and bool(self.provider_account_id and self.encrypted_api_key)
+        return (
+            self.tenant.online_payments_allowed
+            and self.enabled
+            and self.status == self.Status.APPROVED
+            and bool(self.provider_account_id and self.encrypted_api_key)
+        )
 
     def set_api_key(self, value):
         from .secrets import encrypt_secret
@@ -322,8 +371,14 @@ class TenantPaymentAccount(models.Model):
     def save(self, *args, **kwargs):
         if self.terms_accepted and self.terms_accepted_at is None:
             self.terms_accepted_at = timezone.now()
-        if not self.terms_accepted:
+        force_disabled = (
+            not self.terms_accepted
+            or (self.tenant_id and not self.tenant.online_payments_allowed)
+        )
+        if force_disabled:
             self.enabled = False
+            if kwargs.get("update_fields") is not None:
+                kwargs["update_fields"] = set(kwargs["update_fields"]) | {"enabled"}
 
         super().save(*args, **kwargs)
 

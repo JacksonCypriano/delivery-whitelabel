@@ -152,11 +152,9 @@ def price_for(plan, method, policy=None):
         raise BillingError("Esta forma de pagamento não está habilitada.")
     value = plan.price
     if method == "CREDIT_CARD":
-        value = max(
-            value,
-            (value - policy.fixed_pix_fee + policy.card_fixed_fee)
-            / (1 - policy.card_percent / 100),
-        )
+        from .fees import card_price_preserving_pix
+
+        return card_price_preserving_pix(value, policy)
     return value.quantize(Decimal(".01"), rounding=ROUND_CEILING)
 
 

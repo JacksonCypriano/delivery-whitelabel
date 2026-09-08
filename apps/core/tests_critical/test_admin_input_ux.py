@@ -4,7 +4,7 @@ from django.conf import settings
 from django.test import TestCase
 from unfold.widgets import UnfoldBooleanSwitchWidget
 
-from apps.billing.admin import AdditionalServiceAdminForm, BillingSettingsAdminForm, PlanAdminForm
+from apps.billing.admin import AdditionalServiceAdminForm, BillingSettingsAdminForm, PlanAdminForm, SettingsAdmin
 from apps.coupons.admin import CouponCampaignAdminForm
 from apps.marketplace.admin import MarketplaceProfileTenantForm
 from apps.stores.admin import ProductAdminForm
@@ -171,6 +171,15 @@ class AdminExamplesAndListsCriticalTests(TestCase):
         settings_form = BillingSettingsAdminForm()
         plan_form = PlanAdminForm()
         service_form = AdditionalServiceAdminForm()
-        self.assertIn("2,99", settings_form.fields["card_percent"].widget.attrs["placeholder"])
+        self.assertIn("3", settings_form.fields["grace_days"].widget.attrs["placeholder"])
         self.assertIn("199,00", plan_form.fields["monthly_price"].widget.attrs["placeholder"])
         self.assertIn("49,90", service_form.fields["price"].widget.attrs["placeholder"])
+
+        visible_settings_fields = {
+            field
+            for _title, options in SettingsAdmin.fieldsets
+            for field in options.get("fields", ())
+        }
+        self.assertNotIn("fixed_pix_fee", visible_settings_fields)
+        self.assertNotIn("card_percent", visible_settings_fields)
+        self.assertNotIn("card_fixed_fee", visible_settings_fields)

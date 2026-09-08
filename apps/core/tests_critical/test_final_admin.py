@@ -188,8 +188,17 @@ class FinalAdminTests(CriticalTestCase):
             self.assertEqual(product.tenant_id, self.tenant_a.pk)
             self.assertEqual(product.images.get().tenant_id, self.tenant_a.pk)
 
-    def test_store_settings_delivery_inline_available(self):
+    def test_store_settings_online_payment_inline_requires_superadmin_release(self):
         parent = tenant_admin_site._registry[Tenant]
+        inlines = parent.get_inline_instances(self.request, self.tenant_a)
+        self.assertEqual(
+            {inline.model._meta.model_name for inline in inlines},
+            {'deliveryzone', 'businesshour'},
+        )
+
+        self.tenant_a.online_payments_allowed = True
+        self.tenant_a.save(update_fields=['online_payments_allowed'])
+        self.request.tenant = self.tenant_a
         inlines = parent.get_inline_instances(self.request, self.tenant_a)
         self.assertEqual(
             {inline.model._meta.model_name for inline in inlines},

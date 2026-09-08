@@ -22,6 +22,7 @@ class SubaccountWebhookTests(TestCase):
             name="Loja aguardando Asaas",
             slug="loja-aguardando-asaas",
             whatsapp_number="5511999991111",
+            online_payments_allowed=True,
             sale_mode="online",
         )
         self.account = TenantPaymentAccount.objects.create(

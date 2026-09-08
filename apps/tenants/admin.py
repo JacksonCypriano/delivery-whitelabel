@@ -1,5 +1,7 @@
 from apps.core.admin import TenantModelAdmin, TenantInlineMixin
 from django.contrib import admin, messages
+from django.urls import reverse
+from django.utils.html import format_html
 from django import forms
 from unfold.admin import ModelAdmin
 from unfold.admin import StackedInline, TabularInline
@@ -102,15 +104,24 @@ class TenantChangeForm(TenantAdminUXMixin, forms.ModelForm):
 # ── Admin Global (só Tenant) ──────────────────────────────────────────────────
 class TenantAdmin(ModelAdmin):
     form = TenantChangeForm
-    list_display = ("name", "slug", "whatsapp_number", "merchant_access", "fulfillment_mode", "setup_status", "is_active", "created_at")
-    list_filter = ("is_active", "fulfillment_mode")
+    list_display = ("name", "slug", "whatsapp_number", "merchant_access", "fulfillment_mode", "online_payments_allowed", "setup_status", "is_active", "created_at")
+    list_filter = ("is_active", "fulfillment_mode", "online_payments_allowed")
     search_fields = ("name", "slug", "whatsapp_number")
     prepopulated_fields = {"slug": ("name",)}
     readonly_fields = ("created_at",)
 
     fieldsets = (
         ("Loja", {"fields": ("name", "slug", "whatsapp_number")}),
-        ("Operação", {"fields": ("fulfillment_mode", "is_active")}),
+        (
+            "Operação",
+            {
+                "fields": ("fulfillment_mode", "online_payments_allowed", "is_active"),
+                "description": (
+                    "Pagamentos online ficam bloqueados por padrão. Libere somente para a loja que "
+                    "deverá poder solicitar uma subconta Asaas."
+                ),
+            },
+        ),
         ("Informações", {"fields": ("created_at",), "classes": ("collapse",)}),
     )
 
@@ -129,7 +140,15 @@ class TenantAdmin(ModelAdmin):
                 ),
             },
         ),
-        ("Operação", {"fields": ("fulfillment_mode", "is_active")}),
+        (
+            "Operação",
+            {
+                "fields": ("fulfillment_mode", "online_payments_allowed", "is_active"),
+                "description": (
+                    "Deixe pagamentos online desativados até decidir liberar a subconta Asaas para este lojista."
+                ),
+            },
+        ),
     )
 
     def get_form(self, request, obj=None, **kwargs):
@@ -166,13 +185,18 @@ class TenantAdmin(ModelAdmin):
         from apps.billing.services import set_store, audit, extend_locked
 
         with transaction.atomic():
-            # O Superadmin não escolhe o canal de recebimento. Toda loja nova
-            # começa no fluxo via WhatsApp; o próprio lojista pode ativar
-            # recebimento online depois no painel da loja.
-            if not change:
+            # Toda loja começa no fluxo via WhatsApp. O cadastro de recebimento
+            # online só aparece ao lojista quando o Superadmin libera a loja.
+            if not change or not obj.online_payments_allowed:
                 obj.sale_mode = SaleMode.WHATSAPP
 
             super().save_model(request, obj, form, change)
+
+            if change and "online_payments_allowed" in form.changed_data and not obj.online_payments_allowed:
+                account = TenantPaymentAccount.objects.filter(tenant=obj).first()
+                if account and account.enabled:
+                    account.enabled = False
+                    account.save(update_fields=["enabled", "updated_at"])
             sub=Subscription.objects.select_for_update().get(tenant=obj)
             if not change and form.cleaned_data.get("grant_free_month"):
                 extend_locked(
@@ -543,7 +567,7 @@ class TenantPaymentAccountInline(TenantInlineMixin, StackedInline):
     max_num = 1
     can_delete = False
     classes = ("payment-account-inline",)
-    readonly_fields = ("status", "provider_account_id", "activation_url", "last_error")
+    readonly_fields = ("status", "provider_account_id", "activation_url", "last_error", "fee_information")
 
     fieldsets = (
         (
@@ -593,11 +617,18 @@ class TenantPaymentAccountInline(TenantInlineMixin, StackedInline):
         (
             "Integração Asaas",
             {
-                "fields": ("provider_account_id", "activation_url", "last_error"),
+                "fields": ("fee_information", "provider_account_id", "activation_url", "last_error"),
                 "classes": ("payment-online-details-section", "collapse"),
             },
         ),
     )
+
+    @admin.display(description="Tarifas das operações online")
+    def fee_information(self, obj):
+        return format_html(
+            '<a href="{}">Consultar tarifas atuais do Asaas</a>',
+            reverse("tenant_admin:billing_online_fees"),
+        )
 
     def get_formset(self, request, obj=None, **kwargs):
         formset_class = super().get_formset(request, obj, **kwargs)
@@ -690,7 +721,11 @@ class StoreSettingsAdmin(ModelAdmin):
             set_store(sub)
 
     def get_inlines(self, request, obj=None):
-        inlines = [BusinessHourInline, TenantPaymentAccountInline]
+        inlines = [BusinessHourInline]
+
+        tenant = obj or getattr(request, "tenant", None)
+        if tenant is not None and tenant.online_payments_allowed:
+            inlines.append(TenantPaymentAccountInline)
 
         if obj is None or obj.accepts_delivery:
             inlines.append(DeliveryZoneInline)

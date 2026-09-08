@@ -29,6 +29,16 @@ class AdminFormVisibilityAndSaleChannelCriticalTests(TestCase):
             self._fieldset_fields(TenantAdmin.fieldsets),
         )
 
+    def test_only_superadmin_exposes_online_payment_release(self):
+        self.assertIn(
+            "online_payments_allowed",
+            self._fieldset_fields(TenantAdmin.fieldsets),
+        )
+        self.assertNotIn(
+            "online_payments_allowed",
+            self._fieldset_fields(StoreSettingsAdmin.fieldsets),
+        )
+
     def test_tenant_admin_does_not_expose_internal_sale_mode(self):
         self.assertNotIn(
             "sale_mode",
@@ -48,6 +58,7 @@ class AdminFormVisibilityAndSaleChannelCriticalTests(TestCase):
             name="Loja híbrida",
             slug="loja-hibrida",
             whatsapp_number="5511999992222",
+            online_payments_allowed=True,
         )
         account = TenantPaymentAccount.objects.create(
             tenant=tenant,
@@ -81,6 +92,7 @@ class AdminFormVisibilityAndSaleChannelCriticalTests(TestCase):
             name="Loja WhatsApp e online",
             slug="loja-whatsapp-online",
             whatsapp_number="5511999993333",
+            online_payments_allowed=True,
         )
         account = TenantPaymentAccount.objects.create(
             tenant=tenant,

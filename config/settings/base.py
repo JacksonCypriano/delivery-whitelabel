@@ -463,6 +463,15 @@ UNFOLD = {
                         "icon": "request_quote",
                         "link": reverse_lazy("tenant_admin:billing_fiscal_list"),
                     },
+                    {
+                        "title": _("Taxas de pagamentos online"),
+                        "icon": "percent",
+                        "link": reverse_lazy("tenant_admin:billing_online_fees"),
+                        "permission": lambda request: bool(
+                            getattr(request, "tenant", None)
+                            and request.tenant.online_payments_allowed
+                        ),
+                    },
                 ],
             },
         ],
@@ -543,6 +552,11 @@ UNFOLD_SUPER = {
                         "title": _("Configurações de cobrança"),
                         "icon": "settings",
                         "link": reverse_lazy("super_admin:billing_billingsettings_changelist"),
+                    },
+                    {
+                        "title": _("Taxas do Asaas"),
+                        "icon": "price_check",
+                        "link": reverse_lazy("super_admin:billing_asaasfeesnapshot_changelist"),
                     },
                 ],
             },
@@ -734,5 +748,9 @@ CELERY_BEAT_SCHEDULE = {
     "billing-tax-rate-whatsapp-reminder": {
         "task": "apps.billing.tasks.send_tax_rate_whatsapp_reminders",
         "schedule": crontab(hour=8, minute=5),
+    },
+    "billing-asaas-fee-monitor": {
+        "task": "apps.billing.tasks.monitor_asaas_fees",
+        "schedule": crontab(hour=8, minute=20),
     },
 }

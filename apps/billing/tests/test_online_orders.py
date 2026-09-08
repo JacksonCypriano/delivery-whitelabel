@@ -13,7 +13,7 @@ from apps.tenants.models import Tenant
 @override_settings(BILLING_ENABLED=True, ASAAS_ENVIRONMENT="sandbox", ASAAS_API_KEY="platform-key", ASAAS_WEBHOOK_TOKEN="x" * 40)
 class OnlineOrderPaymentTests(TestCase):
     def setUp(self):
-        self.tenant = Tenant.objects.create(name="Loja online", slug="loja-online", whatsapp_number="5511999992222", sale_mode="online")
+        self.tenant = Tenant.objects.create(name="Loja online", slug="loja-online", whatsapp_number="5511999992222", sale_mode="online", online_payments_allowed=True)
         self.account = TenantPaymentAccount.objects.create(
             tenant=self.tenant, enabled=True, terms_accepted=True, status=TenantPaymentAccount.Status.APPROVED,
             provider_account_id="acc_123", legal_name="Loja online", document="12345678000190",
@@ -37,6 +37,33 @@ class OnlineOrderPaymentTests(TestCase):
         self.assertIn("sandbox.asaas.com", payment.checkout_url)
         self.assertEqual(payment.status, OrderPayment.Status.PENDING)
         create_checkout.assert_called_once()
+
+
+    @patch(
+        "apps.billing.online.Asaas.get_checkout",
+        return_value={"id": "chk_123", "externalReference": "placeholder", "status": "PAID"},
+    )
+    def test_existing_checkout_can_be_reconciled_after_online_permission_is_revoked(self, get_checkout):
+        payment = OrderPayment.objects.create(
+            order=self.order, tenant=self.tenant, provider_account_id="acc_123",
+            checkout_id="chk_123", checkout_url="https://sandbox.asaas.com/checkoutSession/show?id=chk_123",
+            external_reference="vdd-order:sandbox:%s:%s" % (self.order.pk, self.order.public_token),
+            confirmation_code="VDD-1-REVOKE01", method="pix", amount=self.order.total,
+        )
+        get_checkout.return_value["externalReference"] = payment.external_reference
+
+        self.tenant.online_payments_allowed = False
+        self.tenant.save(update_fields=["online_payments_allowed"])
+        self.account.refresh_from_db()
+        self.account.save(update_fields=["updated_at"])
+        self.assertFalse(self.account.is_ready)
+
+        from apps.billing.online import refresh_order_payment
+
+        refresh_order_payment(payment)
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, OrderPayment.Status.PAID)
+        get_checkout.assert_called_once_with("chk_123")
 
     def test_paid_event_generates_public_confirmation_code(self):
         payment = OrderPayment.objects.create(

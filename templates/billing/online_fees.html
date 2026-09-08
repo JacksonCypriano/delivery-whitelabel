@@ -1,0 +1,53 @@
+{% extends "admin/base_site.html" %}
+{% block content %}{% include 'billing/style.html' %}
+<main class="vdd-billing">
+  <section class="intro">
+    <div class="intro-row">
+      <div>
+        <p class="eyebrow">Financeiro da loja</p>
+        <h1>Taxas de pagamentos online</h1>
+        <p>{{ request.tenant.name }}</p>
+      </div>
+      {% if payment_account %}<span class="badge">{{ payment_account.get_status_display }}</span>{% endif %}
+    </div>
+  </section>
+
+  <p class="notice">
+    <strong>Como funciona:</strong> o valor das vendas online é direcionado para a subconta Asaas da sua loja.
+    O VemDeDelivery não cobra comissão sobre essas vendas. As tarifas abaixo são cobradas pelo próprio Asaas e
+    descontadas conforme as condições comerciais da sua conta.
+  </p>
+
+  {% if not payment_account or not payment_account.provider_account_id %}
+    <section class="card">
+      <h2>Tarifas da sua conta</h2>
+      <p>As tarifas reais aparecerão aqui depois que você solicitar o recebimento online e a subconta for criada no Asaas.</p>
+      <p class="muted">Você pode solicitar a ativação em <strong>Minha loja</strong>, na seção “Recebimento online”.</p>
+    </section>
+  {% elif fee_error %}
+    <p class="notice"><strong>Não foi possível consultar as tarifas agora.</strong> {{ fee_error }} Tente novamente mais tarde.</p>
+  {% elif fee_summary %}
+    <section class="card">
+      <h2>Tarifas atuais informadas pelo Asaas</h2>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Operação</th><th>Tarifa atual</th><th>Recebimento</th></tr></thead>
+          <tbody>
+            <tr><td>Pix</td><td>{% if fee_summary.pix.effective != None %}R$ {{ fee_summary.pix.effective|floatformat:2 }}{% else %}Consulte o Asaas{% endif %}</td><td>Em poucos segundos</td></tr>
+            {% for label, percent in card_fee_rows %}<tr><td>{{ label }}</td><td>{% if percent != None %}{{ percent|floatformat:2 }}%{% if fee_summary.card.fixed != None %} + R$ {{ fee_summary.card.fixed|floatformat:2 }}{% endif %}{% else %}Consulte o Asaas{% endif %}</td><td>{% if fee_summary.card.days_to_receive %}{{ fee_summary.card.days_to_receive }} dias{% else %}Conforme o Asaas{% endif %}</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if fee_summary.next_discount_expiration %}
+        <p class="muted">Há condição promocional informada pelo Asaas com próxima expiração em <strong>{{ fee_summary.next_discount_expiration|date:"d/m/Y" }}</strong>. Após essa data, as tarifas podem mudar automaticamente no Asaas.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  <section class="card">
+    <h2>Importante</h2>
+    <p>As tarifas são definidas e debitadas pelo Asaas. Elas podem mudar conforme promoções ou condições comerciais da sua conta.</p>
+    <p>O preço dos produtos da sua loja não é alterado automaticamente pelo VemDeDelivery por causa dessas tarifas. Considere os custos do meio de pagamento ao definir seus preços.</p>
+  </section>
+</main>
+{% endblock %}

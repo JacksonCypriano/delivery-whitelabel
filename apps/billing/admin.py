@@ -17,6 +17,7 @@ from .models import (
     BillingAudit,
     BillingEvent,
     TenantPaymentAccount,
+    AsaasFeeSnapshot,
 )
 from .services import set_store, audit
 from .online import request_subaccount
@@ -34,9 +35,6 @@ class BillingSettingsAdminForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         helpers = {
             "grace_days": ("Ex.: 3", "Dias de tolerância após o vencimento. Máximo: 90."),
-            "fixed_pix_fee": ("Ex.: 1,99", "Taxa fixa usada no cálculo do Pix/boleto, em reais."),
-            "card_percent": ("Ex.: 2,99", "Percentual da taxa do cartão. Ex.: 2,99 significa 2,99%."),
-            "card_fixed_fee": ("Ex.: 0,49", "Taxa fixa adicional do cartão, em reais."),
         }
         for name, (placeholder, help_text) in helpers.items():
             field = self.fields.get(name)
@@ -108,10 +106,54 @@ class GlobalAdmin(ModelAdmin):
 @admin.register(BillingSettings, site=super_admin_site)
 class SettingsAdmin(GlobalAdmin):
     form = BillingSettingsAdminForm
+    fieldsets = (
+        (
+            "Cobrança",
+            {
+                "fields": ("grace_days", "pix_enabled", "boleto_enabled", "card_enabled"),
+                "description": (
+                    "As tarifas do Asaas são consultadas automaticamente pela API e não precisam ser copiadas para esta tela."
+                ),
+            },
+        ),
+    )
+
     def has_add_permission(self, request):
         return (
             super().has_add_permission(request) and not BillingSettings.objects.exists()
         )
+
+
+@admin.register(AsaasFeeSnapshot, site=super_admin_site)
+class AsaasFeeSnapshotAdmin(GlobalAdmin):
+    list_display = [
+        "observed_at",
+        "environment",
+        "pix_fee",
+        "card_1x_percent",
+        "card_fixed_fee",
+        "nfse_fee",
+        "child_account_fee",
+        "discount_expires_at",
+        "reviewed_at",
+    ]
+    list_filter = ["environment", "reviewed_at"]
+    actions = ["mark_reviewed"]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_readonly_fields(self, request, obj=None):
+        return [field.name for field in self.model._meta.fields]
+
+    @admin.action(description="Marcar snapshots selecionados como revisados")
+    def mark_reviewed(self, request, queryset):
+        queryset.update(reviewed_at=timezone.now(), reviewed_by_id=request.user.pk)
+        self.message_user(request, "Taxas marcadas como revisadas.")
+
 
 
 @admin.register(Plan, site=super_admin_site)

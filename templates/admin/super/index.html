@@ -1,6 +1,14 @@
 {% extends "admin/index.html" %}
 
 {% block content %}
+    {% if global_asaas_fee_alert %}
+        <div class="mb-6 rounded-default border border-orange-300 bg-orange-50 p-4 text-sm text-orange-900 dark:border-orange-700 dark:bg-orange-950 dark:text-orange-100">
+            <strong>Taxas do Asaas aguardando revisão.</strong>
+            O monitor registrou condições novas ou ainda não conferidas em {{ global_asaas_fee_alert.snapshot.observed_at|date:"d/m/Y H:i" }}.
+            <a class="underline font-medium" href="{{ global_asaas_fee_alert.action_url }}">Revisar taxas</a>
+        </div>
+    {% endif %}
+
     <div class="flex flex-col lg:flex-row gap-6">
         <div class="flex flex-col gap-5 grow">
             {% include "admin/super/app_list_collapsible.html" with show_changelinks=True %}

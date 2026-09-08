@@ -48,6 +48,17 @@ class Tenant(models.Model):
         )
     )
 
+    online_payments_allowed = models.BooleanField(
+        default=False,
+        db_default=False,
+        verbose_name="Liberar pagamentos online para esta loja",
+        help_text=(
+            "Controle exclusivo do VemDeDelivery. Quando habilitado, o lojista "
+            "poderá solicitar uma subconta Asaas e ativar recebimentos online. "
+            "A criação de subconta pode gerar tarifa no Asaas."
+        ),
+    )
+
     # ─────────────────────────────────────────────
     # Endereço para retirada
     # ─────────────────────────────────────────────

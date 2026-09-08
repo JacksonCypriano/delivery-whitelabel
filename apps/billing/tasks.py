@@ -66,8 +66,10 @@ def process_event(event_pk):
             payment = OrderPayment.objects.filter(checkout_id=valid_id(event.payment_id)).first()
             if payment:
                 account = getattr(payment.tenant, 'payment_account', None)
-                if not account or not account.is_ready:
+                if not account or not account.provider_account_id or not account.encrypted_api_key:
                     raise BillingError('Subconta do pedido não está disponível.')
+                # Uma liberação pode ser retirada depois que o checkout foi
+                # emitido. Pagamentos já existentes continuam conciliáveis.
                 checkout = Asaas(api_key=account.get_api_key()).get_checkout(payment.checkout_id)
                 apply_checkout_event(payment.checkout_id, checkout, event.kind)
             BillingEvent.objects.filter(pk=event.pk).update(processed_at=timezone.now())
@@ -327,4 +329,133 @@ def send_tax_rate_whatsapp_reminders():
             last_error="",
         )
         sent += 1
+    return sent
+
+
+def _asaas_fee_admin_url():
+    path = reverse("super_admin:billing_asaasfeesnapshot_changelist")
+    base = (getattr(settings, "SUPERADMIN_PUBLIC_URL", "") or "").strip().rstrip("/")
+    if not base:
+        base = (getattr(settings, "CUSTOMER_PORTAL_URL", "") or "").strip().rstrip("/")
+    parsed = urlsplit(base)
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+    ):
+        return ""
+    return base + path
+
+
+def _money(value):
+    return "-" if value is None else f"R$ {value:.2f}".replace(".", ",")
+
+
+def _percent(value):
+    return "-" if value is None else f"{value:.2f}%".replace(".", ",")
+
+
+def _asaas_fee_change_message(snapshot, previous, action_url):
+    fields = [
+        ("Pix", "pix_fee", _money),
+        ("Cartão 1x", "card_1x_percent", _percent),
+        ("Fixa cartão", "card_fixed_fee", _money),
+        ("NFS-e", "nfse_fee", _money),
+        ("Criação de subconta", "child_account_fee", _money),
+    ]
+    changes = []
+    for label, field, formatter in fields:
+        before = getattr(previous, field, None)
+        after = getattr(snapshot, field, None)
+        if before != after:
+            changes.append(f"• {label}: {formatter(before)} → {formatter(after)}")
+    if not changes:
+        changes.append("• As condições comerciais ou a data de uma promoção foram alteradas.")
+    return (
+        "⚠️ VemDeDelivery — taxas do Asaas alteradas\n\n"
+        + "\n".join(changes)
+        + "\n\nO Asaas é a fonte de verdade dessas tarifas. Revise o snapshot no Superadmin:\n"
+        + action_url
+    )
+
+
+def _asaas_fee_expiration_message(snapshot, days, action_url):
+    return (
+        "⚠️ VemDeDelivery — promoção do Asaas próxima do vencimento\n\n"
+        f"A próxima condição promocional registrada vence em {snapshot.discount_expires_at:%d/%m/%Y}.\n"
+        f"Faltam aproximadamente {days} dia(s). Depois disso, as tarifas efetivas podem mudar.\n\n"
+        "Revise as condições no Superadmin:\n"
+        + action_url
+    )
+
+
+def _send_fee_whatsapp(text):
+    from apps.integrations.whatsapp.client import EvolutionClient, EvolutionError
+    from apps.integrations.whatsapp.service import normalize_br_phone
+
+    User = get_user_model()
+    sent = 0
+    for user in (
+        User.objects.filter(is_superuser=True, is_active=True)
+        .exclude(administrative_whatsapp="")
+        .order_by("pk")
+    ):
+        try:
+            phone = normalize_br_phone(user.administrative_whatsapp)
+            EvolutionClient().send_text(phone, text)
+            sent += 1
+        except (ValueError, EvolutionError):
+            log.warning("Não foi possível enviar o alerta de taxas Asaas ao superusuário pk=%s.", user.pk)
+        except Exception:
+            log.exception("Falha inesperada ao enviar alerta de taxas Asaas.")
+    return sent
+
+
+@shared_task(soft_time_limit=60, time_limit=90)
+def monitor_asaas_fees():
+    """Persist changes in Asaas fees and alert only on meaningful transitions."""
+    if not configured():
+        return 0
+
+    from .fees import sync_platform_fee_snapshot
+    from .models import AsaasFeeSnapshot
+
+    snapshot, changed, _summary = sync_platform_fee_snapshot()
+    action_url = _asaas_fee_admin_url()
+    if not action_url:
+        log.error("Monitor de taxas Asaas sem URL pública válida do Superadmin.")
+        return 0
+
+    sent = 0
+    state = dict(snapshot.notification_state or {})
+    previous = (
+        AsaasFeeSnapshot.objects.filter(
+            environment=snapshot.environment,
+            observed_at__lt=snapshot.observed_at,
+        )
+        .order_by("-observed_at")
+        .first()
+    )
+
+    if changed and previous and not state.get("change"):
+        if _send_fee_whatsapp(_asaas_fee_change_message(snapshot, previous, action_url)):
+            state["change"] = timezone.now().isoformat()
+            sent += 1
+
+    expiration = snapshot.discount_expires_at
+    if expiration and expiration > timezone.now():
+        days = max(0, (timezone.localtime(expiration).date() - timezone.localdate()).days)
+        threshold = 1 if days <= 1 else 7 if days <= 7 else 30 if days <= 30 else None
+        if threshold is not None:
+            key = f"promotion_{threshold}d"
+            if not state.get(key):
+                if _send_fee_whatsapp(_asaas_fee_expiration_message(snapshot, days, action_url)):
+                    state[key] = timezone.now().isoformat()
+                    sent += 1
+
+    if state != (snapshot.notification_state or {}):
+        AsaasFeeSnapshot.objects.filter(pk=snapshot.pk).update(notification_state=state)
     return sent

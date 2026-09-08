@@ -30,13 +30,17 @@ class Command(BaseCommand):
             month=fiscal_today().replace(day=1), checked_at__isnull=False
         ).exists():
             raise CommandError("Falta conferir a alíquota da competência atual.")
-        pending = (
-            FiscalInvoice.objects.filter(invoice__environment=environment())
-            .exclude(status="AUTHORIZED")
+        notes = FiscalInvoice.objects.filter(invoice__environment=environment())
+        pending = notes.exclude(status__in=("AUTHORIZED", "CANCELED")).count()
+        review = (
+            notes.filter(review_required=True)
+            .exclude(status="CANCELED")
             .count()
         )
+        canceled = notes.filter(status="CANCELED").count()
         self.stdout.write(
-            f"Notas não autorizadas: {pending}. Confira também notas marcadas para revisão fiscal."
+            f"Notas pendentes de conclusão: {pending}; "
+            f"em revisão fiscal: {review}; canceladas: {canceled}."
         )
         self.stdout.write(
             "Configuração local aprovada. Valide cadastro fiscal, webhook e emissão no sandbox antes de habilitar em produção."

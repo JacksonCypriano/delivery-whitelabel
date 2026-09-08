@@ -16,8 +16,10 @@ class Command(BaseCommand):
         self.stdout.write(
             f"Tolerância global: {policy.grace_days} dias; execução diária: 06:00 America/Sao_Paulo"
         )
+        active_subscriptions = Subscription.objects.filter(tenant__is_active=True)
         self.stdout.write(
-            f"Lojas com controle: {Subscription.objects.filter(managed=True).count()}; sem controle: {Subscription.objects.filter(managed=False).count()}"
+            f"Lojas ativas com controle: {active_subscriptions.filter(managed=True).count()}; "
+            f"sem controle: {active_subscriptions.filter(managed=False).count()}"
         )
         if not settings.BILLING_ENABLED:
             self.stdout.write(

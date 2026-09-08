@@ -40,7 +40,7 @@ class FiscalAccountConfigTests(TestCase):
     def test_payload_contains_confirmed_non_secret_fields(self):
         config = fiscal_settings()
         payload = config.fiscal_account_payload()
-        self.assertEqual(payload["municipalInscription"], "1.673.942-6")
+        self.assertEqual(payload["municipalInscription"], "16739426")
         self.assertEqual(payload["cnae"], "6202300")
         self.assertEqual(payload["specialTaxRegime"], "0")
         self.assertEqual(payload["nationalPortalTaxCalculationRegime"], "1")
@@ -149,6 +149,139 @@ class FiscalAccountConfigTests(TestCase):
         self.assertEqual(sent["data"]["certificatePassword"], "super-secret")
         self.assertTrue(sent["has_certificate"])
         self.assertNotIn("super-secret", out.getvalue())
+        self.assertIn("Configuração fiscal aceita", out.getvalue())
+
+    def test_apply_posts_user_and_password_without_logging_secrets(self):
+        fiscal_settings()
+        api = Mock()
+        sent = {}
+
+        def request(method, path, **kwargs):
+            if (method, path) == ("GET", "/fiscalInfo/municipalOptions"):
+                return {
+                    "authenticationType": "USER_AND_PASSWORD",
+                    "usesServiceListItem": False,
+                    "usesNbs": True,
+                }
+            if (method, path) == ("GET", "/fiscalInfo/nbsCodes"):
+                return {
+                    "data": [
+                        {
+                            "nbsCode": "1.1103.22.00",
+                            "codeDescription": "1.1103.22.00 - Software",
+                        }
+                    ]
+                }
+            if (method, path) == ("POST", "/fiscalInfo/"):
+                sent.update(kwargs["json"])
+                return {"status": "CONFIGURED"}
+            return {
+                "simplesNacional": True,
+                "municipalInscription": "16739426",
+                "cnae": "6202300",
+                "rpsSerie": "1",
+                "rpsNumber": 1,
+            }
+
+        api.request.side_effect = request
+        out = StringIO()
+        with patch.dict(
+            os.environ,
+            {
+                "ASAAS_FISCAL_USERNAME": "prefeitura-user",
+                "ASAAS_FISCAL_PASSWORD": "prefeitura-secret",
+            },
+        ), patch(
+            "apps.billing.management.commands.configure_asaas_fiscal.Asaas",
+            return_value=api,
+        ):
+            call_command("configure_asaas_fiscal", "--apply", stdout=out)
+
+        self.assertEqual(sent["municipalInscription"], "16739426")
+        self.assertEqual(sent["username"], "prefeitura-user")
+        self.assertEqual(sent["password"], "prefeitura-secret")
+        self.assertNotIn("certificateFile", sent)
+        self.assertNotIn("certificatePassword", sent)
+        self.assertNotIn("prefeitura-secret", out.getvalue())
+        self.assertIn("Configuração fiscal aceita", out.getvalue())
+
+    def test_user_and_password_dry_run_does_not_require_secrets(self):
+        fiscal_settings()
+        api = Mock()
+        api.request.side_effect = [
+            {
+                "authenticationType": "USER_AND_PASSWORD",
+                "usesServiceListItem": False,
+                "usesNbs": True,
+            },
+            {
+                "data": [
+                    {
+                        "nbsCode": "1.1103.22.00",
+                        "codeDescription": "1.1103.22.00 - Software",
+                    }
+                ]
+            },
+        ]
+        out = StringIO()
+        with patch.dict(
+            os.environ,
+            {
+                "ASAAS_FISCAL_USERNAME": "",
+                "ASAAS_FISCAL_PASSWORD": "",
+            },
+        ), patch(
+            "apps.billing.management.commands.configure_asaas_fiscal.Asaas",
+            return_value=api,
+        ):
+            call_command("configure_asaas_fiscal", stdout=out)
+        self.assertIn("Nada foi alterado", out.getvalue())
+
+    def test_apply_posts_token_without_logging_secret(self):
+        fiscal_settings()
+        api = Mock()
+        sent = {}
+
+        def request(method, path, **kwargs):
+            if (method, path) == ("GET", "/fiscalInfo/municipalOptions"):
+                return {
+                    "authenticationType": "TOKEN",
+                    "usesServiceListItem": False,
+                    "usesNbs": True,
+                }
+            if (method, path) == ("GET", "/fiscalInfo/nbsCodes"):
+                return {
+                    "data": [
+                        {
+                            "nbsCode": "1.1103.22.00",
+                            "codeDescription": "1.1103.22.00 - Software",
+                        }
+                    ]
+                }
+            if (method, path) == ("POST", "/fiscalInfo/"):
+                sent.update(kwargs["json"])
+                return {"status": "CONFIGURED"}
+            return {
+                "simplesNacional": True,
+                "municipalInscription": "16739426",
+                "cnae": "6202300",
+                "rpsSerie": "1",
+                "rpsNumber": 1,
+            }
+
+        api.request.side_effect = request
+        out = StringIO()
+        with patch.dict(
+            os.environ,
+            {"ASAAS_FISCAL_ACCESS_TOKEN": "municipal-token-secret"},
+        ), patch(
+            "apps.billing.management.commands.configure_asaas_fiscal.Asaas",
+            return_value=api,
+        ):
+            call_command("configure_asaas_fiscal", "--apply", stdout=out)
+
+        self.assertEqual(sent["accessToken"], "municipal-token-secret")
+        self.assertNotIn("municipal-token-secret", out.getvalue())
         self.assertIn("Configuração fiscal aceita", out.getvalue())
 
     def test_nbs_digits_are_normalized_to_official_asaas_format(self):

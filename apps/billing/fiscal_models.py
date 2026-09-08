@@ -170,7 +170,9 @@ class FiscalSettings(models.Model):
             )
         data = {
             "email": self.fiscal_email,
-            "municipalInscription": self.municipal_inscription,
+            # O Superadmin mantém o CCM formatado para leitura humana, mas a API
+            # fiscal do Asaas/prefeitura recebe somente os 8 dígitos.
+            "municipalInscription": re.sub(r"\D", "", self.municipal_inscription),
             "simplesNacional": self.simples_nacional,
             "culturalProjectsPromoter": self.cultural_projects_promoter,
             "cnae": self.cnae,

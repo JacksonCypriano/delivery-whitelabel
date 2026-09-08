@@ -84,10 +84,11 @@ class Command(BaseCommand):
             "NBS: " + ("exigido pela configuração municipal" if municipal.get("usesNbs") else "não indicado como obrigatório")
         )
 
-        if auth_type != "CERTIFICATE":
+        supported_auth_types = {"CERTIFICATE", "USER_AND_PASSWORD", "TOKEN"}
+        if auth_type not in supported_auth_types:
             raise CommandError(
-                "Este pacote está configurado para autenticação municipal por certificado A1. "
-                f"O Asaas retornou {auth_type!r}; revise antes de aplicar."
+                "O Asaas retornou um método de autenticação municipal não suportado: "
+                f"{auth_type!r}. Não aplique até atualizar a integração."
             )
         if municipal.get("usesServiceListItem"):
             raise CommandError(
@@ -141,42 +142,80 @@ class Command(BaseCommand):
                 "Produção exige confirmação explícita. Rode novamente com --confirm-production somente após homologação aprovada."
             )
 
-        certificate_path = Path(options["certificate_file"] or "")
-        if not certificate_path.is_file():
-            raise CommandError(
-                "Informe um certificado A1 existente com --certificate-file ou ASAAS_FISCAL_CERT_PATH."
-            )
-        if certificate_path.suffix.lower() not in (".pfx", ".p12"):
-            raise CommandError("O certificado deve ser um arquivo .pfx ou .p12.")
-        if certificate_path.stat().st_size > 10 * 1024 * 1024:
-            raise CommandError("Certificado maior que 10 MB; revise o arquivo antes de enviar.")
-
-        certificate_password = os.getenv("ASAAS_FISCAL_CERT_PASSWORD", "")
-        if not certificate_password:
-            certificate_password = getpass.getpass("Senha do certificado A1: ")
-        if not certificate_password:
-            raise CommandError("A senha do certificado A1 é obrigatória.")
-
-        data = {key: self._multipart_value(value) for key, value in payload.items()}
-        data["certificatePassword"] = certificate_password
-
-        try:
-            with certificate_path.open("rb") as certificate:
-                response = api.request(
-                    "POST",
-                    "/fiscalInfo/",
-                    data=data,
-                    files={
-                        "certificateFile": (
-                            certificate_path.name,
-                            certificate,
-                            "application/x-pkcs12",
-                        )
-                    },
+        if auth_type == "CERTIFICATE":
+            certificate_path = Path(options["certificate_file"] or "")
+            if not certificate_path.is_file():
+                raise CommandError(
+                    "Informe um certificado A1 existente com --certificate-file ou ASAAS_FISCAL_CERT_PATH."
                 )
-        finally:
-            certificate_password = None
-            data.pop("certificatePassword", None)
+            if certificate_path.suffix.lower() not in (".pfx", ".p12"):
+                raise CommandError("O certificado deve ser um arquivo .pfx ou .p12.")
+            if certificate_path.stat().st_size > 10 * 1024 * 1024:
+                raise CommandError("Certificado maior que 10 MB; revise o arquivo antes de enviar.")
+
+            certificate_password = os.getenv("ASAAS_FISCAL_CERT_PASSWORD", "")
+            if not certificate_password:
+                certificate_password = getpass.getpass("Senha do certificado A1: ")
+            if not certificate_password:
+                raise CommandError("A senha do certificado A1 é obrigatória.")
+
+            data = {key: self._multipart_value(value) for key, value in payload.items()}
+            data["certificatePassword"] = certificate_password
+            try:
+                with certificate_path.open("rb") as certificate:
+                    response = api.request(
+                        "POST",
+                        "/fiscalInfo/",
+                        data=data,
+                        files={
+                            "certificateFile": (
+                                certificate_path.name,
+                                certificate,
+                                "application/x-pkcs12",
+                            )
+                        },
+                    )
+            finally:
+                certificate_password = None
+                data.pop("certificatePassword", None)
+
+        elif auth_type == "USER_AND_PASSWORD":
+            username = os.getenv("ASAAS_FISCAL_USERNAME", "").strip()
+            municipal_password = os.getenv("ASAAS_FISCAL_PASSWORD", "")
+            if not username or not municipal_password:
+                raise CommandError(
+                    "A prefeitura exige usuário e senha. Configure "
+                    "ASAAS_FISCAL_USERNAME e ASAAS_FISCAL_PASSWORD no ambiente "
+                    "antes de usar --apply."
+                )
+
+            data = dict(payload)
+            data["username"] = username
+            data["password"] = municipal_password
+            try:
+                response = api.request("POST", "/fiscalInfo/", json=data)
+            finally:
+                municipal_password = None
+                data.pop("password", None)
+                data.pop("username", None)
+
+        else:  # TOKEN
+            municipal_access_token = os.getenv(
+                "ASAAS_FISCAL_ACCESS_TOKEN", ""
+            )
+            if not municipal_access_token:
+                raise CommandError(
+                    "A prefeitura exige token. Configure ASAAS_FISCAL_ACCESS_TOKEN "
+                    "no ambiente antes de usar --apply."
+                )
+
+            data = dict(payload)
+            data["accessToken"] = municipal_access_token
+            try:
+                response = api.request("POST", "/fiscalInfo/", json=data)
+            finally:
+                municipal_access_token = None
+                data.pop("accessToken", None)
 
         current = api.request("GET", "/fiscalInfo/")
         self.stdout.write(self.style.SUCCESS("Configuração fiscal aceita pelo Asaas."))

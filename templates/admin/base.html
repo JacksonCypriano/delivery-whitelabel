@@ -1,6 +1,19 @@
 {% extends "admin/base.html" %}
 {% block messages %}
 {{ block.super }}
+{% if global_tax_rate_alert %}
+<div role="alert" style="margin:12px 24px;padding:14px 18px;border:1px solid #b45309;border-radius:12px;background:#fffbeb;color:#78350f;line-height:1.5">
+  <strong>⚠️ Conferência mensal do ISS pendente — {{ global_tax_rate_alert.month|date:"m/Y" }}</strong><br>
+  {% if global_tax_rate_alert.previous %}
+    Última alíquota confirmada: <strong>{{ global_tax_rate_alert.previous.iss }}%</strong> em {{ global_tax_rate_alert.previous.month|date:"m/Y" }}.
+    O valor foi apenas sugerido; confirme na Contabilizei antes de salvar.
+  {% else %}
+    Ainda não há uma alíquota anterior confirmada para sugerir. Consulte a Contabilizei antes de salvar.
+  {% endif %}
+  <a href="{{ global_tax_rate_alert.action_url }}" style="margin-left:10px;font-weight:700;text-decoration:underline">Conferir alíquota agora</a>
+  <div style="margin-top:4px;font-size:0.9em">Enquanto a competência não for confirmada, a emissão automática de NFS-e fica bloqueada; pagamentos e acesso às lojas continuam funcionando.</div>
+</div>
+{% endif %}
 {% if store_public_url %}
 <div class="flex justify-end px-6 pt-3">
   <a

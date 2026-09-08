@@ -37,14 +37,8 @@ class FiscalDocumentsTests(TestCase):
         self.note = FiscalInvoice.objects.get()
         self.note.xml_url = "https://example.com/note.xml"
         self.note.save()
-        BillingCustomer.objects.create(
-            tenant=self.tenant,
-            environment="sandbox",
-            name="Loja",
-            document="123",
-            email="financeiro@example.com",
-            provider_id="cus_fiscal",
-        )
+        self.customer.email = "financeiro@example.com"
+        self.customer.save(update_fields=["email"])
         patcher = patch(
             "apps.billing.fiscal_documents.download_document",
             side_effect=lambda url, kind: PDF if kind == "pdf" else XML,

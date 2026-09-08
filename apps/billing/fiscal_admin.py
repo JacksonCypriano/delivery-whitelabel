@@ -15,6 +15,7 @@ from .admin import GlobalAdmin, ReadOnlyAdmin
 from .models import (
     FiscalSettings,
     TaxRate,
+    TaxRateWhatsAppReminder,
     FiscalInvoice,
     FiscalCustomerRule,
     MunicipalExport,
@@ -26,7 +27,7 @@ from .fiscal import monthly_warning
 @admin.register(FiscalSettings, site=super_admin_site)
 class FiscalSettingsAdmin(GlobalAdmin):
     list_display = ["environment", "enabled", "iss_warning"]
-    readonly_fields = ["iss_warning"]
+    readonly_fields = ["iss_warning", "fiscal_account_warning"]
     fields = [
         "environment",
         "enabled",
@@ -36,10 +37,36 @@ class FiscalSettingsAdmin(GlobalAdmin):
         "service_code",
         "service_name",
         "description",
+        "fiscal_account_warning",
+        "fiscal_email",
+        "municipal_inscription",
+        "simples_nacional",
+        "cultural_projects_promoter",
+        "cnae",
+        "special_tax_regime",
+        "national_portal_tax_calculation_regime",
+        "nbs_code",
+        "rps_serie",
+        "rps_number",
     ]
 
     def get_readonly_fields(self, request, obj=None):
-        return ["iss_warning", "environment"] if obj else ["iss_warning"]
+        base = ["iss_warning", "fiscal_account_warning"]
+        return base + (["environment"] if obj else [])
+
+    @admin.display(description="Cadastro fiscal da conta Asaas")
+    def fiscal_account_warning(self, obj):
+        if not obj or not obj.pk:
+            return "Salve a configuração antes de sincronizar o cadastro fiscal com o Asaas."
+        missing = obj.fiscal_account_missing_fields()
+        if missing:
+            return format_html(
+                '<div role="alert" style="padding:14px;border:1px solid #b45309;border-radius:8px;background:#fffbeb;color:#78350f">Dados fiscais locais incompletos: {}. O certificado A1 e a senha não são armazenados no banco.</div>',
+                ", ".join(missing),
+            )
+        return format_html(
+            '<div role="status" style="padding:14px;border:1px solid #166534;border-radius:8px;background:#f0fdf4;color:#14532d">Dados fiscais locais preenchidos. Para enviar/atualizar no Asaas, use o comando configure_asaas_fiscal com o certificado A1. O certificado e a senha não ficam salvos no sistema.</div>'
+        )
 
     @admin.display(description="Conferência mensal obrigatória do ISS")
     def iss_warning(self, obj):
@@ -59,6 +86,35 @@ class TaxRateAdmin(GlobalAdmin):
     readonly_fields = ["warning", "checked_at", "checked_by"]
     fields = ["configuration", "month", "warning", "iss", "checked_at", "checked_by"]
 
+    def get_changeform_initial_data(self, request):
+        initial = super().get_changeform_initial_data(request)
+        if initial.get("configuration") and initial.get("month"):
+            return initial
+
+        from .provider import environment
+        from .fiscal_models import fiscal_today
+
+        config = FiscalSettings.objects.filter(environment=environment()).first()
+        if not config:
+            return initial
+
+        month = fiscal_today().replace(day=1)
+        initial.setdefault("configuration", config.pk)
+        initial.setdefault("month", month)
+        if "iss" not in initial:
+            previous = (
+                TaxRate.objects.filter(
+                    configuration=config,
+                    month__lt=month,
+                    checked_at__isnull=False,
+                )
+                .order_by("-month", "-checked_at")
+                .first()
+            )
+            if previous:
+                initial["iss"] = previous.iss
+        return initial
+
     @admin.display(description="Lembrete de verificação")
     def warning(self, obj):
         return format_html(
@@ -70,6 +126,28 @@ class TaxRateAdmin(GlobalAdmin):
         obj.checked_at = timezone.now()
         obj.checked_by = request.user
         super().save_model(request, obj, form, change)
+
+
+
+
+@admin.register(TaxRateWhatsAppReminder, site=super_admin_site)
+class TaxRateWhatsAppReminderAdmin(ReadOnlyAdmin):
+    list_display = [
+        "month",
+        "recipient",
+        "phone",
+        "status",
+        "attempts",
+        "attempted_at",
+        "sent_at",
+    ]
+    list_filter = ["status", "month", "configuration"]
+    search_fields = [
+        "recipient__username",
+        "recipient__email",
+        "phone",
+    ]
+    ordering = ["-month", "-created_at"]
 
 
 @admin.register(FiscalInvoice, site=super_admin_site)

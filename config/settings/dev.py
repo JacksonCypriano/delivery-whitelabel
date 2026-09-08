@@ -7,6 +7,7 @@ ALLOWED_HOSTS = [
     "127.0.0.1",
     "lvh.me",
     ".lvh.me",
+    ".trycloudflare.com",
 ]
 
 CUSTOMER_PORTAL_URL = os.getenv("CUSTOMER_PORTAL_URL", "https://lvh.me").rstrip("/")

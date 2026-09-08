@@ -1,5 +1,6 @@
 import calendar
 import logging
+import re
 from datetime import timedelta
 from decimal import Decimal, ROUND_CEILING
 from django.conf import settings
@@ -28,6 +29,60 @@ from .provider import (
 )
 
 log = logging.getLogger("vemdedelivery.billing")
+
+
+def _fill_customer_address_from_tenant(customer):
+    tenant = customer.tenant
+    values = {
+        "postal_code": re.sub(r"\D", "", customer.postal_code or tenant.pickup_zip_code or ""),
+        "address": (customer.address or tenant.pickup_address or "").strip(),
+        "address_number": (customer.address_number or tenant.pickup_number or "").strip(),
+        "complement": (customer.complement or tenant.pickup_complement or "").strip(),
+        "province": (customer.province or tenant.pickup_neighborhood or "").strip(),
+    }
+    changed = []
+    for field, value in values.items():
+        if getattr(customer, field) != value:
+            setattr(customer, field, value)
+            changed.append(field)
+    if changed:
+        customer.save(update_fields=changed)
+    return customer
+
+
+def billing_customer_address_payload(customer):
+    _fill_customer_address_from_tenant(customer)
+    postal_code = re.sub(r"\D", "", customer.postal_code or "")
+    address = (customer.address or "").strip()
+    address_number = (customer.address_number or "").strip()
+    province = (customer.province or "").strip()
+    complement = (customer.complement or "").strip()
+    if len(postal_code) != 8 or not address or not address_number or not province:
+        raise BillingError(
+            "Endereço de faturamento incompleto. Confira CEP, logradouro, número e bairro no cadastro da loja antes de emitir NFS-e."
+        )
+    return {
+        "postalCode": postal_code,
+        "address": address,
+        "addressNumber": address_number,
+        "province": province,
+        "complement": complement,
+    }
+
+
+def billing_customer_provider_payload(customer):
+    return {
+        "name": customer.name,
+        "cpfCnpj": customer.document,
+        "email": customer.email,
+        **billing_customer_address_payload(customer),
+    }
+
+
+def sync_billing_customer_remote(api, customer):
+    if not customer.provider_id:
+        raise BillingError("Pagador ainda não possui cadastro no Asaas.")
+    return api.update_customer(customer.provider_id, billing_customer_provider_payload(customer))
 
 
 def audit(sub, action, detail="", actor=None):
@@ -194,6 +249,7 @@ def reserve_invoice(tenant, plan, method, amount, token, name, document, email):
             environment=environment(),
             defaults={"name": name, "document": document, "email": email},
         )
+        _fill_customer_address_from_tenant(customer)
         if not customer.provider_id and not customer.attempted:
             customer.name = name
             customer.document = document
@@ -233,6 +289,7 @@ def reserve_additional_service_invoice(tenant, service, method, amount, token, n
         if value != amount:
             raise BillingError("O preço do serviço mudou. Confira e tente novamente.")
         customer, _ = BillingCustomer.objects.get_or_create(tenant=tenant, environment=environment(), defaults={"name": name, "document": document, "email": email})
+        _fill_customer_address_from_tenant(customer)
         if not customer.provider_id and not customer.attempted:
             customer.name, customer.document, customer.email = name, document, email
             customer.save()
@@ -292,15 +349,16 @@ def issue_invoice(invoice_id):
                     locked.save(update_fields=["attempted"])
                 found = api.create_customer(
                     {
-                        "name": customer.name,
-                        "cpfCnpj": customer.document,
-                        "email": customer.email,
+                        **billing_customer_provider_payload(customer),
                         "externalReference": ref,
                         "notificationDisabled": True,
                     }
                 )
             customer.provider_id = valid_id(found.get("id"))
             customer.save(update_fields=["provider_id"])
+        # Clientes já existentes no Asaas podem ter sido criados antes do suporte
+        # a NFS-e. Sincronize o endereço fiscal antes de gerar a cobrança.
+        sync_billing_customer_remote(api, customer)
         with transaction.atomic():
             locked = Invoice.objects.select_for_update().get(pk=invoice.pk)
             if locked.provider_id or locked.issuance_attempted:

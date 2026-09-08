@@ -37,3 +37,8 @@ docs/
 .venv/
 venv/
 env/
+
+# Certificados/segredos fiscais nunca entram na imagem
+.secrets/
+*.pfx
+*.p12

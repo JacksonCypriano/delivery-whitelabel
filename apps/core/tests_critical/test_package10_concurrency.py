@@ -99,8 +99,11 @@ class Package10ConcurrencyTests(TransactionTestCase):
             )
         return cart
 
-    def submit(self, user, cart, code=""):
-        req = self.request(
+    def submit_request(self, user, cart, code=""):
+        # Prepare request/session before entering the concurrency barrier.
+        # The test must race the checkout transaction itself, not auxiliary
+        # SessionStore writes performed while building the synthetic request.
+        return self.request(
             user,
             {
                 "checkout_token": str(cart.checkout_token),
@@ -111,7 +114,11 @@ class Package10ConcurrencyTests(TransactionTestCase):
                 "coupon_code": code,
             },
         )
-        return checkout_step_one(req).status_code
+
+    def submit(self, user, cart, code=""):
+        return checkout_step_one(
+            self.submit_request(user, cart, code)
+        ).status_code
 
     def test_simultaneous_first_add_has_one_cart_and_no_lost_quantity(self):
         codes = self.run_parallel(
@@ -145,10 +152,14 @@ class Package10ConcurrencyTests(TransactionTestCase):
             usage_limit=1,
         )
         carts = [self.seed(u) for u in self.users]
+        requests = [
+            self.submit_request(self.users[0], carts[0], "ULTIMO"),
+            self.submit_request(self.users[1], carts[1], "ULTIMO"),
+        ]
         codes = self.run_parallel(
             [
-                lambda: self.submit(self.users[0], carts[0], "ULTIMO"),
-                lambda: self.submit(self.users[1], carts[1], "ULTIMO"),
+                lambda: checkout_step_one(requests[0]).status_code,
+                lambda: checkout_step_one(requests[1]).status_code,
             ]
         )
         self.assertEqual(sorted(codes), [200, 400])

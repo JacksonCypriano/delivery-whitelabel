@@ -42,8 +42,15 @@ OPTIONS = {
 class BillingTests(TestCase):
     def setUp(self):
         self.tenant = Tenant.objects.create(
-            name="Loja Assinante", slug="assinante", whatsapp_number="5511988880001"
+            name="Loja Assinante", slug="assinante", whatsapp_number="5511988880001",
+            pickup_zip_code="01310000", pickup_address="Av. Paulista", pickup_number="1000",
+            pickup_complement="Sala 1", pickup_neighborhood="Bela Vista", pickup_city="São Paulo",
         )
+        update_customer_patcher = patch(
+            "apps.billing.services.Asaas.update_customer", return_value={"id": "cus_123"}
+        )
+        self.update_customer = update_customer_patcher.start()
+        self.addCleanup(update_customer_patcher.stop)
         self.sub = self.tenant.subscription
         self.plan = Plan.objects.get(months=1)
         self.user = get_user_model().objects.create_user(
@@ -466,6 +473,24 @@ class BillingTests(TestCase):
         self.assertEqual(body["value"], 199.0)
         self.assertEqual(body["externalReference"], b.reference)
         self.assertEqual(Credit.objects.count(), 0)
+
+    @override_settings(**OPTIONS)
+    def test_existing_customer_address_is_synced_before_payment(self):
+        b = reserve_invoice(
+            self.tenant, self.plan, "PIX", Decimal("199"), uuid.uuid4(),
+            "Pagador", "12345678909", "x@example.com",
+        )
+        BillingCustomer.objects.filter(tenant=self.tenant).update(provider_id="cus_123")
+        with patch(
+            "apps.billing.services.Asaas.create_payment",
+            return_value={"id": "pay_sync", "invoiceUrl": "https://sandbox.asaas.com/i/sync"},
+        ):
+            issue_invoice(b.pk)
+        payload = self.update_customer.call_args.args[1]
+        self.assertEqual(payload["postalCode"], "01310000")
+        self.assertEqual(payload["address"], "Av. Paulista")
+        self.assertEqual(payload["addressNumber"], "1000")
+        self.assertEqual(payload["province"], "Bela Vista")
 
     @override_settings(**OPTIONS, BILLING_ALLOW_SANDBOX=False)
     def test_sandbox_cannot_credit_production_settings(self):

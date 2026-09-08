@@ -6,8 +6,8 @@ from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 from django.db import transaction
 from django.utils import timezone
-from .models import FiscalInvoice, FiscalSettings, TaxRate, Invoice, FiscalCustomerRule
-from .provider import Asaas, BillingError, configured, environment, valid_id
+from .models import FiscalInvoice, FiscalSettings, TaxRate, Invoice, FiscalCustomerRule, BillingCustomer
+from .provider import Asaas, BillingError, ProviderRejected, configured, environment, valid_id
 from .fiscal_models import fiscal_today
 
 
@@ -198,6 +198,16 @@ def process_fiscal(invoice_id):
                 raise BillingError(
                     "Configure exatamente um ID ou código de serviço municipal no superadmin."
                 )
+            # NFS-e exige endereço fiscal completo do pagador. Mantemos o cliente
+            # remoto sincronizado imediatamente antes da emissão, inclusive para
+            # cobranças criadas antes deste suporte.
+            from .services import sync_billing_customer_remote
+            customer = BillingCustomer.objects.get(
+                tenant_id=bill.tenant_id, environment=bill.environment
+            )
+            if customer.provider_id != bill.customer_id_external:
+                raise BillingError("Pagador da cobrança diverge do cadastro fiscal local.")
+            sync_billing_customer_remote(api, customer)
             # Não criar outra nota se já houver uma emitida manualmente/pelo painel.
             found = api.request(
                 "GET", "/invoices", params={"payment": bill.provider_id, "limit": 100}
@@ -247,10 +257,60 @@ def process_fiscal(invoice_id):
             note = FiscalInvoice.objects.select_for_update().get(pk=note.pk)
             validate_note(note, data)
         return True
+    except ProviderRejected as exc:
+        # Resposta 4xx explícita confirma que o provedor rejeitou a criação.
+        # Diferente de timeout/5xx, não existe incerteza de duplicidade: liberamos
+        # uma nova tentativa somente após correção, mantendo a nota em ERRO.
+        FiscalInvoice.objects.filter(pk=note.pk).update(
+            attempted=False,
+            status="ERROR",
+            notice=str(exc)[:400],
+            last_checked_at=timezone.now(),
+        )
+        return False
     except BillingError as exc:
         FiscalInvoice.objects.filter(pk=note.pk).update(
             notice=str(exc)[:400], last_checked_at=timezone.now()
         )
+        return False
+
+
+def current_tax_rate_alert():
+    """Retorna o estado da conferência do ISS do ambiente atual, sem criar dados.
+
+    O alerta é usado em todas as telas do superadmin. A sugestão mensal é apenas
+    pré-preenchida com a última alíquota confirmada; ela só passa a valer depois
+    que um superusuário salvar a nova competência.
+    """
+    month = fiscal_today().replace(day=1)
+    try:
+        env = environment()
+    except BillingError:
+        return None
+
+    config = FiscalSettings.objects.filter(environment=env).first()
+    if not config:
+        return None
+
+    current = TaxRate.objects.filter(configuration=config, month=month).first()
+    if current and current.checked_at:
+        return None
+
+    previous = (
+        TaxRate.objects.filter(
+            configuration=config,
+            month__lt=month,
+            checked_at__isnull=False,
+        )
+        .order_by("-month", "-checked_at")
+        .first()
+    )
+    return {
+        "configuration": config,
+        "month": month,
+        "current": current,
+        "previous": previous,
+    }
 
 
 def monthly_warning(config):
@@ -259,5 +319,24 @@ def monthly_warning(config):
         configuration=config, month=month, checked_at__isnull=False
     ).first()
     if not checked:
-        return "ATENÇÃO: a alíquota de ISS deste mês ainda não foi conferida. Consulte Contabilizei → Minhas Rotinas → Ver minhas alíquotas. Cadastre a competência antes de emitir. Pagamentos e acesso à loja continuam funcionando."
+        previous = (
+            TaxRate.objects.filter(
+                configuration=config,
+                month__lt=month,
+                checked_at__isnull=False,
+            )
+            .order_by("-month", "-checked_at")
+            .first()
+        )
+        suggestion = (
+            f" Última alíquota confirmada: {previous.iss}% em {previous.month:%m/%Y}."
+            if previous
+            else ""
+        )
+        return (
+            "ATENÇÃO: a alíquota de ISS deste mês ainda não foi conferida. "
+            "Consulte Contabilizei → Minhas Rotinas → Ver minhas alíquotas."
+            + suggestion
+            + " Confirme a competência antes de emitir. Pagamentos e acesso à loja continuam funcionando."
+        )
     return f"ISS de {month:%m/%Y}: {checked.iss}%. Última conferência: {timezone.localtime(checked.checked_at):%d/%m/%Y %H:%M}. Confira novamente no início do próximo mês e sempre que a contabilidade informar mudança."

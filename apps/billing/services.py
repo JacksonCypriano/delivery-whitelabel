@@ -31,6 +31,46 @@ from .provider import (
 log = logging.getLogger("vemdedelivery.billing")
 
 
+BILLING_REGISTRATION_FIELDS = (
+    ("pickup_zip_code", "CEP"),
+    ("pickup_address", "logradouro"),
+    ("pickup_number", "número"),
+    ("pickup_neighborhood", "bairro"),
+)
+
+
+def billing_registration_missing(tenant):
+    """Return the tenant fields that must exist before billing can start.
+
+    These are the same address fields currently sent to Asaas for the billing
+    customer and later reused by the fiscal flow. Keeping the check centralized
+    prevents the UI and direct service calls from drifting apart.
+    """
+    missing = []
+    for field, label in BILLING_REGISTRATION_FIELDS:
+        value = getattr(tenant, field, "") or ""
+        if field == "pickup_zip_code":
+            if len(re.sub(r"\D", "", value)) != 8:
+                missing.append(label)
+        elif not str(value).strip():
+            missing.append(label)
+    return missing
+
+
+def billing_registration_ready(tenant):
+    return not billing_registration_missing(tenant)
+
+
+def ensure_billing_registration_complete(tenant):
+    missing = billing_registration_missing(tenant)
+    if missing:
+        raise BillingError(
+            "Antes de contratar um plano ou serviço, complete o cadastro da loja. "
+            "Campos pendentes: " + ", ".join(missing) + "."
+        )
+    return True
+
+
 def _fill_customer_address_from_tenant(customer):
     tenant = customer.tenant
     values = {
@@ -59,7 +99,7 @@ def billing_customer_address_payload(customer):
     complement = (customer.complement or "").strip()
     if len(postal_code) != 8 or not address or not address_number or not province:
         raise BillingError(
-            "Endereço de faturamento incompleto. Confira CEP, logradouro, número e bairro no cadastro da loja antes de emitir NFS-e."
+            "Endereço de faturamento incompleto. Confira CEP, logradouro, número e bairro no cadastro da loja antes de gerar cobranças e NFS-e."
         )
     return {
         "postalCode": postal_code,
@@ -222,6 +262,7 @@ def suspend_due(today=None):
 
 
 def reserve_invoice(tenant, plan, method, amount, token, name, document, email):
+    ensure_billing_registration_complete(tenant)
     if not configured():
         raise BillingError("Pagamentos ainda não configurados. Fale com o suporte.")
     with transaction.atomic():
@@ -273,6 +314,7 @@ def reserve_invoice(tenant, plan, method, amount, token, name, document, email):
 
 def reserve_additional_service_invoice(tenant, service, method, amount, token, name, document, email):
     """Cria cobrança de serviço avulso; não concede meses de assinatura."""
+    ensure_billing_registration_complete(tenant)
     if not configured():
         raise BillingError("Pagamentos ainda não configurados. Fale com o suporte.")
     with transaction.atomic():
@@ -297,6 +339,21 @@ def reserve_additional_service_invoice(tenant, service, method, amount, token, n
 
 
 def issue_invoice(invoice_id):
+    # Valida tudo que é determinístico ANTES de marcar a cobrança como UNCERTAIN.
+    # Cadastro incompleto é erro local e nunca deve parecer uma conciliação remota.
+    preview = Invoice.objects.select_related("tenant").get(pk=invoice_id)
+    if preview.provider_id or preview.issuance_attempted:
+        return preview
+    if preview.status in ("ERROR", "CANCELLED", "REVIEW", "PAID"):
+        return preview
+    ensure_billing_registration_complete(preview.tenant)
+    preview_customer = BillingCustomer.objects.filter(
+        tenant_id=preview.tenant_id, environment=preview.environment
+    ).first()
+    if preview_customer is None:
+        raise BillingError("Cadastre os dados financeiros antes de gerar a cobrança.")
+    billing_customer_address_payload(preview_customer)
+
     api = Asaas()
     # Marcadores de tentativa são commitados ANTES da chamada externa: timeout/crash
     # nunca dispara outro POST de pagamento automaticamente.

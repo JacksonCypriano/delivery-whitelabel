@@ -134,12 +134,26 @@ class FiscalDocumentsTests(TestCase):
         client.force_login(user)
         return client
 
+    def test_owner_has_dedicated_fiscal_notes_area(self):
+        deliver_documents(self.note.pk)
+        client = self.owner()
+        response = client.get(reverse("tenant_admin:billing_fiscal_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Notas fiscais")
+        self.assertContains(response, "Mensal")
+        self.assertContains(response, "123")
+        self.assertContains(response, "Autorizada")
+        self.assertContains(response, "PDF")
+        self.assertContains(response, reverse(
+            "tenant_admin:billing_fiscal_download", args=[self.bill.pk, "pdf"]
+        ))
+
     def test_owner_history_and_private_download_after_link_expiry(self):
         deliver_documents(self.note.pk)
         FiscalInvoice.objects.filter(pk=self.note.pk).update(pdf_url="", xml_url="")
         client = self.owner()
         response = client.get(reverse("tenant_admin:billing_dashboard"))
-        self.assertContains(response, "Nota fiscal")
+        self.assertContains(response, "Consultar notas fiscais")
         response = client.get(
             reverse("tenant_admin:billing_fiscal_download", args=[self.bill.pk, "pdf"])
         )

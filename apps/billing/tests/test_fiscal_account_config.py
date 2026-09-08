@@ -205,6 +205,65 @@ class FiscalAccountConfigTests(TestCase):
         self.assertNotIn("prefeitura-secret", out.getvalue())
         self.assertIn("Configuração fiscal aceita", out.getvalue())
 
+    @override_settings(ASAAS_ENVIRONMENT="production")
+    def test_production_user_and_password_applies_with_explicit_confirmation(self):
+        fiscal_settings("production")
+        api = Mock()
+        sent = {}
+
+        def request(method, path, **kwargs):
+            if (method, path) == ("GET", "/fiscalInfo/municipalOptions"):
+                return {
+                    "authenticationType": "USER_AND_PASSWORD",
+                    "usesServiceListItem": False,
+                    "usesNbs": True,
+                }
+            if (method, path) == ("GET", "/fiscalInfo/nbsCodes"):
+                return {
+                    "data": [
+                        {
+                            "nbsCode": "1.1103.22.00",
+                            "codeDescription": "1.1103.22.00 - Software",
+                        }
+                    ]
+                }
+            if (method, path) == ("POST", "/fiscalInfo/"):
+                sent.update(kwargs["json"])
+                return {"status": "CONFIGURED"}
+            return {
+                "simplesNacional": True,
+                "municipalInscription": "16739426",
+                "cnae": "6202300",
+                "rpsSerie": "1",
+                "rpsNumber": 1,
+            }
+
+        api.request.side_effect = request
+        out = StringIO()
+        with patch.dict(
+            os.environ,
+            {
+                "ASAAS_FISCAL_USERNAME": "prefeitura-prod-user",
+                "ASAAS_FISCAL_PASSWORD": "prefeitura-prod-secret",
+            },
+        ), patch(
+            "apps.billing.management.commands.configure_asaas_fiscal.Asaas",
+            return_value=api,
+        ):
+            call_command(
+                "configure_asaas_fiscal",
+                "--apply",
+                "--confirm-production",
+                stdout=out,
+            )
+
+        self.assertEqual(sent["username"], "prefeitura-prod-user")
+        self.assertEqual(sent["password"], "prefeitura-prod-secret")
+        self.assertNotIn("certificateFile", sent)
+        self.assertNotIn("prefeitura-prod-secret", out.getvalue())
+        self.assertIn("Ambiente Asaas: production", out.getvalue())
+        self.assertIn("Autenticação municipal: USER_AND_PASSWORD", out.getvalue())
+
     def test_user_and_password_dry_run_does_not_require_secrets(self):
         fiscal_settings()
         api = Mock()

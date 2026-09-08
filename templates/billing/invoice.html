@@ -17,4 +17,4 @@
 </section>
 {% endif %}
 <p>A confirmação também é automática. Abrir a página ou clicar em “Já paguei” não aprova um pagamento que ainda não foi confirmado pelo provedor.</p>
-<p><a href="{% url 'tenant_admin:billing_dashboard' %}">← Voltar à minha assinatura</a></p></main>{% endblock %}
+<div class="actions"><a class="button secondary" href="{% url 'tenant_admin:billing_dashboard' %}">← Minha assinatura</a><a class="button secondary" href="{% url 'tenant_admin:billing_fiscal_list' %}">Notas fiscais</a></div></main>{% endblock %}

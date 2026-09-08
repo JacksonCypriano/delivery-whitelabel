@@ -5,7 +5,7 @@ from decimal import Decimal
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from apps.billing.models import AdditionalService, Invoice
+from apps.billing.models import AdditionalService, BillingCustomer, Invoice
 from apps.billing.provider import BillingError
 from apps.billing.services import apply_payment, reserve_additional_service_invoice
 from apps.tenants.models import Tenant
@@ -23,7 +23,13 @@ OPTIONS = {
 class AdditionalServiceBillingTests(TestCase):
     def setUp(self):
         self.tenant = Tenant.objects.create(
-            name="Loja com assinatura", slug="loja-servico", whatsapp_number="5511988880009"
+            name="Loja com assinatura",
+            slug="loja-servico",
+            whatsapp_number="5511988880009",
+            pickup_zip_code="06600000",
+            pickup_address="Rua de Teste",
+            pickup_number="123",
+            pickup_neighborhood="Centro",
         )
         self.subscription = self.tenant.subscription
         self.subscription.managed = True
@@ -44,6 +50,43 @@ class AdditionalServiceBillingTests(TestCase):
         self.assertEqual(invoice.additional_service, self.service)
         self.assertEqual(invoice.amount, Decimal("249.00"))
         self.assertEqual(invoice.months, 0)
+
+    def test_incomplete_registration_cannot_hire_service(self):
+        self.tenant.pickup_zip_code = ""
+        self.tenant.pickup_address = ""
+        self.tenant.pickup_number = ""
+        self.tenant.pickup_neighborhood = ""
+        self.tenant.save(
+            update_fields=[
+                "pickup_zip_code",
+                "pickup_address",
+                "pickup_number",
+                "pickup_neighborhood",
+            ]
+        )
+
+        token = uuid.uuid4()
+        invoice_count = Invoice.objects.count()
+        customer_count = BillingCustomer.objects.count()
+
+        with self.assertRaisesMessage(
+            BillingError,
+            "Antes de contratar um plano ou serviço, complete o cadastro da loja.",
+        ):
+            reserve_additional_service_invoice(
+                self.tenant,
+                self.service,
+                "PIX",
+                Decimal("249.00"),
+                token,
+                "Loja",
+                "12345678000190",
+                "loja@example.com",
+            )
+
+        self.assertEqual(Invoice.objects.count(), invoice_count)
+        self.assertEqual(BillingCustomer.objects.count(), customer_count)
+        self.assertFalse(Invoice.objects.filter(pk=token).exists())
 
     def test_payment_of_additional_service_does_not_extend_subscription(self):
         invoice = Invoice.objects.create(

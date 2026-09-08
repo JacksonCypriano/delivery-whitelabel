@@ -430,6 +430,110 @@ class BillingTests(TestCase):
         self.assertTrue(self.sub.payment_review)
 
     @override_settings(**OPTIONS)
+    def test_incomplete_store_blocks_subscription_area_and_direct_purchase(self):
+        Tenant.objects.filter(pk=self.tenant.pk).update(
+            pickup_zip_code="",
+            pickup_address="",
+            pickup_number="",
+            pickup_neighborhood="",
+        )
+        self.tenant.refresh_from_db()
+
+        response = self.client.get("/admin/minha-assinatura/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Conclua os dados da sua loja")
+        self.assertContains(response, "Nenhuma cobrança será criada")
+        self.assertContains(response, "CEP")
+        self.assertContains(response, "logradouro")
+        self.assertContains(response, "número")
+        self.assertContains(response, "bairro")
+        self.assertNotContains(response, "Planos disponíveis")
+        self.assertNotContains(response, "Gerar cobrança")
+
+        quote = signing.dumps(
+            {
+                "tenant": self.tenant.pk,
+                "plan": self.plan.pk,
+                "method": "PIX",
+                "amount": "199.00",
+                "token": str(uuid.uuid4()),
+            },
+            salt="billing-quote",
+        )
+        with patch("apps.billing.views.reserve_invoice") as reserve:
+            response = self.client.post(
+                "/admin/minha-assinatura/comprar/",
+                {
+                    "quote": quote,
+                    "name": "Pagador",
+                    "document": "12345678909",
+                    "email": "financeiro@example.com",
+                },
+            )
+        self.assertEqual(response.status_code, 302)
+        reserve.assert_not_called()
+        self.assertEqual(Invoice.objects.count(), 0)
+
+    @override_settings(**OPTIONS)
+    def test_service_layer_blocks_incomplete_store_before_creating_customer_or_invoice(self):
+        Tenant.objects.filter(pk=self.tenant.pk).update(
+            pickup_zip_code="",
+            pickup_address="",
+            pickup_number="",
+            pickup_neighborhood="",
+        )
+        self.tenant.refresh_from_db()
+        with self.assertRaisesMessage(BillingError, "complete o cadastro da loja"):
+            reserve_invoice(
+                self.tenant,
+                self.plan,
+                "PIX",
+                Decimal("199.00"),
+                uuid.uuid4(),
+                "Pagador",
+                "12345678909",
+                "financeiro@example.com",
+            )
+        self.assertEqual(Invoice.objects.count(), 0)
+        self.assertEqual(BillingCustomer.objects.count(), 0)
+
+    @override_settings(**OPTIONS)
+    def test_local_address_error_never_marks_invoice_uncertain(self):
+        bill = reserve_invoice(
+            self.tenant,
+            self.plan,
+            "PIX",
+            Decimal("199.00"),
+            uuid.uuid4(),
+            "Pagador",
+            "12345678909",
+            "financeiro@example.com",
+        )
+        Tenant.objects.filter(pk=self.tenant.pk).update(
+            pickup_zip_code="",
+            pickup_address="",
+            pickup_number="",
+            pickup_neighborhood="",
+        )
+        with patch("apps.billing.services.Asaas") as api:
+            with self.assertRaisesMessage(BillingError, "complete o cadastro da loja"):
+                issue_invoice(bill.pk)
+        api.assert_not_called()
+        bill.refresh_from_db()
+        self.assertEqual(bill.status, "NEW")
+        self.assertFalse(bill.issuance_attempted)
+        self.assertFalse(bill.provider_id)
+
+    @override_settings(**OPTIONS)
+    def test_subscription_dashboard_is_clear_and_links_to_fiscal_area(self):
+        response = self.client.get("/admin/minha-assinatura/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Resumo da assinatura")
+        self.assertContains(response, "Planos disponíveis")
+        self.assertContains(response, "Consultar notas fiscais")
+        self.assertContains(response, "Histórico de cobranças")
+
+    @override_settings(**OPTIONS)
     def test_quote_tampering_cannot_create_invoice(self):
         data = {
             "quote": "tampered",

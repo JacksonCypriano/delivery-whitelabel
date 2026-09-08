@@ -20,6 +20,7 @@ from .models import (
     Plan,
     AdditionalService,
     Subscription,
+    FiscalInvoice,
 )
 from .forms import PurchaseForm, ManualCreditForm
 from .provider import BillingError, configured, environment
@@ -31,6 +32,8 @@ from .services import (
     reconcile_invoice,
     manual_credit,
     reserve_additional_service_invoice,
+    billing_registration_missing,
+    ensure_billing_registration_complete,
 )
 
 log = logging.getLogger("vemdedelivery.billing")
@@ -42,6 +45,17 @@ def context(request, title):
 
 @require_GET
 def dashboard(request):
+    missing = billing_registration_missing(request.tenant)
+    if missing:
+        ctx = context(request, "Minha assinatura")
+        ctx.update(
+            billing_profile_missing=missing,
+            billing_profile_url=reverse(
+                "tenant_admin:tenants_tenant_change", args=[request.tenant.pk]
+            ),
+        )
+        return render(request, "billing/setup_required.html", ctx)
+
     sub = get_subscription(request.tenant)
     policy = BillingSettings.current()
     plans = []
@@ -64,6 +78,7 @@ def dashboard(request):
             )
             options.append({"label": label, "amount": amount, "quote": quote})
         plans.append({"plan": plan, "options": options})
+
     services = []
     if sub.situation == "Em dia":
         for service in AdditionalService.objects.filter(active=True):
@@ -73,20 +88,37 @@ def dashboard(request):
                     amount = price_for(service, method, policy)
                 except BillingError:
                     continue
-                options.append({"label": label, "amount": amount, "quote": signing.dumps({"tenant": request.tenant.pk, "service": service.pk, "method": method, "amount": str(amount), "token": str(uuid.uuid4())}, salt="billing-quote")})
+                quote = signing.dumps(
+                    {
+                        "tenant": request.tenant.pk,
+                        "service": service.pk,
+                        "method": method,
+                        "amount": str(amount),
+                        "token": str(uuid.uuid4()),
+                    },
+                    salt="billing-quote",
+                )
+                options.append({"label": label, "amount": amount, "quote": quote})
             services.append({"service": service, "options": options})
+
     customer = BillingCustomer.objects.filter(
         tenant=request.tenant, environment=environment()
     ).first()
-    ctx = context(request, "Minha assinatura")
     from django.core.paginator import Paginator
-    history = Paginator(Invoice.objects.filter(tenant=request.tenant).select_related('fiscal_note').defer('fiscal_note__pdf_content', 'fiscal_note__xml_content'), 30).get_page(request.GET.get('pagina'))
+
+    history_qs = Invoice.objects.filter(tenant=request.tenant).order_by("-created_at")
+    history = Paginator(history_qs, 20).get_page(request.GET.get("pagina"))
+    latest_invoice = history_qs.first()
+
+    ctx = context(request, "Minha assinatura")
     ctx.update(
         subscription=sub,
         plans=plans,
         services=services,
         invoices=history,
         history_page=history,
+        latest_invoice=latest_invoice,
+        fiscal_count=FiscalInvoice.objects.filter(invoice__tenant=request.tenant).count(),
         ready=configured(),
         sandbox=environment() == "sandbox",
         customer=customer,
@@ -98,6 +130,7 @@ def dashboard(request):
 def purchase(request):
     form = PurchaseForm(request.POST)
     try:
+        ensure_billing_registration_complete(request.tenant)
         if not form.is_valid():
             raise BillingError(
                 "Confira nome, CPF/CNPJ e e-mail antes de gerar a cobrança."
@@ -153,6 +186,31 @@ def refresh(request, invoice_id):
     except BillingError as exc:
         messages.warning(request, str(exc))
     return redirect("tenant_admin:billing_invoice", invoice_id=bill.pk)
+
+
+@require_GET
+def fiscal_list(request):
+    from django.core.paginator import Paginator
+
+    notes_qs = (
+        FiscalInvoice.objects
+        .filter(invoice__tenant=request.tenant)
+        .select_related("invoice")
+        .defer("pdf_content", "xml_content")
+        .order_by("-created_at")
+    )
+    page = Paginator(notes_qs, 30).get_page(request.GET.get("pagina"))
+    ctx = context(request, "Notas fiscais")
+    ctx.update(
+        notes=page,
+        notes_page=page,
+        total_notes=notes_qs.count(),
+        authorized_notes=notes_qs.filter(status="AUTHORIZED").count(),
+        processing_notes=notes_qs.filter(
+            status__in=["PENDING", "UNCERTAIN", "SCHEDULED", "SYNCHRONIZED"]
+        ).count(),
+    )
+    return render(request, "billing/fiscal_list.html", ctx)
 
 
 @require_GET

@@ -39,7 +39,7 @@ case "$COMMAND" in
         "${DC[@]}" exec web python manage.py check
 
         info "Reiniciando aplicação"
-        "${DC[@]}" restart web celery
+        "${DC[@]}" restart web celery celery-prospecting
 
         info "Recriando Nginx"
         "${DC[@]}" up -d --force-recreate nginx

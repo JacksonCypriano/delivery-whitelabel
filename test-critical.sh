@@ -46,6 +46,7 @@ TEST_SUITES=(
     apps.billing.tests
     apps.tenants.tests
     apps.integrations.tests
+    apps.prospecting
     apps.core.tests_critical
 )
 

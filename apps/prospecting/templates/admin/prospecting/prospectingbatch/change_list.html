@@ -1,0 +1,85 @@
+{% extends "admin/change_list.html" %}
+
+{% block content %}
+
+  <div class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900" style="margin:18px 0 20px;">
+    <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+      <div>
+        <div style="font-size:12px;opacity:.65;text-transform:uppercase;font-weight:700;">Exclusivo do Superadmin</div>
+        <h2 style="font-size:22px;font-weight:800;margin:4px 0 5px;">Prospecção WhatsApp</h2>
+        <p style="margin:0;opacity:.72;max-width:80ch;">Cada número recebe somente a primeira abordagem automática. Depois de registrado como abordado, nunca volta para uma nova fila.</p>
+      </div>
+      <div style="padding:8px 12px;border-radius:999px;font-weight:700;background:rgba(148,163,184,.12);">
+        {% if prospecting_enabled %}Ativa{% else %}Pausada{% endif %}
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-top:18px;">
+      <div class="rounded-default border border-base-200 p-4 dark:border-base-800"><div style="font-size:12px;opacity:.65;">Janela agora</div><div style="font-size:20px;font-weight:800;margin-top:3px;">{% if prospecting_window_open %}Liberada{% else %}Fechada{% endif %}</div></div>
+      <div class="rounded-default border border-base-200 p-4 dark:border-base-800"><div style="font-size:12px;opacity:.65;">Pendentes na fila</div><div style="font-size:20px;font-weight:800;margin-top:3px;">{{ prospecting_pending_count }}</div></div>
+      <div class="rounded-default border border-base-200 p-4 dark:border-base-800"><div style="font-size:12px;opacity:.65;">Telefones já abordados</div><div style="font-size:20px;font-weight:800;margin-top:3px;">{{ prospecting_sent_count }}</div></div>
+      <div class="rounded-default border border-base-200 p-4 dark:border-base-800"><div style="font-size:12px;opacity:.65;">Fila Celery dedicada</div><div style="font-size:20px;font-weight:800;margin-top:3px;">{{ prospecting_queue_name }}</div></div>
+    </div>
+  </div>
+
+  {% if prospecting_latest_batch %}
+    <div class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900" style="margin-bottom:20px;">
+      <div style="font-size:12px;opacity:.65;text-transform:uppercase;font-weight:700;">Última planilha</div>
+      <div style="font-size:18px;font-weight:800;margin:4px 0 12px;">{{ prospecting_latest_batch.filename }}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">
+        <div><div style="font-size:12px;opacity:.65;">Contatos na planilha</div><strong>{{ prospecting_latest_batch.total_contacts }}</strong></div>
+        <div><div style="font-size:12px;opacity:.65;">Novos adicionados</div><strong>{{ prospecting_latest_batch.queued_contacts }}</strong></div>
+        <div><div style="font-size:12px;opacity:.65;">Contatados</div><strong>{{ prospecting_latest_batch.contacted_count }}</strong></div>
+        <div><div style="font-size:12px;opacity:.65;">Pendentes</div><strong>{{ prospecting_latest_batch.pending_count }}</strong></div>
+        <div><div style="font-size:12px;opacity:.65;">Já contatados</div><strong>{{ prospecting_latest_batch.skipped_contacted }}</strong></div>
+        <div><div style="font-size:12px;opacity:.65;">Duplicados/na fila</div><strong>{{ prospecting_latest_batch.skipped_duplicate }}</strong></div>
+        <div><div style="font-size:12px;opacity:.65;">Inválidos</div><strong>{{ prospecting_latest_batch.invalid_contacts }}</strong></div>
+        <div><div style="font-size:12px;opacity:.65;">Falhas/incertos</div><strong>{{ prospecting_latest_batch.failed_contacts|add:prospecting_latest_batch.unknown_count }}</strong></div>
+      </div>
+    </div>
+  {% endif %}
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:22px;">
+    <div class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900">
+      <h3 style="font-size:16px;font-weight:800;margin:0 0 14px;">Importar nova planilha</h3>
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="prospecting_action" value="import">
+        <input type="file" name="prospecting_file" accept=".xlsx" required style="width:100%;margin-bottom:12px;">
+        <button type="submit" class="bg-primary-600 text-white px-4 py-2 rounded-default">Importar planilha</button>
+      </form>
+      <p style="font-size:12px;opacity:.68;margin:12px 0 0;">Use apenas duas colunas: <strong>Nome da loja</strong> e <strong>WhatsApp</strong>. “Estabelecimento” também é aceito por compatibilidade.</p>
+    </div>
+
+    <div class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900">
+      <h3 style="font-size:16px;font-weight:800;margin:0 0 14px;">Execução</h3>
+      <form method="post">
+        {% csrf_token %}
+        {% if prospecting_enabled %}
+          <button type="submit" name="prospecting_action" value="pause" class="border border-base-300 px-4 py-2 rounded-default dark:border-base-700">Pausar envios</button>
+        {% else %}
+          <button type="submit" name="prospecting_action" value="start" class="bg-primary-600 text-white px-4 py-2 rounded-default">Iniciar envios</button>
+        {% endif %}
+      </form>
+      <p style="font-size:12px;opacity:.68;margin:12px 0 0;">Pausar não apaga a fila. Os contatos pendentes continuam de onde pararam quando você iniciar novamente.</p>
+    </div>
+  </div>
+
+  <div class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900" style="margin-bottom:22px;">
+    <h3 style="font-size:16px;font-weight:800;margin:0 0 14px;">Horário e velocidade</h3>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="prospecting_action" value="save_settings">
+      <div style="display:flex;gap:18px;align-items:end;flex-wrap:wrap;margin-bottom:14px;">
+        <label><span style="display:block;margin-bottom:5px;font-weight:600;">Horário inicial</span><input type="time" name="start_time" value="{{ prospecting_start_time }}" required></label>
+        <label><span style="display:block;margin-bottom:5px;font-weight:600;">Horário final</span><input type="time" name="end_time" value="{{ prospecting_end_time }}" required></label>
+        <label><span style="display:block;margin-bottom:5px;font-weight:600;">Contatos por minuto</span><input type="number" name="messages_per_minute" min="1" max="10" step="1" value="{{ prospecting_messages_per_minute }}" required style="width:110px;"></label>
+      </div>
+      <div style="margin-bottom:14px;"><div style="margin-bottom:6px;font-weight:600;">Dias permitidos</div><div style="display:flex;gap:14px;flex-wrap:wrap;">
+        {% for value, label in prospecting_weekday_labels %}<label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" name="weekdays" value="{{ value }}" {% if value in prospecting_weekdays %}checked{% endif %}>{{ label }}</label>{% endfor %}
+      </div></div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;"><button type="submit" class="bg-primary-600 text-white px-4 py-2 rounded-default">Salvar configuração</button><span style="font-size:12px;opacity:.68;">Fuso horário: {{ prospecting_timezone }}</span></div>
+    </form>
+  </div>
+  {{ block.super }}
+{% endblock %}

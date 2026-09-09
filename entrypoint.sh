@@ -79,6 +79,16 @@ case "$ROLE" in
     exec celery -A config worker --loglevel=info
     ;;
 
+  celery-prospecting)
+    echo "📣 Starting dedicated prospecting worker..."
+    exec celery -A config worker \
+      --loglevel=info \
+      --queues=prospecting \
+      --hostname=prospecting@%h \
+      --concurrency="${PROSPECTING_CELERY_CONCURRENCY:-1}" \
+      --prefetch-multiplier=1
+    ;;
+
   beat)
     echo "⏰ Starting Celery beat..."
     exec celery -A config beat --loglevel=info

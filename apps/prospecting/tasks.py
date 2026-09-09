@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from .evolution import (
     EvolutionDeliveryUnknownError,
+    EvolutionNumberNotOnWhatsAppError,
     EvolutionRejectedError,
     send_prospecting_text,
 )
@@ -17,6 +18,7 @@ from .models import ProspectingControl, ProspectingQueueItem, ProspectingSentPho
 
 
 PROSPECTING_QUEUE = "prospecting"
+MAX_CANDIDATES_PER_RUN = 50
 
 
 def _recover_stale_processing() -> int:
@@ -61,6 +63,29 @@ def _claim_next_item():
         return item.pk, None
 
 
+def _discard_number_without_whatsapp(item_id: int, phone: str) -> None:
+    ProspectingSentPhone.objects.filter(phone=phone).delete()
+    with transaction.atomic():
+        locked = (
+            ProspectingQueueItem.objects.select_for_update()
+            .select_related("batch")
+            .get(pk=item_id)
+        )
+        type(locked.batch).objects.filter(pk=locked.batch_id).update(
+            failed_contacts=F("failed_contacts") + 1
+        )
+        locked.delete()
+
+
+def _release_rejected_item(item_id: int, phone: str) -> None:
+    """Libera uma rejeição operacional para nova tentativa futura, sem perder o lead."""
+    ProspectingSentPhone.objects.filter(phone=phone).delete()
+    ProspectingQueueItem.objects.filter(pk=item_id).update(
+        status=ProspectingQueueItem.Status.PENDING,
+        processed_at=None,
+    )
+
+
 def _send_one():
     item_id, terminal_status = _claim_next_item()
     if item_id is None:
@@ -71,20 +96,21 @@ def _send_one():
 
     try:
         send_prospecting_text(item.phone, message)
+    except EvolutionNumberNotOnWhatsAppError:
+        # Número confirmado pela própria Evolution como inexistente no
+        # WhatsApp: descarta e deixa o dispatcher procurar outro contato na
+        # mesma execução, sem consumir a cota de mensagens enviadas.
+        _discard_number_without_whatsapp(item_id, item.phone)
+        return "not-whatsapp"
     except EvolutionRejectedError:
-        # A API recusou explicitamente. Não grava o número como contatado e
-        # não tenta novamente sozinha. Se o número vier em uma nova planilha,
-        # poderá entrar de novo depois que a causa da rejeição for corrigida.
-        ProspectingSentPhone.objects.filter(phone=item.phone).delete()
-        with transaction.atomic():
-            locked = ProspectingQueueItem.objects.select_for_update().select_related("batch").get(pk=item_id)
-            type(locked.batch).objects.filter(pk=locked.batch_id).update(
-                failed_contacts=F("failed_contacts") + 1
-            )
-            locked.delete()
+        # Rejeição explícita diferente de exists=false pode indicar problema
+        # operacional/configuração. Não perde o lead: remove a trava, devolve
+        # o item para PENDING e interrompe a rodada para não consumir a base.
+        _release_rejected_item(item_id, item.phone)
         return "rejected"
     except EvolutionDeliveryUnknownError:
-        # Timeout/rede é ambíguo: preserva a trava para nunca duplicar.
+        # Timeout/rede é ambíguo: preserva a trava para nunca duplicar e conta
+        # como uma vaga do minuto, pois a mensagem pode ter sido aceita.
         ProspectingQueueItem.objects.filter(pk=item_id).update(
             status=ProspectingQueueItem.Status.UNKNOWN,
             processed_at=timezone.now(),
@@ -105,7 +131,7 @@ def _send_one():
     time_limit=55,
 )
 def send_next_prospecting_message():
-    """Dispatcher de prospecção, executado somente na fila dedicada."""
+    """Envia até a quantidade configurada de abordagens reais por minuto."""
     control = ProspectingControl.current()
     if not control.enabled:
         return "paused"
@@ -114,17 +140,40 @@ def send_next_prospecting_message():
 
     _recover_stale_processing()
 
-    limit = max(1, min(int(control.messages_per_minute or 1), 10))
+    target = max(1, min(int(control.messages_per_minute or 1), 10))
     statuses = []
+    quota_used = 0
+    candidates = 0
 
-    for _ in range(limit):
+    while quota_used < target and candidates < MAX_CANDIDATES_PER_RUN:
         status = _send_one()
-        statuses.append(status)
+
         if status == "empty":
             break
+
+        statuses.append(status)
+        candidates += 1
+
+        if status in {"sent", "unknown-delivery"}:
+            quota_used += 1
+            continue
+
+        if status == "rejected":
+            # Não trate uma rejeição operacional genérica como simples número
+            # sem WhatsApp. Interrompe a rodada e tenta novamente só no próximo
+            # disparo do Beat.
+            break
+
+        # not-whatsapp e already-contacted não consomem a cota; procura o
+        # próximo candidato ainda nesta execução.
 
     if len(statuses) == 1:
         return statuses[0]
 
     sent_count = statuses.count("sent")
-    return f"processed={len(statuses)};sent={sent_count};statuses={','.join(statuses)}"
+    unknown_count = statuses.count("unknown-delivery")
+    not_whatsapp_count = statuses.count("not-whatsapp")
+    return (
+        f"attempted={len(statuses)};sent={sent_count};unknown={unknown_count};"
+        f"not_whatsapp={not_whatsapp_count};statuses={','.join(statuses)}"
+    )

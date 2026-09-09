@@ -116,6 +116,17 @@ class Order(TenantModel):
         verbose_name="Forma de recebimento",
     )
 
+    PAYMENT_FLOW_CHOICES = (
+        ("in_person", "Na entrega ou retirada"),
+        ("online", "Online pelo Asaas"),
+    )
+
+    payment_flow = models.CharField(
+        max_length=20,
+        choices=PAYMENT_FLOW_CHOICES,
+        default="in_person",
+        verbose_name="Tipo de pagamento",
+    )
     payment_method = models.CharField(max_length=30, blank=True, default="", verbose_name="Forma de pagamento")
     payment_change_for = models.CharField(max_length=30, blank=True, default="", verbose_name="Troco para")
 
@@ -159,6 +170,12 @@ class Order(TenantModel):
             return f"{label} — troco para R$ {self.payment_change_for}"
 
         return label
+
+    @property
+    def payment_flow_label(self):
+        if self.payment_flow == "online":
+            return "Online pelo Asaas"
+        return "Na entrega ou retirada"
 
     @property
     def delivery_type_label(self):

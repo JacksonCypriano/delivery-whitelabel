@@ -1138,6 +1138,7 @@ def checkout_step_one(request):
         full_name = request.POST.get('full_name', '').strip()
         phone = request.POST.get('phone', '').strip()
         payment_method = request.POST.get('payment_method', '').strip()
+        payment_flow = request.POST.get('payment_flow', '').strip() or 'in_person'
         change_for = request.POST.get('change_for', '').strip()
         delivery_type = request.POST.get('delivery_type', '').strip()
         coupon_code = request.POST.get('coupon_code', '').strip().upper()
@@ -1182,10 +1183,15 @@ def checkout_step_one(request):
             return HttpResponseBadRequest('Nome, telefone ou troco excede o tamanho permitido.')
         if payment_method not in ('cash', 'credit_card', 'debit_card', 'pix'):
             return HttpResponseBadRequest('Forma de pagamento inválida.')
-        if request.tenant.sale_mode == 'online' and payment_method == 'debit_card':
-            return HttpResponseBadRequest('Cartão de débito não está disponível para pagamento online. Use Pix ou crédito.')
-        if request.tenant.sale_mode == 'online' and payment_method in ('pix', 'credit_card') and not online_payment_available(request.tenant):
-            return HttpResponseBadRequest('O pagamento online desta loja ainda está sendo ativado. Escolha outra forma de recebimento.')
+
+        online_available = online_payment_available(request.tenant)
+        if payment_flow not in ('in_person', 'online'):
+            return HttpResponseBadRequest('Tipo de pagamento inválido.')
+        if payment_flow == 'online':
+            if not online_available:
+                return HttpResponseBadRequest('O pagamento online desta loja não está disponível no momento.')
+            if payment_method not in ('pix', 'credit_card'):
+                return HttpResponseBadRequest('No pagamento online, escolha Pix ou cartão de crédito.')
         if not full_name:
             return HttpResponseBadRequest('Informe o nome do cliente.')
 
@@ -1413,8 +1419,9 @@ def checkout_step_one(request):
             'discount_amount': discount_amount,
             'total': total,
             'delivery_type': delivery_type,
+            'payment_flow': payment_flow,
             'payment_method': payment_method,
-            'payment_change_for': change_for,
+            'payment_change_for': change_for if payment_flow == 'in_person' else '',
             'checkout_token': posted_checkout_token,
             'source_cart_id': cart.id,
         }

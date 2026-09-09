@@ -69,6 +69,7 @@ class OrderAdmin(TenantModelAdmin):
 
     list_filter = (
         "delivery_type",
+        "payment_flow",
         "payment_method",
         "created_at",
         "delivery_city",
@@ -101,6 +102,7 @@ class OrderAdmin(TenantModelAdmin):
         "discount_amount",
         "total",
         "delivery_type",
+        "payment_flow",
         "payment_method",
         "payment_change_for",
         "whatsapp_opened_at",
@@ -132,6 +134,7 @@ class OrderAdmin(TenantModelAdmin):
                 "fields": (
                     "delivery_type",
                     "status",
+                    "payment_flow",
                     "payment_method",
                     "payment_change_for",
                     "subtotal",

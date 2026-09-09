@@ -439,40 +439,95 @@
 
       <!-- Pagamento -->
       <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-        <div class="flex items-center gap-3 mb-4 text-primary">
+        <div class="flex items-center gap-3 mb-2 text-primary">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
           </svg>
           <h2 class="text-lg font-semibold text-gray-800">Forma de Pagamento</h2>
         </div>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {% if tenant.sale_mode == 'online' and not online_payment_available %}
-            <div class="col-span-full rounded-xl bg-amber-50 p-3 text-sm text-amber-800">O pagamento online desta loja está em ativação. Você poderá concluir o pedido pelo WhatsApp enquanto isso.</div>
-          {% endif %}
-          {% if tenant.sale_mode == 'online' and online_payment_available %}
-            <div class="col-span-full rounded-xl bg-blue-50 p-3 text-sm text-blue-800">Pagamento online processado pelo Asaas: Pix e cartão de crédito. As taxas de cada operação são cobradas pelo Asaas e variam conforme a modalidade e as condições da conta. A VemDeDelivery não recebe comissão. O lojista pode consultar os valores vigentes em Configurações de Conta &gt; Taxas no Asaas.</div>
-          {% endif %}
-          {% if tenant.sale_mode != 'online' or online_payment_available %}
-          <label class="payment-option relative flex flex-col items-center justify-center p-4 border rounded-2xl cursor-pointer hover:bg-gray-50 transition border-primary bg-primary/5 text-primary" data-value="pix">
-            <input type="radio" name="payment_method" value="pix" class="hidden" checked>
-            <span class="text-sm font-medium">Pix</span>
-          </label>
-          <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition" data-value="credit_card">
-            <input type="radio" name="payment_method" value="credit_card" class="hidden">
-            <span class="text-sm font-medium">Cartão de Crédito</span>
-          </label>
-          {% endif %}
-          {% if tenant.sale_mode != 'online' %}
-          <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition" data-value="debit_card">
-            <input type="radio" name="payment_method" value="debit_card" class="hidden">
-            <span class="text-sm font-medium">Cartão de Débito</span>
-          </label>
-          {% endif %}
-          <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition" data-value="cash">
-            <input type="radio" name="payment_method" value="cash" class="hidden" {% if tenant.sale_mode == 'online' and not online_payment_available %}checked{% endif %}>
-            <span class="text-sm font-medium">Dinheiro</span>
-          </label>
-        </div>
+
+        {% if online_payment_available %}
+          <p class="text-sm text-gray-500 mb-4">Escolha se prefere pagar agora pela internet ou diretamente à loja na entrega/retirada.</p>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
+            <label class="payment-flow-option relative flex items-start gap-3 p-4 border rounded-2xl cursor-pointer transition border-primary bg-primary/5 text-primary" data-flow="online">
+              <input type="radio" name="payment_flow" value="online" class="hidden" checked>
+              <div>
+                <strong class="block text-sm font-bold">Pagar online</strong>
+                <span class="block text-xs mt-1 opacity-80">Pix ou cartão de crédito pelo ambiente seguro do Asaas.</span>
+              </div>
+            </label>
+
+            <label class="payment-flow-option relative flex items-start gap-3 p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition" data-flow="in_person">
+              <input type="radio" name="payment_flow" value="in_person" class="hidden">
+              <div>
+                <strong class="block text-sm font-bold">Pagar na entrega ou retirada</strong>
+                <span class="block text-xs mt-1 text-gray-500">Pix, cartão ou dinheiro diretamente com a loja.</span>
+              </div>
+            </label>
+          </div>
+
+          <div id="online-payment-message" class="rounded-xl bg-blue-50 p-3 text-sm text-blue-800 mb-4">
+            <strong>Pagamento online seguro.</strong> Você será direcionado ao Asaas para concluir o pagamento. A confirmação será registrada automaticamente no pedido.
+          </div>
+
+          <div id="online-payment-methods">
+            <p class="text-xs font-bold uppercase tracking-wide text-gray-400 mb-2">Forma de pagamento online</p>
+            <div class="grid grid-cols-2 gap-3">
+              <label class="payment-option relative flex flex-col items-center justify-center p-4 border rounded-2xl cursor-pointer hover:bg-gray-50 transition border-primary bg-primary/5 text-primary" data-value="pix">
+                <input type="radio" name="payment_method" value="pix" class="hidden" checked>
+                <span class="text-sm font-medium">Pix</span>
+              </label>
+              <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition" data-value="credit_card">
+                <input type="radio" name="payment_method" value="credit_card" class="hidden">
+                <span class="text-sm font-medium">Cartão de Crédito</span>
+              </label>
+            </div>
+          </div>
+
+          <div id="in-person-payment-methods" class="hidden">
+            <p class="text-xs font-bold uppercase tracking-wide text-gray-400 mb-2">Como pretende pagar à loja</p>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition" data-value="pix">
+                <input type="radio" name="payment_method" value="pix" class="hidden">
+                <span class="text-sm font-medium">Pix</span>
+              </label>
+              <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition" data-value="credit_card">
+                <input type="radio" name="payment_method" value="credit_card" class="hidden">
+                <span class="text-sm font-medium">Cartão de Crédito</span>
+              </label>
+              <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition" data-value="debit_card">
+                <input type="radio" name="payment_method" value="debit_card" class="hidden">
+                <span class="text-sm font-medium">Cartão de Débito</span>
+              </label>
+              <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition" data-value="cash">
+                <input type="radio" name="payment_method" value="cash" class="hidden">
+                <span class="text-sm font-medium">Dinheiro</span>
+              </label>
+            </div>
+          </div>
+        {% else %}
+          <input type="hidden" name="payment_flow" value="in_person">
+          <p class="text-sm text-gray-500 mb-4">O pagamento será combinado diretamente com a loja na entrega ou retirada.</p>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <label class="payment-option relative flex flex-col items-center justify-center p-4 border rounded-2xl cursor-pointer hover:bg-gray-50 transition border-primary bg-primary/5 text-primary" data-value="pix">
+              <input type="radio" name="payment_method" value="pix" class="hidden" checked>
+              <span class="text-sm font-medium">Pix</span>
+            </label>
+            <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition" data-value="credit_card">
+              <input type="radio" name="payment_method" value="credit_card" class="hidden">
+              <span class="text-sm font-medium">Cartão de Crédito</span>
+            </label>
+            <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition" data-value="debit_card">
+              <input type="radio" name="payment_method" value="debit_card" class="hidden">
+              <span class="text-sm font-medium">Cartão de Débito</span>
+            </label>
+            <label class="payment-option relative flex flex-col items-center justify-center p-4 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-50 transition" data-value="cash">
+              <input type="radio" name="payment_method" value="cash" class="hidden">
+              <span class="text-sm font-medium">Dinheiro</span>
+            </label>
+          </div>
+        {% endif %}
       </div>
 
       <!-- Troco -->
@@ -488,19 +543,13 @@
                class="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition">
       </div>
 
-      {% if tenant.sale_mode == 'whatsapp' %}
-      <button type="submit" id="submit-button"
-              class="w-full flex items-center justify-center gap-3 bg-green-500 hover:bg-green-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-green-500/30 transition-all transform hover:scale-[1.02] active:scale-[0.98]">
-        <svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
-        Revisar pedido
-      </button>
-      <p class="text-center text-xs text-gray-500 mt-3">Na próxima tela você revisa tudo antes de abrir o WhatsApp.</p>
-      {% else %}
       <button type="submit" id="submit-button"
               class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/30 transition-all transform hover:scale-[1.02] active:scale-[0.98]">
-        Confirmar Pedido
+        Revisar pedido
       </button>
-      {% endif %}
+      <p class="text-center text-xs text-gray-500 mt-3">
+        {% if online_payment_available %}Na próxima tela você revisa o pedido e segue com a opção de pagamento escolhida.{% else %}Na próxima tela você revisa tudo antes de abrir o WhatsApp.{% endif %}
+      </p>
     </form>
 
     <!-- Resumo lateral -->
@@ -756,7 +805,7 @@
           <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-3-3H6a2 2 0 00-3 3v6a2 2 0 003 3z" />
           </svg>
-          {% if tenant.sale_mode == 'whatsapp' %}Pedido enviado via WhatsApp{% else %}Pagamento 100% Seguro{% endif %}
+          {% if online_payment_available %}Pague online ou diretamente à loja{% else %}Pedido enviado via WhatsApp{% endif %}
         </p>
       </div>
     </div>
@@ -1238,38 +1287,80 @@
     () => setDeliveryType('pickup')
   );
 
-  document.querySelectorAll('.payment-option').forEach(opt => {
-    opt.addEventListener('click', () => {
-      document.querySelectorAll('.payment-option').forEach(other => {
-        other.classList.remove(
-          'border-primary',
-          'bg-primary/5',
-          'text-primary'
-        );
-
-        other.classList.add('border-gray-200');
-      });
-
-      opt.classList.add(
+  function setSelectedCard(selector, selected) {
+    document.querySelectorAll(selector).forEach(card => {
+      card.classList.remove(
         'border-primary',
         'bg-primary/5',
         'text-primary'
       );
-
-      opt.classList.remove('border-gray-200');
-
-      const radio = opt.querySelector('input[type=radio]');
-
-      if (radio) {
-        radio.checked = true;
-      }
-
-      document.getElementById('troco-field')
-        ?.classList.toggle(
-          'hidden',
-          opt.dataset.value !== 'cash'
-        );
+      card.classList.add('border-gray-200');
     });
+
+    if (!selected) {
+      return;
+    }
+
+    selected.classList.add(
+      'border-primary',
+      'bg-primary/5',
+      'text-primary'
+    );
+    selected.classList.remove('border-gray-200');
+  }
+
+  function selectPaymentOption(opt) {
+    if (!opt) {
+      return;
+    }
+
+    setSelectedCard('.payment-option', opt);
+
+    const radio = opt.querySelector('input[type=radio]');
+    if (radio) {
+      radio.checked = true;
+    }
+
+    document.getElementById('troco-field')
+      ?.classList.toggle(
+        'hidden',
+        opt.dataset.value !== 'cash'
+      );
+  }
+
+  document.querySelectorAll('.payment-option').forEach(opt => {
+    opt.addEventListener('click', () => selectPaymentOption(opt));
+  });
+
+  const onlineMethods = document.getElementById('online-payment-methods');
+  const inPersonMethods = document.getElementById('in-person-payment-methods');
+  const onlineMessage = document.getElementById('online-payment-message');
+
+  function setPaymentFlow(flowOption) {
+    if (!flowOption) {
+      return;
+    }
+
+    setSelectedCard('.payment-flow-option', flowOption);
+
+    const flowRadio = flowOption.querySelector('input[type=radio]');
+    if (flowRadio) {
+      flowRadio.checked = true;
+    }
+
+    const isOnline = flowOption.dataset.flow === 'online';
+    onlineMethods?.classList.toggle('hidden', !isOnline);
+    onlineMessage?.classList.toggle('hidden', !isOnline);
+    inPersonMethods?.classList.toggle('hidden', isOnline);
+
+    const activeContainer = isOnline ? onlineMethods : inPersonMethods;
+    const current = activeContainer?.querySelector('.payment-option input[type=radio]:checked')?.closest('.payment-option');
+    const fallback = activeContainer?.querySelector('.payment-option');
+    selectPaymentOption(current || fallback);
+  }
+
+  document.querySelectorAll('.payment-flow-option').forEach(flowOption => {
+    flowOption.addEventListener('click', () => setPaymentFlow(flowOption));
   });
 
   function showCouponMessage(message, type = 'error') {

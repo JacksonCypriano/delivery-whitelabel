@@ -1,4 +1,5 @@
 import io
+import json
 import zipfile
 from datetime import datetime
 from unittest.mock import patch
@@ -6,9 +7,10 @@ from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from .evolution import send_prospecting_text
 from .importer import import_prospecting_xlsx
 from .message import build_prospecting_message
 from .models import ProspectingBatch, ProspectingControl, ProspectingQueueItem, ProspectingSentPhone
@@ -63,6 +65,38 @@ class XlsxFactoryMixin:
         bio.seek(0)
         return bio
 
+
+
+
+class ProspectingEvolutionTests(TestCase):
+    @override_settings(
+        EVOLUTION_API_URL="https://evolution.test",
+        EVOLUTION_API_KEY="test-key",
+        PROSPECTING_EVOLUTION_INSTANCE="prospecting",
+        EVOLUTION_API_TIMEOUT=4,
+    )
+    @patch("apps.prospecting.evolution.request.urlopen")
+    def test_send_text_uses_current_evolution_payload_contract(self, mocked_urlopen):
+        response = mocked_urlopen.return_value.__enter__.return_value
+        response.status = 201
+
+        send_prospecting_text("5511999999999", "Olá, Loja A!")
+
+        request_obj = mocked_urlopen.call_args.args[0]
+        payload = json.loads(request_obj.data.decode("utf-8"))
+
+        self.assertEqual(
+            payload,
+            {
+                "number": "5511999999999",
+                "text": "Olá, Loja A!",
+            },
+        )
+        self.assertNotIn("textMessage", payload)
+        self.assertEqual(
+            request_obj.full_url,
+            "https://evolution.test/message/sendText/prospecting",
+        )
 
 class ProspectingPhoneTests(TestCase):
     def test_normalizes_brazilian_numbers(self):

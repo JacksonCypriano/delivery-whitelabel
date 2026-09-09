@@ -5,7 +5,7 @@ from unittest.mock import patch
 from django.test import TestCase, override_settings
 
 from apps.billing.models import BillingEvent, TenantPaymentAccount
-from apps.billing.online import online_payment_available, request_subaccount, sync_pending_subaccounts
+from apps.billing.online import ensure_subaccount_pix_key, online_payment_available, request_subaccount, sync_pending_subaccounts
 from apps.billing.tasks import process_event
 from apps.tenants.models import Tenant
 
@@ -60,8 +60,9 @@ class SubaccountWebhookTests(TestCase):
             HTTP_ASAAS_ACCESS_TOKEN="w" * 40,
         )
 
+    @patch("apps.billing.online.Asaas.list_pix_address_keys", return_value={"data": [{"key": "pix-existing", "status": "ACTIVE"}]})
     @patch("apps.billing.tasks.process_event.delay")
-    def test_general_approval_event_is_queued_and_enables_online_payment(self, enqueue):
+    def test_general_approval_event_is_queued_and_enables_online_payment(self, enqueue, list_keys):
         with self.captureOnCommitCallbacks(execute=True):
             response = self.post_status("ACCOUNT_STATUS_GENERAL_APPROVAL_APPROVED")
         self.assertEqual(response.status_code, 200)
@@ -74,6 +75,7 @@ class SubaccountWebhookTests(TestCase):
         self.assertIsNotNone(self.account.approved_at)
         self.assertTrue(self.account.is_ready)
         self.assertTrue(online_payment_available(self.tenant))
+        list_keys.assert_called_once_with()
         self.assertIsNotNone(BillingEvent.objects.get(pk=event.pk).processed_at)
 
     @patch("apps.billing.tasks.process_event.delay")
@@ -90,15 +92,17 @@ class SubaccountWebhookTests(TestCase):
         self.assertFalse(self.account.is_ready)
         self.assertEqual(BillingEvent.objects.get(pk=event.pk).attempts, 1)
 
+    @patch("apps.billing.online.Asaas.list_pix_address_keys", return_value={"data": [{"key": "pix-existing", "status": "ACTIVE"}]})
     @patch(
         "apps.billing.online.Asaas.request",
         return_value={"general": "APPROVED", "documentation": "APPROVED"},
     )
-    def test_periodic_sync_recovers_when_webhook_is_unavailable(self, request):
+    def test_periodic_sync_recovers_when_webhook_is_unavailable(self, request, list_keys):
         sync_pending_subaccounts()
         self.account.refresh_from_db()
         self.assertEqual(self.account.status, TenantPaymentAccount.Status.APPROVED)
         request.assert_called_once_with("GET", "/myAccount/status/")
+        list_keys.assert_called_once_with()
 
     @override_settings(ASAAS_WEBHOOK_URL="https://app.example.com/integracoes/asaas/webhook/")
     @patch("apps.billing.online.Asaas.request", return_value={"id": "wh_123"})
@@ -117,3 +121,47 @@ class SubaccountWebhookTests(TestCase):
         self.assertEqual(payload["url"], "https://app.example.com/integracoes/asaas/webhook/")
         self.assertEqual(payload["authToken"], "w" * 40)
         self.assertIn("ACCOUNT_STATUS_GENERAL_APPROVAL_APPROVED", payload["events"])
+
+    @patch("apps.billing.online.Asaas.create_random_pix_address_key")
+    @patch(
+        "apps.billing.online.Asaas.list_pix_address_keys",
+        return_value={"data": [{"key": "existing-key", "status": "ACTIVE"}]},
+    )
+    def test_pix_key_provisioning_reuses_existing_key(self, list_keys, create_key):
+        self.account.status = TenantPaymentAccount.Status.APPROVED
+        self.account.save(update_fields=["status"])
+
+        created = ensure_subaccount_pix_key(self.account)
+
+        self.assertFalse(created)
+        list_keys.assert_called_once_with()
+        create_key.assert_not_called()
+
+    @patch(
+        "apps.billing.online.Asaas.create_random_pix_address_key",
+        return_value={"key": "new-evp", "type": "EVP", "status": "ACTIVE"},
+    )
+    @patch("apps.billing.online.Asaas.list_pix_address_keys", return_value={"data": []})
+    def test_pix_key_provisioning_creates_evp_when_missing(self, list_keys, create_key):
+        self.account.status = TenantPaymentAccount.Status.APPROVED
+        self.account.save(update_fields=["status"])
+
+        created = ensure_subaccount_pix_key(self.account)
+
+        self.assertTrue(created)
+        list_keys.assert_called_once_with()
+        create_key.assert_called_once_with()
+
+    @patch(
+        "apps.billing.online.Asaas.create_random_pix_address_key",
+        return_value={"key": "retry-evp", "type": "EVP", "status": "ACTIVE"},
+    )
+    @patch("apps.billing.online.Asaas.list_pix_address_keys", return_value={"data": []})
+    def test_periodic_sync_retries_pix_for_already_approved_account(self, list_keys, create_key):
+        self.account.status = TenantPaymentAccount.Status.APPROVED
+        self.account.save(update_fields=["status"])
+
+        sync_pending_subaccounts()
+
+        list_keys.assert_called_once_with()
+        create_key.assert_called_once_with()

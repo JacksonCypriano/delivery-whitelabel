@@ -140,6 +140,16 @@ class Asaas:
     def create_subaccount(self, body):
         return self.request("POST", "/accounts", json=body)
 
+    def list_pix_address_keys(self):
+        return self.request(
+            "GET",
+            "/pix/addressKeys",
+            params={"limit": 100, "offset": 0},
+        )
+
+    def create_random_pix_address_key(self):
+        return self.request("POST", "/pix/addressKeys", json={"type": "EVP"})
+
     def get_account(self, identifier):
         return self.request("GET", "/accounts/" + valid_id(identifier))
 

@@ -111,6 +111,54 @@ def configure_subaccount_webhook(api_key, email):
         return False
 
 
+
+
+def ensure_subaccount_pix_key(account):
+    """Ensure an approved Asaas subaccount has a Pix key for hosted checkout.
+
+    The key belongs to the subaccount and stays managed by Asaas. Nothing is
+    copied to settings or stored in plaintext by VemDeDelivery. Repeated calls
+    are idempotent: an existing active key is reused.
+    """
+    if (
+        not account.provider_account_id
+        or not account.encrypted_api_key
+        or account.status != TenantPaymentAccount.Status.APPROVED
+    ):
+        return False
+
+    api = Asaas(api_key=account.get_api_key())
+    payload = api.list_pix_address_keys()
+    keys = payload.get("data", []) if isinstance(payload, dict) else []
+    active = [
+        item for item in keys
+        if isinstance(item, dict)
+        and str(item.get("status") or "ACTIVE").upper() == "ACTIVE"
+        and item.get("key")
+    ]
+    if active:
+        return False
+
+    created = api.create_random_pix_address_key()
+    if not isinstance(created, dict) or not created.get("key"):
+        raise BillingError("O Asaas não confirmou a criação da chave Pix da subconta.")
+    return True
+
+
+def _ensure_subaccount_pix_key_safely(account):
+    try:
+        return ensure_subaccount_pix_key(account)
+    except BillingError as exc:
+        # Approval must not be rolled back because Pix provisioning had a
+        # transient failure. The periodic reconciliation will retry.
+        log.warning(
+            "Subconta aprovada aguardando chave Pix. account_id=%s error=%s",
+            account.pk,
+            exc,
+        )
+        return False
+
+
 def sync_subaccount_status(account):
     """Fallback consultation used when Asaas retries or misses a webhook."""
     if not account.provider_account_id or not account.encrypted_api_key:
@@ -126,20 +174,28 @@ def sync_subaccount_status(account):
     }
     local_status = mapping.get(general)
     if local_status:
-        apply_subaccount_status(account.provider_account_id, local_status)
+        updated = apply_subaccount_status(account.provider_account_id, local_status)
+        if updated and local_status == TenantPaymentAccount.Status.APPROVED:
+            _ensure_subaccount_pix_key_safely(updated)
     return local_status
 
 
 def sync_pending_subaccounts(limit=50):
-    """Reconcile pending stores so approval does not depend on one delivery."""
+    """Reconcile approval and keep Pix provisioning self-healing."""
     rows = TenantPaymentAccount.objects.filter(
         enabled=True,
         tenant__online_payments_allowed=True,
-        status=TenantPaymentAccount.Status.PENDING,
+        status__in=[
+            TenantPaymentAccount.Status.PENDING,
+            TenantPaymentAccount.Status.APPROVED,
+        ],
     ).exclude(provider_account_id="").exclude(encrypted_api_key="")[:limit]
     for account in rows:
         try:
-            sync_subaccount_status(account)
+            if account.status == TenantPaymentAccount.Status.PENDING:
+                sync_subaccount_status(account)
+            else:
+                _ensure_subaccount_pix_key_safely(account)
         except (BillingError, ValueError):
             log.warning("Subconta aguardando consulta no Asaas. account_id=%s", account.pk)
 
@@ -169,10 +225,13 @@ def request_subaccount(account):
             raise BillingError("Pagamentos online ainda não estão configurados.")
         if account.provider_account_id and account.encrypted_api_key:
             # Reativação de uma conta que já foi criada: não cria uma segunda
-            # subconta e mantém o switch ligado.
+            # subconta e mantém o switch ligado. Se ela já estiver aprovada,
+            # também garante a chave Pix necessária ao checkout.
             if not account.enabled:
                 account.enabled = True
                 account.save(update_fields=["enabled", "updated_at"])
+            if account.status == TenantPaymentAccount.Status.APPROVED:
+                _ensure_subaccount_pix_key_safely(account)
             return account
 
         try:

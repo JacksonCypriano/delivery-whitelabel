@@ -54,8 +54,12 @@ def process_event(event_pk):
 
             status = account_status_from_event(event.kind)
             if status:
+                from .online import _ensure_subaccount_pix_key_safely
+
                 reason = "O cadastro da subconta foi rejeitado; revise os dados no Asaas."
-                apply_subaccount_status(event.payment_id, status, reason)
+                account = apply_subaccount_status(event.payment_id, status, reason)
+                if account and status == account.Status.APPROVED:
+                    _ensure_subaccount_pix_key_safely(account)
             # Unknown account-status variants are acknowledged so a newly
             # introduced Asaas event cannot block the provider queue.
             BillingEvent.objects.filter(pk=event.pk).update(processed_at=timezone.now())

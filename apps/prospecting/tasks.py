@@ -9,8 +9,11 @@ from django.utils import timezone
 
 from .evolution import (
     EvolutionDeliveryUnknownError,
+    EvolutionInstanceUnavailableError,
     EvolutionNumberNotOnWhatsAppError,
+    EvolutionReachoutRestrictedError,
     EvolutionRejectedError,
+    ensure_prospecting_instance_open,
     send_prospecting_text,
 )
 from .message import build_prospecting_message
@@ -19,6 +22,10 @@ from .models import ProspectingControl, ProspectingQueueItem, ProspectingSentPho
 
 PROSPECTING_QUEUE = "prospecting"
 MAX_CANDIDATES_PER_RUN = 50
+
+
+def _pause_prospecting() -> None:
+    ProspectingControl.objects.filter(singleton_id=1).update(enabled=False)
 
 
 def _recover_stale_processing() -> int:
@@ -78,7 +85,7 @@ def _discard_number_without_whatsapp(item_id: int, phone: str) -> None:
 
 
 def _release_rejected_item(item_id: int, phone: str) -> None:
-    """Libera uma rejeição operacional para nova tentativa futura, sem perder o lead."""
+    """Libera rejeição comprovada para tentativa futura sem bloquear o lead."""
     ProspectingSentPhone.objects.filter(phone=phone).delete()
     ProspectingQueueItem.objects.filter(pk=item_id).update(
         status=ProspectingQueueItem.Status.PENDING,
@@ -98,23 +105,29 @@ def _send_one():
         send_prospecting_text(item.phone, message)
     except EvolutionNumberNotOnWhatsAppError:
         # Número confirmado pela própria Evolution como inexistente no
-        # WhatsApp: descarta e deixa o dispatcher procurar outro contato na
-        # mesma execução, sem consumir a cota de mensagens enviadas.
+        # WhatsApp: descarta e procura outro na mesma execução sem usar cota.
         _discard_number_without_whatsapp(item_id, item.phone)
         return "not-whatsapp"
-    except EvolutionRejectedError:
-        # Rejeição explícita diferente de exists=false pode indicar problema
-        # operacional/configuração. Não perde o lead: remove a trava, devolve
-        # o item para PENDING e interrompe a rodada para não consumir a base.
+    except EvolutionReachoutRestrictedError:
+        # Código 463: o WhatsApp recusou uma nova conversa. O lead não foi
+        # abordado, então volta para PENDING e a automação é pausada para não
+        # produzir uma sequência de falsos SENT.
         _release_rejected_item(item_id, item.phone)
+        _pause_prospecting()
+        return "reachout-restricted"
+    except EvolutionRejectedError:
+        # Rejeição operacional explícita: não perde o lead e pausa até revisão.
+        _release_rejected_item(item_id, item.phone)
+        _pause_prospecting()
         return "rejected"
     except EvolutionDeliveryUnknownError:
-        # Timeout/rede é ambíguo: preserva a trava para nunca duplicar e conta
-        # como uma vaga do minuto, pois a mensagem pode ter sido aceita.
+        # O request pode ter chegado ao WhatsApp, mas faltou ACK confiável.
+        # Mantém a trava contra duplicidade e pausa a prospecção por segurança.
         ProspectingQueueItem.objects.filter(pk=item_id).update(
             status=ProspectingQueueItem.Status.UNKNOWN,
             processed_at=timezone.now(),
         )
+        _pause_prospecting()
         return "unknown-delivery"
 
     ProspectingQueueItem.objects.filter(pk=item_id).update(
@@ -131,12 +144,19 @@ def _send_one():
     time_limit=55,
 )
 def send_next_prospecting_message():
-    """Envia até a quantidade configurada de abordagens reais por minuto."""
+    """Envia até a quantidade configurada de abordagens confirmadas por minuto."""
     control = ProspectingControl.current()
     if not control.enabled:
         return "paused"
     if not control.is_allowed_at():
         return "outside-window"
+
+    # Nenhum lead é reservado enquanto a instância estiver fora do ar. Se a
+    # sessão caiu, o próprio dispatcher tenta restart e aguarda reconexão.
+    try:
+        connection = ensure_prospecting_instance_open()
+    except EvolutionInstanceUnavailableError:
+        return "instance-unavailable"
 
     _recover_stale_processing()
 
@@ -154,19 +174,24 @@ def send_next_prospecting_message():
         statuses.append(status)
         candidates += 1
 
-        if status in {"sent", "unknown-delivery"}:
+        if status == "sent":
             quota_used += 1
             continue
 
-        if status == "rejected":
-            # Não trate uma rejeição operacional genérica como simples número
-            # sem WhatsApp. Interrompe a rodada e tenta novamente só no próximo
-            # disparo do Beat.
+        if status in {
+            "unknown-delivery",
+            "reachout-restricted",
+            "rejected",
+        }:
+            # Esses estados pausam o controle. Nunca avance para outro lead na
+            # mesma rodada quando a entrega não é segura.
             break
 
         # not-whatsapp e already-contacted não consomem a cota; procura o
         # próximo candidato ainda nesta execução.
 
+    if not statuses:
+        return connection if connection == "reconnected" else "empty"
     if len(statuses) == 1:
         return statuses[0]
 

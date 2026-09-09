@@ -12,7 +12,11 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from .evolution import (
+    EvolutionDeliveryUnknownError,
+    EvolutionInstanceUnavailableError,
     EvolutionNumberNotOnWhatsAppError,
+    EvolutionReachoutRestrictedError,
+    ensure_prospecting_instance_open,
     send_prospecting_text,
 )
 from .importer import import_prospecting_xlsx
@@ -78,28 +82,60 @@ class ProspectingEvolutionTests(TestCase):
         EVOLUTION_API_KEY="test-key",
         PROSPECTING_EVOLUTION_INSTANCE="prospecting",
         EVOLUTION_API_TIMEOUT=4,
+        PROSPECTING_EVOLUTION_ACK_TIMEOUT=1,
     )
-    @patch("apps.prospecting.evolution.request.urlopen")
-    def test_send_text_uses_current_evolution_payload_contract(self, mocked_urlopen):
-        response = mocked_urlopen.return_value.__enter__.return_value
-        response.status = 201
-
-        send_prospecting_text("5511999999999", "Olá, Loja A!")
-
-        request_obj = mocked_urlopen.call_args.args[0]
-        payload = json.loads(request_obj.data.decode("utf-8"))
-
-        self.assertEqual(
-            payload,
+    @patch("apps.prospecting.evolution._request_json")
+    def test_send_uses_canonical_jid_and_requires_server_ack(self, mocked_request):
+        mocked_request.side_effect = [
+            [
+                {
+                    "jid": "5515996325675@s.whatsapp.net",
+                    "exists": True,
+                    "number": "551596325675",
+                }
+            ],
             {
-                "number": "5511999999999",
-                "text": "Olá, Loja A!",
+                "key": {
+                    "id": "MSG-1",
+                    "remoteJid": "5515996325675@s.whatsapp.net",
+                },
+                "status": "PENDING",
             },
-        )
-        self.assertNotIn("textMessage", payload)
+            {
+                "messages": {
+                    "records": [
+                        {
+                            "key": {"id": "MSG-1"},
+                            "status": "SERVER_ACK",
+                            "MessageUpdate": [],
+                        }
+                    ]
+                }
+            },
+        ]
+
+        receipt = send_prospecting_text("551596325675", "Olá, Loja A!")
+
+        self.assertEqual(receipt.message_id, "MSG-1")
+        self.assertEqual(receipt.remote_jid, "5515996325675@s.whatsapp.net")
         self.assertEqual(
-            request_obj.full_url,
-            "https://evolution.test/message/sendText/prospecting",
+            mocked_request.call_args_list[1].args,
+            (
+                "POST",
+                "message/sendText",
+                {
+                    "number": "5515996325675",
+                    "text": "Olá, Loja A!",
+                },
+            ),
+        )
+        self.assertEqual(
+            mocked_request.call_args_list[2].args,
+            (
+                "POST",
+                "chat/findMessages",
+                {"where": {"key": {"id": "MSG-1"}}},
+            ),
         )
 
     @override_settings(
@@ -107,34 +143,78 @@ class ProspectingEvolutionTests(TestCase):
         EVOLUTION_API_KEY="test-key",
         PROSPECTING_EVOLUTION_INSTANCE="prospecting",
         EVOLUTION_API_TIMEOUT=4,
+        PROSPECTING_EVOLUTION_ACK_TIMEOUT=1,
     )
-    @patch("apps.prospecting.evolution.request.urlopen")
-    def test_exists_false_is_classified_as_number_without_whatsapp(self, mocked_urlopen):
-        body = json.dumps(
+    @patch("apps.prospecting.evolution._request_json")
+    def test_463_after_pending_is_not_classified_as_sent(self, mocked_request):
+        mocked_request.side_effect = [
+            [{"jid": "5511999999999@s.whatsapp.net", "exists": True, "number": "5511999999999"}],
             {
-                "status": 400,
-                "error": "Bad Request",
-                "response": {
-                    "message": [
+                "key": {"id": "MSG-463", "remoteJid": "5511999999999@s.whatsapp.net"},
+                "status": "PENDING",
+            },
+            {
+                "messages": {
+                    "records": [
                         {
-                            "jid": "5511999999999@s.whatsapp.net",
-                            "exists": False,
-                            "number": "5511999999999",
+                            "key": {"id": "MSG-463"},
+                            "status": "PENDING",
+                            "MessageUpdate": [
+                                {"status": 0, "messageStubParameters": ["463"]}
+                            ],
                         }
                     ]
-                },
+                }
+            },
+        ]
+
+        with self.assertRaises(EvolutionReachoutRestrictedError):
+            send_prospecting_text("5511999999999", "Olá!")
+
+    @override_settings(
+        EVOLUTION_API_URL="https://evolution.test",
+        EVOLUTION_API_KEY="test-key",
+        PROSPECTING_EVOLUTION_INSTANCE="prospecting",
+        EVOLUTION_API_TIMEOUT=4,
+    )
+    @patch("apps.prospecting.evolution._request_json")
+    def test_exists_false_is_classified_as_number_without_whatsapp(self, mocked_request):
+        mocked_request.return_value = [
+            {
+                "jid": "5511999999999@s.whatsapp.net",
+                "exists": False,
+                "number": "5511999999999",
             }
-        ).encode("utf-8")
-        mocked_urlopen.side_effect = error.HTTPError(
-            url="https://evolution.test/message/sendText/prospecting",
-            code=400,
-            msg="Bad Request",
-            hdrs=None,
-            fp=io.BytesIO(body),
-        )
+        ]
 
         with self.assertRaises(EvolutionNumberNotOnWhatsAppError):
             send_prospecting_text("5511999999999", "Olá!")
+
+    @override_settings(
+        EVOLUTION_API_URL="https://evolution.test",
+        EVOLUTION_API_KEY="test-key",
+        PROSPECTING_EVOLUTION_INSTANCE="prospecting",
+        PROSPECTING_EVOLUTION_AUTO_RECONNECT=True,
+        PROSPECTING_EVOLUTION_RECONNECT_WAIT_SECONDS=2,
+    )
+    @patch("apps.prospecting.evolution.time.sleep", return_value=None)
+    @patch("apps.prospecting.evolution._request_json")
+    def test_closed_instance_is_restarted_and_rechecked(
+        self, mocked_request, mocked_sleep
+    ):
+        mocked_request.side_effect = [
+            {"instance": {"instanceName": "prospecting", "state": "close"}},
+            {},
+            {"instance": {"instanceName": "prospecting", "state": "open"}},
+        ]
+
+        self.assertEqual(ensure_prospecting_instance_open(), "reconnected")
+        self.assertEqual(
+            mocked_request.call_args_list[1].args,
+            ("PUT", "instance/restart"),
+        )
+        mocked_sleep.assert_called()
+
 
 class ProspectingPhoneTests(TestCase):
     def test_normalizes_brazilian_numbers(self):
@@ -233,6 +313,13 @@ class ProspectingControlTests(TestCase):
 
 class ProspectingTaskTests(TestCase):
     def setUp(self):
+        self.connection_patcher = patch(
+            "apps.prospecting.tasks.ensure_prospecting_instance_open",
+            return_value="open",
+        )
+        self.mocked_connection = self.connection_patcher.start()
+        self.addCleanup(self.connection_patcher.stop)
+
         self.control = ProspectingControl.current()
         self.control.enabled = True
         self.control.messages_per_minute = 1
@@ -336,6 +423,50 @@ class ProspectingTaskTests(TestCase):
         self.assertIsNone(item.processed_at)
         self.batch.refresh_from_db()
         self.assertEqual(self.batch.failed_contacts, 0)
+
+    @patch("apps.prospecting.models.ProspectingControl.is_allowed_at", return_value=True)
+    @patch("apps.prospecting.tasks.send_prospecting_text")
+    def test_463_pauses_prospecting_and_returns_lead_to_pending(
+        self, mocked_send, mocked_allowed
+    ):
+        mocked_send.side_effect = EvolutionReachoutRestrictedError("463")
+        item = self._queue("5511999999911", "Loja bloqueada pelo reachout")
+
+        self.assertEqual(send_next_prospecting_message(), "reachout-restricted")
+
+        self.control.refresh_from_db()
+        item.refresh_from_db()
+        self.assertFalse(self.control.enabled)
+        self.assertEqual(item.status, ProspectingQueueItem.Status.PENDING)
+        self.assertIsNone(item.processed_at)
+        self.assertFalse(ProspectingSentPhone.objects.filter(phone=item.phone).exists())
+
+    @patch("apps.prospecting.models.ProspectingControl.is_allowed_at", return_value=True)
+    @patch("apps.prospecting.tasks.send_prospecting_text")
+    def test_missing_ack_marks_unknown_and_pauses_without_duplicate_retry(
+        self, mocked_send, mocked_allowed
+    ):
+        mocked_send.side_effect = EvolutionDeliveryUnknownError("sem ack")
+        item = self._queue("5511999999912", "Loja ACK incerto")
+
+        self.assertEqual(send_next_prospecting_message(), "unknown-delivery")
+
+        self.control.refresh_from_db()
+        item.refresh_from_db()
+        self.assertFalse(self.control.enabled)
+        self.assertEqual(item.status, ProspectingQueueItem.Status.UNKNOWN)
+        self.assertTrue(ProspectingSentPhone.objects.filter(phone=item.phone).exists())
+
+    @patch("apps.prospecting.models.ProspectingControl.is_allowed_at", return_value=True)
+    def test_disconnected_instance_does_not_claim_any_lead(self, mocked_allowed):
+        self.mocked_connection.side_effect = EvolutionInstanceUnavailableError("offline")
+        item = self._queue("5511999999913", "Loja aguardando reconexão")
+
+        self.assertEqual(send_next_prospecting_message(), "instance-unavailable")
+
+        item.refresh_from_db()
+        self.assertEqual(item.status, ProspectingQueueItem.Status.PENDING)
+        self.assertFalse(ProspectingSentPhone.objects.filter(phone=item.phone).exists())
 
     def test_task_is_routed_to_dedicated_queue(self):
         self.assertEqual(PROSPECTING_QUEUE, "prospecting")

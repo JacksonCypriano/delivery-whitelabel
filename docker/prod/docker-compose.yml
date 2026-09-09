@@ -85,6 +85,28 @@ services:
       start_period: 30s
     logging: *default-logging
 
+  celery-prospecting:
+    build:
+      context: ../../
+    env_file:
+      - .env
+    command: ["celery-prospecting"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A config inspect ping -d prospecting@$$HOSTNAME --timeout=5 2>/dev/null | grep -q pong"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging: *default-logging
+
   celery-beat:
     build:
       context: ../../

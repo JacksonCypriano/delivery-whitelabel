@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     "apps.core",
     "apps.integrations.apps.IntegrationsConfig",
     "apps.billing.apps.BillingConfig",
+    "apps.prospecting.apps.ProspectingConfig",
     "apps.tenants",
     "apps.accounts",
     "apps.stores",
@@ -168,6 +169,7 @@ EVOLUTION_API_URL = os.getenv("EVOLUTION_API_URL", "")
 EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY", "")
 EVOLUTION_INSTANCE = os.getenv("EVOLUTION_INSTANCE", "")
 EVOLUTION_API_TIMEOUT = int(os.getenv("EVOLUTION_API_TIMEOUT", "4"))
+PROSPECTING_EVOLUTION_INSTANCE = os.getenv("PROSPECTING_EVOLUTION_INSTANCE", "").strip()
 EVOLUTION_CHECK_CACHE_SECONDS = int(os.getenv("EVOLUTION_CHECK_CACHE_SECONDS", "86400"))
 EVOLUTION_MONITOR_ENABLED = os.getenv("EVOLUTION_MONITOR_ENABLED", "false").lower() in ("1", "true", "yes", "on")
 EVOLUTION_AUTO_RECONNECT = os.getenv("EVOLUTION_AUTO_RECONNECT", "false").lower() in ("1", "true", "yes", "on")
@@ -608,6 +610,11 @@ UNFOLD_SUPER = {
                         "link": reverse_lazy("super_admin:evolution_panel"),
                     },
                     {
+                        "title": _("Prospecção WhatsApp"),
+                        "icon": "campaign",
+                        "link": reverse_lazy("super_admin:prospecting_prospectingbatch_changelist"),
+                    },
+                    {
                         "title": _("Estado da integração"),
                         "icon": "sync",
                         "link": reverse_lazy("super_admin:integrations_whatsappintegrationstate_changelist"),
@@ -725,8 +732,17 @@ ASAAS_WEBHOOK_URL = os.getenv("ASAAS_WEBHOOK_URL", "").strip()
 from celery.schedules import crontab
 CELERY_TIMEZONE = "America/Sao_Paulo"
 CELERY_ENABLE_UTC = True
+CELERY_TASK_ROUTES = {
+    **globals().get("CELERY_TASK_ROUTES", {}),
+    "apps.prospecting.tasks.send_next_prospecting_message": {"queue": "prospecting"},
+}
 CELERY_BEAT_SCHEDULE = {
     **globals().get("CELERY_BEAT_SCHEDULE", {}),
+    "prospecting-dispatch": {
+        "task": "apps.prospecting.tasks.send_next_prospecting_message",
+        "schedule": 60.0,
+        "options": {"queue": "prospecting"},
+    },
     "evolution-monitor": {"task": "apps.integrations.tasks.monitor_whatsapp", "schedule": 60.0},
     "evolution-alerts": {"task": "apps.integrations.tasks.send_whatsapp_alerts", "schedule": 60.0},
     "billing-suspend-daily": {

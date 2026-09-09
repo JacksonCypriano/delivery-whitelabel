@@ -209,7 +209,17 @@ info "Subindo Celery Worker"
 wait_for_healthy celery
 
 # ============================================================
-# 9. Celery Beat
+# 9. Celery de prospecção (fila isolada)
+# ============================================================
+
+info "Subindo Celery de prospecção"
+
+"${DC[@]}" up -d celery-prospecting
+
+wait_for_healthy celery-prospecting
+
+# ============================================================
+# 10. Celery Beat
 # ============================================================
 
 info "Subindo Celery Beat"
@@ -237,7 +247,7 @@ fi
 echo "✅ celery-beat: running"
 
 # ============================================================
-# 10. Nginx
+# 11. Nginx
 # ============================================================
 
 info "Subindo Nginx"
@@ -247,7 +257,7 @@ info "Subindo Nginx"
 wait_for_healthy nginx
 
 # ============================================================
-# 11. Status final
+# 12. Status final
 # ============================================================
 
 info "Status final dos containers"

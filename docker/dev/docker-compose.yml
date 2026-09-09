@@ -38,6 +38,18 @@ services:
       - db
       - redis
 
+  celery-prospecting:
+    build:
+      context: ../../
+    env_file:
+      - .env
+    command: ["celery-prospecting"]
+    volumes:
+      - ../../:/app
+    depends_on:
+      - db
+      - redis
+
   celery-beat:
     build:
       context: ../../

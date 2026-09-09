@@ -41,7 +41,7 @@ bash test-restore-prod.sh
   -e DJANGO_SETTINGS_MODULE=config.settings.test \
   -e EVOLUTION_WHATSAPP_VALIDATION_ENABLED=false \
   --entrypoint python "web-$NEXT" manage.py test \
-  apps.accounts apps.billing.tests apps.integrations.tests apps.core.tests_critical \
+  apps.accounts apps.billing.tests apps.integrations.tests apps.prospecting apps.core.tests_critical \
   --settings=config.settings.test --verbosity=2 --noinput
 "${COMPOSE[@]}" up -d "web-$NEXT"
 
@@ -58,8 +58,22 @@ printf 'upstream vemdedelivery_upstream { server web-%s:8000; }\n' "$NEXT" > "$A
 "${COMPOSE[@]}" exec -T nginx nginx -s reload
 SWITCHED=1
 curl --fail --silent --show-error --resolve vemdedelivery.com.br:443:127.0.0.1 https://vemdedelivery.com.br/health/ready/ >/dev/null
-"${COMPOSE[@]}" build celery celery-beat
-"${COMPOSE[@]}" up -d celery celery-beat
+"${COMPOSE[@]}" build celery celery-prospecting celery-beat
+"${COMPOSE[@]}" up -d celery celery-prospecting celery-beat
+
+prospecting_status=""
+for _ in $(seq 1 20); do
+  prospecting_container="$(${COMPOSE[@]} ps -q celery-prospecting || true)"
+  prospecting_status="$(docker inspect --format='{{.State.Health.Status}}' "$prospecting_container" 2>/dev/null || true)"
+  [[ "$prospecting_status" == healthy ]] && break
+  sleep 2
+done
+if [[ "$prospecting_status" != healthy ]]; then
+  "${COMPOSE[@]}" logs --tail=100 celery-prospecting || true
+  echo "Worker dedicado de prospecção não ficou saudável."
+  exit 1
+fi
+
 "${COMPOSE[@]}" stop "web-$ACTIVE" 2>/dev/null || true
 # Remove somente o container legado do compose anterior, sem tocar em volumes.
 legacy="$(docker ps -q --filter name='^prod-web-1$' || true)"

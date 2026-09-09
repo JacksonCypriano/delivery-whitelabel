@@ -3,6 +3,7 @@ import json
 import zipfile
 from datetime import datetime
 from unittest.mock import patch
+from urllib import error
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
@@ -10,12 +11,15 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from .evolution import send_prospecting_text
+from .evolution import (
+    EvolutionNumberNotOnWhatsAppError,
+    send_prospecting_text,
+)
 from .importer import import_prospecting_xlsx
 from .message import build_prospecting_message
 from .models import ProspectingBatch, ProspectingControl, ProspectingQueueItem, ProspectingSentPhone
 from .phones import normalize_br_phone
-from .tasks import PROSPECTING_QUEUE, send_next_prospecting_message
+from .tasks import MAX_CANDIDATES_PER_RUN, PROSPECTING_QUEUE, send_next_prospecting_message
 from .xlsx_reader import read_prospecting_rows
 
 
@@ -98,6 +102,40 @@ class ProspectingEvolutionTests(TestCase):
             "https://evolution.test/message/sendText/prospecting",
         )
 
+    @override_settings(
+        EVOLUTION_API_URL="https://evolution.test",
+        EVOLUTION_API_KEY="test-key",
+        PROSPECTING_EVOLUTION_INSTANCE="prospecting",
+        EVOLUTION_API_TIMEOUT=4,
+    )
+    @patch("apps.prospecting.evolution.request.urlopen")
+    def test_exists_false_is_classified_as_number_without_whatsapp(self, mocked_urlopen):
+        body = json.dumps(
+            {
+                "status": 400,
+                "error": "Bad Request",
+                "response": {
+                    "message": [
+                        {
+                            "jid": "5511999999999@s.whatsapp.net",
+                            "exists": False,
+                            "number": "5511999999999",
+                        }
+                    ]
+                },
+            }
+        ).encode("utf-8")
+        mocked_urlopen.side_effect = error.HTTPError(
+            url="https://evolution.test/message/sendText/prospecting",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(body),
+        )
+
+        with self.assertRaises(EvolutionNumberNotOnWhatsAppError):
+            send_prospecting_text("5511999999999", "Olá!")
+
 class ProspectingPhoneTests(TestCase):
     def test_normalizes_brazilian_numbers(self):
         self.assertEqual(normalize_br_phone("(11) 99999-9999"), "5511999999999")
@@ -110,10 +148,14 @@ class ProspectingPhoneTests(TestCase):
 
 
 class ProspectingMessageTests(TestCase):
-    def test_personalizes_store_name(self):
+    def test_personalizes_store_name_and_offers_presentation_on_interest(self):
         text = build_prospecting_message("PADARIA REAL")
         self.assertIn("para a PADARIA REAL ter um site próprio", text)
-        self.assertIn("colocar a PADARIA REAL no VemDeDelivery", text)
+        self.assertIn("como ele pode funcionar para a PADARIA REAL", text)
+        self.assertIn("eu envio uma apresentação", text)
+        self.assertNotIn("Estou enviando uma apresentação", text)
+        self.assertNotIn("R$ 199", text)
+        self.assertNotIn("por mês", text)
         self.assertIn("CNPJ 59.198.345/0001-44", text)
 
 
@@ -231,11 +273,53 @@ class ProspectingTaskTests(TestCase):
 
         result = send_next_prospecting_message()
 
-        self.assertIn("processed=10", result)
+        self.assertIn("attempted=10", result)
         self.assertEqual(mocked_send.call_count, 10)
         self.assertEqual(self.batch.items.filter(status=ProspectingQueueItem.Status.SENT).count(), 10)
         self.assertEqual(self.batch.items.filter(status=ProspectingQueueItem.Status.PENDING).count(), 1)
 
+
+    @patch("apps.prospecting.models.ProspectingControl.is_allowed_at", return_value=True)
+    @patch("apps.prospecting.tasks.send_prospecting_text")
+    def test_numbers_without_whatsapp_do_not_consume_per_minute_quota(self, mocked_send, mocked_allowed):
+        mocked_send.side_effect = [
+            EvolutionNumberNotOnWhatsAppError("sem whatsapp"),
+            EvolutionNumberNotOnWhatsAppError("sem whatsapp"),
+            None,
+        ]
+        first = self._queue("5511999999901", "Sem WhatsApp 1")
+        second = self._queue("5511999999902", "Sem WhatsApp 2")
+        sent = self._queue("5511999999903", "Loja válida")
+
+        result = send_next_prospecting_message()
+
+        self.assertIn("sent=1", result)
+        self.assertIn("not_whatsapp=2", result)
+        self.assertEqual(mocked_send.call_count, 3)
+        self.assertFalse(ProspectingQueueItem.objects.filter(pk=first.pk).exists())
+        self.assertFalse(ProspectingQueueItem.objects.filter(pk=second.pk).exists())
+        sent.refresh_from_db()
+        self.assertEqual(sent.status, ProspectingQueueItem.Status.SENT)
+        self.assertTrue(ProspectingSentPhone.objects.filter(phone=sent.phone).exists())
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.failed_contacts, 2)
+
+    @patch("apps.prospecting.models.ProspectingControl.is_allowed_at", return_value=True)
+    @patch("apps.prospecting.tasks.send_prospecting_text")
+    def test_scan_is_bounded_when_many_numbers_have_no_whatsapp(self, mocked_send, mocked_allowed):
+        mocked_send.side_effect = EvolutionNumberNotOnWhatsAppError("sem whatsapp")
+        for index in range(MAX_CANDIDATES_PER_RUN + 1):
+            self._queue(f"5511988{index:06d}")
+
+        result = send_next_prospecting_message()
+
+        self.assertIn(f"attempted={MAX_CANDIDATES_PER_RUN}", result)
+        self.assertIn(f"not_whatsapp={MAX_CANDIDATES_PER_RUN}", result)
+        self.assertEqual(mocked_send.call_count, MAX_CANDIDATES_PER_RUN)
+        self.assertEqual(
+            self.batch.items.filter(status=ProspectingQueueItem.Status.PENDING).count(),
+            1,
+        )
 
     @patch("apps.prospecting.models.ProspectingControl.is_allowed_at", return_value=True)
     @patch("apps.prospecting.tasks.send_prospecting_text")
@@ -247,9 +331,11 @@ class ProspectingTaskTests(TestCase):
 
         self.assertEqual(send_next_prospecting_message(), "rejected")
         self.assertFalse(ProspectingSentPhone.objects.filter(phone=item.phone).exists())
-        self.assertFalse(ProspectingQueueItem.objects.filter(phone=item.phone).exists())
+        item.refresh_from_db()
+        self.assertEqual(item.status, ProspectingQueueItem.Status.PENDING)
+        self.assertIsNone(item.processed_at)
         self.batch.refresh_from_db()
-        self.assertEqual(self.batch.failed_contacts, 1)
+        self.assertEqual(self.batch.failed_contacts, 0)
 
     def test_task_is_routed_to_dedicated_queue(self):
         self.assertEqual(PROSPECTING_QUEUE, "prospecting")

@@ -338,14 +338,32 @@
     var savedStatus = control.savedStatus || '';
     var label;
     if (active) {
-      label = savedStatus || 'Ativado';
+      label = savedStatus === 'Aprovada' ? 'Aprovada e ativa' : (savedStatus || 'Ativado');
+    } else if (savedStatus === 'Aprovada') {
+      label = 'Aprovada · desativado';
+    } else if (
+      savedStatus === 'Aguardando ativação no Asaas'
+      || savedStatus === 'Revisar cadastro'
+      || savedStatus === 'Falha de configuração'
+    ) {
+      label = savedStatus;
     } else if (accepted) {
-      label = savedStatus === 'Falha de configuração' ? savedStatus : 'Desativado';
+      label = 'Desativado';
     } else {
       label = 'Não solicitado';
     }
     control.status.textContent = label;
     control.status.classList.toggle('is-on', active);
+
+    if (control.note) {
+      if (active) {
+        control.note.textContent = 'Pagamento online ativo. O WhatsApp continua disponível.';
+      } else if (savedStatus === 'Aprovada') {
+        control.note.textContent = 'Subconta aprovada. Ative para disponibilizar Pix e cartão de crédito no checkout.';
+      } else {
+        control.note.textContent = 'O WhatsApp continua disponível. Ative para adicionar Pix e cartão de crédito online.';
+      }
+    }
 
     if (active) maybeResolveExistingCep(row);
   }
@@ -459,6 +477,7 @@
       root: compact,
       switchButton: switchButton,
       status: status,
+      note: note,
       savedStatus: sourceStatusText(row, enabledInput)
     };
     compact._paymentControl = control;

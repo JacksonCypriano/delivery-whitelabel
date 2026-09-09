@@ -208,7 +208,7 @@ def build_whatsapp_message(order):
         f"{separator}\n"
         + "\n".join(totals)
         + "\n"
-        f"*Pagamento: {order.payment_label}*\n\n"
+        f"*Pagamento: {order.payment_label} — {order.payment_flow_label}*\n\n"
         + paid_block
         + f"*{order.delivery_type_label}*\n"
         f"{delivery_block}\n"

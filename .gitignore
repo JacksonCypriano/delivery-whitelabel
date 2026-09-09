@@ -245,7 +245,7 @@ logs/
 deploy/nginx/certs/
 
 # Arquivos de segurança do Windows
-*Zone.Identifier*
+# *Zone.Identifier*
 
 # Certificados/segredos fiscais locais
 .secrets/

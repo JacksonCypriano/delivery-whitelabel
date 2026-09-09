@@ -5,6 +5,7 @@ from django.test import TestCase, RequestFactory, override_settings
 
 from apps.billing.models import OrderPayment, TenantPaymentAccount
 from apps.billing.online import apply_checkout_event, create_order_checkout
+from apps.billing.provider import BillingError
 from apps.orders.models import Order
 from apps.orders.services import build_whatsapp_message
 from apps.tenants.models import Tenant
@@ -25,19 +26,49 @@ class OnlineOrderPaymentTests(TestCase):
         self.order = Order.objects.create(
             tenant=self.tenant, customer_name="Cliente", customer_phone="5511988887777",
             subtotal=Decimal("50.00"), total=Decimal("50.00"), delivery_fee=Decimal("0"),
-            delivery_type="pickup", payment_method="pix",
+            delivery_type="pickup", payment_flow="online", payment_method="pix",
         )
         self.factory = RequestFactory()
 
-    @patch("apps.billing.online.Asaas.create_checkout", return_value={"id": "chk_123"})
+    @patch(
+        "apps.billing.online.Asaas.create_checkout",
+        return_value={
+            "id": "chk_123",
+            "link": "https://sandbox.asaas.com/checkoutSession/show/chk_123",
+        },
+    )
     def test_checkout_is_created_in_tenant_subaccount(self, create_checkout):
         request = self.factory.get("/pedido/")
         payment = create_order_checkout(self.order, request)
         self.assertEqual(payment.provider_account_id, "acc_123")
-        self.assertIn("sandbox.asaas.com", payment.checkout_url)
+        self.assertEqual(
+            payment.checkout_url,
+            "https://sandbox.asaas.com/checkoutSession/show/chk_123",
+        )
         self.assertEqual(payment.status, OrderPayment.Status.PENDING)
         create_checkout.assert_called_once()
 
+    @patch("apps.billing.online.Asaas.create_checkout", return_value={"id": "chk_fallback"})
+    def test_checkout_uses_documented_fallback_when_link_is_missing(self, create_checkout):
+        request = self.factory.get("/pedido/")
+        payment = create_order_checkout(self.order, request)
+        self.assertEqual(
+            payment.checkout_url,
+            "https://sandbox.asaas.com/checkoutSession/show/chk_fallback",
+        )
+
+    def test_payment_status_template_surfaces_provider_errors(self):
+        from django.template.loader import get_template
+
+        source = get_template("checkout/payment_status.html").template.source
+        self.assertIn("checkout/partials/_integrity_notices.html", source)
+
+    def test_in_person_pix_never_creates_asaas_checkout(self):
+        self.order.payment_flow = "in_person"
+        self.order.save(update_fields=["payment_flow"])
+
+        with self.assertRaisesMessage(BillingError, "Este pedido não utiliza pagamento online"):
+            create_order_checkout(self.order, self.factory.get("/pedido/"))
 
     @patch(
         "apps.billing.online.Asaas.get_checkout",

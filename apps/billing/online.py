@@ -266,13 +266,14 @@ def online_payment_available(tenant):
 
 
 def _checkout_url(identifier):
+    """Fallback for older Asaas responses that omit the hosted Checkout link."""
     host = "asaas.com" if environment() == "production" else "sandbox.asaas.com"
-    return f"https://{host}/checkoutSession/show?id={identifier}"
+    return f"https://{host}/checkoutSession/show/{identifier}"
 
 
 def create_order_checkout(order, request):
     """Create an Asaas hosted Checkout in the tenant subaccount."""
-    if order.payment_method not in ONLINE_METHODS:
+    if order.payment_flow != "online" or order.payment_method not in ONLINE_METHODS:
         raise BillingError("Este pedido não utiliza pagamento online.")
     if not order.tenant.online_payments_allowed:
         raise BillingError("O pagamento online desta loja não está liberado.")
@@ -315,7 +316,15 @@ def create_order_checkout(order, request):
         api = Asaas(api_key=account.get_api_key())
         data = api.create_checkout(body)
         checkout_id = valid_id(data.get("id"))
-        payment_url_value = payment_url(_checkout_url(checkout_id))
+        # The Checkout API returns the canonical hosted-payment link.  Use it
+        # instead of rebuilding the URL locally so changes in Asaas routing do
+        # not break the customer redirect.  Keep the documented path only as a
+        # conservative fallback for older/partial responses.
+        payment_url_value = payment_url(data.get("link"))
+        if not payment_url_value:
+            payment_url_value = payment_url(_checkout_url(checkout_id))
+        if not payment_url_value:
+            raise BillingError("O Asaas não retornou um link de checkout válido.")
         payment.checkout_id = checkout_id
         payment.checkout_url = payment_url_value
         payment.status = OrderPayment.Status.PENDING

@@ -70,7 +70,7 @@ def open_whatsapp(request, public_token):
     if request.method == 'GET':
         # Links, previews and crawlers cannot commit stock or clear the cart.
         return render(request, 'checkout/review.html', {'order': order})
-    if order.tenant.sale_mode == 'online' and order.payment_method in ('pix', 'credit_card'):
+    if order.payment_flow == 'online':
         payment = getattr(order, 'online_payment', None)
         if not payment or payment.status != OrderPayment.Status.PAID:
             messages.info(request, 'Conclua o pagamento online antes de enviar o pedido para a loja.')

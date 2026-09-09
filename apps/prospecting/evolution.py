@@ -32,11 +32,12 @@ def send_prospecting_text(phone: str, text: str) -> None:
         raise EvolutionRejectedError("Configuração da Evolution API de prospecção incompleta.")
 
     endpoint = f"{base_url}/message/sendText/{parse.quote(instance, safe='')}"
+    # Evolution API usa o mesmo contrato já validado pelo cliente WhatsApp
+    # principal do VemDeDelivery: number + text.
     payload = json.dumps(
         {
             "number": phone,
-            "textMessage": {"text": text},
-            "linkPreview": False,
+            "text": text,
         }
     ).encode("utf-8")
 

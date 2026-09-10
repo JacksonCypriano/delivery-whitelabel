@@ -21,5 +21,7 @@ def build_prospecting_message(establishment: str) -> str:
         "Fundador do VemDeDelivery\n"
         "COBRADEV SOLUTIONS\n"
         "CNPJ 59.198.345/0001-44\n\n"
+        "Obtivemos seu número por meio de informações públicas, como os Dados Abertos do CNPJ da Receita Federal, "
+        "ou por canais divulgados pelo próprio estabelecimento, como redes sociais e páginas públicas.\n\n"
         "Caso este número não pertença mais ao estabelecimento, peço desculpas pelo contato e, por favor, desconsidere esta mensagem."
     )

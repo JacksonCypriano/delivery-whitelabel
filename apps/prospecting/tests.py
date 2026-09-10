@@ -182,6 +182,53 @@ class ProspectingEvolutionTests(TestCase):
         EVOLUTION_API_KEY="test-key",
         PROSPECTING_EVOLUTION_INSTANCE="prospecting",
         EVOLUTION_API_TIMEOUT=4,
+        PROSPECTING_EVOLUTION_ACK_TIMEOUT=1,
+    )
+    @patch("apps.prospecting.evolution.time.monotonic", side_effect=[0.0, 2.0])
+    @patch("apps.prospecting.evolution._request_json")
+    def test_pending_after_ack_window_is_accepted_without_pausing(
+        self, mocked_request, mocked_monotonic
+    ):
+        mocked_request.side_effect = [
+            [
+                {
+                    "jid": "5511999999999@s.whatsapp.net",
+                    "exists": True,
+                    "number": "5511999999999",
+                }
+            ],
+            {
+                "key": {
+                    "id": "MSG-PENDING",
+                    "remoteJid": "5511999999999@s.whatsapp.net",
+                },
+                "status": "PENDING",
+            },
+            {
+                "messages": {
+                    "records": [
+                        {
+                            "key": {"id": "MSG-PENDING"},
+                            "status": "PENDING",
+                            "MessageUpdate": [],
+                        }
+                    ]
+                }
+            },
+        ]
+
+        receipt = send_prospecting_text("5511999999999", "Olá!")
+
+        self.assertEqual(receipt.message_id, "MSG-PENDING")
+        self.assertEqual(receipt.remote_jid, "5511999999999@s.whatsapp.net")
+        self.assertEqual(mocked_request.call_count, 3)
+        self.assertEqual(mocked_monotonic.call_count, 2)
+
+    @override_settings(
+        EVOLUTION_API_URL="https://evolution.test",
+        EVOLUTION_API_KEY="test-key",
+        PROSPECTING_EVOLUTION_INSTANCE="prospecting",
+        EVOLUTION_API_TIMEOUT=4,
     )
     @patch("apps.prospecting.evolution._request_json")
     def test_exists_false_is_classified_as_number_without_whatsapp(self, mocked_request):
@@ -243,6 +290,14 @@ class ProspectingMessageTests(TestCase):
         self.assertNotIn("R$ 199", text)
         self.assertNotIn("por mês", text)
         self.assertIn("CNPJ 59.198.345/0001-44", text)
+        public_source = (
+            "Obtivemos seu número por meio de informações públicas, como os Dados Abertos do CNPJ da Receita Federal, "
+            "ou por canais divulgados pelo próprio estabelecimento, como redes sociais e páginas públicas."
+        )
+        apology = "Caso este número não pertença mais ao estabelecimento"
+        self.assertIn(public_source, text)
+        self.assertIn(apology, text)
+        self.assertLess(text.index(public_source), text.index(apology))
 
 
 class ProspectingImportTests(XlsxFactoryMixin, TestCase):

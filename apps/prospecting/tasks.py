@@ -37,21 +37,26 @@ def _recover_stale_processing() -> int:
 
 
 def _claim_next_item():
-    """Reserva um contato sem segurar transação durante a chamada externa."""
+    """Reserva um contato da planilha ativa mais antiga sem segurar a chamada externa."""
     with transaction.atomic():
         item = (
             ProspectingQueueItem.objects.select_for_update(skip_locked=True)
-            .filter(status=ProspectingQueueItem.Status.PENDING)
-            .order_by("created_at", "id")
+            .filter(
+                status=ProspectingQueueItem.Status.PENDING,
+                batch__is_active=True,
+            )
+            .order_by("batch__created_at", "batch_id", "created_at", "id")
             .first()
         )
         if item is None:
             return None, "empty"
 
+        # O telefone pode estar em mais de uma planilha. Se outra planilha já
+        # realizou a abordagem, basta retirar esta cópia da fila. O vínculo com
+        # a planilha continua preservado em ProspectingBatchContact e o board
+        # passa a contabilizá-lo como contatado pela trava global.
         if ProspectingSentPhone.objects.filter(phone=item.phone).exists():
-            item.status = ProspectingQueueItem.Status.UNKNOWN
-            item.processed_at = timezone.now()
-            item.save(update_fields=["status", "processed_at"])
+            item.delete()
             return None, "already-contacted"
 
         # Reserva antes da chamada externa. Se o processo cair depois daqui,
@@ -59,9 +64,7 @@ def _claim_next_item():
         try:
             ProspectingSentPhone.objects.create(phone=item.phone)
         except IntegrityError:
-            item.status = ProspectingQueueItem.Status.UNKNOWN
-            item.processed_at = timezone.now()
-            item.save(update_fields=["status", "processed_at"])
+            item.delete()
             return None, "already-contacted"
 
         item.status = ProspectingQueueItem.Status.PROCESSING
@@ -93,12 +96,35 @@ def _release_rejected_item(item_id: int, phone: str) -> None:
     )
 
 
+def _discard_cancelled_item(item_id: int, phone: str) -> None:
+    """Libera uma reserva que ainda não saiu para a Evolution após remoção da planilha."""
+    ProspectingSentPhone.objects.filter(phone=phone).delete()
+    ProspectingQueueItem.objects.filter(pk=item_id).delete()
+
+
+def _remove_confirmed_duplicates(item_id: int, phone: str) -> None:
+    """Limpa cópias pendentes do telefone em outras planilhas após envio confirmado."""
+    ProspectingQueueItem.objects.filter(
+        phone=phone,
+        status=ProspectingQueueItem.Status.PENDING,
+        batch__is_active=True,
+    ).exclude(pk=item_id).delete()
+
+
 def _send_one():
     item_id, terminal_status = _claim_next_item()
     if item_id is None:
         return terminal_status
 
-    item = ProspectingQueueItem.objects.get(pk=item_id)
+    item = ProspectingQueueItem.objects.select_related("batch").get(pk=item_id)
+
+    # A planilha pode ter sido removida logo depois do claim. A checagem fica
+    # imediatamente antes da chamada externa para evitar continuar a fila que
+    # o superadmin acabou de excluir.
+    if not item.batch.is_active:
+        _discard_cancelled_item(item_id, item.phone)
+        return "batch-removed"
+
     message = build_prospecting_message(item.establishment)
 
     try:
@@ -134,6 +160,7 @@ def _send_one():
         status=ProspectingQueueItem.Status.SENT,
         processed_at=timezone.now(),
     )
+    _remove_confirmed_duplicates(item_id, item.phone)
     return "sent"
 
 
@@ -187,8 +214,8 @@ def send_next_prospecting_message():
             # mesma rodada quando a entrega não é segura.
             break
 
-        # not-whatsapp e already-contacted não consomem a cota; procura o
-        # próximo candidato ainda nesta execução.
+        # not-whatsapp, already-contacted e batch-removed não consomem a cota;
+        # procura o próximo candidato ainda nesta execução.
 
     if not statuses:
         return connection if connection == "reconnected" else "empty"

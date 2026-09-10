@@ -10,6 +10,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from .evolution import (
     EvolutionDeliveryUnknownError,
@@ -21,7 +22,12 @@ from .evolution import (
 )
 from .importer import import_prospecting_xlsx
 from .message import build_prospecting_message
-from .models import ProspectingBatch, ProspectingControl, ProspectingQueueItem, ProspectingSentPhone
+from .models import (
+    ProspectingBatch,
+    ProspectingControl,
+    ProspectingQueueItem,
+    ProspectingSentPhone,
+)
 from .phones import normalize_br_phone
 from .tasks import MAX_CANDIDATES_PER_RUN, PROSPECTING_QUEUE, send_next_prospecting_message
 from .xlsx_reader import read_prospecting_rows
@@ -270,11 +276,14 @@ class ProspectingImportTests(XlsxFactoryMixin, TestCase):
         batch = result.batch
 
         self.assertEqual(batch.total_contacts, 5)
-        self.assertEqual(batch.queued_contacts, 1)
+        self.assertEqual(batch.queued_contacts, 2)
         self.assertEqual(batch.skipped_contacted, 1)
-        self.assertEqual(batch.skipped_duplicate, 2)
+        self.assertEqual(batch.skipped_duplicate, 1)
         self.assertEqual(batch.invalid_contacts, 1)
+        self.assertTrue(batch.items.filter(phone="5511999999992").exists())
         self.assertTrue(batch.items.filter(phone="5511999999993").exists())
+        self.assertEqual(batch.contacts.count(), 3)
+        self.assertTrue(batch.contacts_index_complete)
 
     def test_second_upload_never_requeues_phone_already_contacted(self):
         first = import_prospecting_xlsx(self._xlsx([("Loja A", "11999999999")])).batch
@@ -286,6 +295,25 @@ class ProspectingImportTests(XlsxFactoryMixin, TestCase):
         second = import_prospecting_xlsx(self._xlsx([("Loja A", "11999999999")])).batch
         self.assertEqual(second.queued_contacts, 0)
         self.assertEqual(second.skipped_contacted, 1)
+        self.assertEqual(second.contacts.count(), 1)
+        self.assertEqual(second.contacted_contacts, 1)
+
+
+    def test_same_phone_can_wait_in_two_batches_without_losing_second_batch_membership(self):
+        first = import_prospecting_xlsx(
+            self._xlsx([("Loja A", "11999999991")]),
+            filename="planilha-1.xlsx",
+        ).batch
+        second = import_prospecting_xlsx(
+            self._xlsx([("Loja A repetida", "11999999991")]),
+            filename="planilha-2.xlsx",
+        ).batch
+
+        self.assertEqual(first.items.count(), 1)
+        self.assertEqual(second.items.count(), 1)
+        self.assertEqual(first.contacts.count(), 1)
+        self.assertEqual(second.contacts.count(), 1)
+        self.assertEqual(second.skipped_duplicate, 0)
 
 
 class ProspectingControlTests(TestCase):
@@ -468,6 +496,75 @@ class ProspectingTaskTests(TestCase):
         self.assertEqual(item.status, ProspectingQueueItem.Status.PENDING)
         self.assertFalse(ProspectingSentPhone.objects.filter(phone=item.phone).exists())
 
+    @patch("apps.prospecting.models.ProspectingControl.is_allowed_at", return_value=True)
+    @patch("apps.prospecting.tasks.send_prospecting_text")
+    def test_processes_oldest_active_spreadsheet_first(self, mocked_send, mocked_allowed):
+        first = self._queue("5511999999921", "Planilha 1")
+        second_batch = ProspectingBatch.objects.create(
+            filename="planilha-2.xlsx", total_contacts=1, queued_contacts=1
+        )
+        second = ProspectingQueueItem.objects.create(
+            batch=second_batch, phone="5511999999922", establishment="Planilha 2"
+        )
+
+        self.assertEqual(send_next_prospecting_message(), "sent")
+
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(first.status, ProspectingQueueItem.Status.SENT)
+        self.assertEqual(second.status, ProspectingQueueItem.Status.PENDING)
+        mocked_send.assert_called_once_with(first.phone, build_prospecting_message(first.establishment))
+
+    @patch("apps.prospecting.models.ProspectingControl.is_allowed_at", return_value=True)
+    @patch("apps.prospecting.tasks.send_prospecting_text")
+    def test_duplicate_phone_in_next_spreadsheet_is_skipped_and_next_lead_is_sent(
+        self, mocked_send, mocked_allowed
+    ):
+        duplicated_phone = "5511999999931"
+        first = self._queue(duplicated_phone, "Planilha 1")
+        second_batch = ProspectingBatch.objects.create(
+            filename="planilha-2.xlsx", total_contacts=2, queued_contacts=2
+        )
+        duplicate = ProspectingQueueItem.objects.create(
+            batch=second_batch, phone=duplicated_phone, establishment="Repetida"
+        )
+        unique = ProspectingQueueItem.objects.create(
+            batch=second_batch, phone="5511999999932", establishment="Nova"
+        )
+
+        self.assertEqual(send_next_prospecting_message(), "sent")
+        self.assertFalse(ProspectingQueueItem.objects.filter(pk=duplicate.pk).exists())
+        self.assertEqual(send_next_prospecting_message(), "sent")
+
+        unique.refresh_from_db()
+        self.assertEqual(unique.status, ProspectingQueueItem.Status.SENT)
+        self.assertEqual(mocked_send.call_count, 2)
+        self.assertTrue(ProspectingSentPhone.objects.filter(phone=first.phone).exists())
+
+    @patch("apps.prospecting.models.ProspectingControl.is_allowed_at", return_value=True)
+    @patch("apps.prospecting.tasks.send_prospecting_text")
+    def test_removed_first_spreadsheet_allows_same_phone_from_second_to_continue(
+        self, mocked_send, mocked_allowed
+    ):
+        phone = "5511999999940"
+        first = self._queue(phone, "Planilha removida")
+        second_batch = ProspectingBatch.objects.create(
+            filename="planilha-2.xlsx", total_contacts=1, queued_contacts=1
+        )
+        second = ProspectingQueueItem.objects.create(
+            batch=second_batch, phone=phone, establishment="Planilha 2"
+        )
+
+        self.batch.is_active = False
+        self.batch.removed_at = timezone.now()
+        self.batch.save(update_fields=["is_active", "removed_at"])
+        first.delete()
+
+        self.assertEqual(send_next_prospecting_message(), "sent")
+        second.refresh_from_db()
+        self.assertEqual(second.status, ProspectingQueueItem.Status.SENT)
+        mocked_send.assert_called_once()
+
     def test_task_is_routed_to_dedicated_queue(self):
         self.assertEqual(PROSPECTING_QUEUE, "prospecting")
         self.assertEqual(
@@ -478,7 +575,7 @@ class ProspectingTaskTests(TestCase):
         self.assertEqual(schedule["options"]["queue"], "prospecting")
 
 
-class ProspectingAdminTests(TestCase):
+class ProspectingAdminTests(XlsxFactoryMixin, TestCase):
     def setUp(self):
         self.superuser = get_user_model().objects.create_superuser(
             username="prospecting-admin",
@@ -505,3 +602,52 @@ class ProspectingAdminTests(TestCase):
         self.assertContains(response, "Horário e velocidade")
         self.assertContains(response, "Fila Celery dedicada")
         self.assertContains(response, "Pendentes na fila")
+
+    def test_board_reconciles_contacted_numbers_from_global_phone_history(self):
+        batch = import_prospecting_xlsx(
+            self._xlsx([("Loja A", "11999999941"), ("Loja B", "11999999942")]),
+            filename="board.xlsx",
+        ).batch
+        ProspectingSentPhone.objects.create(phone="5511999999941")
+
+        response = self.client.get(
+            reverse("super_admin:prospecting_prospectingbatch_changelist"),
+            HTTP_HOST="localhost",
+        )
+
+        board_batch = next(
+            item for item in response.context["prospecting_board_batches"] if item.pk == batch.pk
+        )
+        self.assertEqual(board_batch.board_contacted, 1)
+        self.assertEqual(board_batch.board_pending, 1)
+        self.assertContains(response, "Planilhas carregadas")
+        self.assertContains(response, "board.xlsx")
+        self.assertContains(response, "Excluir")
+
+    def test_delete_spreadsheet_removes_its_pending_queue_and_preserves_history(self):
+        first = import_prospecting_xlsx(
+            self._xlsx([("Planilha 1", "11999999951")]),
+            filename="planilha-1.xlsx",
+        ).batch
+        second = import_prospecting_xlsx(
+            self._xlsx([("Planilha 2", "11999999952")]),
+            filename="planilha-2.xlsx",
+        ).batch
+        ProspectingSentPhone.objects.create(phone="5511999999959")
+
+        response = self.client.post(
+            reverse("super_admin:prospecting_prospectingbatch_changelist"),
+            {"prospecting_action": "delete_batch", "batch_id": first.pk},
+            HTTP_HOST="localhost",
+        )
+
+        self.assertEqual(response.status_code, 302)
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertFalse(first.is_active)
+        self.assertIsNotNone(first.removed_at)
+        self.assertEqual(first.items.filter(status=ProspectingQueueItem.Status.PENDING).count(), 0)
+        self.assertTrue(second.is_active)
+        self.assertEqual(second.items.filter(status=ProspectingQueueItem.Status.PENDING).count(), 1)
+        self.assertTrue(ProspectingSentPhone.objects.filter(phone="5511999999959").exists())
+

@@ -4,7 +4,12 @@ from dataclasses import dataclass
 
 from django.db import transaction
 
-from .models import ProspectingBatch, ProspectingQueueItem, ProspectingSentPhone
+from .models import (
+    ProspectingBatch,
+    ProspectingBatchContact,
+    ProspectingQueueItem,
+    ProspectingSentPhone,
+)
 from .phones import normalize_br_phone
 from .xlsx_reader import read_prospecting_rows
 
@@ -50,19 +55,13 @@ def import_prospecting_xlsx(file_obj, *, filename: str | None = None) -> Prospec
 
     phones = list(candidates)
     already_sent = _existing_phones(ProspectingSentPhone, phones) if phones else set()
-    # SENT/UNKNOWN continuam na fila como histórico, mas a classificação deve
-    # ser "já contatado", sem contar o mesmo telefone duas vezes.
-    already_queued = (
-        _existing_phones(ProspectingQueueItem, phones) - already_sent
-        if phones
-        else set()
-    )
 
-    pending_phones = [
-        phone for phone in phones if phone not in already_sent and phone not in already_queued
-    ]
+    # Cada planilha passa a manter o seu próprio índice e a sua própria fila.
+    # Um mesmo telefone pode existir em planilhas diferentes; a trava global
+    # ProspectingSentPhone continua sendo a autoridade que impede reenvio.
+    pending_phones = [phone for phone in phones if phone not in already_sent]
 
-    safe_filename = (filename or getattr(file_obj, "name", "planilha.xlsx") or "planilha.xlsx")
+    safe_filename = filename or getattr(file_obj, "name", "planilha.xlsx") or "planilha.xlsx"
     safe_filename = safe_filename.rsplit("/", 1)[-1].rsplit("\\", 1)[-1][:255]
 
     with transaction.atomic():
@@ -71,8 +70,21 @@ def import_prospecting_xlsx(file_obj, *, filename: str | None = None) -> Prospec
             total_contacts=total_contacts,
             queued_contacts=len(pending_phones),
             skipped_contacted=len(already_sent),
-            skipped_duplicate=duplicate_in_file + len(already_queued),
+            skipped_duplicate=duplicate_in_file,
             invalid_contacts=invalid_contacts,
+            contacts_index_complete=True,
+        )
+
+        ProspectingBatchContact.objects.bulk_create(
+            [
+                ProspectingBatchContact(
+                    batch=batch,
+                    phone=phone,
+                    establishment=candidates[phone],
+                )
+                for phone in phones
+            ],
+            batch_size=CHUNK_SIZE,
         )
 
         ProspectingQueueItem.objects.bulk_create(

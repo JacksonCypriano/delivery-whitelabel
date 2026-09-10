@@ -332,9 +332,12 @@ def wait_for_message_confirmation(message_id: str) -> None:
                 "WhatsApp rejeitou a mensagem após a aceitação inicial."
             )
         if time.monotonic() >= deadline:
-            raise EvolutionDeliveryUnknownError(
-                "A mensagem permaneceu pendente sem SERVER_ACK dentro do prazo."
-            )
+            # A Evolution retorna PENDING imediatamente após um sendText aceito
+            # e os ACKs seguintes podem chegar depois da janela de polling. Se
+            # conseguimos consultar a mensagem sem rejeição explícita, não
+            # pausamos a fila apenas por ela ainda estar PENDING. A trava global
+            # por telefone continua impedindo uma segunda abordagem.
+            return
         time.sleep(0.5)
 
 

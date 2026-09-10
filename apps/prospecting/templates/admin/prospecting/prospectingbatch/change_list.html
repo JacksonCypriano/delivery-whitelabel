@@ -1,13 +1,12 @@
 {% extends "admin/change_list.html" %}
 
 {% block content %}
-
   <div class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900" style="margin:18px 0 20px;">
     <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;">
       <div>
         <div style="font-size:12px;opacity:.65;text-transform:uppercase;font-weight:700;">Exclusivo do Superadmin</div>
         <h2 style="font-size:22px;font-weight:800;margin:4px 0 5px;">Prospecção WhatsApp</h2>
-        <p style="margin:0;opacity:.72;max-width:80ch;">Cada número recebe somente a primeira abordagem automática. Depois de registrado como abordado, nunca volta para uma nova fila.</p>
+        <p style="margin:0;opacity:.72;max-width:90ch;">Cada número recebe somente a primeira abordagem automática. O board cruza os telefones de cada planilha com o histórico global e atualiza os contatados automaticamente.</p>
       </div>
       <div style="padding:8px 12px;border-radius:999px;font-weight:700;background:rgba(148,163,184,.12);">
         {% if prospecting_enabled %}Ativa{% else %}Pausada{% endif %}
@@ -16,6 +15,7 @@
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-top:18px;">
       <div class="rounded-default border border-base-200 p-4 dark:border-base-800"><div style="font-size:12px;opacity:.65;">Janela agora</div><div style="font-size:20px;font-weight:800;margin-top:3px;">{% if prospecting_window_open %}Liberada{% else %}Fechada{% endif %}</div></div>
+      <div class="rounded-default border border-base-200 p-4 dark:border-base-800"><div style="font-size:12px;opacity:.65;">Planilhas carregadas</div><div style="font-size:20px;font-weight:800;margin-top:3px;">{{ prospecting_active_batches_count }}</div></div>
       <div class="rounded-default border border-base-200 p-4 dark:border-base-800"><div style="font-size:12px;opacity:.65;">Pendentes na fila</div><div style="font-size:20px;font-weight:800;margin-top:3px;">{{ prospecting_pending_count }}</div></div>
       <div class="rounded-default border border-base-200 p-4 dark:border-base-800"><div style="font-size:12px;opacity:.65;">Telefones já abordados</div><div style="font-size:20px;font-weight:800;margin-top:3px;">{{ prospecting_sent_count }}</div></div>
       <div class="rounded-default border border-base-200 p-4 dark:border-base-800"><div style="font-size:12px;opacity:.65;">Fila Celery dedicada</div><div style="font-size:20px;font-weight:800;margin-top:3px;">{{ prospecting_queue_name }}</div></div>
@@ -24,17 +24,17 @@
 
   {% if prospecting_latest_batch %}
     <div class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900" style="margin-bottom:20px;">
-      <div style="font-size:12px;opacity:.65;text-transform:uppercase;font-weight:700;">Última planilha</div>
+      <div style="font-size:12px;opacity:.65;text-transform:uppercase;font-weight:700;">Última planilha adicionada</div>
       <div style="font-size:18px;font-weight:800;margin:4px 0 12px;">{{ prospecting_latest_batch.filename }}</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">
-        <div><div style="font-size:12px;opacity:.65;">Contatos na planilha</div><strong>{{ prospecting_latest_batch.total_contacts }}</strong></div>
+        <div><div style="font-size:12px;opacity:.65;">Linhas na planilha</div><strong>{{ prospecting_latest_batch.total_contacts }}</strong></div>
         <div><div style="font-size:12px;opacity:.65;">Novos adicionados</div><strong>{{ prospecting_latest_batch.queued_contacts }}</strong></div>
-        <div><div style="font-size:12px;opacity:.65;">Contatados</div><strong>{{ prospecting_latest_batch.contacted_count }}</strong></div>
-        <div><div style="font-size:12px;opacity:.65;">Pendentes</div><strong>{{ prospecting_latest_batch.pending_count }}</strong></div>
-        <div><div style="font-size:12px;opacity:.65;">Já contatados</div><strong>{{ prospecting_latest_batch.skipped_contacted }}</strong></div>
-        <div><div style="font-size:12px;opacity:.65;">Duplicados/na fila</div><strong>{{ prospecting_latest_batch.skipped_duplicate }}</strong></div>
+        <div><div style="font-size:12px;opacity:.65;">Contatados</div><strong>{{ prospecting_latest_batch.board_contacted }}</strong></div>
+        <div><div style="font-size:12px;opacity:.65;">Pendentes</div><strong>{{ prospecting_latest_batch.board_pending }}</strong></div>
+        <div><div style="font-size:12px;opacity:.65;">Já contatados no upload</div><strong>{{ prospecting_latest_batch.skipped_contacted }}</strong></div>
+        <div><div style="font-size:12px;opacity:.65;">Duplicados na planilha</div><strong>{{ prospecting_latest_batch.skipped_duplicate }}</strong></div>
         <div><div style="font-size:12px;opacity:.65;">Inválidos</div><strong>{{ prospecting_latest_batch.invalid_contacts }}</strong></div>
-        <div><div style="font-size:12px;opacity:.65;">Falhas/incertos</div><strong>{{ prospecting_latest_batch.failed_contacts|add:prospecting_latest_batch.unknown_count }}</strong></div>
+        <div><div style="font-size:12px;opacity:.65;">Falhas/incertos</div><strong>{{ prospecting_latest_batch.board_issues }}</strong></div>
       </div>
     </div>
   {% endif %}
@@ -61,8 +61,57 @@
           <button type="submit" name="prospecting_action" value="start" class="bg-primary-600 text-white px-4 py-2 rounded-default">Iniciar envios</button>
         {% endif %}
       </form>
-      <p style="font-size:12px;opacity:.68;margin:12px 0 0;">Pausar não apaga a fila. Os contatos pendentes continuam de onde pararam quando você iniciar novamente.</p>
+      <p style="font-size:12px;opacity:.68;margin:12px 0 0;">A fila respeita a ordem de upload. Ao remover uma planilha, os pendentes dela são descartados e a próxima passa a ser processada automaticamente.</p>
     </div>
+  </div>
+
+  <div class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900" style="margin-bottom:22px;">
+    <h3 style="font-size:16px;font-weight:800;margin:0 0 14px;">Planilhas carregadas</h3>
+    {% if prospecting_board_batches %}
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;min-width:940px;">
+          <thead>
+            <tr style="text-align:left;border-bottom:1px solid rgba(148,163,184,.28);">
+              <th style="padding:10px 8px;">Planilha</th>
+              <th style="padding:10px 8px;">Status</th>
+              <th style="padding:10px 8px;">Linhas</th>
+              <th style="padding:10px 8px;">Contatados</th>
+              <th style="padding:10px 8px;">Pendentes</th>
+              <th style="padding:10px 8px;">Ignorados</th>
+              <th style="padding:10px 8px;">Falhas/incertos</th>
+              <th style="padding:10px 8px;">Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for batch in prospecting_board_batches %}
+              <tr style="border-bottom:1px solid rgba(148,163,184,.18);">
+                <td style="padding:12px 8px;">
+                  <div style="font-weight:700;">{{ batch.filename }}</div>
+                  <div style="font-size:12px;opacity:.62;margin-top:2px;">{{ batch.created_at|date:"d/m/Y H:i" }}</div>
+                </td>
+                <td style="padding:12px 8px;"><strong>{{ batch.board_status }}</strong></td>
+                <td style="padding:12px 8px;">{{ batch.total_contacts }}</td>
+                <td style="padding:12px 8px;">{{ batch.board_contacted }}</td>
+                <td style="padding:12px 8px;">{{ batch.board_pending }}</td>
+                <td style="padding:12px 8px;">{{ batch.board_ignored }}</td>
+                <td style="padding:12px 8px;">{{ batch.board_issues }}</td>
+                <td style="padding:12px 8px;">
+                  <form method="post" onsubmit="return confirm('Excluir esta planilha da fila? Os números já abordados continuarão salvos no histórico.');">
+                    {% csrf_token %}
+                    <input type="hidden" name="prospecting_action" value="delete_batch">
+                    <input type="hidden" name="batch_id" value="{{ batch.pk }}">
+                    <button type="submit" class="border border-red-300 text-red-700 px-3 py-2 rounded-default dark:border-red-800 dark:text-red-300">Excluir</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p style="font-size:12px;opacity:.68;margin:12px 0 0;">Excluir remove a planilha da fila, mas nunca apaga a trava global dos telefones já abordados. Se o mesmo telefone existir em outra planilha, o board o reconhecerá como contatado e ele não receberá nova mensagem.</p>
+    {% else %}
+      <p style="margin:0;opacity:.68;">Nenhuma planilha carregada na fila.</p>
+    {% endif %}
   </div>
 
   <div class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900" style="margin-bottom:22px;">
@@ -81,5 +130,4 @@
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;"><button type="submit" class="bg-primary-600 text-white px-4 py-2 rounded-default">Salvar configuração</button><span style="font-size:12px;opacity:.68;">Fuso horário: {{ prospecting_timezone }}</span></div>
     </form>
   </div>
-  {{ block.super }}
 {% endblock %}

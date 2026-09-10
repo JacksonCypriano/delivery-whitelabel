@@ -14,6 +14,13 @@ class ProspectingBatch(models.Model):
     skipped_duplicate = models.PositiveIntegerField("duplicados/na fila", default=0)
     invalid_contacts = models.PositiveIntegerField("inválidos", default=0)
     failed_contacts = models.PositiveIntegerField("falhas explícitas", default=0)
+    is_active = models.BooleanField("ativa na fila", default=True, db_index=True)
+    removed_at = models.DateTimeField("removida em", blank=True, null=True)
+    contacts_index_complete = models.BooleanField(
+        "índice completo da planilha",
+        default=False,
+        help_text="Indica que todos os telefones válidos únicos da planilha foram indexados.",
+    )
 
     class Meta:
         verbose_name = "lote de prospecção"
@@ -25,7 +32,14 @@ class ProspectingBatch(models.Model):
 
     @property
     def contacted_contacts(self) -> int:
-        return self.items.filter(status=ProspectingQueueItem.Status.SENT).count()
+        if self.contacts_index_complete:
+            return self.contacts.filter(
+                phone__in=ProspectingSentPhone.objects.values("phone")
+            ).count()
+        return (
+            self.items.filter(status=ProspectingQueueItem.Status.SENT).count()
+            + self.skipped_contacted
+        )
 
     @property
     def pending_contacts(self) -> int:
@@ -36,6 +50,36 @@ class ProspectingBatch(models.Model):
     @property
     def unknown_contacts(self) -> int:
         return self.items.filter(status=ProspectingQueueItem.Status.UNKNOWN).count()
+
+
+class ProspectingBatchContact(models.Model):
+    """Índice permanente dos telefones válidos que pertenciam a uma planilha."""
+
+    batch = models.ForeignKey(
+        ProspectingBatch,
+        on_delete=models.CASCADE,
+        related_name="contacts",
+        verbose_name="planilha",
+    )
+    phone = models.CharField("telefone", max_length=20, db_index=True)
+    establishment = models.CharField("nome da loja", max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "contato de planilha de prospecção"
+        verbose_name_plural = "contatos de planilhas de prospecção"
+        constraints = [
+            models.UniqueConstraint(
+                fields=("batch", "phone"),
+                name="prospect_batch_contact_unique",
+            )
+        ]
+        indexes = [
+            models.Index(fields=("batch", "phone"), name="prospect_batch_phone_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.establishment} · {self.phone}"
 
 
 class ProspectingSentPhone(models.Model):
@@ -67,7 +111,7 @@ class ProspectingQueueItem(models.Model):
         related_name="items",
         verbose_name="lote",
     )
-    phone = models.CharField("telefone", max_length=20, unique=True)
+    phone = models.CharField("telefone", max_length=20)
     establishment = models.CharField("nome da loja", max_length=255)
     status = models.CharField(
         "situação",
@@ -83,6 +127,12 @@ class ProspectingQueueItem(models.Model):
         verbose_name = "item da fila de prospecção"
         verbose_name_plural = "itens da fila de prospecção"
         ordering = ("created_at", "id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("batch", "phone"),
+                name="prospect_batch_queue_phone_unique",
+            )
+        ]
         indexes = [
             models.Index(fields=("status", "created_at"), name="prospect_status_created_idx"),
         ]

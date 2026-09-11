@@ -19,6 +19,27 @@ from .models import (
 )
 
 
+class CategoryAdminForm(forms.ModelForm):
+    display_order = forms.IntegerField(
+        required=False,
+        min_value=0,
+        label="Ordem de exibição",
+        help_text="Menores valores aparecem primeiro no cardápio.",
+    )
+
+    class Meta:
+        model = Category
+        fields = '__all__'
+
+    def clean_display_order(self):
+        value = self.cleaned_data.get('display_order')
+        if value is not None:
+            return value
+        if self.instance and self.instance.pk:
+            return self.instance.display_order
+        return 0
+
+
 class ProductAdminForm(forms.ModelForm):
     available_days = forms.MultipleChoiceField(
         choices=DAYS_OF_WEEK,
@@ -75,8 +96,11 @@ class ProductImageInline(TenantInlineMixin, admin.TabularInline):
 
 @admin.register(Category, site=tenant_admin_site)
 class CategoryAdmin(TenantModelAdmin):
-    list_display = ('name',)
+    form = CategoryAdminForm
+    list_display = ('name', 'display_order')
+    list_editable = ('display_order',)
     search_fields = ('name',)
+    ordering = ('display_order', 'name')
     prepopulated_fields = {"slug": ("name",)}
 
 

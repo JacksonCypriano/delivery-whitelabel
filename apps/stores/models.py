@@ -43,10 +43,16 @@ DAYS_OF_WEEK = [
 class Category(TenantModel):
     name = models.CharField("Nome", max_length=200)
     slug = models.SlugField("Identificador na URL", max_length=200, blank=True)
+    display_order = models.PositiveIntegerField(
+        "Ordem de exibição",
+        default=0,
+        help_text="Menores valores aparecem primeiro no cardápio.",
+    )
 
     class Meta:
         verbose_name = "Categoria"
         verbose_name_plural = "Categorias"
+        ordering = ['display_order', 'name']
         constraints = [
             models.UniqueConstraint(
                 fields=['tenant', 'slug'],
@@ -160,6 +166,19 @@ class Product(TenantModel):
         if not self.sku:
             self.sku = f"P{uuid.uuid4().hex[:8].upper()}"
         super().save(*args, **kwargs)
+
+    @property
+    def effective_price(self):
+        """Preço realmente cobrado no carrinho, respeitando promoção inclusive R$ 0,00."""
+        return self.sale_price if self.sale_price is not None else self.price
+
+    @property
+    def has_discount(self):
+        return (
+            self.sale_price is not None
+            and self.price is not None
+            and self.sale_price < self.price
+        )
 
     def get_primary_image(self):
         primary_img = getattr(self, 'images', None)

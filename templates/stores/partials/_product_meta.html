@@ -1,0 +1,19 @@
+{% if product.is_vegan or product.is_spicy or product.prep_time or product.weight or product.calories %}
+  <div class="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
+    {% if product.is_vegan %}
+      <span class="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">Vegano</span>
+    {% endif %}
+    {% if product.is_spicy %}
+      <span class="rounded-full bg-orange-50 px-2 py-1 text-orange-700">Picante</span>
+    {% endif %}
+    {% if product.prep_time %}
+      <span class="rounded-full bg-gray-100 px-2 py-1 text-gray-600">~{{ product.prep_time }} min</span>
+    {% endif %}
+    {% if product.weight %}
+      <span class="rounded-full bg-gray-100 px-2 py-1 text-gray-600">{{ product.weight|floatformat:0 }} g</span>
+    {% endif %}
+    {% if product.calories %}
+      <span class="rounded-full bg-gray-100 px-2 py-1 text-gray-600">{{ product.calories }} kcal</span>
+    {% endif %}
+  </div>
+{% endif %}

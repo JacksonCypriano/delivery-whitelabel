@@ -1,0 +1,9 @@
+<div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+  {% if product.has_discount %}
+    <span class="text-xs text-gray-400 line-through">R$ {{ product.price }}</span>
+    <span class="text-primary font-extrabold text-lg">R$ {{ product.effective_price }}</span>
+    <span class="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-extrabold text-red-600">OFERTA</span>
+  {% else %}
+    <span class="text-primary font-extrabold text-lg">R$ {{ product.effective_price }}</span>
+  {% endif %}
+</div>

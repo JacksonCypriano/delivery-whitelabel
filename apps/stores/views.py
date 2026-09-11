@@ -32,31 +32,41 @@ class CatalogoView(ListView):
 
         if tenant:
             today = timezone.localdate().weekday()
-            products_qs = Product.objects.filter(tenant=tenant, is_available=True).order_by('name')
-            categories = (
+            products_qs = (
+                Product.objects
+                .filter(tenant=tenant, is_available=True)
+                .order_by('-is_featured', 'name')
+            )
+            categories_qs = (
                 Category.objects
-                .filter(products__tenant=tenant)
+                .filter(products__tenant=tenant, products__is_available=True)
                 .distinct()
-                .order_by('name')
+                .order_by('display_order', 'name')
                 .prefetch_related(
                     Prefetch('products', queryset=products_qs, to_attr='prefetched_products')
                 )
             )
-            pizza_cat = categories.filter(name__iexact='Pizzas').first()
-            for cat in categories:
+            categories = []
+            for cat in categories_qs:
                 cat.prefetched_products = [
                     p for p in cat.prefetched_products
                     if not p.available_days or today in p.available_days
                 ]
+                if cat.prefetched_products:
+                    categories.append(cat)
+
+            pizza_cat = next((cat for cat in categories if cat.name.lower() in ('pizza', 'pizzas')), None)
             if pizza_cat:
                 half_qs = HalfProduct.objects.filter(
                     product__tenant=tenant,
                     product__category=pizza_cat,
+                    product__is_available=True,
                     is_active=True
                 ).select_related('product')
             else:
                 half_qs = HalfProduct.objects.filter(
                     product__tenant=tenant,
+                    product__is_available=True,
                     is_active=True
                 ).select_related('product')
 

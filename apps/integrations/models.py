@@ -104,3 +104,148 @@ class WhatsAppAlert(models.Model):
         ]
         verbose_name = "Alerta WhatsApp"
         verbose_name_plural = "Alertas WhatsApp por e-mail"
+
+
+class TenantWhatsAppAgent(models.Model):
+    class Status(models.TextChoices):
+        UNKNOWN = "unknown", "Ainda não verificado"
+        OPEN = "open", "Conectado"
+        CLOSED = "close", "Desconectado"
+        CONNECTING = "connecting", "Reconectando"
+        PAIRING = "pairing", "Aguardando pareamento"
+        ERROR = "error", "Erro"
+
+    tenant = models.OneToOneField(
+        "tenants.Tenant",
+        on_delete=models.CASCADE,
+        related_name="whatsapp_agent",
+        verbose_name="Loja",
+    )
+    instance_name = models.CharField(
+        "Instância Evolution", max_length=100, unique=True, editable=False
+    )
+    status = models.CharField(
+        "Situação", max_length=16, choices=Status.choices, default=Status.UNKNOWN
+    )
+    ai_enabled = models.BooleanField("Agente de atendimento ativo", default=False)
+    instance_created = models.BooleanField(
+        "Instância criada na Evolution", default=False, editable=False
+    )
+    requires_pairing = models.BooleanField(
+        "Necessita novo pareamento", default=False, editable=False
+    )
+    reconnect_attempts = models.PositiveSmallIntegerField(
+        "Tentativas de reconexão", default=0, editable=False
+    )
+    next_reconnect_at = models.DateTimeField(
+        "Próxima tentativa de reconexão", null=True, blank=True, editable=False
+    )
+    checked_at = models.DateTimeField(
+        "Última verificação", null=True, blank=True, editable=False
+    )
+    webhook_at = models.DateTimeField(
+        "Último webhook", null=True, blank=True, editable=False
+    )
+    connected_at = models.DateTimeField(
+        "Última conexão", null=True, blank=True, editable=False
+    )
+    disconnected_at = models.DateTimeField(
+        "Última desconexão", null=True, blank=True, editable=False
+    )
+    last_error = models.CharField(
+        "Diagnóstico", max_length=160, blank=True, editable=False
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Agente WhatsApp da loja"
+        verbose_name_plural = "Agentes WhatsApp das lojas"
+        indexes = [
+            models.Index(fields=("status", "ai_enabled"), name="wa_agent_status_ai_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.tenant} — {self.instance_name}"
+
+
+class TenantWhatsAppConversation(models.Model):
+    class PauseReason(models.TextChoices):
+        ORDER = "order", "Pedido enviado"
+        MANUAL = "manual", "Atendimento manual da loja"
+        HUMAN = "human", "Cliente pediu atendimento humano"
+
+    tenant = models.ForeignKey(
+        "tenants.Tenant",
+        on_delete=models.CASCADE,
+        related_name="whatsapp_conversations",
+        verbose_name="Loja",
+    )
+    phone_number = models.CharField("WhatsApp do cliente", max_length=24)
+    ai_paused_until = models.DateTimeField(
+        "Agente pausado até", null=True, blank=True
+    )
+    pause_reason = models.CharField(
+        "Motivo da pausa", max_length=16, choices=PauseReason.choices, blank=True
+    )
+    last_customer_message_at = models.DateTimeField(
+        "Última mensagem do cliente", null=True, blank=True
+    )
+    last_agent_message_at = models.DateTimeField(
+        "Última resposta do agente", null=True, blank=True
+    )
+    last_store_message_at = models.DateTimeField(
+        "Última mensagem manual da loja", null=True, blank=True
+    )
+    context = models.JSONField(
+        "Contexto curto da conversa", default=dict, blank=True
+    )
+    context_updated_at = models.DateTimeField(
+        "Contexto atualizado em", null=True, blank=True
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Conversa do agente WhatsApp"
+        verbose_name_plural = "Conversas do agente WhatsApp"
+        constraints = [
+            models.UniqueConstraint(
+                fields=("tenant", "phone_number"),
+                name="unique_whatsapp_agent_conversation",
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=("tenant", "ai_paused_until"),
+                name="wa_conv_tenant_pause_idx",
+            )
+        ]
+
+    @property
+    def is_paused(self):
+        from django.utils import timezone
+
+        return bool(self.ai_paused_until and self.ai_paused_until > timezone.now())
+
+    def __str__(self):
+        return f"{self.tenant} — {self.phone_number}"
+
+
+class TenantWhatsAppAgentEvent(models.Model):
+    agent = models.ForeignKey(
+        TenantWhatsAppAgent,
+        on_delete=models.CASCADE,
+        related_name="events",
+        verbose_name="Agente",
+    )
+    created_at = models.DateTimeField("Data", auto_now_add=True)
+    kind = models.CharField("Evento", max_length=40)
+    description = models.CharField("Descrição", max_length=200)
+
+    class Meta:
+        ordering = ("-created_at", "-pk")
+        verbose_name = "Evento do agente WhatsApp"
+        verbose_name_plural = "Eventos dos agentes WhatsApp"
+
+    def __str__(self):
+        return f"{self.agent} — {self.description}"

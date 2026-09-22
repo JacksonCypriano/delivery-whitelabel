@@ -1,4 +1,5 @@
 from decimal import Decimal
+from .whatsapp_marker import build_order_marker
 
 
 def to_decimal(value):
@@ -198,6 +199,7 @@ def build_whatsapp_message(order):
             )
 
     return (
+        f"Ref. VemDeDelivery: {build_order_marker(order)}\n"
         f"*Novo Pedido #{order.id}*\n"
         f"{separator}\n\n"
         f"*Cliente*\n"

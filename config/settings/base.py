@@ -180,6 +180,21 @@ EVOLUTION_MONITOR_ENVIRONMENT = os.getenv("EVOLUTION_MONITOR_ENVIRONMENT", "loca
 EVOLUTION_WEBHOOK_TOKEN = os.getenv("EVOLUTION_WEBHOOK_TOKEN", "")
 EVOLUTION_ALERT_EMAILS = [v.strip() for v in os.getenv("EVOLUTION_ALERT_EMAILS", "").split(",") if v.strip()]
 
+# Agente de atendimento WhatsApp por tenant. Desativado por padrão até
+# configurar webhook público e testar a Evolution em homologação.
+WHATSAPP_AGENT_ENABLED = os.getenv("WHATSAPP_AGENT_ENABLED", "false").lower() in ("1", "true", "yes", "on")
+WHATSAPP_AGENT_WEBHOOK_URL = os.getenv("WHATSAPP_AGENT_WEBHOOK_URL", "").strip()
+WHATSAPP_AGENT_WEBHOOK_TOKEN = os.getenv("WHATSAPP_AGENT_WEBHOOK_TOKEN", "").strip()
+WHATSAPP_AGENT_AUTO_RECONNECT = os.getenv("WHATSAPP_AGENT_AUTO_RECONNECT", "true").lower() in ("1", "true", "yes", "on")
+WHATSAPP_AGENT_MAX_RECONNECT_ATTEMPTS = max(1, int(os.getenv("WHATSAPP_AGENT_MAX_RECONNECT_ATTEMPTS", "3")))
+WHATSAPP_AGENT_ORDER_PAUSE_MINUTES = max(1, int(os.getenv("WHATSAPP_AGENT_ORDER_PAUSE_MINUTES", "30")))
+WHATSAPP_AGENT_MANUAL_PAUSE_MINUTES = max(1, int(os.getenv("WHATSAPP_AGENT_MANUAL_PAUSE_MINUTES", "60")))
+WHATSAPP_AGENT_CONTEXT_TIMEOUT_MINUTES = max(5, int(os.getenv("WHATSAPP_AGENT_CONTEXT_TIMEOUT_MINUTES", "45")))
+WHATSAPP_AGENT_OLLAMA_ENABLED = os.getenv("WHATSAPP_AGENT_OLLAMA_ENABLED", "false").lower() in ("1", "true", "yes", "on")
+WHATSAPP_AGENT_OLLAMA_URL = os.getenv("WHATSAPP_AGENT_OLLAMA_URL", "http://ollama:11434").strip()
+WHATSAPP_AGENT_OLLAMA_MODEL = os.getenv("WHATSAPP_AGENT_OLLAMA_MODEL", "qwen3:4b").strip()
+WHATSAPP_AGENT_OLLAMA_TIMEOUT = max(2, int(os.getenv("WHATSAPP_AGENT_OLLAMA_TIMEOUT", "20")))
+
 # E-mail / recuperação de senha
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST = os.getenv("EMAIL_HOST", "")
@@ -434,6 +449,11 @@ UNFOLD = {
                         "icon": "groups",
                         "link": reverse_lazy("tenant_admin:customers_customer_changelist"),
                     },
+                    {
+                        "title": _("Atendimento WhatsApp"),
+                        "icon": "smart_toy",
+                        "link": reverse_lazy("tenant_admin:whatsapp_agent"),
+                    },
                 ],
             },
             {
@@ -632,6 +652,21 @@ UNFOLD_SUPER = {
                         "icon": "notifications",
                         "link": reverse_lazy("super_admin:integrations_whatsappalert_changelist"),
                     },
+                    {
+                        "title": _("Agentes das lojas"),
+                        "icon": "smart_toy",
+                        "link": reverse_lazy("super_admin:integrations_tenantwhatsappagent_changelist"),
+                    },
+                    {
+                        "title": _("Eventos dos agentes"),
+                        "icon": "forum",
+                        "link": reverse_lazy("super_admin:integrations_tenantwhatsappagentevent_changelist"),
+                    },
+                    {
+                        "title": _("Conversas dos agentes"),
+                        "icon": "support_agent",
+                        "link": reverse_lazy("super_admin:integrations_tenantwhatsappconversation_changelist"),
+                    },
                 ],
             },
             {
@@ -748,6 +783,7 @@ CELERY_BEAT_SCHEDULE = {
     },
     "evolution-monitor": {"task": "apps.integrations.tasks.monitor_whatsapp", "schedule": 60.0},
     "evolution-alerts": {"task": "apps.integrations.tasks.send_whatsapp_alerts", "schedule": 60.0},
+    "tenant-whatsapp-agent-monitor": {"task": "apps.integrations.tasks.monitor_tenant_whatsapp_agents", "schedule": 60.0},
     "billing-suspend-daily": {
         "task": "apps.billing.tasks.suspend_expired_subscriptions",
         "schedule": crontab(hour=6, minute=0),

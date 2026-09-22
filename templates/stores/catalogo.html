@@ -1296,6 +1296,16 @@
      CATÁLOGO
      ================================================================ -->
 
+{% if deep_link_unavailable %}
+<div class="container mx-auto px-4 pt-4">
+  <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+    Este produto não está disponível no momento 😕 Veja outras opções do nosso cardápio.
+  </div>
+</div>
+{% endif %}
+
+<div id="catalog-deep-link" data-open-product-slug="{{ open_product_slug|default:'' }}" hidden></div>
+
 <main class="catalog-content container mx-auto px-4 pt-5 pb-32">
 
   <p id="no-results" class="hidden text-center text-gray-500 py-16">
@@ -1357,6 +1367,7 @@
 
                       <button type="button" data-action="add-to-cart"
                               data-product-id="{{ product.id }}"
+                              data-product-slug="{{ product.slug }}"
                               data-product-name="{{ product.name|escape }}"
                               data-product-price="{{ product.effective_price|stringformat:'.2f' }}"
                               data-product-image="{{ product.get_primary_image|default:'' }}"
@@ -1440,6 +1451,7 @@
 
                       <button type="button" data-action="start-half-half"
                               data-product-id="{{ product.id }}"
+                              data-product-slug="{{ product.slug }}"
                               data-product-name="{{ product.name|escape }}"
                               data-product-price="{{ product.effective_price|stringformat:'.2f' }}"
                               data-product-image="{{ product.get_primary_image|default:'' }}"
@@ -1525,6 +1537,7 @@
 
                       <button type="button" data-action="add-to-cart"
                               data-product-id="{{ product.id }}"
+                              data-product-slug="{{ product.slug }}"
                               data-product-name="{{ product.name|escape }}"
                               data-product-price="{{ product.effective_price|stringformat:'.2f' }}"
                               data-product-image="{{ product.get_primary_image|default:'' }}"

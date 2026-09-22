@@ -87,3 +87,97 @@ def send_whatsapp_alerts():
         status="sending",
         attempted_at__lt=timezone.now() - timedelta(minutes=5),
     ).update(status="uncertain")
+
+
+@shared_task(soft_time_limit=120, time_limit=150)
+def monitor_tenant_whatsapp_agents():
+    if not getattr(settings, "WHATSAPP_AGENT_ENABLED", False):
+        return "disabled"
+    from .models import TenantWhatsAppAgent
+    from .whatsapp_agent.connection import monitor_agent
+
+    checked = 0
+    for agent in (
+        TenantWhatsAppAgent.objects.filter(tenant__is_active=True, instance_created=True)
+        .select_related("tenant")
+        .order_by("pk")[:500]
+    ):
+        try:
+            monitor_agent(agent)
+            checked += 1
+        except Exception:
+            log.exception("Falha isolada ao monitorar agente WhatsApp tenant_id=%s", agent.tenant_id)
+    return f"checked={checked}"
+
+
+@shared_task(soft_time_limit=45, time_limit=60)
+def process_tenant_whatsapp_message(agent_id, message_id, phone, text):
+    if not getattr(settings, "WHATSAPP_AGENT_ENABLED", False):
+        return "disabled"
+
+    from .models import TenantWhatsAppAgent, TenantWhatsAppConversation
+    from .whatsapp.client import EvolutionError
+    from .whatsapp_agent.agent import answer
+    from .whatsapp_agent.client import TenantEvolutionClient
+    from .whatsapp_agent.connection import add_event
+    from .whatsapp_agent.conversations import (
+        active_context,
+        conversation,
+        pause,
+        pause_for_order,
+        update_context,
+        validate_order_marker,
+    )
+    from .whatsapp_agent.provider import mark_outbound_message, mark_outbound_pending
+
+    try:
+        agent = TenantWhatsAppAgent.objects.select_related("tenant").get(
+            pk=agent_id, tenant__is_active=True
+        )
+    except TenantWhatsAppAgent.DoesNotExist:
+        return "missing-agent"
+
+    row = conversation(agent.tenant, phone)
+    now = timezone.now()
+    context = active_context(row, now=now)
+    row.last_customer_message_at = now
+    row.save(update_fields=("last_customer_message_at", "updated_at"))
+
+    order = validate_order_marker(agent.tenant, phone, text)
+    if order:
+        pause_for_order(agent.tenant, phone)
+        add_event(agent, "order_ignored", f"Pedido #{order.pk} recebido; agente pausado para a loja assumir.")
+        return "order-ignored"
+
+    if not agent.ai_enabled:
+        return "agent-disabled"
+
+    row.refresh_from_db()
+    if row.ai_paused_until and row.ai_paused_until > now:
+        return "conversation-paused"
+
+    reply = answer(agent.tenant, text, context=context)
+    if not reply.text:
+        return "no-reply"
+
+    client = TenantEvolutionClient()
+    mark_outbound_pending(agent.instance_name, phone, reply.text)
+    try:
+        provider_message_id = client.send_text(agent.instance_name, phone, reply.text)
+    except EvolutionError as exc:
+        agent.last_error = f"Falha ao responder mensagem: {exc.reason}"[:160]
+        agent.save(update_fields=("last_error", "updated_at"))
+        add_event(agent, "reply_error", "Não foi possível enviar uma resposta automática.")
+        return "send-error"
+
+    mark_outbound_message(agent.instance_name, provider_message_id)
+    row.last_agent_message_at = timezone.now()
+    row.save(update_fields=("last_agent_message_at", "updated_at"))
+    update_context(row, reply.context)
+
+    if reply.pause_minutes:
+        reason = reply.pause_reason or TenantWhatsAppConversation.PauseReason.HUMAN
+        pause(agent.tenant, phone, reply.pause_minutes, reason)
+
+    add_event(agent, "answered", f"Resposta automática enviada ({reply.intent}).")
+    return f"answered:{reply.intent}"

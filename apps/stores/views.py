@@ -86,6 +86,21 @@ class CatalogoView(ListView):
         context['half_products'] = half_qs
         context['delivery_zones'] = list(delivery_zones)  # ← ADICIONAR
 
+        open_product_slug = self.kwargs.get('product_slug')
+        context['open_product_slug'] = ''
+        context['deep_link_unavailable'] = False
+        if tenant and open_product_slug:
+            open_product = Product.objects.filter(
+                tenant=tenant, slug=open_product_slug, is_available=True
+            ).first()
+            if open_product and (
+                not open_product.available_days
+                or today in open_product.available_days
+            ) and (open_product.stock is None or open_product.stock > 0):
+                context['open_product_slug'] = open_product.slug
+            else:
+                context['deep_link_unavailable'] = True
+
         return context
 
 

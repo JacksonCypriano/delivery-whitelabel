@@ -108,7 +108,9 @@ class TenantAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
     def get_urls(self):
         from django.urls import path
         from apps.billing import views
+        from apps.integrations.tenant_views import tenant_whatsapp_agent_panel
         return [
+            path('atendimento-whatsapp/', self.admin_view(tenant_whatsapp_agent_panel), name='whatsapp_agent'),
             path('minha-assinatura/', self.admin_view(views.dashboard), name='billing_dashboard'),
             path('minha-assinatura/comprar/', self.admin_view(views.purchase), name='billing_purchase'),
             path('minha-assinatura/cobranca/<uuid:invoice_id>/', self.admin_view(views.invoice_detail), name='billing_invoice'),
@@ -236,6 +238,9 @@ class SuperAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
             "WhatsAppIntegrationState": 10,
             "WhatsAppIntegrationEvent": 20,
             "WhatsAppAlert": 30,
+            "TenantWhatsAppAgent": 40,
+            "TenantWhatsAppAgentEvent": 50,
+            "TenantWhatsAppConversation": 60,
         },
         "marketplace": {"MarketplaceCategory": 10},
     }

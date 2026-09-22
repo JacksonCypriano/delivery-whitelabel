@@ -502,9 +502,10 @@ def product_facts(tenant, products):
     return facts
 
 
-def _product_list_fallback(tenant, products):
+def _product_list_fallback(tenant, products, request_kind="availability"):
     visible = products[:3]
-    blocks = ["Temos sim! 😊"]
+    intro = "Temos estas opções 😊" if request_kind == "list" else "Temos sim! 😊"
+    blocks = [intro]
     for product in visible:
         emoji = " 🌶️" if getattr(product, "is_spicy", False) else ""
         blocks.append(
@@ -567,6 +568,119 @@ class KnowledgeAnswer:
     context: dict = field(default_factory=dict)
 
 
+
+def _delivery_city(tenant, question):
+    """Return a canonical active delivery city explicitly mentioned in the message."""
+    qnorm = normalize(question)
+    qtokens = _tokens(question, keep_stopwords=True)
+    cities = sorted(
+        {
+            zone.city.strip()
+            for zone in DeliveryZone.objects.filter(tenant=tenant, is_active=True)
+            if (zone.city or "").strip()
+        },
+        key=lambda value: (-len(normalize(value)), value.casefold()),
+    )
+    best = None
+    best_score = 0.0
+    for city in cities:
+        cnorm = normalize(city)
+        if cnorm and cnorm in qnorm:
+            return city
+        ctokens = _tokens(city, keep_stopwords=True)
+        if not ctokens:
+            continue
+        matched = _matched_target_tokens(qtokens, ctokens)
+        score = len(matched) / max(1, len(ctokens))
+        if score > best_score and score >= 0.8:
+            best = city
+            best_score = score
+    return best
+
+
+def _delivery_neighborhood(tenant, question):
+    """Return the best active neighborhood mentioned, without mistaking a city for it."""
+    qnorm = normalize(question)
+    qtokens = _tokens(question, keep_stopwords=True)
+    neighborhoods = sorted(
+        {
+            zone.neighborhood.strip()
+            for zone in DeliveryZone.objects.filter(tenant=tenant, is_active=True)
+            if (zone.neighborhood or "").strip()
+        },
+        key=lambda value: (-len(normalize(value)), value.casefold()),
+    )
+    best = None
+    best_score = 0.0
+    for neighborhood in neighborhoods:
+        nnorm = normalize(neighborhood)
+        if nnorm and nnorm in qnorm:
+            return neighborhood
+        ntokens = _tokens(neighborhood, keep_stopwords=True)
+        if not ntokens:
+            continue
+        matched = _matched_target_tokens(qtokens, ntokens)
+        coverage = len(matched) / max(1, len(ntokens))
+        if coverage < 0.8:
+            continue
+        similarity_bonus = sum(
+            _best_token_similarity(qtokens, target) for target in ntokens
+        ) / max(1, len(ntokens))
+        score = coverage + similarity_bonus
+        if score > best_score:
+            best = neighborhood
+            best_score = score
+    return best
+
+
+def _delivery_zone_for_city_and_neighborhood(tenant, city, neighborhood):
+    city_norm = normalize(city)
+    neighborhood_norm = normalize(neighborhood)
+    zones = list(
+        DeliveryZone.objects.filter(tenant=tenant, is_active=True)
+        .order_by("city", "neighborhood")
+    )
+    best = None
+    best_score = 0.0
+    for zone in zones:
+        city_score = _similarity(normalize(zone.city), city_norm)
+        neighborhood_score = _similarity(normalize(zone.neighborhood), neighborhood_norm)
+        if city_score < 0.88 or neighborhood_score < 0.82:
+            continue
+        score = city_score + neighborhood_score
+        if score > best_score:
+            best = zone
+            best_score = score
+    return best
+
+
+def _delivery_followup(question, context, tenant):
+    """Use delivery context only for genuinely elliptical follow-ups.
+
+    Explicit new intents (address, hours, payment, product, etc.) must never be
+    swallowed just because the previous turn was about delivery.
+    """
+    if context.get("intent") not in {"delivery", "delivery_fee"}:
+        return False
+    q = normalize(question)
+    if not q:
+        return False
+    if _delivery_city(tenant, question) or _delivery_neighborhood(tenant, question):
+        return True
+    tokens = q.split()
+    if len(tokens) > 6:
+        return False
+    return (
+        q == "quanto"
+        or q.startswith("quanto ")
+        or q.startswith("e ")
+        or q.startswith("para ")
+        or q.startswith("pro ")
+        or q.startswith("pra ")
+        or q.startswith("no ")
+        or q.startswith("na ")
+    )
+
 def answer_from_store(tenant, question, context=None):
     context = context if isinstance(context, dict) else {}
     q = normalize(question)
@@ -585,43 +699,8 @@ def answer_from_store(tenant, question, context=None):
             pause_reason="human",
         )
 
-    delivery_words = (
-        "entrega", "taxa", "frete", "bairro", "entregam", "entregar",
-        "delivery", "valor da entrega", "quanto fica entrega",
-    )
-    delivery_context = context.get("intent") in {"delivery", "delivery_fee"}
-    delivery_question = _has_any(question, delivery_words) or delivery_context
-    zone = find_delivery_zone(tenant, question) if delivery_question else None
-    if zone:
-        fact = f"A loja entrega em {zone.neighborhood}, {zone.city}, com taxa de {brl(zone.fee)}."
-        return KnowledgeAnswer(
-            "delivery_fee",
-            (fact,),
-            f"Entregamos sim em *{zone.neighborhood}* 😊\n\nA taxa para esse bairro é *{brl(zone.fee)}*.",
-            context={"intent": "delivery_fee", "zone_id": zone.pk},
-        )
-
-    if delivery_question:
-        zones = list(
-            DeliveryZone.objects.filter(tenant=tenant, is_active=True)
-            .order_by("city", "neighborhood")[:80]
-        )
-        if zones:
-            facts = tuple(
-                f"{zone.neighborhood}, {zone.city}: {brl(zone.fee)}" for zone in zones
-            )
-            return KnowledgeAnswer(
-                "delivery",
-                facts,
-                "Claro 😊 Me diga o *bairro* da entrega e eu consulto a taxa para você.",
-                context={"intent": "delivery"},
-            )
-        return KnowledgeAnswer(
-            "delivery",
-            ("A loja não possui zonas de entrega ativas cadastradas.",),
-            "Ainda não encontrei áreas de entrega cadastradas para esta loja 😕",
-        )
-
+    # Intenções explícitas sempre vencem o contexto anterior. Isso evita que uma
+    # conversa sobre entrega "prenda" perguntas novas como endereço, horário ou Pix.
     address_words = (
         "endereco", "onde fica", "onde voces fica", "onde voces ficam", "localizacao",
         "retirada", "buscar ai", "buscar aqui", "cade endereco",
@@ -669,6 +748,83 @@ def answer_from_store(tenant, question, context=None):
             context={"intent": "payment"},
         )
 
+    delivery_words = (
+        "entrega", "taxa", "frete", "bairro", "entregam", "entregar",
+        "delivery", "valor da entrega", "quanto fica entrega",
+    )
+    explicit_delivery = _has_any(question, delivery_words)
+    delivery_question = explicit_delivery or _delivery_followup(question, context, tenant)
+
+    if delivery_question:
+        city = _delivery_city(tenant, question) or context.get("city")
+        neighborhood = _delivery_neighborhood(tenant, question) or context.get("neighborhood")
+
+        # Bairro sem cidade: não presumimos "Centro" (ou qualquer outro bairro)
+        # de uma cidade específica. Pedimos a cidade e guardamos só o mínimo necessário.
+        if neighborhood and not city:
+            return KnowledgeAnswer(
+                "delivery",
+                (f"Bairro informado: {neighborhood}. Falta a cidade para consultar a zona de entrega.",),
+                f"Claro 😊 Para consultar a taxa de *{neighborhood}*, me diga também a *cidade*.",
+                context={"intent": "delivery", "neighborhood": neighborhood},
+            )
+
+        # Cidade sem bairro (inclusive resposta a uma pergunta anterior de cidade).
+        if city and not neighborhood:
+            return KnowledgeAnswer(
+                "delivery",
+                (f"Cidade informada: {city}. Falta o bairro para consultar a zona de entrega.",),
+                f"Perfeito 😊 Agora me diga o *bairro* da entrega em *{city}*.",
+                context={"intent": "delivery", "city": city},
+            )
+
+        if city and neighborhood:
+            zone = _delivery_zone_for_city_and_neighborhood(
+                tenant, city=city, neighborhood=neighborhood
+            )
+            if zone:
+                fact = (
+                    f"A loja entrega em {zone.neighborhood}, {zone.city}, "
+                    f"com taxa de {brl(zone.fee)}."
+                )
+                return KnowledgeAnswer(
+                    "delivery_fee",
+                    (fact,),
+                    f"A entrega para *{zone.neighborhood}, {zone.city}* fica *{brl(zone.fee)}* 🚚",
+                    context={
+                        "intent": "delivery_fee",
+                        "zone_id": zone.pk,
+                        "city": zone.city,
+                        "neighborhood": zone.neighborhood,
+                    },
+                )
+            return KnowledgeAnswer(
+                "delivery",
+                (f"Não existe zona ativa cadastrada para {neighborhood}, {city}.",),
+                f"Não encontrei entrega cadastrada para *{neighborhood}, {city}* 😕",
+                context={"intent": "delivery", "city": city, "neighborhood": neighborhood},
+            )
+
+        zones = list(
+            DeliveryZone.objects.filter(tenant=tenant, is_active=True)
+            .order_by("city", "neighborhood")[:80]
+        )
+        if zones:
+            facts = tuple(
+                f"{zone.neighborhood}, {zone.city}: {brl(zone.fee)}" for zone in zones
+            )
+            return KnowledgeAnswer(
+                "delivery",
+                facts,
+                "Claro 😊 Me diga a *cidade* e o *bairro* da entrega que eu consulto a taxa para você.",
+                context={"intent": "delivery"},
+            )
+        return KnowledgeAnswer(
+            "delivery",
+            ("A loja não possui zonas de entrega ativas cadastradas.",),
+            "Ainda não encontrei áreas de entrega cadastradas para esta loja 😕",
+        )
+
     products = find_products(tenant, question)
     if products:
         request_kind = _product_request_kind(question)
@@ -684,7 +840,7 @@ def answer_from_store(tenant, question, context=None):
         return KnowledgeAnswer(
             "product",
             facts,
-            _product_list_fallback(tenant, products),
+            _product_list_fallback(tenant, products, request_kind=request_kind),
             context=product_context,
         )
 
@@ -721,3 +877,4 @@ def answer_from_store(tenant, question, context=None):
         ),
         f"Posso te ajudar 😊 Me pergunte sobre produtos, preços, entrega, endereço, horários ou pagamento.\nCardápio: {catalog_url(tenant)}",
     )
+

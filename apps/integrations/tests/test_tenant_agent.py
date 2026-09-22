@@ -169,6 +169,16 @@ class TenantWhatsAppAgentTests(TestCase):
         self.assertIn("Coca-Cola 2L", answer.fallback)
         self.assertIn("Guaraná 350 ml", answer.fallback)
 
+    def test_product_list_question_uses_options_intro(self):
+        Product.objects.create(
+            tenant=self.tenant, category=self.category, name="Guaraná 350 ml",
+            price=Decimal("7.50"), is_available=True,
+        )
+        answer = answer_from_store(self.tenant, "Quais bebidas vcs têm?")
+        self.assertEqual(answer.intent, "product")
+        self.assertTrue(answer.fallback.startswith("Temos estas opções"))
+        self.assertFalse(answer.fallback.startswith("Temos sim"))
+
     def test_ambiguous_product_price_does_not_pick_random_variant(self):
         Product.objects.create(
             tenant=self.tenant, category=self.category, name="Coca-Cola Zero 2L",
@@ -181,10 +191,81 @@ class TenantWhatsAppAgentTests(TestCase):
 
     def test_delivery_typo_and_abbreviation_are_understood(self):
         answer = answer_from_store(
-            self.tenant, "qnt fica a entrga pro Jardim Paulsta?"
+            self.tenant, "qnt fica a entrga pro Jardim Paulsta em Itapevi?"
         )
         self.assertEqual(answer.intent, "delivery_fee")
         self.assertIn("R$ 7,00", answer.fallback)
+        self.assertIn("Jardim Paulista, Itapevi", answer.fallback)
+
+    def test_delivery_without_city_asks_city_before_fee(self):
+        DeliveryZone.objects.create(
+            tenant=self.tenant, city="Cotia", neighborhood="Centro",
+            fee=Decimal("12.00"), is_active=True,
+        )
+        DeliveryZone.objects.create(
+            tenant=self.tenant, city="Itapevi", neighborhood="Centro",
+            fee=Decimal("5.00"), is_active=True,
+        )
+        answer = answer_from_store(
+            self.tenant, "qnt fica a entrega pro Centro?"
+        )
+        self.assertEqual(answer.intent, "delivery")
+        self.assertIn("cidade", answer.fallback.lower())
+        self.assertEqual(answer.context.get("neighborhood"), "Centro")
+        self.assertNotIn("R$ 5,00", answer.fallback)
+        self.assertNotIn("R$ 12,00", answer.fallback)
+
+    def test_delivery_followup_city_completes_pending_neighborhood(self):
+        DeliveryZone.objects.create(
+            tenant=self.tenant, city="Itapevi", neighborhood="Centro",
+            fee=Decimal("5.00"), is_active=True,
+        )
+        first = answer_from_store(self.tenant, "qnt fica a entrega pro Centro?")
+        answer = answer_from_store(self.tenant, "Itapevi", context=first.context)
+        self.assertEqual(answer.intent, "delivery_fee")
+        self.assertIn("R$ 5,00", answer.fallback)
+        self.assertIn("Centro, Itapevi", answer.fallback)
+
+    def test_delivery_context_does_not_trap_new_explicit_intents(self):
+        today = timezone.localdate().weekday()
+        BusinessHour.objects.create(
+            tenant=self.tenant, weekday=today, is_closed=False,
+            opening_time=time(11, 0), closing_time=time(23, 0),
+        )
+        context = {
+            "intent": "delivery_fee",
+            "city": "Itapevi",
+            "neighborhood": "Jardim Paulista",
+        }
+
+        address = answer_from_store(self.tenant, "ond vcs fika?", context=context)
+        self.assertEqual(address.intent, "address")
+        self.assertIn("Rua das Flores", address.fallback)
+
+        hours = answer_from_store(self.tenant, "q hrs fehca hj?", context=context)
+        self.assertEqual(hours.intent, "hours")
+        self.assertIn("23:00", hours.fallback)
+
+        payment = answer_from_store(self.tenant, "vcs aceita piks?", context=context)
+        self.assertEqual(payment.intent, "payment")
+        self.assertIn("Pix", payment.fallback)
+
+    def test_delivery_followup_reuses_city_for_next_neighborhood(self):
+        DeliveryZone.objects.create(
+            tenant=self.tenant, city="Itapevi", neighborhood="Jardim Rainha",
+            fee=Decimal("9.00"), is_active=True,
+        )
+        context = {
+            "intent": "delivery_fee",
+            "city": "Itapevi",
+            "neighborhood": "Jardim Paulista",
+        }
+        answer = answer_from_store(
+            self.tenant, "e pro Jardim Rainha?", context=context
+        )
+        self.assertEqual(answer.intent, "delivery_fee")
+        self.assertIn("R$ 9,00", answer.fallback)
+        self.assertIn("Jardim Rainha, Itapevi", answer.fallback)
 
     def test_address_informal_typo_is_understood(self):
         answer = answer_from_store(self.tenant, "ond vcs fika?")
@@ -242,10 +323,11 @@ class TenantWhatsAppAgentTests(TestCase):
 
     def test_delivery_fee_answer_uses_delivery_zone(self):
         answer = answer_from_store(
-            self.tenant, "Qual o valor da entrega no Jardim Paulista?"
+            self.tenant, "Qual o valor da entrega no Jardim Paulista em Itapevi?"
         )
         self.assertEqual(answer.intent, "delivery_fee")
         self.assertIn("R$ 7,00", answer.fallback)
+        self.assertIn("A entrega para", answer.fallback)
 
     def test_order_message_has_deterministic_marker(self):
         order = Order.objects.create(

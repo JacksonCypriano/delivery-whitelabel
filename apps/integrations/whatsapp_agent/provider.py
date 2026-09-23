@@ -83,7 +83,9 @@ def extract_message(data):
     if not remote or remote == "status@broadcast" or remote.endswith("@g.us"):
         return None
     text = extract_text(data)
-    if not text:
+    message = data.get("message") if isinstance(data.get("message"), dict) else {}
+    message_kind = "audio" if isinstance(message.get("audioMessage"), dict) else "text"
+    if not text and message_kind != "audio":
         return None
     message_id = str(key.get("id") or "")[:160]
     if not message_id:
@@ -96,6 +98,7 @@ def extract_message(data):
         "message_id": message_id,
         "phone": phone,
         "text": text,
+        "kind": message_kind,
         "from_me": bool(key.get("fromMe")),
     }
 

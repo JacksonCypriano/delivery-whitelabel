@@ -20,7 +20,13 @@ from apps.integrations.whatsapp_agent.knowledge import answer_from_store, normal
 from apps.orders.models import Order
 from apps.orders.services import build_whatsapp_message
 from apps.orders.whatsapp_marker import extract_order_id
-from apps.stores.models import Category, Product
+from apps.stores.models import (
+    Category,
+    CustomizationGroup,
+    CustomizationGroupLabel,
+    CustomizationOption,
+    Product,
+)
 from apps.tenants.models import BusinessHour, DeliveryZone, Tenant
 
 
@@ -277,6 +283,57 @@ class TenantWhatsAppAgentTests(TestCase):
         self.assertEqual(answer.intent, "payment")
         self.assertIn("Pix", answer.fallback)
 
+    def test_payment_does_not_announce_online_when_not_released(self):
+        answer = answer_from_store(self.tenant, "vcs aceita piks?")
+        self.assertEqual(answer.intent, "payment")
+        self.assertIn("Na entrega ou retirada", answer.fallback)
+        self.assertNotIn("Online:", answer.fallback)
+
+    def test_payment_does_not_announce_online_when_release_exists_but_subaccount_is_not_ready(self):
+        from apps.billing.models import TenantPaymentAccount
+
+        self.tenant.online_payments_allowed = True
+        self.tenant.save(update_fields=["online_payments_allowed"])
+        TenantPaymentAccount.objects.create(
+            tenant=self.tenant,
+            enabled=True,
+            terms_accepted=True,
+            status=TenantPaymentAccount.Status.PENDING,
+        )
+
+        answer = answer_from_store(self.tenant, "aceita pix?")
+        self.assertEqual(answer.intent, "payment")
+        self.assertNotIn("Online:", answer.fallback)
+
+    def test_payment_announces_online_only_when_subaccount_is_ready(self):
+        from apps.billing.models import TenantPaymentAccount
+
+        self.tenant.online_payments_allowed = True
+        self.tenant.save(update_fields=["online_payments_allowed"])
+        account = TenantPaymentAccount(
+            tenant=self.tenant,
+            enabled=True,
+            terms_accepted=True,
+            status=TenantPaymentAccount.Status.APPROVED,
+            provider_account_id="acc_test",
+        )
+        account.set_api_key("subaccount-test-key")
+        account.save()
+        self.tenant.refresh_from_db()
+
+        answer = answer_from_store(self.tenant, "aceita pix?")
+        self.assertEqual(answer.intent, "payment")
+        self.assertIn("Online: Pix ou cartão de crédito", answer.fallback)
+
+    def test_payment_text_respects_fulfillment_mode(self):
+        from apps.tenants.choices import FulfillmentMode
+
+        self.tenant.fulfillment_mode = FulfillmentMode.PICKUP_ONLY
+        self.tenant.save(update_fields=["fulfillment_mode"])
+        answer = answer_from_store(self.tenant, "formas de pagamento?")
+        self.assertIn("Na retirada", answer.fallback)
+        self.assertNotIn("Na entrega ou retirada", answer.fallback)
+
     def test_hours_typo_and_abbreviation_are_understood(self):
         today = timezone.localdate().weekday()
         BusinessHour.objects.create(
@@ -462,7 +519,7 @@ class TenantWhatsAppAgentTests(TestCase):
         )
         self.assertEqual(response.status_code, 202)
         delay.assert_called_once_with(
-            agent.pk, "IN-WEBHOOK-1", "5511988887777", "Qual o endereço?"
+            agent.pk, "IN-WEBHOOK-1", "5511988887777", "Qual o endereço?", "text"
         )
 
     def test_manual_store_message_pauses_conversation(self):
@@ -519,3 +576,210 @@ class TenantWhatsAppAgentTests(TestCase):
             HTTP_X_VDD_WEBHOOK_TOKEN="t" * 48,
         )
         self.assertEqual(response.status_code, 204)
+
+
+    def test_fulfillment_answers_delivery_and_pickup_from_tenant_mode(self):
+        from apps.tenants.choices import FulfillmentMode
+
+        self.tenant.fulfillment_mode = FulfillmentMode.PICKUP_ONLY
+        self.tenant.save(update_fields=["fulfillment_mode"])
+        delivery = answer_from_store(self.tenant, "vcs fazem entrega?")
+        self.assertEqual(delivery.intent, "fulfillment")
+        self.assertIn("não fazemos entrega", delivery.fallback)
+
+        pickup = answer_from_store(self.tenant, "posso retirar?")
+        self.assertEqual(pickup.intent, "fulfillment")
+        self.assertIn("Pode retirar sim", pickup.fallback)
+        self.assertIn("Rua das Flores", pickup.fallback)
+
+    def test_delivery_areas_list_requires_city_when_multiple_cities(self):
+        DeliveryZone.objects.create(
+            tenant=self.tenant, city="Cotia", neighborhood="Centro",
+            fee=Decimal("12.00"), is_active=True,
+        )
+        answer = answer_from_store(self.tenant, "quais bairros vcs entregam?")
+        self.assertEqual(answer.intent, "delivery_areas")
+        self.assertIn("Itapevi", answer.fallback)
+        self.assertIn("Cotia", answer.fallback)
+        self.assertIn("Qual cidade", answer.fallback)
+
+        city_answer = answer_from_store(self.tenant, "quais bairros vcs entregam em Itapevi?")
+        self.assertEqual(city_answer.intent, "delivery_areas")
+        self.assertIn("Jardim Paulista", city_answer.fallback)
+        self.assertIn("R$ 7,00", city_answer.fallback)
+        self.assertNotIn("Cotia", city_answer.fallback)
+
+    def test_product_description_uses_registered_description(self):
+        self.product.description = "Refrigerante Coca-Cola garrafa 2 litros, servido gelado."
+        self.product.save(update_fields=["description"])
+        answer = answer_from_store(self.tenant, "o que vem na coca cola 2l?")
+        self.assertEqual(answer.intent, "product_description")
+        self.assertIn("garrafa 2 litros", answer.fallback)
+        self.assertIn(product_url(self.tenant, self.product), answer.fallback)
+
+    def test_product_customizations_list_real_options_and_prices(self):
+        label = CustomizationGroupLabel.objects.create(
+            tenant=self.tenant, name="Adicionais"
+        )
+        group = CustomizationGroup.objects.create(
+            tenant=self.tenant, category=self.category, label=label,
+            min_options=0, max_options=2, is_active=True,
+        )
+        CustomizationOption.objects.create(
+            tenant=self.tenant, group=group, name="Gelo extra",
+            price=Decimal("1.50"), is_available=True,
+        )
+        answer = answer_from_store(self.tenant, "quais adicionais tem na coca cola 2l?")
+        self.assertEqual(answer.intent, "customization")
+        self.assertIn("Gelo extra", answer.fallback)
+        self.assertIn("R$ 1,50", answer.fallback)
+        self.assertIn(product_url(self.tenant, self.product), answer.fallback)
+
+    def test_specific_customization_option_can_be_found_without_product_name(self):
+        label = CustomizationGroupLabel.objects.create(
+            tenant=self.tenant, name="Adicionais"
+        )
+        group = CustomizationGroup.objects.create(
+            tenant=self.tenant, category=self.category, label=label,
+            min_options=0, max_options=2, is_active=True,
+        )
+        CustomizationOption.objects.create(
+            tenant=self.tenant, group=group, name="Limão extra",
+            price=Decimal("2.00"), is_available=True,
+        )
+        answer = answer_from_store(self.tenant, "quanto custa adicionar limao extra?")
+        self.assertEqual(answer.intent, "customization")
+        self.assertIn("Limão extra", answer.fallback)
+        self.assertIn("R$ 2,00", answer.fallback)
+
+    def test_promotions_include_discounted_products_and_only_public_active_coupons(self):
+        from apps.coupons.models import AudienceType, CouponCampaign, DiscountType
+
+        self.product.sale_price = Decimal("11.90")
+        self.product.save(update_fields=["sale_price"])
+        CouponCampaign.objects.create(
+            tenant=self.tenant,
+            name="Oferta pública",
+            code="VEM10",
+            discount_type=DiscountType.PERCENTAGE,
+            discount_value=Decimal("10.00"),
+            minimum_order_value=Decimal("20.00"),
+            audience_type=AudienceType.ALL,
+            is_active=True,
+        )
+        CouponCampaign.objects.create(
+            tenant=self.tenant,
+            name="Privado",
+            code="SEGREDO",
+            discount_type=DiscountType.FIXED_AMOUNT,
+            discount_value=Decimal("5.00"),
+            audience_type=AudienceType.SPECIFIC,
+            is_active=True,
+        )
+        answer = answer_from_store(self.tenant, "tem promocao ou cupom?")
+        self.assertEqual(answer.intent, "promotion")
+        self.assertIn("Coca-Cola 2L", answer.fallback)
+        self.assertIn("R$ 14,90", answer.fallback)
+        self.assertIn("R$ 11,90", answer.fallback)
+        self.assertIn("VEM10", answer.fallback)
+        self.assertNotIn("SEGREDO", answer.fallback)
+
+    def test_product_characteristics_use_only_registered_fields(self):
+        self.product.is_vegan = True
+        self.product.is_spicy = True
+        self.product.allergens = "glúten, leite"
+        self.product.calories = 180
+        self.product.prep_time = 5
+        self.product.weight = Decimal("200.00")
+        self.product.save()
+
+        vegan = answer_from_store(self.tenant, "a coca cola 2l e vegana?")
+        self.assertEqual(vegan.intent, "product_details")
+        self.assertIn("vegano", vegan.fallback.lower())
+
+        spicy = answer_from_store(self.tenant, "a coca cola 2l e picante?")
+        self.assertIn("picante", spicy.fallback.lower())
+
+        calories = answer_from_store(self.tenant, "quantas calorias tem a coca cola 2l?")
+        self.assertIn("180 kcal", calories.fallback)
+
+        prep = answer_from_store(self.tenant, "qual o tempo de preparo da coca cola 2l?")
+        self.assertIn("5 min", prep.fallback)
+        self.assertIn("não inclui o tempo total de entrega", prep.fallback)
+
+        weight = answer_from_store(self.tenant, "qual o peso da coca cola 2l?")
+        self.assertIn("200 g", weight.fallback)
+
+    def test_allergen_answer_never_infers_safety_from_blank_field(self):
+        self.product.allergens = ""
+        self.product.save(update_fields=["allergens"])
+        answer = answer_from_store(self.tenant, "a coca cola 2l tem gluten?")
+        self.assertEqual(answer.intent, "product_allergens")
+        self.assertIn("não cadastrou informações de alérgenos", answer.fallback)
+        self.assertIn("contaminação cruzada", answer.fallback)
+        self.assertNotIn("não contém", answer.fallback.lower())
+
+    def test_generic_vegan_question_lists_only_available_vegan_products(self):
+        self.product.is_vegan = True
+        self.product.save(update_fields=["is_vegan"])
+        other = Product.objects.create(
+            tenant=self.tenant, category=self.category, name="Guaraná",
+            price=Decimal("8.00"), is_available=True, is_vegan=False,
+        )
+        answer = answer_from_store(self.tenant, "tem opcao vegana?")
+        self.assertEqual(answer.intent, "product_details")
+        self.assertIn("Coca-Cola 2L", answer.fallback)
+        self.assertNotIn(other.name, answer.fallback)
+
+    def test_known_unavailable_product_is_reported_as_unavailable(self):
+        self.product.stock = Decimal("0")
+        self.product.save(update_fields=["stock"])
+        answer = answer_from_store(self.tenant, "tem coca cola 2l?")
+        self.assertEqual(answer.intent, "product_unavailable")
+        self.assertIn("não está disponível no momento", answer.fallback)
+        self.assertIn("Coca-Cola 2L", answer.fallback)
+
+    @patch("apps.integrations.tasks.process_tenant_whatsapp_message.delay")
+    def test_audio_webhook_is_queued_as_audio_without_transcription(self, delay):
+        agent = get_or_create_agent(self.tenant)
+        agent.instance_created = True
+        agent.ai_enabled = True
+        agent.save()
+        payload = {
+            "event": "MESSAGES_UPSERT",
+            "instance": agent.instance_name,
+            "data": {
+                "key": {
+                    "remoteJid": "5511988887777@s.whatsapp.net",
+                    "fromMe": False,
+                    "id": "AUDIO-1",
+                },
+                "message": {"audioMessage": {"seconds": 4, "ptt": True}},
+            },
+        }
+        response = self.client.post(
+            "/integracoes/evolution/tenant-webhook/",
+            data=json.dumps(payload),
+            content_type="application/json",
+            HTTP_X_VDD_WEBHOOK_TOKEN="t" * 48,
+        )
+        self.assertEqual(response.status_code, 202)
+        delay.assert_called_once_with(
+            agent.pk, "AUDIO-1", "5511988887777", "", "audio"
+        )
+
+    @patch("apps.integrations.whatsapp_agent.client.TenantEvolutionClient.send_text")
+    def test_audio_gets_text_only_guidance(self, send_text):
+        send_text.return_value = "OUT-AUDIO"
+        agent = get_or_create_agent(self.tenant)
+        agent.ai_enabled = True
+        agent.instance_created = True
+        agent.status = TenantWhatsAppAgent.Status.OPEN
+        agent.save()
+        result = process_tenant_whatsapp_message(
+            agent.pk, "IN-AUDIO", "5511988887777", "", "audio"
+        )
+        self.assertEqual(result, "answered:audio")
+        reply = send_text.call_args.args[2]
+        self.assertIn("não consigo interpretar mensagens de áudio", reply)
+        self.assertIn("texto", reply.lower())

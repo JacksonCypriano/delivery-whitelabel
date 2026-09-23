@@ -16,7 +16,7 @@ class AgentReply:
 def answer(tenant, question, context=None):
     knowledge = answer_from_store(tenant, question, context=context or {})
     text = knowledge.fallback
-    if knowledge.intent not in {"human"}:
+    if knowledge.intent not in {"human", "product_allergens"}:
         try:
             text = naturalize(
                 question,

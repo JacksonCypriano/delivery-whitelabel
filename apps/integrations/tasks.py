@@ -111,7 +111,7 @@ def monitor_tenant_whatsapp_agents():
 
 
 @shared_task(soft_time_limit=45, time_limit=60)
-def process_tenant_whatsapp_message(agent_id, message_id, phone, text):
+def process_tenant_whatsapp_message(agent_id, message_id, phone, text, message_kind="text"):
     if not getattr(settings, "WHATSAPP_AGENT_ENABLED", False):
         return "disabled"
 
@@ -156,14 +156,29 @@ def process_tenant_whatsapp_message(agent_id, message_id, phone, text):
     if row.ai_paused_until and row.ai_paused_until > now:
         return "conversation-paused"
 
-    reply = answer(agent.tenant, text, context=context)
-    if not reply.text:
-        return "no-reply"
+    if message_kind == "audio":
+        reply_text = (
+            "Ainda não consigo interpretar mensagens de áudio 🎧\n\n"
+            "Por enquanto, me envie sua dúvida por *texto* que eu te ajudo por aqui 😊"
+        )
+        reply_intent = "audio"
+        reply_context = {"intent": "audio"}
+        reply_pause_minutes = 0
+        reply_pause_reason = ""
+    else:
+        reply = answer(agent.tenant, text, context=context)
+        if not reply.text:
+            return "no-reply"
+        reply_text = reply.text
+        reply_intent = reply.intent
+        reply_context = reply.context
+        reply_pause_minutes = reply.pause_minutes
+        reply_pause_reason = reply.pause_reason
 
     client = TenantEvolutionClient()
-    mark_outbound_pending(agent.instance_name, phone, reply.text)
+    mark_outbound_pending(agent.instance_name, phone, reply_text)
     try:
-        provider_message_id = client.send_text(agent.instance_name, phone, reply.text)
+        provider_message_id = client.send_text(agent.instance_name, phone, reply_text)
     except EvolutionError as exc:
         agent.last_error = f"Falha ao responder mensagem: {exc.reason}"[:160]
         agent.save(update_fields=("last_error", "updated_at"))
@@ -173,11 +188,11 @@ def process_tenant_whatsapp_message(agent_id, message_id, phone, text):
     mark_outbound_message(agent.instance_name, provider_message_id)
     row.last_agent_message_at = timezone.now()
     row.save(update_fields=("last_agent_message_at", "updated_at"))
-    update_context(row, reply.context)
+    update_context(row, reply_context)
 
-    if reply.pause_minutes:
-        reason = reply.pause_reason or TenantWhatsAppConversation.PauseReason.HUMAN
-        pause(agent.tenant, phone, reply.pause_minutes, reason)
+    if reply_pause_minutes:
+        reason = reply_pause_reason or TenantWhatsAppConversation.PauseReason.HUMAN
+        pause(agent.tenant, phone, reply_pause_minutes, reason)
 
-    add_event(agent, "answered", f"Resposta automática enviada ({reply.intent}).")
-    return f"answered:{reply.intent}"
+    add_event(agent, "answered", f"Resposta automática enviada ({reply_intent}).")
+    return f"answered:{reply_intent}"

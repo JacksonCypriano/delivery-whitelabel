@@ -8,7 +8,7 @@ from difflib import SequenceMatcher
 from django.utils import timezone
 
 from apps.marketplace.services import build_tenant_url
-from apps.stores.models import Product
+from apps.stores.models import CustomizationGroup, CustomizationOption, Product
 from apps.tenants.models import DeliveryZone
 
 
@@ -59,6 +59,9 @@ WHATSAPP_ABBREVIATIONS = {
     "refri": "bebida", "refris": "bebida", "ref": "bebida",
     "card": "cardapio", "cardap": "cardapio", "prod": "produto",
     "prods": "produtos", "adic": "adicional", "add": "adicional",
+    "adds": "adicionais", "promo": "promocao", "promos": "promocao",
+    "ingr": "ingrediente", "ingred": "ingrediente", "ingrs": "ingredientes",
+    "veg": "vegano", "cal": "caloria", "kcal": "caloria",
     "refrig": "bebida", "refriger": "bebida",
     "hamb": "hamburguer", "burguer": "hamburguer", "burger": "hamburguer",
     "burgers": "hamburguer", "burguers": "hamburguer",
@@ -304,10 +307,30 @@ def _specific_hours_answer(tenant, question):
 
 
 def payment_text(tenant):
-    parts = ["Na entrega ou retirada: Pix, cartão de crédito, cartão de débito ou dinheiro."]
-    if tenant.online_payments_allowed:
-        parts.append("Pagamento online: Pix e cartão de crédito, quando a subconta Asaas estiver liberada para a loja.")
-    return " ".join(parts)
+    # As formas presenciais fazem parte do checkout padrão. O texto respeita o
+    # modo de atendimento real da loja para não prometer retirada/entrega que
+    # o tenant não oferece.
+    if tenant.accepts_delivery and tenant.accepts_pickup:
+        fulfillment = "na entrega ou retirada"
+    elif tenant.accepts_delivery:
+        fulfillment = "na entrega"
+    else:
+        fulfillment = "na retirada"
+
+    parts = [
+        f"{fulfillment.capitalize()}: Pix, cartão de crédito, cartão de débito ou dinheiro."
+    ]
+
+    # `online_payments_allowed` sozinho significa apenas que o VemDeDelivery
+    # liberou a solicitação da subconta. Só anunciamos pagamento online quando
+    # o checkout está efetivamente disponível para o cliente (subconta pronta,
+    # aceita e aprovada), usando a mesma regra do checkout da aplicação.
+    from apps.billing.online import online_payment_available
+
+    if online_payment_available(tenant):
+        parts.append("Online: Pix ou cartão de crédito pelo checkout da loja.")
+
+    return "\n".join(parts)
 
 
 def find_delivery_zone(tenant, question):
@@ -361,6 +384,12 @@ def _product_available_today(product):
 def _product_request_kind(question):
     if _has_any(question, ("link", "manda o link", "me manda", "me envia", "abrir produto")):
         return "link"
+    if _has_any(question, ("o que vem", "ingrediente", "ingredientes", "descricao", "composicao", "leva o que", "vem o que")):
+        return "description"
+    if _has_any(question, ("adicional", "adicionais", "extra", "extras", "acrescimo", "complemento", "molho", "molhos", "borda", "bordas")):
+        return "customization"
+    if _has_any(question, ("vegano", "vegana", "picante", "apimentado", "apimentada", "alergeno", "alergenos", "alergia", "gluten", "lactose", "caloria", "calorias", "peso", "gramas", "tempo de preparo", "preparo")):
+        return "details"
     if _has_any(question, ("quanto custa", "preco", "valor", "quanto e", "custa", "custo")):
         return "price"
     if _has_any(question, ("quais", "opcoes", "mostra", "listar", "lista")):
@@ -368,9 +397,9 @@ def _product_request_kind(question):
     return "availability"
 
 
-def _rank_products(tenant, question):
+def _rank_products(tenant, question, *, available_only=True):
     products = list(
-        Product.objects.filter(tenant=tenant, is_available=True)
+        Product.objects.filter(tenant=tenant)
         .select_related("category")
         .order_by("name")[:300]
     )
@@ -379,7 +408,7 @@ def _rank_products(tenant, question):
     ranked = []
 
     for product in products:
-        if not _product_available_today(product):
+        if available_only and not _product_available_today(product):
             continue
 
         name_norm = normalize(product.name)
@@ -465,7 +494,7 @@ def find_products(tenant, question, limit=5):
         or top["specificity"] > second_specificity
         or top["score"] >= second["score"] + 55
     )
-    if kind in {"price", "link"} and clearly_specific:
+    if kind in {"price", "link", "description", "customization", "details"} and clearly_specific:
         return [top["product"]]
 
     # "Tem hambúrguer Bacon?" também é consulta de produto específico, enquanto
@@ -557,6 +586,434 @@ def _context_products(tenant, context):
     }
     return [products_by_id[pk] for pk in ids if pk in products_by_id]
 
+
+
+
+def _specific_product(tenant, question, context=None, *, include_unavailable=False):
+    ranked = _rank_products(tenant, question, available_only=not include_unavailable)
+    if ranked:
+        top = ranked[0]
+        second = ranked[1] if len(ranked) > 1 else None
+        if (
+            top["exact_name"]
+            or top["specificity"] > 0
+            or second is None
+            or top["score"] >= second["score"] + 55
+        ):
+            return top["product"]
+    previous = _context_products(tenant, context or {})
+    return previous[0] if len(previous) == 1 else None
+
+
+def _unavailable_product(tenant, question):
+    ranked = _rank_products(tenant, question, available_only=False)
+    for item in ranked[:4]:
+        product = item["product"]
+        if _product_available_today(product):
+            continue
+        # Require strong evidence before saying an unavailable product exists.
+        if item["exact_name"] or item["specificity"] > 0:
+            return product
+    return None
+
+
+def _promotion_price(product):
+    if not product.has_discount:
+        return brl(product.effective_price)
+    return f"~{brl(product.price)}~ → *{brl(product.effective_price)}*"
+
+
+def _active_public_coupons(tenant):
+    from django.db.models import Q
+    from apps.coupons.models import AudienceType, CouponCampaign
+
+    now = timezone.now()
+    rows = (
+        CouponCampaign.objects.filter(
+            tenant=tenant,
+            is_active=True,
+            audience_type=AudienceType.ALL,
+            starts_at__lte=now,
+        )
+        .filter(Q(ends_at__isnull=True) | Q(ends_at__gte=now))
+        .order_by("ends_at", "pk")[:30]
+    )
+    result = []
+    for campaign in rows:
+        if (
+            campaign.usage_limit is not None
+            and campaign.redemptions.count() >= campaign.usage_limit
+        ):
+            continue
+        result.append(campaign)
+    return result
+
+
+def _coupon_description(campaign):
+    from apps.coupons.models import DiscountType
+
+    if campaign.discount_type == DiscountType.PERCENTAGE:
+        pct = format(campaign.discount_value.normalize(), "f")
+        discount = f"{pct}% de desconto"
+    elif campaign.discount_type == DiscountType.FIXED_AMOUNT:
+        discount = f"{brl(campaign.discount_value)} de desconto"
+    elif campaign.discount_type == DiscountType.FREE_DELIVERY:
+        discount = "frete grátis"
+    else:
+        discount = "desconto"
+    minimum = ""
+    if campaign.minimum_order_value and campaign.minimum_order_value > 0:
+        minimum = f" em pedidos a partir de {brl(campaign.minimum_order_value)}"
+    return f"*{campaign.code}* — {discount}{minimum}"
+
+
+def _promotions_answer(tenant):
+    products = [
+        p for p in Product.objects.filter(tenant=tenant, is_available=True)
+        .select_related("category").order_by("name")[:300]
+        if _product_available_today(p) and p.has_discount
+    ]
+    coupons = _active_public_coupons(tenant)
+    if not products and not coupons:
+        return KnowledgeAnswer(
+            "promotion",
+            ("Não há promoções de produto nem cupons públicos ativos neste momento.",),
+            "No momento não encontrei promoções públicas ativas no cadastro da loja 😊",
+            context={"intent": "promotion"},
+        )
+    blocks = ["Temos estas ofertas ativas 🔥"]
+    facts = []
+    for product in products[:3]:
+        blocks.append(
+            f"*{product.name}* — {_promotion_price(product)}\n"
+            f"👉 {product_url(tenant, product)}"
+        )
+        facts.append(
+            f"{product.name}: de {brl(product.price)} por {brl(product.effective_price)}. "
+            f"Link direto: {product_url(tenant, product)}"
+        )
+    if coupons:
+        coupon_lines = [_coupon_description(c) for c in coupons[:3]]
+        blocks.append("Cupons públicos disponíveis:\n" + "\n".join(coupon_lines))
+        facts.extend(f"Cupom público ativo: {_coupon_description(c)}" for c in coupons[:3])
+    return KnowledgeAnswer(
+        "promotion", tuple(facts), "\n\n".join(blocks), context={"intent": "promotion"}
+    )
+
+
+def _fulfillment_answer(tenant, question):
+    asks_pickup = _has_any(
+        question,
+        ("posso retirar", "faz retirada", "fazem retirada", "tem retirada", "retirar pedido", "buscar pedido", "posso buscar", "onde retiro", "onde busco", "retirada no local", "retirar ai"),
+    )
+    asks_delivery = _has_any(
+        question,
+        ("faz entrega", "fazem entrega", "tem entrega", "voces entregam", "vocês entregam", "entrega em casa", "trabalha com entrega"),
+    )
+    if asks_pickup:
+        if not tenant.accepts_pickup:
+            return KnowledgeAnswer(
+                "fulfillment",
+                ("A loja não oferece retirada; atende somente por entrega.",),
+                "No momento trabalhamos somente com *entrega* 🚚 e não oferecemos retirada no local.",
+                context={"intent": "fulfillment"},
+            )
+        address = store_address(tenant)
+        suffix = f"\n\nA retirada é em *{address}* 📍" if address else ""
+        return KnowledgeAnswer(
+            "fulfillment",
+            ("A loja oferece retirada no local.", f"Endereço: {address}." if address else "Endereço ainda não cadastrado."),
+            f"Pode retirar sim 😊{suffix}",
+            context={"intent": "fulfillment"},
+        )
+    if asks_delivery:
+        if not tenant.accepts_delivery:
+            return KnowledgeAnswer(
+                "fulfillment",
+                ("A loja não oferece entrega; atende somente por retirada.",),
+                "No momento trabalhamos somente com *retirada no local* 📍 e não fazemos entrega.",
+                context={"intent": "fulfillment"},
+            )
+        return KnowledgeAnswer(
+            "fulfillment",
+            ("A loja oferece entrega.",),
+            "Fazemos entrega sim 🚚\n\nMe diga a *cidade* e o *bairro* que eu consulto a taxa para você.",
+            context={"intent": "delivery"},
+        )
+    return None
+
+
+def _delivery_areas_question(question):
+    return _has_any(
+        question,
+        (
+            "quais bairros", "bairros atendidos", "bairros voces entregam",
+            "onde entrega", "onde voces entregam", "areas de entrega",
+            "regioes de entrega", "quais regioes", "onde faz entrega",
+        ),
+    )
+
+
+def _delivery_areas_answer(tenant, question):
+    if not tenant.accepts_delivery:
+        return KnowledgeAnswer(
+            "delivery_areas",
+            ("A loja não oferece entrega.",),
+            "No momento a loja trabalha somente com retirada no local 📍",
+            context={"intent": "delivery_areas"},
+        )
+    zones = list(
+        DeliveryZone.objects.filter(tenant=tenant, is_active=True)
+        .order_by("city", "neighborhood")
+    )
+    if not zones:
+        return KnowledgeAnswer(
+            "delivery_areas",
+            ("Não há zonas de entrega ativas cadastradas.",),
+            "Ainda não encontrei bairros de entrega cadastrados para esta loja 😕",
+            context={"intent": "delivery_areas"},
+        )
+    explicit_city = _delivery_city(tenant, question)
+    cities = sorted({z.city for z in zones}, key=str.casefold)
+    if not explicit_city and len(cities) > 1:
+        city_list = ", ".join(cities[:8])
+        return KnowledgeAnswer(
+            "delivery_areas",
+            tuple(f"Cidade atendida: {city}." for city in cities),
+            f"Atendemos mais de uma cidade 🚚\n\n*{city_list}*\n\nQual cidade você quer consultar?",
+            context={"intent": "delivery_areas"},
+        )
+    city = explicit_city or cities[0]
+    selected = [z for z in zones if normalize(z.city) == normalize(city)]
+    visible = selected[:12]
+    lines = [f"• *{z.neighborhood}* — {brl(z.fee)}" for z in visible]
+    if len(selected) > len(visible):
+        lines.append(f"• e mais {len(selected) - len(visible)} bairro(s)")
+    return KnowledgeAnswer(
+        "delivery_areas",
+        tuple(f"{z.neighborhood}, {z.city}: {brl(z.fee)}" for z in selected),
+        f"Em *{city}*, entregamos nestes bairros 🚚\n\n" + "\n".join(lines),
+        context={"intent": "delivery_areas", "city": city},
+    )
+
+
+def _product_description_answer(tenant, product):
+    if product.description.strip():
+        text = product.description.strip()
+        return KnowledgeAnswer(
+            "product_description",
+            (f"Descrição de {product.name}: {text}", f"Link direto: {product_url(tenant, product)}"),
+            f"O *{product.name}* vem assim 😊\n\n{text}\n\n👉 {product_url(tenant, product)}",
+            context={"intent": "product", "product_ids": [product.pk]},
+        )
+    return KnowledgeAnswer(
+        "product_description",
+        (f"{product.name} não possui descrição cadastrada.", f"Link direto: {product_url(tenant, product)}"),
+        f"A loja ainda não cadastrou os ingredientes/descrição do *{product.name}* 😕\n\n👉 {product_url(tenant, product)}",
+        context={"intent": "product", "product_ids": [product.pk]},
+    )
+
+
+def _customization_groups(product):
+    return list(
+        CustomizationGroup.objects.filter(
+            tenant=product.tenant, category=product.category, is_active=True
+        )
+        .select_related("label")
+        .prefetch_related("options")
+        .order_by("pk")
+    )
+
+
+def _find_customization_options(tenant, question, product=None):
+    qs = CustomizationOption.objects.filter(tenant=tenant, is_available=True).select_related(
+        "group", "group__label", "group__category"
+    )
+    if product is not None:
+        qs = qs.filter(group__category=product.category, group__is_active=True)
+    qtokens = _tokens(question)
+    ranked = []
+    for option in qs[:500]:
+        target_tokens = _tokens(option.name)
+        matched = _matched_target_tokens(qtokens, target_tokens)
+        if not matched:
+            best = max((_best_token_similarity(qtokens, t) for t in target_tokens), default=0)
+            if best < 0.82:
+                continue
+            score = best
+        else:
+            score = 1 + len(matched)
+        ranked.append((score, option))
+    ranked.sort(key=lambda item: (-item[0], item[1].name.casefold()))
+    return [item[1] for item in ranked[:5]]
+
+
+def _customization_answer(tenant, question, product=None):
+    matched_options = _find_customization_options(tenant, question, product=product)
+    option_specific = (
+        _has_any(question, ("quanto custa", "preco", "valor", "adicionar", "colocar"))
+        or (product is None and bool(matched_options))
+    )
+    if matched_options and option_specific:
+        lines = []
+        facts = []
+        for option in matched_options[:3]:
+            group_name = option.group.label.name if option.group.label_id else "Adicionais"
+            lines.append(f"*{option.name}* — +{brl(option.price)} ({group_name})")
+            facts.append(
+                f"{option.name}: adicional de {brl(option.price)} no grupo {group_name}, categoria {option.group.category.name}."
+            )
+        suffix = f"\n\n👉 {product_url(tenant, product)}" if product else ""
+        if product:
+            facts.append(f"Link direto: {product_url(tenant, product)}")
+        return KnowledgeAnswer(
+            "customization", tuple(facts), "Encontrei estas opções 😊\n\n" + "\n".join(lines) + suffix,
+            context={"intent": "product", "product_ids": [product.pk]} if product else {"intent": "customization"},
+        )
+    if product is None:
+        return KnowledgeAnswer(
+            "customization",
+            ("É necessário identificar o produto para listar todos os adicionais aplicáveis.",),
+            "Claro 😊 Me diga *qual produto* você quer personalizar que eu mostro os adicionais disponíveis.",
+            context={"intent": "customization"},
+        )
+    groups = _customization_groups(product)
+    blocks = []
+    facts = []
+    for group in groups:
+        options = [o for o in group.options.all() if o.is_available and o.tenant_id == tenant.pk]
+        if not options:
+            continue
+        name = group.label.name if group.label_id else "Adicionais"
+        option_lines = [f"• {o.name} — +{brl(o.price)}" for o in options[:8]]
+        if len(options) > 8:
+            option_lines.append(f"• e mais {len(options) - 8} opção(ões)")
+        required = "obrigatório" if group.min_options > 0 else "opcional"
+        blocks.append(f"*{name}* ({required})\n" + "\n".join(option_lines))
+        facts.extend(f"{name}: {o.name} +{brl(o.price)}" for o in options)
+    if not blocks:
+        return KnowledgeAnswer(
+            "customization",
+            (f"{product.name} não possui adicionais ativos cadastrados.",),
+            f"O *{product.name}* não tem adicionais cadastrados no momento 😊\n\n👉 {product_url(tenant, product)}",
+            context={"intent": "product", "product_ids": [product.pk]},
+        )
+    facts.append(f"Link direto: {product_url(tenant, product)}")
+    return KnowledgeAnswer(
+        "customization", tuple(facts),
+        f"Para o *{product.name}*, temos estas opções:\n\n" + "\n\n".join(blocks) + f"\n\n👉 {product_url(tenant, product)}",
+        context={"intent": "product", "product_ids": [product.pk]},
+    )
+
+
+def _characteristic_kind(question):
+    if _has_any(question, ("vegano", "vegana", "vegan")):
+        return "vegan"
+    if _has_any(question, ("picante", "apimentado", "apimentada", "pimenta")):
+        return "spicy"
+    if _has_any(question, ("alergeno", "alergenos", "alergia", "gluten", "lactose", "leite", "ovo", "amendoim", "castanha", "soja")):
+        return "allergens"
+    if _has_any(question, ("caloria", "calorias", "kcal")):
+        return "calories"
+    if _has_any(question, ("tempo de preparo", "preparo", "fica pronto", "pronto em", "demora para preparar")):
+        return "prep_time"
+    if _has_any(question, ("peso", "gramas", "grama")):
+        return "weight"
+    return None
+
+
+def _generic_characteristic_answer(tenant, kind):
+    products = [
+        p for p in Product.objects.filter(tenant=tenant, is_available=True)
+        .select_related("category").order_by("name")[:300]
+        if _product_available_today(p)
+    ]
+    if kind == "vegan":
+        matches = [p for p in products if p.is_vegan]
+        label = "opções veganas 🌱"
+    elif kind == "spicy":
+        matches = [p for p in products if p.is_spicy]
+        label = "opções picantes 🌶️"
+    else:
+        return None
+    if not matches:
+        return KnowledgeAnswer(
+            "product_details", (f"Não há {label} marcadas no cadastro.",),
+            f"Não encontrei {label} cadastradas no momento 😕",
+            context={"intent": "product_details"},
+        )
+    blocks = [f"Temos estas {label}:"]
+    for product in matches[:3]:
+        blocks.append(f"*{product.name}* — {brl(product.effective_price)}\n👉 {product_url(tenant, product)}")
+    return KnowledgeAnswer(
+        "product_details", tuple(
+            f"{p.name} está marcado como {label}. Link direto: {product_url(tenant, p)}"
+            for p in matches
+        ),
+        "\n\n".join(blocks),
+        context={"intent": "product", "product_ids": [p.pk for p in matches[:5]]},
+    )
+
+
+def _product_characteristic_answer(tenant, product, kind):
+    url = product_url(tenant, product)
+    context = {"intent": "product", "product_ids": [product.pk]}
+    if kind == "vegan":
+        if product.is_vegan:
+            text = f"Sim 🌱 O *{product.name}* está cadastrado como vegano."
+        else:
+            text = f"O *{product.name}* não está marcado como vegano no cadastro da loja."
+        return KnowledgeAnswer("product_details", (text, f"Link direto: {url}"), f"{text}\n\n👉 {url}", context=context)
+    if kind == "spicy":
+        text = (
+            f"Sim 🌶️ O *{product.name}* está marcado como picante."
+            if product.is_spicy else
+            f"O *{product.name}* não está marcado como picante no cadastro da loja."
+        )
+        return KnowledgeAnswer("product_details", (text, f"Link direto: {url}"), f"{text}\n\n👉 {url}", context=context)
+    if kind == "allergens":
+        if product.allergens.strip():
+            text = f"Alérgenos cadastrados para *{product.name}*: *{product.allergens.strip()}* ⚠️"
+        else:
+            text = f"A loja ainda não cadastrou informações de alérgenos para *{product.name}* ⚠️"
+        warning = "Em caso de alergia grave, confirme diretamente com a loja, pois o sistema não informa risco de contaminação cruzada."
+        return KnowledgeAnswer(
+            "product_allergens", (text, warning), f"{text}\n\n{warning}\n\n👉 {url}", context=context
+        )
+    if kind == "calories":
+        text = (
+            f"O *{product.name}* tem *{product.calories} kcal* por porção no cadastro."
+            if product.calories is not None else
+            f"A loja ainda não cadastrou as calorias do *{product.name}*."
+        )
+        return KnowledgeAnswer("product_details", (text, f"Link direto: {url}"), f"{text}\n\n👉 {url}", context=context)
+    if kind == "prep_time":
+        if product.prep_time is not None:
+            text = f"O tempo de preparo cadastrado do *{product.name}* é de aproximadamente *{product.prep_time} min* ⏱️"
+            note = "Esse tempo é apenas de preparo e não inclui o tempo total de entrega."
+            return KnowledgeAnswer("product_details", (text, note, f"Link direto: {url}"), f"{text}\n\n{note}\n\n👉 {url}", context=context)
+        text = f"A loja ainda não cadastrou o tempo de preparo do *{product.name}*."
+        return KnowledgeAnswer("product_details", (text, f"Link direto: {url}"), f"{text}\n\n👉 {url}", context=context)
+    if kind == "weight":
+        text = (
+            f"O peso cadastrado do *{product.name}* é de *{format(product.weight.normalize(), 'f')} g*."
+            if product.weight is not None else
+            f"A loja ainda não cadastrou o peso do *{product.name}*."
+        )
+        return KnowledgeAnswer("product_details", (text, f"Link direto: {url}"), f"{text}\n\n👉 {url}", context=context)
+    return None
+
+
+def _unavailable_answer(tenant, product):
+    return KnowledgeAnswer(
+        "product_unavailable",
+        (
+            f"{product.name} existe no cadastro, mas não está disponível neste momento.",
+            f"Catálogo: {catalog_url(tenant)}",
+        ),
+        f"O *{product.name}* está cadastrado, mas não está disponível no momento 😕\n\nVeja outras opções no cardápio:\n👉 {catalog_url(tenant)}",
+        context={"intent": "product_unavailable"},
+    )
 
 @dataclass(frozen=True)
 class KnowledgeAnswer:
@@ -699,24 +1156,31 @@ def answer_from_store(tenant, question, context=None):
             pause_reason="human",
         )
 
-    # Intenções explícitas sempre vencem o contexto anterior. Isso evita que uma
-    # conversa sobre entrega "prenda" perguntas novas como endereço, horário ou Pix.
+    # Entrega/retirada como capacidade da operação, sem confundir com consulta de taxa.
     address_words = (
         "endereco", "onde fica", "onde voces fica", "onde voces ficam", "localizacao",
-        "retirada", "buscar ai", "buscar aqui", "cade endereco",
+        "buscar ai", "buscar aqui", "cade endereco",
     )
+    if not _has_any(question, address_words):
+        fulfillment = _fulfillment_answer(tenant, question)
+        has_location = bool(_delivery_city(tenant, question) or _delivery_neighborhood(tenant, question))
+        asks_fee = _has_any(question, ("taxa", "frete", "valor da entrega", "quanto fica entrega", "quanto entrega"))
+        if fulfillment and not has_location and not asks_fee and not _delivery_areas_question(question):
+            return fulfillment
+
+    # Intenções explícitas sempre vencem o contexto anterior.
     if _has_any(question, address_words):
         address = store_address(tenant)
         if address:
             return KnowledgeAnswer(
                 "address",
-                (f"Endereço para retirada: {address}.",),
+                (f"Endereço da loja: {address}.",),
                 f"Claro! 📍\n\nFicamos em *{address}*.",
                 context={"intent": "address"},
             )
         return KnowledgeAnswer(
             "address",
-            ("O endereço para retirada ainda não foi preenchido no painel.",),
+            ("O endereço ainda não foi preenchido no painel.",),
             "Ainda não encontrei o endereço da loja no cadastro 😕",
         )
 
@@ -737,16 +1201,27 @@ def answer_from_store(tenant, question, context=None):
 
     payment_words = (
         "pagamento", "pagar", "pix", "cartao", "dinheiro", "debito",
-        "credito", "troco", "forma de pagamento",
+        "credito", "troco", "forma de pagamento", "formas de pagamento",
     )
     if _has_any(question, payment_words):
         text = payment_text(tenant)
+        if _has_any(question, ("quais", "forma de pagamento", "formas de pagamento")):
+            fallback = f"As formas de pagamento disponíveis são 😊💳\n\n{text}"
+        else:
+            fallback = f"Aceitamos sim 😊💳\n\n{text}"
         return KnowledgeAnswer(
-            "payment",
-            (text,),
-            f"Aceitamos sim 😊💳\n\n{text}",
-            context={"intent": "payment"},
+            "payment", (text,), fallback, context={"intent": "payment"}
         )
+
+    promotion_words = (
+        "promocao", "promocoes", "oferta", "ofertas", "desconto", "descontos",
+        "cupom", "cupons", "em promocao",
+    )
+    if _has_any(question, promotion_words):
+        return _promotions_answer(tenant)
+
+    if _delivery_areas_question(question):
+        return _delivery_areas_answer(tenant, question)
 
     delivery_words = (
         "entrega", "taxa", "frete", "bairro", "entregam", "entregar",
@@ -756,11 +1231,16 @@ def answer_from_store(tenant, question, context=None):
     delivery_question = explicit_delivery or _delivery_followup(question, context, tenant)
 
     if delivery_question:
+        if not tenant.accepts_delivery:
+            return KnowledgeAnswer(
+                "delivery",
+                ("A loja não oferece entrega.",),
+                "No momento trabalhamos somente com *retirada no local* 📍 e não fazemos entrega.",
+                context={"intent": "delivery"},
+            )
         city = _delivery_city(tenant, question) or context.get("city")
         neighborhood = _delivery_neighborhood(tenant, question) or context.get("neighborhood")
 
-        # Bairro sem cidade: não presumimos "Centro" (ou qualquer outro bairro)
-        # de uma cidade específica. Pedimos a cidade e guardamos só o mínimo necessário.
         if neighborhood and not city:
             return KnowledgeAnswer(
                 "delivery",
@@ -769,8 +1249,10 @@ def answer_from_store(tenant, question, context=None):
                 context={"intent": "delivery", "neighborhood": neighborhood},
             )
 
-        # Cidade sem bairro (inclusive resposta a uma pergunta anterior de cidade).
         if city and not neighborhood:
+            # Se a pergunta é sobre bairros atendidos, listamos em vez de pedir bairro.
+            if _delivery_areas_question(question):
+                return _delivery_areas_answer(tenant, question)
             return KnowledgeAnswer(
                 "delivery",
                 (f"Cidade informada: {city}. Falta o bairro para consultar a zona de entrega.",),
@@ -792,10 +1274,8 @@ def answer_from_store(tenant, question, context=None):
                     (fact,),
                     f"A entrega para *{zone.neighborhood}, {zone.city}* fica *{brl(zone.fee)}* 🚚",
                     context={
-                        "intent": "delivery_fee",
-                        "zone_id": zone.pk,
-                        "city": zone.city,
-                        "neighborhood": zone.neighborhood,
+                        "intent": "delivery_fee", "zone_id": zone.pk,
+                        "city": zone.city, "neighborhood": zone.neighborhood,
                     },
                 )
             return KnowledgeAnswer(
@@ -814,15 +1294,48 @@ def answer_from_store(tenant, question, context=None):
                 f"{zone.neighborhood}, {zone.city}: {brl(zone.fee)}" for zone in zones
             )
             return KnowledgeAnswer(
-                "delivery",
-                facts,
+                "delivery", facts,
                 "Claro 😊 Me diga a *cidade* e o *bairro* da entrega que eu consulto a taxa para você.",
                 context={"intent": "delivery"},
             )
         return KnowledgeAnswer(
-            "delivery",
-            ("A loja não possui zonas de entrega ativas cadastradas.",),
+            "delivery", ("A loja não possui zonas de entrega ativas cadastradas.",),
             "Ainda não encontrei áreas de entrega cadastradas para esta loja 😕",
+        )
+
+    description_intent = _has_any(
+        question, ("o que vem", "ingrediente", "ingredientes", "descricao", "composicao", "leva o que", "vem o que")
+    )
+    customization_intent = _has_any(
+        question, ("adicional", "adicionais", "extra", "extras", "acrescimo", "complemento", "molho", "molhos", "borda", "bordas")
+    )
+    characteristic = _characteristic_kind(question)
+
+    if description_intent:
+        product = _specific_product(tenant, question, context)
+        if product:
+            return _product_description_answer(tenant, product)
+        return KnowledgeAnswer(
+            "product_description", ("Não foi possível identificar um único produto.",),
+            "Claro 😊 Me diga *qual produto* você quer saber os ingredientes/descrição.",
+            context={"intent": "product_description"},
+        )
+
+    if customization_intent:
+        product = _specific_product(tenant, question, context)
+        return _customization_answer(tenant, question, product=product)
+
+    if characteristic:
+        product = _specific_product(tenant, question, context)
+        if product:
+            return _product_characteristic_answer(tenant, product, characteristic)
+        generic = _generic_characteristic_answer(tenant, characteristic)
+        if generic:
+            return generic
+        return KnowledgeAnswer(
+            "product_details", ("A informação solicitada depende de um produto específico.",),
+            "Claro 😊 Me diga *qual produto* você quer consultar.",
+            context={"intent": "product_details"},
         )
 
     products = find_products(tenant, question)
@@ -832,19 +1345,20 @@ def answer_from_store(tenant, question, context=None):
         product_context = {"intent": "product", "product_ids": [p.pk for p in products[:5]]}
         if len(products) == 1:
             return KnowledgeAnswer(
-                "product",
-                facts,
+                "product", facts,
                 _single_product_fallback(tenant, products[0], request_kind=request_kind),
                 context=product_context,
             )
         return KnowledgeAnswer(
-            "product",
-            facts,
+            "product", facts,
             _product_list_fallback(tenant, products, request_kind=request_kind),
             context=product_context,
         )
 
-    # Follow-ups curtos podem usar somente o contexto recente. Ele expira fora daqui.
+    unavailable = _unavailable_product(tenant, question)
+    if unavailable:
+        return _unavailable_answer(tenant, unavailable)
+
     previous_products = _context_products(tenant, context)
     followup_words = {"quanto", "preco", "valor", "esse", "essa", "dele", "dela"}
     raw_words = set(q.split())
@@ -852,8 +1366,7 @@ def answer_from_store(tenant, question, context=None):
         if len(previous_products) == 1:
             product = previous_products[0]
             return KnowledgeAnswer(
-                "product",
-                tuple(product_facts(tenant, [product])),
+                "product", tuple(product_facts(tenant, [product])),
                 _single_product_fallback(
                     tenant, product, request_kind=_product_request_kind(question)
                 ),
@@ -865,16 +1378,14 @@ def answer_from_store(tenant, question, context=None):
         return KnowledgeAnswer(
             "greeting",
             (f"Nome da loja: {tenant.name}.", f"Catálogo: {catalog_url(tenant)}"),
-            f"Oi! 😊 Sou o assistente da *{tenant.name}*. Posso te ajudar com o cardápio, entrega, endereço, horários e formas de pagamento.",
+            f"Oi! 😊 Sou o assistente da *{tenant.name}*. Posso te ajudar com o cardápio, entrega, retirada, endereço, horários, promoções e formas de pagamento.",
         )
 
     return KnowledgeAnswer(
         "unknown",
         (
-            f"Nome da loja: {tenant.name}.",
-            f"Catálogo: {catalog_url(tenant)}",
-            "O assistente pode responder sobre produtos, preços, entrega, endereço, horários e pagamento.",
+            f"Nome da loja: {tenant.name}.", f"Catálogo: {catalog_url(tenant)}",
+            "O assistente pode responder sobre produtos, adicionais, promoções, entrega, retirada, endereço, horários e pagamento.",
         ),
-        f"Posso te ajudar 😊 Me pergunte sobre produtos, preços, entrega, endereço, horários ou pagamento.\nCardápio: {catalog_url(tenant)}",
+        f"Posso te ajudar 😊 Me pergunte sobre produtos, adicionais, promoções, entrega, retirada, endereço, horários ou pagamento.\nCardápio: {catalog_url(tenant)}",
     )
-

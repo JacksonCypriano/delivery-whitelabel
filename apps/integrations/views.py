@@ -153,6 +153,7 @@ def tenant_evolution_webhook(request):
             message["message_id"],
             message["phone"],
             message["text"],
+            message.get("kind", "text"),
         )
         return HttpResponse(status=202)
     except (ValueError, TypeError, UnicodeError):

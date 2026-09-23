@@ -45,12 +45,33 @@ def extract_qr(payload):
     return None
 
 
+def _unwrap_message(message):
+    """Unwrap WhatsApp/Evolution message containers without trusting deep nesting."""
+    current = message if isinstance(message, dict) else {}
+    wrappers = (
+        "ephemeralMessage",
+        "viewOnceMessage",
+        "viewOnceMessageV2",
+        "viewOnceMessageV2Extension",
+        "documentWithCaptionMessage",
+    )
+    for _ in range(4):
+        nested = None
+        for key in wrappers:
+            wrapper = current.get(key)
+            if isinstance(wrapper, dict) and isinstance(wrapper.get("message"), dict):
+                nested = wrapper["message"]
+                break
+        if nested is None:
+            break
+        current = nested
+    return current
+
+
 def extract_text(data):
     if not isinstance(data, dict):
         return ""
-    message = data.get("message")
-    if not isinstance(message, dict):
-        return ""
+    message = _unwrap_message(data.get("message"))
     candidates = [message.get("conversation")]
     extended = message.get("extendedTextMessage")
     if isinstance(extended, dict):
@@ -61,10 +82,33 @@ def extract_text(data):
     video = message.get("videoMessage")
     if isinstance(video, dict):
         candidates.append(video.get("caption"))
+    document = message.get("documentMessage")
+    if isinstance(document, dict):
+        candidates.append(document.get("caption"))
     for value in candidates:
         if isinstance(value, str) and value.strip():
             return value.strip()[:4000]
     return ""
+
+
+def _message_kind(message):
+    if not isinstance(message, dict):
+        return "text"
+    kinds = (
+        ("audioMessage", "audio"),
+        ("imageMessage", "image"),
+        ("videoMessage", "video"),
+        ("documentMessage", "document"),
+        ("stickerMessage", "sticker"),
+        ("locationMessage", "location"),
+        ("liveLocationMessage", "location"),
+        ("contactMessage", "contact"),
+        ("contactsArrayMessage", "contact"),
+    )
+    for key, kind in kinds:
+        if isinstance(message.get(key), dict):
+            return kind
+    return "text"
 
 
 def extract_message(data):
@@ -82,10 +126,10 @@ def extract_message(data):
     remote = remote_alt or remote_jid
     if not remote or remote == "status@broadcast" or remote.endswith("@g.us"):
         return None
-    text = extract_text(data)
-    message = data.get("message") if isinstance(data.get("message"), dict) else {}
-    message_kind = "audio" if isinstance(message.get("audioMessage"), dict) else "text"
-    if not text and message_kind != "audio":
+    message = _unwrap_message(data.get("message"))
+    text = extract_text({"message": message})
+    message_kind = _message_kind(message)
+    if not text and message_kind == "text":
         return None
     message_id = str(key.get("id") or "")[:160]
     if not message_id:
@@ -101,7 +145,6 @@ def extract_message(data):
         "kind": message_kind,
         "from_me": bool(key.get("fromMe")),
     }
-
 
 def incoming_once(instance_name, message_id):
     digest = hashlib.sha256(f"{instance_name}\0{message_id}".encode()).hexdigest()

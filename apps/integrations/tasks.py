@@ -156,13 +156,46 @@ def process_tenant_whatsapp_message(agent_id, message_id, phone, text, message_k
     if row.ai_paused_until and row.ai_paused_until > now:
         return "conversation-paused"
 
-    if message_kind == "audio":
-        reply_text = (
-            "Ainda não consigo interpretar mensagens de áudio 🎧\n\n"
-            "Por enquanto, me envie sua dúvida por *texto* que eu te ajudo por aqui 😊"
-        )
-        reply_intent = "audio"
-        reply_context = {"intent": "audio"}
+    if message_kind in {"audio", "image", "video", "document", "sticker", "location", "contact"}:
+        media_replies = {
+            "audio": (
+                "audio",
+                "Ainda não consigo interpretar mensagens de áudio 🎧\n\n"
+                "Por enquanto, me envie sua dúvida por *texto* que eu te ajudo por aqui 😊",
+            ),
+            "location": (
+                "location",
+                "Ainda não consigo usar a localização compartilhada diretamente 📍\n\n"
+                "Me envie por *texto* a cidade e o bairro que eu consulto a entrega para você 😊",
+            ),
+            "image": (
+                "media",
+                "Ainda não consigo interpretar imagens por aqui 🖼️\n\n"
+                "Me envie por *texto* o nome do produto ou a sua dúvida que eu te ajudo 😊",
+            ),
+            "video": (
+                "media",
+                "Ainda não consigo interpretar vídeos por aqui 🎥\n\n"
+                "Me envie sua dúvida por *texto* que eu te ajudo 😊",
+            ),
+            "document": (
+                "media",
+                "Ainda não consigo interpretar documentos enviados pelo WhatsApp 📄\n\n"
+                "Me envie sua dúvida por *texto* que eu te ajudo 😊",
+            ),
+            "sticker": (
+                "media",
+                "Ainda não consigo interpretar figurinhas 😊\n\n"
+                "Se precisar de ajuda, me envie uma mensagem por *texto*.",
+            ),
+            "contact": (
+                "media",
+                "Ainda não consigo interpretar contatos compartilhados pelo WhatsApp.\n\n"
+                "Me envie sua dúvida por *texto* que eu te ajudo 😊",
+            ),
+        }
+        reply_intent, reply_text = media_replies[message_kind]
+        reply_context = {"intent": reply_intent}
         reply_pause_minutes = 0
         reply_pause_reason = ""
     else:

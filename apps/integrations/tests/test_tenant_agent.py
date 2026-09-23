@@ -16,7 +16,9 @@ from apps.integrations.whatsapp_agent.connection import (
     get_or_create_agent,
     monitor_agent,
 )
+from apps.integrations.whatsapp_agent.agent import answer as agent_answer
 from apps.integrations.whatsapp_agent.knowledge import answer_from_store, normalize, product_url
+from apps.integrations.whatsapp_agent.provider import extract_message
 from apps.orders.models import Order
 from apps.orders.services import build_whatsapp_message
 from apps.orders.whatsapp_marker import extract_order_id
@@ -25,6 +27,7 @@ from apps.stores.models import (
     CustomizationGroup,
     CustomizationGroupLabel,
     CustomizationOption,
+    HalfProduct,
     Product,
 )
 from apps.tenants.models import BusinessHour, DeliveryZone, Tenant
@@ -652,6 +655,55 @@ class TenantWhatsAppAgentTests(TestCase):
         self.assertIn("Limão extra", answer.fallback)
         self.assertIn("R$ 2,00", answer.fallback)
 
+    def test_specific_customization_option_overlapping_product_name_works_without_product(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        Product.objects.create(
+            tenant=self.tenant, category=burgers, name="Combo Bacon",
+            price=Decimal("39.90"), is_available=True,
+        )
+        label = CustomizationGroupLabel.objects.create(
+            tenant=self.tenant, name="Adicionais"
+        )
+        group = CustomizationGroup.objects.create(
+            tenant=self.tenant, category=burgers, label=label,
+            min_options=0, max_options=3, is_active=True,
+        )
+        CustomizationOption.objects.create(
+            tenant=self.tenant, group=group, name="Bacon extra QA",
+            price=Decimal("6.00"), is_available=True,
+        )
+        answer = answer_from_store(
+            self.tenant, "quanto custa adicionar bacon extra QA?"
+        )
+        self.assertEqual(answer.intent, "customization")
+        self.assertIn("Bacon extra QA", answer.fallback)
+        self.assertIn("R$ 6,00", answer.fallback)
+        self.assertNotIn("Combo Bacon", answer.fallback)
+
+    def test_unknown_global_customization_does_not_match_only_generic_extra_word(self):
+        label = CustomizationGroupLabel.objects.create(
+            tenant=self.tenant, name="Adicionais"
+        )
+        group = CustomizationGroup.objects.create(
+            tenant=self.tenant, category=self.category, label=label,
+            min_options=0, max_options=3, is_active=True,
+        )
+        CustomizationOption.objects.create(
+            tenant=self.tenant, group=group, name="Bacon extra",
+            price=Decimal("6.00"), is_available=True,
+        )
+        CustomizationOption.objects.create(
+            tenant=self.tenant, group=group, name="Cheddar extra",
+            price=Decimal("4.50"), is_available=True,
+        )
+        answer = answer_from_store(
+            self.tenant, "quanto custa adicionar cebola roxa extra?"
+        )
+        self.assertEqual(answer.intent, "customization")
+        self.assertIn("não encontrei esse adicional", answer.fallback.lower())
+        self.assertNotIn("Bacon extra", answer.fallback)
+        self.assertNotIn("Cheddar extra", answer.fallback)
+
     def test_promotions_include_discounted_products_and_only_public_active_coupons(self):
         from apps.coupons.models import AudienceType, CouponCampaign, DiscountType
 
@@ -736,7 +788,7 @@ class TenantWhatsAppAgentTests(TestCase):
         self.product.save(update_fields=["stock"])
         answer = answer_from_store(self.tenant, "tem coca cola 2l?")
         self.assertEqual(answer.intent, "product_unavailable")
-        self.assertIn("não está disponível no momento", answer.fallback)
+        self.assertIn("esgotado no momento", answer.fallback)
         self.assertIn("Coca-Cola 2L", answer.fallback)
 
     @patch("apps.integrations.tasks.process_tenant_whatsapp_message.delay")
@@ -783,3 +835,1219 @@ class TenantWhatsAppAgentTests(TestCase):
         reply = send_text.call_args.args[2]
         self.assertIn("não consigo interpretar mensagens de áudio", reply)
         self.assertIn("texto", reply.lower())
+
+    def test_specific_customization_price_returns_only_requested_option(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        bacon = Product.objects.create(
+            tenant=self.tenant, category=burgers, name="Hambúrguer Bacon",
+            price=Decimal("31.90"), is_available=True,
+        )
+        label = CustomizationGroupLabel.objects.create(
+            tenant=self.tenant, name="Adicionais"
+        )
+        group = CustomizationGroup.objects.create(
+            tenant=self.tenant, category=burgers, label=label,
+            min_options=0, max_options=3, is_active=True,
+        )
+        CustomizationOption.objects.create(
+            tenant=self.tenant, group=group, name="Bacon extra",
+            price=Decimal("6.00"), is_available=True,
+        )
+        CustomizationOption.objects.create(
+            tenant=self.tenant, group=group, name="Cheddar extra",
+            price=Decimal("4.50"), is_available=True,
+        )
+        answer = answer_from_store(
+            self.tenant, "quanto custa adicionar bacon extra no hambúrguer bacon?"
+        )
+        self.assertEqual(answer.intent, "customization")
+        self.assertIn("Bacon extra", answer.fallback)
+        self.assertIn("R$ 6,00", answer.fallback)
+        self.assertNotIn("Cheddar extra", answer.fallback)
+        self.assertIn(product_url(self.tenant, bacon), answer.fallback)
+
+    def test_unknown_specific_customization_does_not_list_every_option(self):
+        label = CustomizationGroupLabel.objects.create(
+            tenant=self.tenant, name="Adicionais"
+        )
+        group = CustomizationGroup.objects.create(
+            tenant=self.tenant, category=self.category, label=label,
+            min_options=0, max_options=3, is_active=True,
+        )
+        CustomizationOption.objects.create(
+            tenant=self.tenant, group=group, name="Limão extra",
+            price=Decimal("2.00"), is_available=True,
+        )
+        answer = answer_from_store(
+            self.tenant, "quanto custa adicionar morango na coca cola 2l?"
+        )
+        self.assertEqual(answer.intent, "customization")
+        self.assertIn("não encontrei esse adicional", answer.fallback.lower())
+        self.assertNotIn("Limão extra", answer.fallback)
+
+    def test_specific_unavailable_product_wins_over_generic_available_results(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        Product.objects.create(
+            tenant=self.tenant, category=burgers, name="Hambúrguer Promo QA",
+            price=Decimal("24.90"), is_available=True,
+        )
+        Product.objects.create(
+            tenant=self.tenant, category=burgers, name="Hambúrguer Vegano QA",
+            price=Decimal("29.90"), is_available=True,
+        )
+        unavailable = Product.objects.create(
+            tenant=self.tenant, category=burgers, name="Hambúrguer Esgotado QA",
+            price=Decimal("25.00"), is_available=False,
+        )
+        answer = answer_from_store(self.tenant, "tem hambúrguer esgotado QA?")
+        self.assertEqual(answer.intent, "product_unavailable")
+        self.assertIn(unavailable.name, answer.fallback)
+        self.assertNotIn("Hambúrguer Promo QA", answer.fallback)
+
+    def test_unknown_product_gets_natural_not_found_answer(self):
+        answer = answer_from_store(self.tenant, "tem sushi de salmão?")
+        self.assertEqual(answer.intent, "product_not_found")
+        self.assertIn("sushi de salmão", answer.fallback.lower())
+        self.assertIn("não encontrei", answer.fallback.lower())
+        self.assertIn("cardápio", answer.fallback.lower())
+
+    def test_catalog_and_order_start_go_directly_to_catalog(self):
+        for question in ("me manda o cardápio", "quero fazer um pedido", "como pedir?"):
+            answer = answer_from_store(self.tenant, question)
+            self.assertEqual(answer.intent, "catalog")
+            self.assertIn("bella-massa.lvh.me", answer.fallback)
+
+    def test_order_status_hands_off_to_store_and_pauses_agent(self):
+        answer = answer_from_store(self.tenant, "onde está meu pedido?")
+        self.assertEqual(answer.intent, "order_status")
+        self.assertEqual(answer.pause_minutes, 60)
+        self.assertEqual(answer.pause_reason, "human")
+        self.assertIn("equipe da loja", answer.fallback)
+
+    def test_delivery_eta_never_invents_total_time(self):
+        answer = answer_from_store(self.tenant, "quanto tempo demora a entrega?")
+        self.assertEqual(answer.intent, "delivery_eta")
+        self.assertIn("não tenho um prazo total", answer.fallback.lower())
+        self.assertNotIn("minutos", answer.fallback.lower())
+
+    def test_open_now_question_is_direct(self):
+        BusinessHour.objects.create(
+            tenant=self.tenant,
+            weekday=timezone.localdate().weekday(),
+            is_closed=False,
+            opening_time=time(0, 0),
+            closing_time=time(23, 59),
+        )
+        answer = answer_from_store(self.tenant, "vcs estão abertos?")
+        self.assertEqual(answer.intent, "hours")
+        self.assertIn("aberta agora", answer.fallback.lower())
+
+    def test_payment_online_question_respects_real_availability(self):
+        answer = answer_from_store(self.tenant, "posso pagar pix online pelo site?")
+        self.assertEqual(answer.intent, "payment")
+        self.assertIn("pagamento online não está habilitado", answer.fallback.lower())
+
+    def test_unsupported_payment_method_is_not_claimed_as_accepted(self):
+        answer = answer_from_store(self.tenant, "aceita cartão alimentação?")
+        self.assertEqual(answer.intent, "payment")
+        self.assertIn("não aparece entre as opções", answer.fallback.lower())
+        self.assertNotIn("aceitamos sim", answer.fallback.lower())
+
+    def test_specific_product_promotion_is_answered_without_listing_every_offer(self):
+        self.product.sale_price = Decimal("11.90")
+        self.product.save(update_fields=["sale_price"])
+        answer = answer_from_store(self.tenant, "a coca cola 2l está em promoção?")
+        self.assertEqual(answer.intent, "promotion")
+        self.assertIn("Coca-Cola 2L", answer.fallback)
+        self.assertIn("R$ 11,90", answer.fallback)
+        self.assertNotIn("Cupons públicos", answer.fallback)
+
+    def test_product_comparison_uses_real_prices_inside_category(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        cheap = Product.objects.create(
+            tenant=self.tenant, category=burgers, name="Hambúrguer Econômico",
+            price=Decimal("19.90"), is_available=True,
+        )
+        Product.objects.create(
+            tenant=self.tenant, category=burgers, name="Hambúrguer Premium",
+            price=Decimal("39.90"), is_available=True,
+        )
+        answer = answer_from_store(self.tenant, "qual hambúrguer é mais barato?")
+        self.assertEqual(answer.intent, "product")
+        self.assertIn(cheap.name, answer.fallback)
+        self.assertIn("R$ 19,90", answer.fallback)
+
+    def test_courtesy_message_does_not_dump_agent_menu(self):
+        answer = answer_from_store(self.tenant, "obrigado")
+        self.assertEqual(answer.intent, "thanks")
+        self.assertIn("Por nada", answer.fallback)
+        self.assertNotIn("cardápio, entrega", answer.fallback.lower())
+
+    def test_ephemeral_media_is_unwrapped_and_classified(self):
+        message = extract_message({
+            "key": {
+                "remoteJid": "5511988887777@s.whatsapp.net",
+                "fromMe": False,
+                "id": "IMG-WRAPPED-1",
+            },
+            "message": {
+                "ephemeralMessage": {
+                    "message": {
+                        "imageMessage": {"caption": "essa foto"}
+                    }
+                }
+            },
+        })
+        self.assertIsNotNone(message)
+        self.assertEqual(message["kind"], "image")
+        self.assertEqual(message["text"], "essa foto")
+
+    @patch("apps.integrations.tasks.process_tenant_whatsapp_message.delay")
+    def test_image_without_caption_is_queued_for_guidance(self, delay):
+        agent = get_or_create_agent(self.tenant)
+        agent.instance_created = True
+        agent.ai_enabled = True
+        agent.save()
+        payload = {
+            "event": "MESSAGES_UPSERT",
+            "instance": agent.instance_name,
+            "data": {
+                "key": {
+                    "remoteJid": "5511988887777@s.whatsapp.net",
+                    "fromMe": False,
+                    "id": "IMAGE-1",
+                },
+                "message": {"imageMessage": {"mimetype": "image/jpeg"}},
+            },
+        }
+        response = self.client.post(
+            "/integracoes/evolution/tenant-webhook/",
+            data=json.dumps(payload),
+            content_type="application/json",
+            HTTP_X_VDD_WEBHOOK_TOKEN="t" * 48,
+        )
+        self.assertEqual(response.status_code, 202)
+        delay.assert_called_once_with(
+            agent.pk, "IMAGE-1", "5511988887777", "", "image"
+        )
+
+    @patch("apps.integrations.whatsapp_agent.client.TenantEvolutionClient.send_text")
+    def test_location_gets_city_and_neighborhood_guidance(self, send_text):
+        send_text.return_value = "OUT-LOCATION"
+        agent = get_or_create_agent(self.tenant)
+        agent.ai_enabled = True
+        agent.instance_created = True
+        agent.status = TenantWhatsAppAgent.Status.OPEN
+        agent.save()
+        result = process_tenant_whatsapp_message(
+            agent.pk, "IN-LOCATION", "5511988887777", "", "location"
+        )
+        self.assertEqual(result, "answered:location")
+        reply = send_text.call_args.args[2]
+        self.assertIn("cidade", reply.lower())
+        self.assertIn("bairro", reply.lower())
+
+    @override_settings(WHATSAPP_AGENT_OLLAMA_ENABLED=True)
+    @patch("apps.integrations.whatsapp_agent.agent.naturalize")
+    def test_naturalizer_cannot_invent_price_or_link(self, naturalize):
+        naturalize.return_value = "Só R$ 0,01! https://evil.example/produto"
+        reply = agent_answer(self.tenant, "quanto custa coca cola 2l?")
+        self.assertIn("R$ 14,90", reply.text)
+        self.assertNotIn("R$ 0,01", reply.text)
+        self.assertNotIn("evil.example", reply.text)
+
+    def test_comparison_followup_uses_products_from_previous_context(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        cheap = Product.objects.create(
+            tenant=self.tenant, category=burgers, name="Hambúrguer Econômico",
+            price=Decimal("19.90"), is_available=True,
+        )
+        Product.objects.create(
+            tenant=self.tenant, category=burgers, name="Hambúrguer Premium",
+            price=Decimal("39.90"), is_available=True,
+        )
+        first = answer_from_store(self.tenant, "quais hambúrgueres vcs têm?")
+        second = answer_from_store(self.tenant, "qual é o mais barato?", context=first.context)
+        self.assertEqual(second.intent, "product")
+        self.assertIn(cheap.name, second.fallback)
+
+    def test_ordinal_followup_uses_previous_product_order(self):
+        Product.objects.create(
+            tenant=self.tenant, category=self.category, name="Guaraná 350 ml",
+            price=Decimal("7.50"), is_available=True,
+        )
+        first = answer_from_store(self.tenant, "quais bebidas vcs têm?")
+        products = first.context.get("product_ids")
+        self.assertGreaterEqual(len(products), 2)
+        expected = Product.objects.get(pk=products[1])
+        second = answer_from_store(self.tenant, "quanto custa o segundo?", context=first.context)
+        self.assertEqual(second.intent, "product")
+        self.assertIn(expected.name, second.fallback)
+
+    def test_half_half_uses_existing_commercial_rule_and_active_products(self):
+        pizzas = Category.objects.create(tenant=self.tenant, name="Pizzas")
+        calabresa = Product.objects.create(
+            tenant=self.tenant, category=pizzas, name="Pizza Calabresa",
+            price=Decimal("39.90"), is_available=True,
+        )
+        portuguesa = Product.objects.create(
+            tenant=self.tenant, category=pizzas, name="Pizza Portuguesa",
+            price=Decimal("44.90"), is_available=True,
+        )
+        # Product já cria HalfProduct automaticamente por signal. O teste deve
+        # apenas garantir que as variantes existentes estejam ativas, sem tentar
+        # violar o OneToOne de HalfProduct.product.
+        HalfProduct.objects.update_or_create(
+            product=calabresa,
+            defaults={"tenant": self.tenant, "is_active": True},
+        )
+        HalfProduct.objects.update_or_create(
+            product=portuguesa,
+            defaults={"tenant": self.tenant, "is_active": True},
+        )
+        answer = answer_from_store(self.tenant, "faz pizza meio a meio?")
+        self.assertEqual(answer.intent, "half_half")
+        self.assertIn("Pizza Calabresa", answer.fallback)
+        self.assertIn("Pizza Portuguesa", answer.fallback)
+        self.assertIn("opção mais cara", answer.fallback)
+        self.assertNotIn(self.product.name, answer.fallback)
+
+    def test_half_half_question_with_funciona_does_not_become_hours(self):
+        pizzas = Category.objects.create(tenant=self.tenant, name="Pizzas Artesanais")
+        calabresa = Product.objects.create(
+            tenant=self.tenant, category=pizzas, name="Pizza Calabresa Especial",
+            price=Decimal("42.00"), is_available=True,
+        )
+        HalfProduct.objects.update_or_create(
+            product=calabresa,
+            defaults={"tenant": self.tenant, "is_active": True},
+        )
+        answer = answer_from_store(self.tenant, "como funciona a pizza meio a meio?")
+        self.assertEqual(answer.intent, "half_half")
+        self.assertIn("opção mais cara", answer.fallback)
+        self.assertIn("Pizza Calabresa Especial", answer.fallback)
+
+
+    def test_informal_description_variants_are_understood(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        bacon = Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Bacon",
+            description="Pão brioche, carne e bacon.",
+            price=Decimal("31.90"),
+            is_available=True,
+        )
+        for question in (
+            "oque vem no hamburguer bacon?",
+            "q vem no hamb bacon?",
+            "leva oq o hamb bacon?",
+        ):
+            answer = answer_from_store(self.tenant, question)
+            self.assertEqual(answer.intent, "product_description", question)
+            self.assertIn(bacon.description, answer.fallback, question)
+
+    def test_faz_delivery_is_fulfillment_question(self):
+        answer = answer_from_store(self.tenant, "faz delivery?")
+        self.assertEqual(answer.intent, "fulfillment")
+        self.assertIn("entrega", answer.fallback.lower())
+
+    def test_cash_payment_is_not_confused_with_bathroom_business_info(self):
+        for question in (
+            "aceita dinheiro?",
+            "vou pagar em dinheiro, precisa troco",
+        ):
+            answer = answer_from_store(self.tenant, question)
+            self.assertEqual(answer.intent, "payment", question)
+            self.assertIn("dinheiro", answer.fallback.lower(), question)
+
+        bathroom = answer_from_store(self.tenant, "tem banheiro?")
+        self.assertEqual(bathroom.intent, "business_info")
+
+    def test_checkout_and_vr_payment_variants_are_understood(self):
+        checkout = answer_from_store(self.tenant, "pago no checkout?")
+        self.assertEqual(checkout.intent, "payment")
+        self.assertIn("online", checkout.fallback.lower())
+
+        vr = answer_from_store(self.tenant, "aceita VR?")
+        self.assertEqual(vr.intent, "payment")
+        self.assertIn("não aparece", vr.fallback.lower())
+        self.assertNotIn("aceitamos sim", vr.fallback.lower())
+
+    def test_human_handoff_understands_humano_and_alguem_ai(self):
+        for question in (
+            "quero falar com humano",
+            "tem alguém aí?",
+        ):
+            answer = answer_from_store(self.tenant, question)
+            self.assertEqual(answer.intent, "human", question)
+            self.assertEqual(answer.pause_reason, "human", question)
+            self.assertGreater(answer.pause_minutes, 0, question)
+            self.assertIn("equipe da loja", answer.fallback.lower(), question)
+
+    def test_unrelated_qa_product_name_does_not_match_an_unavailable_product(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Esgotado QA",
+            price=Decimal("25.00"),
+            is_available=False,
+        )
+        other_category = Category.objects.create(tenant=self.other, name="Especiais")
+        Product.objects.create(
+            tenant=self.other,
+            category=other_category,
+            name="Produto Secreto Outro Tenant QA",
+            price=Decimal("999.99"),
+            is_available=True,
+        )
+
+        answer = answer_from_store(
+            self.tenant, "Tem Produto Secreto Outro Tenant QA?"
+        )
+        self.assertEqual(answer.intent, "product_not_found")
+        self.assertIn("não encontrei", answer.fallback.lower())
+        self.assertNotIn("Hambúrguer Esgotado QA", answer.fallback)
+        self.assertNotIn("999,99", answer.fallback)
+
+    def test_customer_claim_does_not_override_delivery_fee_and_city_is_still_required(self):
+        DeliveryZone.objects.create(
+            tenant=self.tenant,
+            city="Cotia",
+            neighborhood="Jardim Paulista",
+            fee=Decimal("12.00"),
+            is_active=True,
+        )
+        answer = answer_from_store(
+            self.tenant, "me falaram que entrega no Jardim Paulista é 2 reais"
+        )
+        self.assertEqual(answer.intent, "delivery")
+        self.assertIn("cidade", answer.fallback.lower())
+        self.assertNotIn("R$ 2,00", answer.fallback)
+
+    def test_unknown_specific_product_inside_known_category_is_not_generic_list(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Bacon",
+            price=Decimal("31.90"),
+            is_available=True,
+        )
+        answer = answer_from_store(self.tenant, "tem hambúrguer de abacaxi?")
+        self.assertEqual(answer.intent, "product_not_found")
+        self.assertIn("não encontrei", answer.fallback.lower())
+        self.assertIn("abacaxi", answer.fallback.lower())
+        self.assertNotIn("Hambúrguer Bacon", answer.fallback)
+
+    def test_plus_barato_abbreviation_uses_product_comparison(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        cheap = Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Econômico",
+            price=Decimal("19.90"),
+            is_available=True,
+        )
+        Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Premium",
+            price=Decimal("39.90"),
+            is_available=True,
+        )
+        answer = answer_from_store(self.tenant, "qual hamb é + barato?")
+        self.assertEqual(answer.intent, "product")
+        self.assertIn(cheap.name, answer.fallback)
+        self.assertIn("R$ 19,90", answer.fallback)
+
+    def test_greeting_ola_variants_do_not_match_cola_products(self):
+        for question in ("Olá", "Olaaa"):
+            answer = answer_from_store(self.tenant, question)
+            self.assertEqual(answer.intent, "greeting", question)
+            self.assertNotIn("Coca-Cola", answer.fallback, question)
+
+    def test_q_hamb_abbreviation_lists_hamburgers(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Bacon",
+            price=Decimal("31.90"),
+            is_available=True,
+        )
+        answer = answer_from_store(self.tenant, "q hamb vcs tem?")
+        self.assertEqual(answer.intent, "product")
+        self.assertIn("Hambúrguer Bacon", answer.fallback)
+
+    def test_customization_option_name_wins_over_similar_product_name(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        combos = Category.objects.create(tenant=self.tenant, name="Combos")
+        Product.objects.create(
+            tenant=self.tenant,
+            category=combos,
+            name="Combo Bacon",
+            price=Decimal("39.90"),
+            is_available=True,
+        )
+        label = CustomizationGroupLabel.objects.create(
+            tenant=self.tenant,
+            name="Adicionais",
+        )
+        group = CustomizationGroup.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            label=label,
+            min_options=0,
+            max_options=5,
+            is_active=True,
+        )
+        CustomizationOption.objects.create(
+            tenant=self.tenant,
+            group=group,
+            name="Bacon extra QA",
+            price=Decimal("6.00"),
+            is_available=True,
+        )
+
+        for question in (
+            "quanto é o extra de bacon QA?",
+            "Tem bacon extra QA?",
+        ):
+            answer = answer_from_store(self.tenant, question)
+            self.assertEqual(answer.intent, "customization", question)
+            self.assertIn("Bacon extra QA", answer.fallback, question)
+            self.assertIn("R$ 6,00", answer.fallback, question)
+            self.assertNotIn("Combo Bacon", answer.fallback, question)
+
+    def test_unknown_named_extra_without_product_returns_not_found(self):
+        for question in (
+            "tem cebola roxa extra?",
+            "tem molho trufado extra?",
+        ):
+            answer = answer_from_store(self.tenant, question)
+            self.assertEqual(answer.intent, "customization", question)
+            self.assertIn("não encontrei", answer.fallback.lower(), question)
+
+    def test_explicit_product_price_overrides_delivery_context(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Bacon",
+            price=Decimal("31.90"),
+            is_available=True,
+        )
+        context = {
+            "intent": "delivery_fee",
+            "city": "Itapevi",
+            "neighborhood": "Centro",
+        }
+        answer = answer_from_store(
+            self.tenant,
+            "qnt custa o hamb bacon?",
+            context=context,
+        )
+        self.assertEqual(answer.intent, "product")
+        self.assertIn("Hambúrguer Bacon", answer.fallback)
+        self.assertIn("R$ 31,90", answer.fallback)
+
+    def test_short_human_handoff_variants_are_understood(self):
+        for question in ("quero humano", "tem atendente?"):
+            answer = answer_from_store(self.tenant, question)
+            self.assertEqual(answer.intent, "human", question)
+            self.assertEqual(answer.pause_reason, "human", question)
+            self.assertGreater(answer.pause_minutes, 0, question)
+
+    def test_hamburger_english_spelling_maps_to_hamburguer_category(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Bacon",
+            price=Decimal("31.90"),
+            is_available=True,
+        )
+        answer = answer_from_store(self.tenant, "tem hamburger?")
+        self.assertEqual(answer.intent, "product")
+        self.assertIn("Hambúrguer Bacon", answer.fallback)
+
+    def test_quais_complementos_is_list_request_not_specific_option(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        product = Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Bacon",
+            price=Decimal("31.90"),
+            is_available=True,
+        )
+        label = CustomizationGroupLabel.objects.create(
+            tenant=self.tenant,
+            name="Adicionais",
+        )
+        group = CustomizationGroup.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            label=label,
+            min_options=0,
+            max_options=5,
+            is_active=True,
+        )
+        CustomizationOption.objects.create(
+            tenant=self.tenant,
+            group=group,
+            name="Bacon extra QA",
+            price=Decimal("6.00"),
+            is_available=True,
+        )
+        CustomizationOption.objects.create(
+            tenant=self.tenant,
+            group=group,
+            name="Cheddar extra QA",
+            price=Decimal("4.50"),
+            is_available=True,
+        )
+
+        answer = answer_from_store(
+            self.tenant,
+            "quais complementos do hamburguer bacon?",
+        )
+        self.assertEqual(answer.intent, "customization")
+        self.assertIn(product.name, answer.fallback)
+        self.assertIn("Bacon extra QA", answer.fallback)
+        self.assertIn("Cheddar extra QA", answer.fallback)
+
+    def test_more_natural_human_handoff_variants_are_understood(self):
+        for question in (
+            "chama um atendente",
+            "quero uma pessoa",
+        ):
+            answer = answer_from_store(self.tenant, question)
+            self.assertEqual(answer.intent, "human", question)
+            self.assertEqual(answer.pause_reason, "human", question)
+            self.assertGreater(answer.pause_minutes, 0, question)
+
+    def test_hambuger_typo_maps_to_hamburguer_category(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Bacon",
+            price=Decimal("31.90"),
+            is_available=True,
+        )
+
+        answer = answer_from_store(self.tenant, "tem hambuger?")
+
+        self.assertEqual(answer.intent, "product")
+        self.assertIn("Hambúrguer Bacon", answer.fallback)
+
+    def test_extra_substring_inside_unrelated_word_does_not_trigger_customization(self):
+        pizzas = Category.objects.create(tenant=self.tenant, name="Pizzas")
+        Product.objects.create(
+            tenant=self.tenant,
+            category=pizzas,
+            name="Pizza Calabresa",
+            price=Decimal("39.90"),
+            is_available=True,
+        )
+
+        answer = answer_from_store(
+            self.tenant,
+            "tem pizza de jaca extraterrestre?",
+        )
+
+        self.assertEqual(answer.intent, "product_not_found")
+        self.assertIn("não encontrei", answer.fallback.lower())
+
+    def test_order_start_without_article_opens_catalog(self):
+        for question in ("quero fazer pedido", "fazer pedido"):
+            answer = answer_from_store(self.tenant, question)
+            self.assertEqual(answer.intent, "catalog", question)
+            self.assertIn("cardápio", answer.fallback.lower(), question)
+
+    def test_natural_product_composition_questions_use_description(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        bacon = Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Bacon",
+            description="Pão, carne, cheddar e bacon crocante.",
+            price=Decimal("31.90"),
+            is_available=True,
+        )
+        Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Combo Bacon",
+            description="Combo com bebida.",
+            price=Decimal("43.90"),
+            is_available=True,
+        )
+
+        for question in (
+            "o hamb bacon tem bacon?",
+            "leva bacon no hamb bacon?",
+            "tem cheddar no hamb bacon?",
+        ):
+            answer = answer_from_store(self.tenant, question)
+            self.assertEqual(answer.intent, "product_description", question)
+            self.assertIn(bacon.name, answer.fallback, question)
+            self.assertIn("bacon crocante", answer.fallback, question)
+
+    def test_contextual_ingredient_pronoun_keeps_previous_product(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        bacon = Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Bacon",
+            description="Pão, carne, cheddar e bacon crocante.",
+            price=Decimal("31.90"),
+            is_available=True,
+        )
+        Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Combo Bacon",
+            description="Combo com bebida.",
+            price=Decimal("43.90"),
+            is_available=True,
+        )
+
+        context = {"intent": "product", "product_ids": [bacon.pk]}
+        answer = answer_from_store(
+            self.tenant,
+            "e tem bacon nele?",
+            context=context,
+        )
+        self.assertEqual(answer.intent, "product_description")
+        self.assertIn(bacon.name, answer.fallback)
+        self.assertIn("bacon crocante", answer.fallback)
+        self.assertNotIn("Combo Bacon", answer.fallback)
+
+    def test_plain_product_availability_does_not_become_composition(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Bacon",
+            description="Pão, carne e bacon.",
+            price=Decimal("31.90"),
+            is_available=True,
+        )
+
+        answer = answer_from_store(self.tenant, "tem hamburger bacon?")
+        self.assertEqual(answer.intent, "product")
+        self.assertIn("Hambúrguer Bacon", answer.fallback)
+
+    def test_hamburgeres_plural_typo_maps_to_hamburguer_category(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Bacon",
+            price=Decimal("31.90"),
+            is_available=True,
+        )
+
+        answer = answer_from_store(self.tenant, "tem hamburgeres?")
+
+        self.assertEqual(answer.intent, "product")
+        self.assertIn("Hambúrguer Bacon", answer.fallback)
+
+    def test_como_e_o_product_uses_description(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        product = Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Bacon",
+            description="Pão brioche, carne, cheddar e bacon crocante.",
+            price=Decimal("31.90"),
+            is_available=True,
+        )
+
+        answer = answer_from_store(self.tenant, "como é o hamb bacon?")
+
+        self.assertEqual(answer.intent, "product_description")
+        self.assertIn(product.name, answer.fallback)
+        self.assertIn("bacon crocante", answer.fallback)
+
+    def test_fazem_delivery_is_fulfillment_capability_question(self):
+        answer = answer_from_store(self.tenant, "fazem delivery?")
+
+        self.assertEqual(answer.intent, "fulfillment")
+        self.assertIn("entrega", answer.fallback.lower())
+
+    def test_posso_pegar_na_loja_is_pickup_fulfillment_question(self):
+        answer = answer_from_store(self.tenant, "posso pegar na loja?")
+
+        self.assertEqual(answer.intent, "fulfillment")
+        self.assertIn("retirar", answer.fallback.lower())
+
+
+    def test_general_plural_matching_handles_portuguese_inflections(self):
+        breads = Category.objects.create(tenant=self.tenant, name="Pães")
+        Product.objects.create(
+            tenant=self.tenant,
+            category=breads,
+            name="Artesanal da Casa",
+            price=Decimal("12.90"),
+            is_available=True,
+        )
+
+        answer = answer_from_store(self.tenant, "tem pao?")
+
+        self.assertEqual(answer.intent, "product")
+        self.assertIn("Artesanal da Casa", answer.fallback)
+
+    def test_product_description_understands_common_whatsapp_phrases_and_typos(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        product = Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Bacon",
+            description="Pão brioche, carne, cheddar, bacon crocante e molho especial.",
+            price=Decimal("31.90"),
+            is_available=True,
+        )
+
+        questions = (
+            "oq vem no hamb bacon?",
+            "q veim no lanxe bacon?",
+            "o que leva o hamb bacon?",
+            "vem com oq o hamb bacon?",
+            "do q eh feito o hamb bacon?",
+            "quais igredientes do hamb bacon?",
+            "qual composisao do hamb bacon?",
+            "me descreve o hamb bacon",
+            "qual rexeio do hamb bacon?",
+            "oq vai dentro do hamb bacon?",
+            "o que tem no hamb bacon?",
+            "o hamb bacon é feito de que?",
+            "o hamb bacon vem com oq?",
+        )
+
+        for question in questions:
+            with self.subTest(question=question):
+                answer = answer_from_store(self.tenant, question)
+                self.assertEqual(answer.intent, "product_description")
+                self.assertIn(product.name, answer.fallback)
+                self.assertIn("bacon crocante", answer.fallback)
+
+    def test_product_description_context_understands_generic_lanche_followup(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        product = Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Bacon",
+            description="Pão brioche, carne, cheddar e bacon crocante.",
+            price=Decimal("31.90"),
+            is_available=True,
+        )
+
+        context = {"intent": "product", "product_ids": [product.pk]}
+        for question in (
+            "e oq vem nele?",
+            "e o que esse lanche leva?",
+            "esse lanche vem com oq?",
+        ):
+            with self.subTest(question=question):
+                answer = answer_from_store(self.tenant, question, context=context)
+                self.assertEqual(answer.intent, "product_description")
+                self.assertIn(product.name, answer.fallback)
+                self.assertIn("bacon crocante", answer.fallback)
+
+    def test_description_expansion_keeps_specific_intent_priorities(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        product = Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Bacon",
+            description="Pão, carne, cheddar e bacon.",
+            allergens="glúten, leite",
+            price=Decimal("31.90"),
+            is_available=True,
+        )
+        label = CustomizationGroupLabel.objects.create(
+            tenant=self.tenant,
+            name="Adicionais",
+        )
+        group = CustomizationGroup.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            label=label,
+            min_options=0,
+            max_options=5,
+            is_active=True,
+        )
+        CustomizationOption.objects.create(
+            tenant=self.tenant,
+            group=group,
+            name="Bacon extra",
+            price=Decimal("6.00"),
+            is_available=True,
+        )
+
+        availability = answer_from_store(self.tenant, "tem hambúrguer bacon?")
+        customization = answer_from_store(
+            self.tenant, "quais adicionais tem no hambúrguer bacon?"
+        )
+        allergens = answer_from_store(
+            self.tenant, "o hambúrguer bacon tem glutem?"
+        )
+
+        self.assertEqual(availability.intent, "product")
+        self.assertEqual(customization.intent, "customization")
+        self.assertEqual(allergens.intent, "product_allergens")
+        self.assertIn(product.name, allergens.fallback)
+
+    def test_product_listing_questions_do_not_become_description(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Bacon",
+            description="Pão, carne, queijo e bacon.",
+            price=Decimal("31.90"),
+            is_available=True,
+        )
+
+        for question in (
+            "q hamb vcs tem?",
+            "que hamb vcs tem?",
+            "que lanches vcs tem?",
+            "quais hamburgueres vcs tem?",
+            "tem hamburgeres?",
+        ):
+            with self.subTest(question=question):
+                answer = answer_from_store(self.tenant, question)
+                self.assertEqual(answer.intent, "product")
+                self.assertIn("Hambúrguer Bacon", answer.fallback)
+
+    def test_explicit_product_composition_subject_still_uses_description(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        product = Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Bacon",
+            description="Pão brioche, carne, cheddar e bacon crocante.",
+            price=Decimal("31.90"),
+            is_available=True,
+        )
+
+        for question in (
+            "o que o hamb bacon tem?",
+            "o que esse lanche leva?",
+            "q vem no hamb bacon?",
+            "que tem no hamb bacon?",
+        ):
+            with self.subTest(question=question):
+                answer = answer_from_store(self.tenant, question)
+                self.assertEqual(answer.intent, "product_description")
+                self.assertIn(product.name, answer.fallback)
+                self.assertIn("bacon crocante", answer.fallback)
+
+
+    def test_ingredient_search_lists_all_products_matching_description(self):
+        pizzas = Category.objects.create(tenant=self.tenant, name="Pizzas")
+        frango = Product.objects.create(
+            tenant=self.tenant,
+            category=pizzas,
+            name="Pizza Especial",
+            description="Frango desfiado, catupiry, milho e mussarela.",
+            price=Decimal("42.90"),
+            is_available=True,
+        )
+        casa = Product.objects.create(
+            tenant=self.tenant,
+            category=pizzas,
+            name="Pizza da Casa",
+            description="Mussarela, frango, bacon e cheddar.",
+            price=Decimal("46.90"),
+            is_available=True,
+        )
+        calabresa = Product.objects.create(
+            tenant=self.tenant,
+            category=pizzas,
+            name="Pizza Calabresa",
+            description="Calabresa, cebola e mussarela.",
+            price=Decimal("39.90"),
+            is_available=True,
+        )
+
+        for question in (
+            "tem pizza de frango?",
+            "quais pizzas tem frango?",
+            "q pizza tem frango?",
+        ):
+            with self.subTest(question=question):
+                answer = answer_from_store(self.tenant, question)
+                self.assertEqual(answer.intent, "product")
+                self.assertIn(frango.name, answer.fallback)
+                self.assertIn(casa.name, answer.fallback)
+                self.assertNotIn(calabresa.name, answer.fallback)
+                self.assertIn(product_url(self.tenant, frango), answer.fallback)
+                self.assertIn(product_url(self.tenant, casa), answer.fallback)
+                self.assertIn("Frango desfiado", answer.fallback)
+
+    def test_ingredient_search_is_generic_for_any_registered_ingredient_and_typos(self):
+        pizzas = Category.objects.create(tenant=self.tenant, name="Pizzas")
+        product = Product.objects.create(
+            tenant=self.tenant,
+            category=pizzas,
+            name="Pizza Cremosa",
+            description="Frango desfiado, catupiry e cheddar cremoso.",
+            price=Decimal("44.90"),
+            is_available=True,
+        )
+
+        for question in (
+            "tem pizza com catupiry?",
+            "tem pizza com catupiri?",
+            "tem pizza com cheddar?",
+            "tem pizza com chedar?",
+        ):
+            with self.subTest(question=question):
+                answer = answer_from_store(self.tenant, question)
+                self.assertEqual(answer.intent, "product")
+                self.assertIn(product.name, answer.fallback)
+                self.assertIn(product_url(self.tenant, product), answer.fallback)
+
+    def test_ingredient_search_without_category_searches_catalog_but_not_other_tenant(self):
+        pizzas = Category.objects.create(tenant=self.tenant, name="Pizzas")
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        pizza = Product.objects.create(
+            tenant=self.tenant,
+            category=pizzas,
+            name="Pizza Bacon",
+            description="Mussarela, bacon crocante e cebola.",
+            price=Decimal("43.90"),
+            is_available=True,
+        )
+        burger = Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Especial da Casa",
+            description="Pão, carne, queijo e bacon crocante.",
+            price=Decimal("32.90"),
+            is_available=True,
+        )
+        other_category = Category.objects.create(tenant=self.other, name="Pizzas")
+        Product.objects.create(
+            tenant=self.other,
+            category=other_category,
+            name="Pizza Bacon Secreta",
+            description="Muito bacon.",
+            price=Decimal("1.00"),
+            is_available=True,
+        )
+
+        answer = answer_from_store(self.tenant, "tem algo com bacon?")
+
+        self.assertEqual(answer.intent, "product")
+        self.assertIn(pizza.name, answer.fallback)
+        self.assertIn(burger.name, answer.fallback)
+        self.assertNotIn("Pizza Bacon Secreta", answer.fallback)
+
+    def test_ingredient_search_with_multiple_terms_requires_all_terms(self):
+        pizzas = Category.objects.create(tenant=self.tenant, name="Pizzas")
+        complete = Product.objects.create(
+            tenant=self.tenant,
+            category=pizzas,
+            name="Pizza Frango Cremosa",
+            description="Frango desfiado, catupiry, milho e mussarela.",
+            price=Decimal("45.90"),
+            is_available=True,
+        )
+        only_frango = Product.objects.create(
+            tenant=self.tenant,
+            category=pizzas,
+            name="Pizza Frango Simples",
+            description="Frango desfiado, milho e mussarela.",
+            price=Decimal("39.90"),
+            is_available=True,
+        )
+
+        answer = answer_from_store(
+            self.tenant,
+            "tem pizza com frango e catupiry?",
+        )
+
+        self.assertEqual(answer.intent, "product")
+        self.assertIn(complete.name, answer.fallback)
+        self.assertNotIn(only_frango.name, answer.fallback)
+
+    def test_ingredient_search_keeps_specific_product_and_shorthand_priorities(self):
+        pizzas = Category.objects.create(tenant=self.tenant, name="Pizzas")
+        portuguesa = Product.objects.create(
+            tenant=self.tenant,
+            category=pizzas,
+            name="Pizza Portuguesa",
+            description="Presunto, ovo, cebola, ervilha e mussarela.",
+            price=Decimal("44.90"),
+            is_available=True,
+        )
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        bacon = Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Bacon",
+            description="Pão, carne, queijo e bacon.",
+            price=Decimal("31.90"),
+            is_available=True,
+        )
+
+        specific = answer_from_store(
+            self.tenant,
+            "a Pizza Portuguesa tem frango?",
+        )
+        shorthand = answer_from_store(self.tenant, "tem hamb bacon?")
+
+        self.assertEqual(specific.intent, "product_description")
+        self.assertIn(portuguesa.name, specific.fallback)
+        self.assertEqual(shorthand.intent, "product")
+        self.assertIn(bacon.name, shorthand.fallback)
+
+    def test_ingredient_typo_does_not_collide_with_hours_vocabulary(self):
+        pizzas = Category.objects.create(tenant=self.tenant, name="Pizzas")
+        product = Product.objects.create(
+            tenant=self.tenant,
+            category=pizzas,
+            name="Pizza Calabresa",
+            description="Calabresa, cebola, mussarela e orégano.",
+            price=Decimal("39.90"),
+            is_available=True,
+        )
+
+        answer = answer_from_store(self.tenant, "tem pizza com calabreza?")
+
+        self.assertEqual(answer.intent, "product")
+        self.assertIn(product.name, answer.fallback)
+        self.assertNotIn("Estes são os horários", answer.fallback)
+
+    def test_generic_ingredient_questions_do_not_trigger_human_handoff(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        bacon = Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Bacon",
+            description="Pão, carne, queijo, bacon e cebola.",
+            price=Decimal("31.90"),
+            is_available=True,
+        )
+        frango = Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Lanche de Frango",
+            description="Pão, frango desfiado, queijo e milho.",
+            price=Decimal("29.90"),
+            is_available=True,
+        )
+
+        cases = (
+            ("tem alguma coisa com bacon?", bacon.name),
+            ("tem alguma coisa com frango?", frango.name),
+            ("que produtos levam cebola?", bacon.name),
+        )
+        for question, expected_name in cases:
+            with self.subTest(question=question):
+                answer = answer_from_store(self.tenant, question)
+                self.assertEqual(answer.intent, "product")
+                self.assertIn(expected_name, answer.fallback)
+                self.assertEqual(answer.pause_minutes, 0)
+
+    def test_ingredient_search_does_not_fuzzy_match_generic_adjective(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        product = Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Lanche Especial",
+            description="Pão, carne, queijo e molho especial.",
+            price=Decimal("30.00"),
+            is_available=True,
+        )
+
+        answer = answer_from_store(
+            self.tenant,
+            "tem lanche com ingrediente espacial?",
+        )
+
+        self.assertEqual(answer.intent, "product_not_found")
+        self.assertNotIn(product.name, answer.fallback)
+        self.assertIn("não encontrei", answer.fallback.lower())
+
+    def test_multi_ingredient_search_does_not_fall_back_to_partial_matches(self):
+        pizzas = Category.objects.create(tenant=self.tenant, name="Pizzas")
+        Product.objects.create(
+            tenant=self.tenant,
+            category=pizzas,
+            name="Pizza Frango e Bacon",
+            description="Frango desfiado, bacon, mussarela e cebola.",
+            price=Decimal("45.90"),
+            is_available=True,
+        )
+
+        for question in (
+            "tem pizza com frango e plutonio?",
+            "tem pizza com bacon e jaca radioativa?",
+        ):
+            with self.subTest(question=question):
+                answer = answer_from_store(self.tenant, question)
+                self.assertEqual(answer.intent, "product_not_found")
+                self.assertIn("não encontrei", answer.fallback.lower())
+
+    def test_specific_named_product_before_composition_verb_uses_description(self):
+        pizzas = Category.objects.create(tenant=self.tenant, name="Pizzas")
+        product = Product.objects.create(
+            tenant=self.tenant,
+            category=pizzas,
+            name="Pizza Portuguesa QA",
+            description="Presunto, mussarela, ovo, cebola, ervilha e azeitona.",
+            price=Decimal("44.90"),
+            is_available=True,
+        )
+
+        answer = answer_from_store(
+            self.tenant,
+            "Pizza Portuguesa QA leva frango?",
+        )
+
+        self.assertEqual(answer.intent, "product_description")
+        self.assertIn(product.name, answer.fallback)
+        self.assertIn("Presunto", answer.fallback)
+
+    def test_contextual_o_que_ele_leva_uses_previous_product(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        product = Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Bacon",
+            description="Pão brioche, carne, cheddar e bacon crocante.",
+            price=Decimal("31.90"),
+            is_available=True,
+        )
+
+        first = answer_from_store(self.tenant, "quanto custa o hamb bacon?")
+        answer = answer_from_store(
+            self.tenant,
+            "e o que ele leva?",
+            context=first.context,
+        )
+
+        self.assertEqual(answer.intent, "product_description")
+        self.assertIn(product.name, answer.fallback)
+        self.assertIn("bacon crocante", answer.fallback)
+
+    def test_human_handoff_exact_phrases_still_work_after_collision_guard(self):
+        for question in (
+            "quero falar com uma pessoa",
+            "tem alguém aí?",
+            "chama um atendente",
+            "quero humano",
+        ):
+            with self.subTest(question=question):
+                answer = answer_from_store(self.tenant, question)
+                self.assertEqual(answer.intent, "human")
+                self.assertGreater(answer.pause_minutes, 0)
+                self.assertEqual(answer.pause_reason, "human")

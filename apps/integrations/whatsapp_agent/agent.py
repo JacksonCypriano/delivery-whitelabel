@@ -21,6 +21,13 @@ _NATURALIZE_INTENTS = {
 }
 
 
+
+def format_whatsapp_text(text):
+    value = str(text or "").replace("\r\n", "\n").replace("\r", "\n")
+    value = "\n".join(line.rstrip() for line in value.split("\n"))
+    value = re.sub(r"\n[ \t]*\n(?:[ \t]*\n)+", "\n\n", value)
+    return value.strip()
+
 def _safe_naturalized(candidate, fallback, facts):
     """Reject LLM output that changes deterministic prices, times or URLs."""
     facts_text = "\n".join(str(fact) for fact in facts)
@@ -61,7 +68,7 @@ def answer(tenant, question, context=None):
         except OllamaUnavailable:
             pass
     return AgentReply(
-        text=text,
+        text=format_whatsapp_text(text),
         intent=knowledge.intent,
         pause_minutes=knowledge.pause_minutes,
         pause_reason=knowledge.pause_reason,

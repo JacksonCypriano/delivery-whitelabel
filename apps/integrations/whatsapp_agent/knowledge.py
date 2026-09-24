@@ -123,6 +123,20 @@ GENERIC_PRODUCT_TERMS = {
     "porcao", "combo", "sobremesa", "lanche", "refrigerante",
 }
 
+# Tipos de produto que funcionam como categorias semânticas mesmo quando o
+# tenant ainda não possui uma categoria correspondente cadastrada. Isso é
+# importante para não perder o escopo explícito da pergunta: se o cliente pede
+# ``pizza com frango e bacon`` e a loja não vende pizzas, a busca deve retornar
+# "não encontrei pizzas" em vez de cair para qualquer produto com bacon.
+KNOWN_PRODUCT_CATEGORY_TERMS = {
+    "hamburguer": "hambúrgueres",
+    "bebida": "bebidas",
+    "pizza": "pizzas",
+    "porcao": "porções",
+    "combo": "combos",
+    "sobremesa": "sobremesas",
+}
+
 # Tokens de apoio/teste ou muito genéricos nunca podem, sozinhos, fazer um
 # produto parecer correspondente a uma pergunta. Isso evita, por exemplo, que
 # uma consulta por um item inexistente contendo "QA" acabe casando com outro
@@ -130,6 +144,14 @@ GENERIC_PRODUCT_TERMS = {
 LOW_INFORMATION_PRODUCT_TERMS = {
     "qa", "teste", "test", "produto", "produtos", "item", "itens",
     "opcao", "opcoes",
+}
+
+# Referências contextuais não identificam um produto por si só. Elas precisam
+# reutilizar o produto da conversa (ex.: ``esse lanche vem com oq?``) ou ser
+# acompanhadas de um nome realmente informativo (ex.: ``essa pizza portuguesa``).
+CONTEXTUAL_PRODUCT_REFERENCE_TERMS = {
+    "esse", "essa", "este", "esta", "isso", "aquele", "aquela",
+    "ele", "ela", "meu", "minha", "dele", "dela",
 }
 
 PRODUCT_QUERY_NOISE_TERMS = {
@@ -668,6 +690,41 @@ def _composition_product(tenant, question, context=None):
     return _specific_product(tenant, question, context)
 
 
+def _explicit_product_subject_label(question):
+    """Return the explicit product-like subject before a composition verb.
+
+    Unlike ``_explicit_product_subject_product``, this helper does not require
+    the product to exist. It is used only to turn a clearly named but missing
+    product (for example ``Pizza Portuguesa leva frango?``) into a safe
+    ``product_not_found`` response instead of a generic ``unknown``.
+    """
+    q = normalize(question)
+    match = re.match(
+        r"^(?P<subject>.+?)\s+(?:tem|leva|vai|vem com)\s+.+$",
+        q,
+    )
+    if not match:
+        return None
+
+    subject = match.group("subject").strip()
+    if re.match(
+        r"^(?:tem|quais?|que|algum|alguma|alguns|algumas|existe|ha)\b",
+        subject,
+    ):
+        return None
+
+    subject_tokens = _tokens(subject)
+    informative = (
+        subject_tokens
+        - GENERIC_PRODUCT_TERMS
+        - LOW_INFORMATION_PRODUCT_TERMS
+        - CONTEXTUAL_PRODUCT_REFERENCE_TERMS
+    )
+    if not informative:
+        return None
+    return subject
+
+
 def _explicit_product_subject_product(tenant, question):
     """Return a product explicitly named before a composition verb.
 
@@ -711,6 +768,7 @@ def _explicit_product_subject_product(tenant, question):
             - category_tokens
             - GENERIC_PRODUCT_TERMS
             - LOW_INFORMATION_PRODUCT_TERMS
+            - CONTEXTUAL_PRODUCT_REFERENCE_TERMS
         )
         if not informative_subject:
             continue
@@ -731,6 +789,20 @@ def _explicit_product_subject_product(tenant, question):
             best_score = score
 
     return best
+
+
+def _requested_known_category_term(question):
+    """Return a canonical category term explicitly mentioned by the customer.
+
+    This is independent from the categories currently stored for the tenant.
+    It preserves the customer's requested scope even when that category does
+    not exist in the store catalog.
+    """
+    for raw in normalize(question).split():
+        canonical = TERM_ALIASES.get(raw, raw)
+        if canonical in KNOWN_PRODUCT_CATEGORY_TERMS:
+            return canonical
+    return None
 
 
 def _ingredient_query_parts(tenant, question):
@@ -790,6 +862,7 @@ def _ingredient_query_parts(tenant, question):
         return None, []
 
     category = _category_for_question(tenant, question)
+    requested_category_term = _requested_known_category_term(question)
     generic_target = bool(
         re.search(
             r"\b(?:algo|alguma coisa|algum produto|alguma opcao|opcoes|"
@@ -797,7 +870,7 @@ def _ingredient_query_parts(tenant, question):
             q,
         )
     )
-    if category is None and not generic_target:
+    if category is None and not generic_target and requested_category_term is None:
         return None, []
 
     # Require a relationship between the category/generic target and an
@@ -806,7 +879,12 @@ def _ingredient_query_parts(tenant, question):
     # For ``quais pizzas tem frango?`` the category appears *before* the verb;
     # for ``tem pizza de frango?`` the explicit preposition carries the meaning.
     normalized_tokens = q.split()
-    category_tokens = _tokens(category.name) if category is not None else set()
+    if category is not None:
+        category_tokens = _tokens(category.name)
+    elif requested_category_term is not None:
+        category_tokens = _term_variants(requested_category_term)
+    else:
+        category_tokens = set()
     category_before_verb = False
     if category_tokens:
         verb_tokens = {"tem", "leva", "levam", "vai", "vao", "vem", "contem", "possui"}
@@ -946,13 +1024,29 @@ def _ingredient_catalog_answer(tenant, question):
     if not ingredients:
         return None
 
-    products = _ingredient_catalog_products(
-        tenant, ingredients, category=category
+    requested_category_term = _requested_known_category_term(question)
+    missing_requested_category = (
+        category is None and requested_category_term is not None
     )
+
+    # If the customer explicitly scoped the question to a known product type
+    # that this tenant does not sell, never broaden the search to the entire
+    # catalog. Example: ``tem pizza de frango e bacon?`` in a burger-only
+    # store must not return burgers, combos or portions containing bacon.
+    if missing_requested_category:
+        products = []
+    else:
+        products = _ingredient_catalog_products(
+            tenant, ingredients, category=category
+        )
+
     ingredient_label = " e ".join(ingredients)
     if not products:
         if category is not None:
             scope = f"opções de *{category.name}* com *{ingredient_label}*"
+        elif requested_category_term is not None:
+            label = KNOWN_PRODUCT_CATEGORY_TERMS[requested_category_term]
+            scope = f"opções de *{label}* com *{ingredient_label}*"
         else:
             scope = f"produtos com *{ingredient_label}*"
         return KnowledgeAnswer(
@@ -2319,7 +2413,7 @@ def answer_from_store(tenant, question, context=None):
         return KnowledgeAnswer(
             "greeting",
             (f"Nome da loja: {tenant.name}.", f"Catálogo: {catalog_url(tenant)}"),
-            f"Oi! 😊 Sou o assistente da *{tenant.name}*. Posso te ajudar com o cardápio, entrega, retirada, endereço, horários, promoções e formas de pagamento.",
+            f"Oi! 😊 Tudo bem?\n\nComo posso te ajudar? Posso consultar o cardápio, preços, entrega, retirada, endereço, horários, promoções e formas de pagamento da *{tenant.name}*.",
         )
 
     # Status/alteração/cancelamento de pedido precisa ter prioridade sobre
@@ -2329,7 +2423,7 @@ def answer_from_store(tenant, question, context=None):
         return KnowledgeAnswer(
             "order_status",
             ("O agente não acompanha status, alteração ou cancelamento de pedido.",),
-            "Para acompanhar, alterar ou cancelar um pedido, a equipe da loja precisa continuar com você por aqui 😊",
+            "Certo 😊 Para acompanhar, alterar ou cancelar seu pedido, vou deixar a equipe da loja continuar seu atendimento por aqui.",
             pause_minutes=60,
             pause_reason="human",
         )
@@ -2356,7 +2450,7 @@ def answer_from_store(tenant, question, context=None):
         return KnowledgeAnswer(
             "human",
             ("O cliente pediu atendimento humano.",),
-            "Claro 😊 Vou deixar a conversa livre para a equipe da loja continuar com você por aqui.",
+            "Certo 😊 Vou deixar a equipe da loja continuar seu atendimento por aqui.",
             pause_minutes=60,
             pause_reason="human",
         )
@@ -2365,7 +2459,7 @@ def answer_from_store(tenant, question, context=None):
         return KnowledgeAnswer(
             "business_info",
             ("A informação solicitada não é modelada no cadastro da loja.",),
-            "Essa informação não está cadastrada por aqui no momento 😕 Para confirmar, fale diretamente com a equipe da loja.",
+            "Essa informação ainda não está cadastrada por aqui 😕\n\nPara confirmar, fale diretamente com a equipe da loja.",
             context={"intent": "business_info"},
         )
 
@@ -2538,6 +2632,25 @@ def answer_from_store(tenant, question, context=None):
     ):
         return _product_description_answer(tenant, explicit_subject_product)
 
+    explicit_subject_label = _explicit_product_subject_label(question)
+    if (
+        explicit_subject_product is None
+        and explicit_subject_label is not None
+        and not customization_intent
+        and not characteristic
+    ):
+        return KnowledgeAnswer(
+            "product_not_found",
+            (
+                f"Não foi encontrado produto correspondente a: {explicit_subject_label}.",
+                f"Catálogo: {catalog_url(tenant)}",
+            ),
+            f"Não encontrei *{explicit_subject_label}* no nosso cardápio no momento 😕\n\n"
+            f"Se quiser, você pode ver as opções disponíveis aqui:\n"
+            f"👉 {catalog_url(tenant)}",
+            context={"intent": "product_not_found"},
+        )
+
     # Busca ampla por ingrediente vem antes da descrição genérica porque
     # perguntas como ``tem hamburguer que leva cebola?`` também contêm vocabulário
     # de composição, mas querem uma lista de produtos, não um único item.
@@ -2645,7 +2758,7 @@ def answer_from_store(tenant, question, context=None):
         return KnowledgeAnswer(
             "greeting",
             (f"Nome da loja: {tenant.name}.", f"Catálogo: {catalog_url(tenant)}"),
-            f"Oi! 😊 Sou o assistente da *{tenant.name}*. Posso te ajudar com o cardápio, entrega, retirada, endereço, horários, promoções e formas de pagamento.",
+            f"Oi! 😊 Tudo bem?\n\nComo posso te ajudar? Posso consultar o cardápio, preços, entrega, retirada, endereço, horários, promoções e formas de pagamento da *{tenant.name}*.",
         )
 
     return KnowledgeAnswer(
@@ -2654,5 +2767,5 @@ def answer_from_store(tenant, question, context=None):
             f"Nome da loja: {tenant.name}.", f"Catálogo: {catalog_url(tenant)}",
             "O assistente pode responder sobre produtos, adicionais, promoções, entrega, retirada, endereço, horários e pagamento.",
         ),
-        f"Posso te ajudar 😊 Me pergunte sobre produtos, adicionais, promoções, entrega, retirada, endereço, horários ou pagamento.\nCardápio: {catalog_url(tenant)}",
+        f"Posso te ajudar 😊\n\nMe pergunte sobre produtos, adicionais, promoções, entrega, retirada, endereço, horários ou pagamento.\n\n👉 Cardápio: {catalog_url(tenant)}",
     )

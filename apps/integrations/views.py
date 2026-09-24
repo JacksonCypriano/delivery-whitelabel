@@ -98,10 +98,11 @@ def tenant_evolution_webhook(request):
         if not instance_name:
             return HttpResponse(status=400)
 
-        from .models import TenantWhatsAppAgent
+        from .models import TenantWhatsAppAgent, TenantWhatsAppGroupNotice
         from .whatsapp_agent.connection import apply_connection_webhook, mark_pairing_hint
         from .whatsapp_agent.conversations import pause_for_manual_store_message
         from .whatsapp_agent.provider import (
+            extract_group_message,
             extract_message,
             incoming_once,
             is_agent_outbound,
@@ -129,6 +130,21 @@ def tenant_evolution_webhook(request):
             return HttpResponse(status=202)
         if event != "messages.upsert":
             return HttpResponse(status=204)
+
+        group_message = extract_group_message(data)
+        if group_message:
+            if group_message["from_me"] or not agent.ai_enabled:
+                return HttpResponse(status=202)
+            if TenantWhatsAppGroupNotice.objects.filter(
+                tenant=agent.tenant, group_jid=group_message["group_jid"]
+            ).exists():
+                return HttpResponse(status=202)
+            from .tasks import notify_tenant_whatsapp_group_once
+
+            notify_tenant_whatsapp_group_once.delay(
+                agent.pk, group_message["group_jid"]
+            )
+            return HttpResponse(status=202)
 
         message = extract_message(data)
         if not message:

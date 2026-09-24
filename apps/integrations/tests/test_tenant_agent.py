@@ -9,16 +9,23 @@ from django.utils import timezone
 from apps.integrations.models import (
     TenantWhatsAppAgent,
     TenantWhatsAppConversation,
+    TenantWhatsAppGroupNotice,
 )
-from apps.integrations.tasks import process_tenant_whatsapp_message
+from apps.integrations.tasks import (
+    notify_tenant_whatsapp_group_once,
+    process_tenant_whatsapp_message,
+)
 from apps.integrations.whatsapp_agent.connection import (
     apply_connection_webhook,
+    connect_agent,
+    disconnect_agent,
     get_or_create_agent,
     monitor_agent,
 )
 from apps.integrations.whatsapp_agent.agent import answer as agent_answer
 from apps.integrations.whatsapp_agent.knowledge import answer_from_store, normalize, product_url
-from apps.integrations.whatsapp_agent.provider import extract_message
+from apps.integrations.whatsapp_agent.provider import extract_group_message, extract_message
+from apps.integrations.whatsapp.client import EvolutionError
 from apps.orders.models import Order
 from apps.orders.services import build_whatsapp_message
 from apps.orders.whatsapp_marker import extract_order_id
@@ -483,6 +490,49 @@ class TenantWhatsAppAgentTests(TestCase):
         self.assertEqual(agent.status, TenantWhatsAppAgent.Status.PAIRING)
         self.assertTrue(agent.requires_pairing)
 
+    def test_disconnect_accepts_provider_error_when_state_is_already_close(self):
+        agent = get_or_create_agent(self.tenant)
+        agent.instance_created = True
+        agent.status = TenantWhatsAppAgent.Status.OPEN
+        agent.save()
+        client = Mock()
+        client.logout.side_effect = EvolutionError("unavailable")
+        client.status.return_value = "close"
+
+        disconnect_agent(agent, client=client)
+
+        agent.refresh_from_db()
+        self.assertEqual(agent.status, TenantWhatsAppAgent.Status.PAIRING)
+        self.assertTrue(agent.requires_pairing)
+        self.assertIsNone(agent.next_reconnect_at)
+        client.logout.assert_called_once_with(agent.instance_name)
+        client.status.assert_called_once_with(agent.instance_name)
+
+    def test_disconnect_keeps_provider_error_when_instance_remains_open(self):
+        agent = get_or_create_agent(self.tenant)
+        agent.instance_created = True
+        agent.status = TenantWhatsAppAgent.Status.OPEN
+        agent.save()
+        client = Mock()
+        client.logout.side_effect = EvolutionError("unavailable")
+        client.status.return_value = "open"
+
+        with self.assertRaises(EvolutionError):
+            disconnect_agent(agent, client=client)
+
+    def test_connect_applies_group_delivery_settings_to_existing_instance(self):
+        agent = get_or_create_agent(self.tenant)
+        agent.instance_created = True
+        agent.status = TenantWhatsAppAgent.Status.OPEN
+        agent.save()
+        client = Mock()
+        client.status.return_value = "open"
+
+        qr = connect_agent(agent, client=client)
+
+        self.assertIsNone(qr)
+        client.set_agent_settings.assert_called_once_with(agent.instance_name)
+
     def test_transient_drop_restarts_without_pairing(self):
         agent = get_or_create_agent(self.tenant)
         agent.instance_created = True
@@ -555,7 +605,8 @@ class TenantWhatsAppAgentTests(TestCase):
         self.assertEqual(state.pause_reason, TenantWhatsAppConversation.PauseReason.MANUAL)
         self.assertGreater(state.ai_paused_until, timezone.now())
 
-    def test_group_message_is_ignored(self):
+    @patch("apps.integrations.tasks.notify_tenant_whatsapp_group_once.delay")
+    def test_group_message_queues_private_notice(self, delay):
         agent = get_or_create_agent(self.tenant)
         agent.instance_created = True
         agent.ai_enabled = True
@@ -578,8 +629,109 @@ class TenantWhatsAppAgentTests(TestCase):
             content_type="application/json",
             HTTP_X_VDD_WEBHOOK_TOKEN="t" * 48,
         )
-        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response.status_code, 202)
+        delay.assert_called_once_with(agent.pk, "123456@g.us")
 
+    @patch("apps.integrations.tasks.notify_tenant_whatsapp_group_once.delay")
+    def test_group_with_persisted_notice_stays_silent(self, delay):
+        agent = get_or_create_agent(self.tenant)
+        agent.instance_created = True
+        agent.ai_enabled = True
+        agent.save()
+        TenantWhatsAppGroupNotice.objects.create(
+            tenant=self.tenant, group_jid="123456@g.us", sent_at=timezone.now()
+        )
+        payload = {
+            "event": "MESSAGES_UPSERT",
+            "instance": agent.instance_name,
+            "data": {
+                "key": {
+                    "remoteJid": "123456@g.us",
+                    "fromMe": False,
+                    "id": "GROUP-2",
+                },
+                "message": {"conversation": "Outra mensagem"},
+            },
+        }
+        response = self.client.post(
+            "/integracoes/evolution/tenant-webhook/",
+            data=json.dumps(payload),
+            content_type="application/json",
+            HTTP_X_VDD_WEBHOOK_TOKEN="t" * 48,
+        )
+        self.assertEqual(response.status_code, 202)
+        delay.assert_not_called()
+
+    @patch("apps.integrations.whatsapp_agent.client.TenantEvolutionClient.send_text")
+    def test_group_notice_is_persisted_and_sent_only_once(self, send_text):
+        send_text.return_value = "GROUP-OUT-1"
+        agent = get_or_create_agent(self.tenant)
+        agent.instance_created = True
+        agent.ai_enabled = True
+        agent.status = TenantWhatsAppAgent.Status.OPEN
+        agent.save()
+
+        first = notify_tenant_whatsapp_group_once(agent.pk, "123456@g.us")
+        second = notify_tenant_whatsapp_group_once(agent.pk, "123456@g.us")
+
+        self.assertEqual(first, "notified")
+        self.assertEqual(second, "already-notified")
+        send_text.assert_called_once()
+        args = send_text.call_args.args
+        self.assertEqual(args[0], agent.instance_name)
+        self.assertEqual(args[1], "123456@g.us")
+        self.assertIn("apenas em conversa privada", args[2])
+        self.assertIn("Me chama no privado que eu te ajudo por lá.", args[2])
+        self.assertNotIn("diretamente por aqui", args[2])
+        notice = TenantWhatsAppGroupNotice.objects.get(
+            tenant=self.tenant, group_jid="123456@g.us"
+        )
+        self.assertIsNotNone(notice.sent_at)
+
+    def test_group_extractor_keeps_group_jid_without_turning_it_into_phone(self):
+        message = extract_group_message({
+            "key": {
+                "remoteJid": "123456@g.us",
+                "fromMe": False,
+                "id": "GROUP-EXTRACT-1",
+            },
+            "message": {"conversation": "Quanto custa?"},
+        })
+        self.assertEqual(message["group_jid"], "123456@g.us")
+        self.assertFalse(message["from_me"])
+        self.assertIsNone(extract_message({
+            "key": {
+                "remoteJid": "123456@g.us",
+                "fromMe": False,
+                "id": "GROUP-EXTRACT-1",
+            },
+            "message": {"conversation": "Quanto custa?"},
+        }))
+
+
+    def test_lid_without_alternate_jid_is_ignored(self):
+        message = extract_message({
+            "key": {
+                "remoteJid": "999999999999999@lid",
+                "fromMe": False,
+                "id": "LID-1",
+            },
+            "message": {"conversation": "Oi"},
+        })
+        self.assertIsNone(message)
+
+    def test_lid_with_routable_alternate_jid_uses_phone_number(self):
+        message = extract_message({
+            "key": {
+                "remoteJid": "999999999999999@lid",
+                "remoteJidAlt": "5511988887777@s.whatsapp.net",
+                "fromMe": False,
+                "id": "LID-2",
+            },
+            "message": {"conversation": "Oi"},
+        })
+        self.assertEqual(message["phone"], "5511988887777")
+        self.assertEqual(message["text"], "Oi")
 
     def test_fulfillment_answers_delivery_and_pickup_from_tenant_mode(self):
         from apps.tenants.choices import FulfillmentMode
@@ -1262,6 +1414,21 @@ class TenantWhatsAppAgentTests(TestCase):
         self.assertIn(cheap.name, answer.fallback)
         self.assertIn("R$ 19,90", answer.fallback)
 
+    def test_greeting_is_more_natural_and_has_readable_spacing(self):
+        answer = agent_answer(self.tenant, "Oi")
+        self.assertEqual(answer.intent, "greeting")
+        self.assertIn("Tudo bem?", answer.text)
+        self.assertIn("Como posso te ajudar?", answer.text)
+        self.assertNotIn("Sou o assistente", answer.text)
+        self.assertIn("\n\n", answer.text)
+        self.assertNotIn("\n\n\n", answer.text)
+
+    def test_human_handoff_uses_continuity_wording(self):
+        answer = answer_from_store(self.tenant, "quero falar com uma pessoa")
+        self.assertEqual(answer.intent, "human")
+        self.assertIn("equipe da loja continuar seu atendimento", answer.fallback)
+        self.assertGreater(answer.pause_minutes, 0)
+
     def test_greeting_ola_variants_do_not_match_cola_products(self):
         for question in ("Olá", "Olaaa"):
             answer = answer_from_store(self.tenant, question)
@@ -1791,6 +1958,37 @@ class TenantWhatsAppAgentTests(TestCase):
                 self.assertIn(product_url(self.tenant, casa), answer.fallback)
                 self.assertIn("Frango desfiado", answer.fallback)
 
+    def test_missing_requested_category_does_not_fall_back_to_other_products(self):
+        burgers = Category.objects.create(tenant=self.tenant, name="Hambúrgueres")
+        burger = Product.objects.create(
+            tenant=self.tenant,
+            category=burgers,
+            name="Hambúrguer Bacon",
+            description="Pão, carne, queijo e bacon crocante.",
+            price=Decimal("31.90"),
+            is_available=True,
+        )
+        portions = Category.objects.create(tenant=self.tenant, name="Porções")
+        portion = Product.objects.create(
+            tenant=self.tenant,
+            category=portions,
+            name="Batata com Bacon",
+            description="Batata frita, cheddar e bacon crocante.",
+            price=Decimal("28.90"),
+            is_available=True,
+        )
+
+        answer = answer_from_store(
+            self.tenant,
+            "tem pizza de frango e bacon?",
+        )
+
+        self.assertEqual(answer.intent, "product_not_found")
+        self.assertIn("não encontrei", answer.fallback.lower())
+        self.assertIn("pizzas", answer.fallback.lower())
+        self.assertNotIn(burger.name, answer.fallback)
+        self.assertNotIn(portion.name, answer.fallback)
+
     def test_ingredient_search_is_generic_for_any_registered_ingredient_and_typos(self):
         pizzas = Category.objects.create(tenant=self.tenant, name="Pizzas")
         product = Product.objects.create(
@@ -1996,6 +2194,17 @@ class TenantWhatsAppAgentTests(TestCase):
                 answer = answer_from_store(self.tenant, question)
                 self.assertEqual(answer.intent, "product_not_found")
                 self.assertIn("não encontrei", answer.fallback.lower())
+
+    def test_missing_named_product_before_composition_verb_is_not_found(self):
+        answer = answer_from_store(
+            self.tenant,
+            "Pizza Portuguesa leva frango?",
+        )
+
+        self.assertEqual(answer.intent, "product_not_found")
+        self.assertIn("pizza portuguesa", answer.fallback.lower())
+        self.assertIn("não encontrei", answer.fallback.lower())
+        self.assertNotIn("Coca-Cola", answer.fallback)
 
     def test_specific_named_product_before_composition_verb_uses_description(self):
         pizzas = Category.objects.create(tenant=self.tenant, name="Pizzas")

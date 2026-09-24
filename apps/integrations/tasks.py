@@ -15,6 +15,12 @@ from .whatsapp.monitor import check_connection, enabled, identity
 log = logging.getLogger(__name__)
 
 
+GROUP_PRIVATE_NOTICE = (
+    "Oi! 😊 O atendimento automático funciona apenas em conversa privada.\n\n"
+    "Me chama no privado que eu te ajudo por lá."
+)
+
+
 @shared_task(soft_time_limit=60, time_limit=90)
 def monitor_whatsapp():
     if not enabled():
@@ -111,13 +117,62 @@ def monitor_tenant_whatsapp_agents():
 
 
 @shared_task(soft_time_limit=45, time_limit=60)
+def notify_tenant_whatsapp_group_once(agent_id, group_jid):
+    if not getattr(settings, "WHATSAPP_AGENT_ENABLED", False):
+        return "disabled"
+
+    from .models import TenantWhatsAppAgent, TenantWhatsAppGroupNotice
+    from .whatsapp.client import EvolutionError
+    from .whatsapp_agent.client import TenantEvolutionClient
+    from .whatsapp_agent.connection import add_event
+
+    try:
+        agent = TenantWhatsAppAgent.objects.select_related("tenant").get(
+            pk=agent_id, tenant__is_active=True
+        )
+    except TenantWhatsAppAgent.DoesNotExist:
+        return "missing-agent"
+
+    if not agent.ai_enabled:
+        return "agent-disabled"
+    if not str(group_jid or "").endswith("@g.us"):
+        return "invalid-group"
+
+    notice, created = TenantWhatsAppGroupNotice.objects.get_or_create(
+        tenant=agent.tenant,
+        group_jid=str(group_jid)[:160],
+    )
+    if not created:
+        return "already-notified"
+
+    try:
+        TenantEvolutionClient().send_text(
+            agent.instance_name,
+            notice.group_jid,
+            GROUP_PRIVATE_NOTICE,
+        )
+    except EvolutionError:
+        add_event(
+            agent,
+            "group_notice_error",
+            "Primeiro aviso do grupo não pôde ser confirmado; novas mensagens do grupo continuarão silenciosas.",
+        )
+        return "send-error"
+
+    notice.sent_at = timezone.now()
+    notice.save(update_fields=("sent_at",))
+    add_event(agent, "group_notice", "Grupo orientado uma única vez a continuar o atendimento no privado.")
+    return "notified"
+
+
+@shared_task(soft_time_limit=45, time_limit=60)
 def process_tenant_whatsapp_message(agent_id, message_id, phone, text, message_kind="text"):
     if not getattr(settings, "WHATSAPP_AGENT_ENABLED", False):
         return "disabled"
 
     from .models import TenantWhatsAppAgent, TenantWhatsAppConversation
     from .whatsapp.client import EvolutionError
-    from .whatsapp_agent.agent import answer
+    from .whatsapp_agent.agent import answer, format_whatsapp_text
     from .whatsapp_agent.client import TenantEvolutionClient
     from .whatsapp_agent.connection import add_event
     from .whatsapp_agent.conversations import (
@@ -208,6 +263,7 @@ def process_tenant_whatsapp_message(agent_id, message_id, phone, text, message_k
         reply_pause_minutes = reply.pause_minutes
         reply_pause_reason = reply.pause_reason
 
+    reply_text = format_whatsapp_text(reply_text)
     client = TenantEvolutionClient()
     mark_outbound_pending(agent.instance_name, phone, reply_text)
     try:

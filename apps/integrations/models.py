@@ -231,6 +231,31 @@ class TenantWhatsAppConversation(models.Model):
         return f"{self.tenant} — {self.phone_number}"
 
 
+class TenantWhatsAppGroupNotice(models.Model):
+    tenant = models.ForeignKey(
+        "tenants.Tenant",
+        on_delete=models.CASCADE,
+        related_name="whatsapp_group_notices",
+        verbose_name="Loja",
+    )
+    group_jid = models.CharField("Grupo WhatsApp", max_length=160)
+    attempted_at = models.DateTimeField("Primeira tentativa", auto_now_add=True)
+    sent_at = models.DateTimeField("Aviso enviado em", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Aviso de grupo do agente WhatsApp"
+        verbose_name_plural = "Avisos de grupo do agente WhatsApp"
+        constraints = [
+            models.UniqueConstraint(
+                fields=("tenant", "group_jid"),
+                name="unique_whatsapp_group_notice",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.tenant} — {self.group_jid}"
+
+
 class TenantWhatsAppAgentEvent(models.Model):
     agent = models.ForeignKey(
         TenantWhatsAppAgent,

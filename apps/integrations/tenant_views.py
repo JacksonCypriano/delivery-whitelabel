@@ -14,6 +14,7 @@ from django.views.decorators.debug import sensitive_variables
 from apps.integrations.whatsapp.client import EvolutionError
 from apps.integrations.whatsapp_agent.connection import (
     connect_agent,
+    disconnect_agent,
     feature_enabled,
     get_or_create_agent,
     refresh_agent,
@@ -60,6 +61,13 @@ def tenant_whatsapp_agent_panel(request):
                     refresh_agent(agent)
                     agent.refresh_from_db()
                     messages.success(request, "Situação do WhatsApp atualizada.")
+                elif action == "disconnect":
+                    disconnect_agent(agent)
+                    agent.refresh_from_db()
+                    messages.success(
+                        request,
+                        "WhatsApp desconectado. Para usar novamente, gere um novo QR Code.",
+                    )
                 elif action == "toggle":
                     agent.refresh_from_db()
                     enabling = not agent.ai_enabled

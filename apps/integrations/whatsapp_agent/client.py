@@ -104,7 +104,7 @@ class TenantEvolutionClient:
                 "qrcode": True,
                 "integration": "WHATSAPP-BAILEYS",
                 "rejectCall": True,
-                "groupsIgnore": True,
+                "groupsIgnore": False,
                 "alwaysOnline": False,
                 "readMessages": False,
                 "readStatus": False,
@@ -121,6 +121,21 @@ class TenantEvolutionClient:
                         "CONNECTION_UPDATE",
                     ],
                 },
+            },
+        )
+
+    def set_agent_settings(self, instance_name):
+        return self._request(
+            "POST",
+            f"settings/set/{quote(instance_name, safe='')}",
+            {
+                "rejectCall": True,
+                "msgCall": "Envie uma mensagem por texto e a loja continua o atendimento por aqui.",
+                "groupsIgnore": False,
+                "alwaysOnline": False,
+                "readMessages": False,
+                "readStatus": False,
+                "syncFullHistory": False,
             },
         )
 
@@ -145,6 +160,11 @@ class TenantEvolutionClient:
     def connect(self, instance_name):
         return self._request(
             "GET", f"instance/connect/{quote(instance_name, safe='')}"
+        )
+
+    def logout(self, instance_name):
+        return self._request(
+            "DELETE", f"instance/logout/{quote(instance_name, safe='')}"
         )
 
     @sensitive_variables("text")

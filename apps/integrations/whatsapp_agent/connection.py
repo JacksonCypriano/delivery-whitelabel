@@ -105,6 +105,7 @@ def connect_agent(agent, client=None):
     try:
         current = client.status(agent.instance_name)
         agent.instance_created = True
+        client.set_agent_settings(agent.instance_name)
         if current == "open":
             _save_open(agent)
             return None
@@ -138,6 +139,43 @@ def connect_agent(agent, client=None):
     if not qr:
         raise EvolutionError("invalid_response")
     return qr
+
+
+def disconnect_agent(agent, client=None):
+    if not feature_enabled():
+        raise EvolutionError("configuration")
+    client = client or TenantEvolutionClient()
+    provider_error = None
+    try:
+        client.logout(agent.instance_name)
+    except EvolutionError as exc:
+        provider_error = exc
+        try:
+            state = client.status(agent.instance_name)
+        except EvolutionError:
+            raise provider_error
+        if state != "close":
+            raise provider_error
+
+    now = timezone.now()
+    agent.instance_created = True
+    agent.status = TenantWhatsAppAgent.Status.PAIRING
+    agent.requires_pairing = True
+    agent.reconnect_attempts = 0
+    agent.next_reconnect_at = None
+    agent.checked_at = now
+    agent.disconnected_at = now
+    agent.last_error = "WhatsApp desconectado pela loja; faça um novo pareamento."
+    agent.save()
+    if provider_error:
+        add_event(
+            agent,
+            "logout_confirmed",
+            "A Evolution retornou erro no logout, mas a instância foi confirmada como desconectada.",
+        )
+    else:
+        add_event(agent, "logout", "WhatsApp desconectado pela loja; novo pareamento necessário.")
+    return agent
 
 
 def apply_connection_webhook(agent, data):

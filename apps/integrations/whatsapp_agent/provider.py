@@ -111,6 +111,32 @@ def _message_kind(message):
     return "text"
 
 
+def extract_group_message(data):
+    if not isinstance(data, dict):
+        return None
+    key = data.get("key")
+    if not isinstance(key, dict):
+        return None
+    remote_jid = str(key.get("remoteJid") or "")
+    if not remote_jid.endswith("@g.us"):
+        return None
+    message = _unwrap_message(data.get("message"))
+    text = extract_text({"message": message})
+    message_kind = _message_kind(message)
+    if not text and message_kind == "text":
+        return None
+    message_id = str(key.get("id") or "")[:160]
+    if not message_id:
+        return None
+    return {
+        "message_id": message_id,
+        "group_jid": remote_jid[:160],
+        "text": text,
+        "kind": message_kind,
+        "from_me": bool(key.get("fromMe")),
+    }
+
+
 def extract_message(data):
     if not isinstance(data, dict):
         return None

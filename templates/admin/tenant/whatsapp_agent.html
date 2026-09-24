@@ -1,0 +1,313 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div id="content-main" class="flex flex-col gap-5">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div class="flex items-start gap-3">
+            <a
+                href="{{ back_url }}"
+                class="bg-white border border-base-200 flex h-9 items-center justify-center rounded-default text-important w-9 hover:bg-base-50 hover:text-primary-600 dark:bg-base-900 dark:border-base-700 dark:hover:bg-base-800 dark:hover:text-primary-500"
+                title="Voltar ao painel"
+                aria-label="Voltar ao painel"
+            >
+                <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+            </a>
+
+            <div>
+                <h1 class="font-semibold text-xl text-important">Atendimento WhatsApp</h1>
+                <p class="mt-1 text-sm text-font-subtle-light dark:text-font-subtle-dark">
+                    Conecte o WhatsApp da loja e controle o agente de atendimento automático.
+                </p>
+            </div>
+        </div>
+
+        <div class="shrink-0 text-sm">
+            <span id="wa-agent-live-status" data-status="{{ agent.status }}"
+                  class="font-medium {% if agent.status == 'open' %}text-green-700 dark:text-green-400{% elif agent.status == 'pairing' or agent.status == 'connecting' %}text-orange-700 dark:text-orange-400{% else %}text-red-700 dark:text-red-400{% endif %}">
+                ● {{ agent.get_status_display }}
+            </span>
+        </div>
+    </div>
+
+    {% if not feature_enabled %}
+        <div class="border border-base-200 px-3 py-3 rounded-default dark:border-base-800">
+            <div class="flex gap-2 items-start">
+                <span class="material-symbols-outlined text-[20px] text-font-subtle-light dark:text-font-subtle-dark">info</span>
+                <div class="text-sm">
+                    <strong class="text-important">Recurso desabilitado neste ambiente.</strong>
+                    <div class="mt-1 text-font-subtle-light dark:text-font-subtle-dark">
+                        A configuração global precisa ser concluída antes do primeiro pareamento.
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    {% if stale %}
+        <div class="border border-base-200 px-3 py-3 rounded-default dark:border-base-800">
+            <div class="flex gap-2 items-start">
+                <span class="material-symbols-outlined text-[20px] text-font-subtle-light dark:text-font-subtle-dark">schedule</span>
+                <div class="text-sm">
+                    <strong class="text-important">Estado possivelmente desatualizado.</strong>
+                    <div class="mt-1 text-font-subtle-light dark:text-font-subtle-dark">
+                        A verificação periódica não atualiza esta conexão há mais de três minutos.
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    {% if agent.requires_pairing %}
+        <div class="border border-base-200 px-3 py-3 rounded-default dark:border-base-800">
+            <div class="flex gap-2 items-start">
+                <span class="material-symbols-outlined text-[20px] text-font-subtle-light dark:text-font-subtle-dark">qr_code_2</span>
+                <div class="text-sm">
+                    <strong class="text-important">Novo pareamento necessário.</strong>
+                    <div class="mt-1 text-font-subtle-light dark:text-font-subtle-dark">
+                        Gere um novo QR Code e conecte novamente o WhatsApp da loja.
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <details class="module" open>
+        <summary class="bg-base-100 cursor-pointer font-semibold px-3 py-2.5 rounded-default text-important dark:bg-white/[.02]">
+            Conexão e agente
+        </summary>
+
+        <table class="border border-base-200 border-spacing-none border-separate mt-3 rounded-default overflow-hidden shadow-xs w-full dark:border-base-800">
+            <tbody>
+                <tr class="vdd-admin-hover-row *:border-b *:border-base-200 dark:*:border-base-800">
+                    <th scope="row" class="font-normal px-3 py-2.5 text-left text-important w-1/3">Situação do WhatsApp</th>
+                    <td id="wa-agent-status-cell" class="px-3 py-2.5 text-important">{{ agent.get_status_display }}</td>
+                </tr>
+                <tr class="vdd-admin-hover-row *:border-b *:border-base-200 dark:*:border-base-800">
+                    <th scope="row" class="font-normal px-3 py-2.5 text-left text-important">Instância</th>
+                    <td class="px-3 py-2.5 break-all text-important">{{ agent.instance_name }}</td>
+                </tr>
+                <tr class="vdd-admin-hover-row *:border-b *:border-base-200 dark:*:border-base-800">
+                    <th scope="row" class="font-normal px-3 py-2.5 text-left text-important">Última verificação</th>
+                    <td class="px-3 py-2.5 text-important">{{ agent.checked_at|date:"d/m/Y H:i:s"|default:"Pendente" }}</td>
+                </tr>
+                <tr class="vdd-admin-hover-row *:border-b *:border-base-200 dark:*:border-base-800">
+                    <th scope="row" class="font-normal px-3 py-2.5 text-left text-important">Último webhook</th>
+                    <td class="px-3 py-2.5 text-important">{{ agent.webhook_at|date:"d/m/Y H:i:s"|default:"Ainda não recebido" }}</td>
+                </tr>
+                <tr class="vdd-admin-hover-row *:border-b *:border-base-200 dark:*:border-base-800">
+                    <th scope="row" class="font-normal px-3 py-2.5 text-left text-important">Atendimento automático</th>
+                    <td class="px-3 py-2.5 text-important">
+                        {% if agent.ai_enabled %}
+                            <span class="font-medium text-green-700 dark:text-green-400">Ativado</span>
+                        {% else %}
+                            <span class="font-medium">Desativado</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr class="vdd-admin-hover-row *:border-b *:border-base-200 dark:*:border-base-800">
+                    <th scope="row" class="font-normal px-3 py-2.5 text-left text-important">Reconexões tentadas</th>
+                    <td class="px-3 py-2.5 text-important">{{ agent.reconnect_attempts }}</td>
+                </tr>
+                <tr class="vdd-admin-hover-row *:border-b *:border-base-200 dark:*:border-base-800">
+                    <th scope="row" class="font-normal px-3 py-2.5 text-left text-important">Próxima tentativa</th>
+                    <td class="px-3 py-2.5 text-important">{{ agent.next_reconnect_at|date:"d/m/Y H:i:s"|default:"—" }}</td>
+                </tr>
+                <tr class="vdd-admin-hover-row">
+                    <th scope="row" class="font-normal px-3 py-2.5 text-left text-important">Diagnóstico</th>
+                    <td class="px-3 py-2.5 break-words text-important">{{ agent.last_error|default:"Sem erro registrado" }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </details>
+
+    <details class="module" open>
+        <summary class="bg-base-100 cursor-pointer font-semibold px-3 py-2.5 rounded-default text-important dark:bg-white/[.02]">
+            Configuração
+        </summary>
+
+        <div class="border border-base-200 mt-3 p-3 rounded-default dark:border-base-800">
+            <p class="mb-3 text-sm text-font-subtle-light dark:text-font-subtle-dark">
+                O QR Code é temporário e não fica salvo no VemDeDelivery.
+            </p>
+
+            <form method="post" class="flex flex-wrap gap-2">
+                {% csrf_token %}
+                <button
+                    class="bg-primary-600 border border-transparent flex font-medium gap-2 items-center px-3 py-2 rounded-default text-sm text-white hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    name="action"
+                    value="connect"
+                    type="submit"
+                    {% if not feature_enabled %}disabled{% endif %}
+                >
+                    <span class="material-symbols-outlined text-[18px]">qr_code_2</span>
+                    Conectar / gerar QR Code
+                </button>
+
+                <button
+                    class="bg-white border border-base-200 flex font-medium gap-2 items-center px-3 py-2 rounded-default text-sm text-important hover:bg-base-50 dark:bg-base-900 dark:border-base-700 dark:hover:bg-base-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    name="action"
+                    value="check"
+                    type="submit"
+                    {% if not feature_enabled %}disabled{% endif %}
+                >
+                    <span class="material-symbols-outlined text-[18px]">refresh</span>
+                    Verificar conexão
+                </button>
+
+                {% if agent.instance_created and not agent.requires_pairing %}
+                    <button
+                        class="bg-white border border-base-200 flex font-medium gap-2 items-center px-3 py-2 rounded-default text-sm text-red-700 hover:bg-base-50 dark:bg-base-900 dark:border-base-700 dark:text-red-400 dark:hover:bg-base-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        name="action"
+                        value="disconnect"
+                        type="submit"
+                        onclick="return window.confirm('Desconectar o WhatsApp desta loja? Será necessário escanear um novo QR Code para conectar novamente.');"
+                        {% if not feature_enabled %}disabled{% endif %}
+                    >
+                        <span class="material-symbols-outlined text-[18px]">link_off</span>
+                        Desconectar WhatsApp
+                    </button>
+                {% endif %}
+
+                {% if agent.ai_enabled %}
+                    <button
+                        class="bg-white border border-base-200 flex font-medium gap-2 items-center px-3 py-2 rounded-default text-sm text-important hover:bg-base-50 dark:bg-base-900 dark:border-base-700 dark:hover:bg-base-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        name="action"
+                        value="toggle"
+                        type="submit"
+                        {% if not feature_enabled %}disabled{% endif %}
+                    >
+                        <span class="material-symbols-outlined text-[18px]">pause_circle</span>
+                        Desativar agente
+                    </button>
+                {% else %}
+                    <button
+                        class="bg-white border border-base-200 flex font-medium gap-2 items-center px-3 py-2 rounded-default text-sm text-important hover:bg-base-50 dark:bg-base-900 dark:border-base-700 dark:hover:bg-base-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        id="wa-agent-toggle-enable"
+                        name="action"
+                        value="toggle"
+                        type="submit"
+                        {% if not feature_enabled or agent.status != "open" %}disabled{% endif %}
+                    >
+                        <span class="material-symbols-outlined text-[18px]">smart_toy</span>
+                        Ativar agente
+                    </button>
+                {% endif %}
+            </form>
+
+            {% if qr %}
+                <div id="agent-qr" class="border-t border-base-200 mt-4 pt-4 dark:border-base-800">
+                    <div class="bg-white border border-base-200 p-3 rounded-default w-fit dark:border-base-700">
+                        <img class="block h-auto max-w-full w-[280px]" src="{{ qr }}" alt="QR Code temporário para conectar o WhatsApp">
+                    </div>
+                    <p class="mt-3 text-sm text-font-subtle-light dark:text-font-subtle-dark">
+                        No celular da loja: WhatsApp → Aparelhos conectados → Conectar um aparelho.
+                    </p>
+                </div>
+                <script>
+                    setTimeout(function () {
+                        var q = document.getElementById('agent-qr');
+                        if (q) {
+                            q.innerHTML = '<p class="text-sm text-font-subtle-light dark:text-font-subtle-dark">QR Code ocultado. Gere outro se ainda precisar.</p>';
+                        }
+                    }, 60000);
+                </script>
+            {% endif %}
+        </div>
+    </details>
+
+    <details class="module">
+        <summary class="bg-base-100 cursor-pointer font-semibold px-3 py-2.5 rounded-default text-important dark:bg-white/[.02]">
+            Como o agente trabalha
+        </summary>
+
+        <table class="border border-base-200 border-spacing-none border-separate mt-3 rounded-default overflow-hidden shadow-xs w-full dark:border-base-800">
+            <tbody>
+                <tr class="vdd-admin-hover-row *:border-b *:border-base-200 dark:*:border-base-800">
+                    <th scope="row" class="font-normal px-3 py-2.5 text-left text-important w-1/3">Dúvidas da loja</th>
+                    <td class="px-3 py-2.5 text-important">Consulta produtos, preços, endereço, horários, bairros, taxas de entrega e formas de pagamento cadastradas nesta loja.</td>
+                </tr>
+                <tr class="vdd-admin-hover-row *:border-b *:border-base-200 dark:*:border-base-800">
+                    <th scope="row" class="font-normal px-3 py-2.5 text-left text-important">Pedido do VemDeDelivery</th>
+                    <td class="px-3 py-2.5 text-important">A mensagem gerada pelo fechamento do pedido é identificada e não recebe resposta automática.</td>
+                </tr>
+                <tr class="vdd-admin-hover-row *:border-b *:border-base-200 dark:*:border-base-800">
+                    <th scope="row" class="font-normal px-3 py-2.5 text-left text-important">Atendimento humano</th>
+                    <td class="px-3 py-2.5 text-important">Quando a equipe responde manualmente, o agente pausa a conversa temporariamente para não disputar o atendimento.</td>
+                </tr>
+                <tr class="vdd-admin-hover-row *:border-b *:border-base-200 dark:*:border-base-800">
+                    <th scope="row" class="font-normal px-3 py-2.5 text-left text-important">Grupos</th>
+                    <td class="px-3 py-2.5 text-important">Na primeira mensagem recebida de cada grupo, o agente orienta uma única vez a continuar no privado. Depois disso, o grupo permanece silencioso.</td>
+                </tr>
+                <tr class="vdd-admin-hover-row">
+                    <th scope="row" class="font-normal px-3 py-2.5 text-left text-important">Contexto da conversa</th>
+                    <td class="px-3 py-2.5 text-important">Após {{ context_timeout_minutes }} minutos sem mensagens, o contexto é reiniciado para não relacionar uma nova conversa com assuntos antigos.</td>
+                </tr>
+            </tbody>
+        </table>
+    </details>
+
+    <details class="module" open>
+        <summary class="bg-base-100 cursor-pointer font-semibold px-3 py-2.5 rounded-default text-important dark:bg-white/[.02]">
+            Eventos recentes
+        </summary>
+
+        {% if events %}
+            <table class="border border-base-200 border-spacing-none border-separate mt-3 rounded-default overflow-hidden shadow-xs w-full dark:border-base-800">
+                <thead>
+                    <tr class="bg-base-50 dark:bg-white/[.02]">
+                        <th class="font-semibold px-3 py-2.5 text-left text-sm text-important">Data</th>
+                        <th class="font-semibold px-3 py-2.5 text-left text-sm text-important">Evento</th>
+                        <th class="font-semibold px-3 py-2.5 text-left text-sm text-important">Descrição</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in events %}
+                        <tr class="vdd-admin-hover-row *:border-t *:border-base-200 dark:*:border-base-800">
+                            <td class="px-3 py-2.5 text-sm whitespace-nowrap text-important">{{ event.created_at|date:"d/m/Y H:i:s" }}</td>
+                            <td class="px-3 py-2.5 text-sm whitespace-nowrap text-important">{{ event.kind }}</td>
+                            <td class="px-3 py-2.5 text-sm text-important">{{ event.description }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="border border-base-200 mt-3 px-3 py-4 rounded-default text-sm text-font-subtle-light dark:border-base-800 dark:text-font-subtle-dark">
+                Nenhum evento registrado ainda. Conexões, pareamentos e ações do agente aparecerão aqui.
+            </div>
+        {% endif %}
+    </details>
+</div>
+
+<script>
+(function () {
+    const statusUrl = new URL(window.location.href);
+    statusUrl.searchParams.set('format', 'status');
+    let previous = document.getElementById('wa-agent-live-status')?.dataset.status || '';
+    let attempts = 0;
+
+    async function pollWhatsAppStatus() {
+        if (attempts++ >= 30) return;
+        try {
+            const response = await fetch(statusUrl.toString(), {
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' },
+                cache: 'no-store'
+            });
+            if (!response.ok) return;
+            const data = await response.json();
+            if (data.status && data.status !== previous) {
+                // Recarrega a página para atualizar todos os controles, mensagens e eventos
+                // usando o próprio template do Unfold.
+                window.location.reload();
+                return;
+            }
+        } catch (error) {
+            // Falha de polling não interfere nas ações manuais da tela.
+        }
+        window.setTimeout(pollWhatsAppStatus, 2000);
+    }
+
+    window.setTimeout(pollWhatsAppStatus, 2000);
+})();
+</script>
+{% endblock %}

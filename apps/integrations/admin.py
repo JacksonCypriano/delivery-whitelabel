@@ -16,7 +16,14 @@ from django.views.decorators.debug import sensitive_variables
 from unfold.admin import ModelAdmin
 
 from apps.tenants.admin_site import super_admin_site
-from .models import WhatsAppIntegrationState, WhatsAppIntegrationEvent, WhatsAppAlert
+from .models import (
+    WhatsAppIntegrationState,
+    WhatsAppIntegrationEvent,
+    WhatsAppAlert,
+    TenantWhatsAppAgent,
+    TenantWhatsAppAgentEvent,
+    TenantWhatsAppConversation,
+)
 from .whatsapp.client import EvolutionClient, EvolutionError
 from .whatsapp.monitor import (
     current_state,
@@ -237,3 +244,45 @@ class AlertAdmin(SuperOnly):
     )
     list_filter = ("state", "status", "recovery")
     readonly_fields = tuple(field.name for field in WhatsAppAlert._meta.fields)
+
+
+@admin.register(TenantWhatsAppAgent, site=super_admin_site)
+class TenantWhatsAppAgentAdmin(SuperOnly):
+    list_display = (
+        "tenant",
+        "instance_name",
+        "status",
+        "ai_enabled",
+        "requires_pairing",
+        "reconnect_attempts",
+        "checked_at",
+    )
+    list_filter = ("status", "ai_enabled", "requires_pairing")
+    search_fields = ("tenant__name", "tenant__slug", "instance_name")
+    list_select_related = ("tenant",)
+    readonly_fields = tuple(field.name for field in TenantWhatsAppAgent._meta.fields)
+
+
+@admin.register(TenantWhatsAppAgentEvent, site=super_admin_site)
+class TenantWhatsAppAgentEventAdmin(SuperOnly):
+    list_display = ("created_at", "agent", "kind", "description")
+    list_filter = ("kind",)
+    search_fields = ("agent__tenant__name", "agent__instance_name", "description")
+    list_select_related = ("agent", "agent__tenant")
+    readonly_fields = tuple(field.name for field in TenantWhatsAppAgentEvent._meta.fields)
+
+
+@admin.register(TenantWhatsAppConversation, site=super_admin_site)
+class TenantWhatsAppConversationAdmin(SuperOnly):
+    list_display = (
+        "tenant",
+        "phone_number",
+        "pause_reason",
+        "ai_paused_until",
+        "last_customer_message_at",
+        "last_agent_message_at",
+    )
+    list_filter = ("pause_reason",)
+    search_fields = ("tenant__name", "phone_number")
+    list_select_related = ("tenant",)
+    readonly_fields = tuple(field.name for field in TenantWhatsAppConversation._meta.fields)

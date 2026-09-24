@@ -168,6 +168,18 @@ export function initAddToCart() {
     emit(EVENTS.MODAL_OPEN, { name: 'add-to-cart' });
   });
 
+  // Deep link vindo do agente WhatsApp: abre o mesmo modal de adicionais
+  // usado pelo catálogo, sem duplicar regras de carrinho/customização.
+  const deepLinkState = document.getElementById('catalog-deep-link');
+  const openSlug = deepLinkState?.dataset.openProductSlug?.trim() || '';
+  if (openSlug) {
+    const trigger = [...document.querySelectorAll('[data-action="add-to-cart"][data-product-slug]')]
+      .find((item) => item.dataset.productSlug === openSlug);
+    if (trigger) {
+      window.requestAnimationFrame(() => trigger.click());
+    }
+  }
+
   // Submit do form (botão "Adicionar" — com nota)
   document.addEventListener('submit', async (event) => {
     const form = event.target.closest('[data-add-to-cart-form]');

@@ -26,6 +26,7 @@ from apps.integrations.whatsapp_agent.agent import answer as agent_answer
 from apps.integrations.whatsapp_agent.knowledge import answer_from_store, normalize, product_url
 from apps.integrations.whatsapp_agent.provider import extract_group_message, extract_message
 from apps.integrations.whatsapp.client import EvolutionError
+from apps.marketplace.services import build_tenant_url
 from apps.orders.models import Order
 from apps.orders.services import build_whatsapp_message
 from apps.orders.whatsapp_marker import extract_order_id
@@ -1064,10 +1065,12 @@ class TenantWhatsAppAgentTests(TestCase):
         self.assertIn("cardápio", answer.fallback.lower())
 
     def test_catalog_and_order_start_go_directly_to_catalog(self):
+        expected_url = build_tenant_url(self.tenant)
+
         for question in ("me manda o cardápio", "quero fazer um pedido", "como pedir?"):
             answer = answer_from_store(self.tenant, question)
             self.assertEqual(answer.intent, "catalog")
-            self.assertIn("bella-massa.lvh.me", answer.fallback)
+            self.assertIn(expected_url, answer.fallback)
 
     def test_order_status_hands_off_to_store_and_pauses_agent(self):
         answer = answer_from_store(self.tenant, "onde está meu pedido?")

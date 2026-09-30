@@ -67,6 +67,10 @@ def answer(tenant, question, context=None):
                 text = candidate
         except OllamaUnavailable:
             pass
+    if knowledge.intent == "greeting":
+        from django.conf import settings
+        if getattr(settings, "WHATSAPP_AGENT_CHECKOUT_ENABLED", True):
+            text += "\n\nSe quiser pedir por aqui mesmo, escreva *novo pedido*. Eu te ajudo a escolher 🙂"
     return AgentReply(
         text=format_whatsapp_text(text),
         intent=knowledge.intent,

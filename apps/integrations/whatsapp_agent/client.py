@@ -169,14 +169,41 @@ class TenantEvolutionClient:
 
     @sensitive_variables("text")
     def send_text(self, instance_name, number, text):
-        data = self._request(
-            "POST",
-            f"message/sendText/{quote(instance_name, safe='')}",
-            {"number": number, "text": text},
-        )
-        if not isinstance(data, dict) or not isinstance(data.get("key"), dict):
-            raise EvolutionError("invalid_response")
-        message_id = data["key"].get("id")
+        from .provider import mark_outbound_message, mark_outbound_pending
+        remaining = str(text)
+        message_id = ""
+        while remaining:
+            if len(remaining) > 3500:
+                cut = remaining.rfind("\n", 0, 3500)
+                cut = cut if cut > 0 else 3500
+            else:
+                cut = len(remaining)
+            chunk, remaining = remaining[:cut], remaining[cut:].lstrip("\n")
+            mark_outbound_pending(instance_name, number, chunk)
+            data = self._request("POST", f"message/sendText/{quote(instance_name, safe='')}", {"number": number, "text": chunk})
+            message_id = self._message_id(data)
+            mark_outbound_message(instance_name, message_id)
         if not message_id:
             raise EvolutionError("invalid_response")
-        return str(message_id)
+        return message_id
+
+    def send_choices(self, instance_name, number, choices):
+        """Optional enhancement; the preceding text always contains every choice."""
+        if len(choices) <= 3:
+            path = "sendButtons"
+            payload = {"number": number, "title": "Escolha uma opção", "description": "Você também pode responder pelo número.", "footer": "VemDeDelivery", "buttons": [{"type": "reply", "displayText": label[:20], "id": key} for key, label in choices]}
+        else:
+            path = "sendList"
+            payload = {"number": number, "title": "Opções do pedido", "description": "Escolha uma opção", "buttonText": "Ver opções", "footerText": "VemDeDelivery", "sections": [{"title": "Opções", "rows": [{"title": label[:24], "description": label[:72], "rowId": key} for key, label in choices[:10]]}]}
+        data = self._request("POST", f"message/{path}/{quote(instance_name, safe='')}", payload)
+        return self._message_id(data)
+
+    @staticmethod
+    def _message_id(data):
+        if not isinstance(data, dict) or not isinstance(data.get("key"), dict) or not data["key"].get("id"):
+            raise EvolutionError("invalid_response")
+        return str(data["key"]["id"])
+
+    def send_pix_image(self, instance_name, number, encoded_image):
+        data = self._request("POST", f"message/sendMedia/{quote(instance_name, safe='')}", {"number": number, "mediatype": "image", "mimetype": "image/png", "caption": "Pix do seu pedido — aguardando pagamento", "media": encoded_image, "fileName": "pix-pedido.png"})
+        return self._message_id(data)

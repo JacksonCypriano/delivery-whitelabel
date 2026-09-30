@@ -211,6 +211,7 @@ def process_tenant_whatsapp_message(agent_id, message_id, phone, text, message_k
     if row.ai_paused_until and row.ai_paused_until > now:
         return "conversation-paused"
 
+    checkout_reply = None
     if message_kind in {"audio", "image", "video", "document", "sticker", "location", "contact"}:
         media_replies = {
             "audio": (
@@ -254,7 +255,9 @@ def process_tenant_whatsapp_message(agent_id, message_id, phone, text, message_k
         reply_pause_minutes = 0
         reply_pause_reason = ""
     else:
-        reply = answer(agent.tenant, text, context=context)
+        from .whatsapp_agent.checkout import handle_checkout
+        checkout_reply = handle_checkout(agent.tenant, phone, message_id, text) if getattr(settings, "WHATSAPP_AGENT_CHECKOUT_ENABLED", True) else None
+        reply = checkout_reply or answer(agent.tenant, text, context=context)
         if not reply.text:
             return "no-reply"
         reply_text = reply.text
@@ -275,6 +278,17 @@ def process_tenant_whatsapp_message(agent_id, message_id, phone, text, message_k
         return "send-error"
 
     mark_outbound_message(agent.instance_name, provider_message_id)
+    if checkout_reply:
+        if checkout_reply.choices and getattr(settings, "WHATSAPP_AGENT_BUTTONS_ENABLED", True):
+            mark_outbound_pending(agent.instance_name, phone, "Escolha uma opção")
+            mark_outbound_pending(agent.instance_name, phone, "Opções do pedido")
+            try:
+                button_id = client.send_choices(agent.instance_name, phone, checkout_reply.choices)
+                mark_outbound_message(agent.instance_name, button_id)
+            except EvolutionError:
+                pass  # The complete numbered text was already sent.
+        if checkout_reply.pix_checkout_id:
+            send_checkout_pix(checkout_reply.pix_checkout_id)
     row.last_agent_message_at = timezone.now()
     row.save(update_fields=("last_agent_message_at", "updated_at"))
     update_context(row, reply_context)
@@ -285,3 +299,98 @@ def process_tenant_whatsapp_message(agent_id, message_id, phone, text, message_k
 
     add_event(agent, "answered", f"Resposta automática enviada ({reply_intent}).")
     return f"answered:{reply_intent}"
+
+
+@shared_task(soft_time_limit=90, time_limit=120)
+def send_checkout_pix(checkout_id):
+    from apps.billing.provider import BillingError
+    from .models import WhatsAppCheckout, TenantWhatsAppAgent
+    from .whatsapp_agent.checkout_payments import issue_pix
+    from .whatsapp_agent.client import TenantEvolutionClient
+    from .whatsapp_agent.provider import mark_outbound_message, mark_outbound_pending
+    from .whatsapp.client import EvolutionError
+    c = WhatsAppCheckout.objects.select_related("conversation", "cart").get(pk=checkout_id)
+    agent = TenantWhatsAppAgent.objects.get(tenant_id=c.cart.tenant_id)
+    client = TenantEvolutionClient()
+    phone = c.conversation.phone_number
+    try:
+        qr = issue_pix(checkout_id)
+        if qr is None:
+            return "not-pending"
+        # Copy/paste is its own message, without formatting or an appended caption.
+        mark_outbound_pending(agent.instance_name, phone, qr["payload"])
+        mid = client.send_text(agent.instance_name, phone, qr["payload"])
+        mark_outbound_message(agent.instance_name, mid)
+        mark_outbound_pending(agent.instance_name, phone, "Pix do seu pedido — aguardando pagamento")
+        try:
+            mid = client.send_pix_image(agent.instance_name, phone, qr["encodedImage"])
+            mark_outbound_message(agent.instance_name, mid)
+        except EvolutionError:
+            return "copy-paste-sent"
+        return "pix-sent"
+    except (BillingError, ValueError):
+        text = "Ainda não consegui recuperar seu Pix. Seu carrinho está salvo e não vou criar uma cobrança duplicada.\n\nTente *Pix* novamente em instantes ou escreva *atendente*."
+        mark_outbound_pending(agent.instance_name, phone, text)
+        try:
+            mid = client.send_text(agent.instance_name, phone, text)
+            mark_outbound_message(agent.instance_name, mid)
+        except EvolutionError:
+            pass
+        return "pix-pending"
+    except EvolutionError:
+        return "send-error"
+
+
+@shared_task(soft_time_limit=90, time_limit=120)
+def deliver_whatsapp_order_notices():
+    from django.db import transaction
+    from .models import WhatsAppOrderNotice, TenantWhatsAppAgent
+    from .whatsapp_agent.client import TenantEvolutionClient
+    from .whatsapp_agent.provider import mark_outbound_message, mark_outbound_pending
+    from .whatsapp.client import EvolutionError
+    if not getattr(settings, "WHATSAPP_AGENT_ENABLED", False):
+        return "disabled"
+    for pk in WhatsAppOrderNotice.objects.filter(sent_at__isnull=True).order_by("pk").values_list("pk", flat=True)[:20]:
+        with transaction.atomic():
+            notice = WhatsAppOrderNotice.objects.select_for_update(of=("self",)).select_related("checkout__cart").get(pk=pk)
+            if notice.sent_at:
+                continue
+            agent = TenantWhatsAppAgent.objects.filter(tenant_id=notice.checkout.cart.tenant_id, instance_created=True).first()
+            if not agent:
+                continue
+            mark_outbound_pending(agent.instance_name, notice.recipient, notice.text)
+            try:
+                mid = TenantEvolutionClient().send_text(agent.instance_name, notice.recipient, notice.text)
+            except EvolutionError:
+                continue
+            mark_outbound_message(agent.instance_name, mid)
+            notice.sent_at = timezone.now()
+            notice.save(update_fields=["sent_at"])
+    return "processed"
+
+
+@shared_task(soft_time_limit=90, time_limit=120)
+def maintain_whatsapp_checkouts():
+    """Recover uncertain issuance and cancel unpaid charges after 30 minutes.
+
+    Never infer non-payment from a timeout and never release stock until Asaas
+    acknowledges deletion. Paid orders still require the persisted webhook.
+    """
+    from datetime import timedelta
+    from django.db import transaction
+    from apps.billing.provider import BillingError, environment
+    from .models import WhatsAppCheckout
+    from .whatsapp_agent.checkout_payments import issue_pix, cancel_payment
+    ids = list(WhatsAppCheckout.objects.filter(status__in=["issuing", "uncertain", "pending"], environment=environment()).order_by("updated_at").values_list("pk", flat=True)[:10])
+    for pk in ids:
+        c = WhatsAppCheckout.objects.get(pk=pk)
+        if not c.provider_id:
+            try:
+                issue_pix(pk)
+            except (BillingError, ValueError):
+                pass
+        with transaction.atomic():
+            c = WhatsAppCheckout.objects.select_for_update(of=("self",)).select_related("cart__tenant", "conversation").get(pk=pk)
+            if c.status == "pending" and c.expires_at and c.expires_at <= timezone.now():
+                cancel_payment(c)
+            c.save(update_fields=["status", "data", "updated_at"])

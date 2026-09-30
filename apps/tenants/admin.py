@@ -111,7 +111,7 @@ class TenantAdmin(ModelAdmin):
     readonly_fields = ("created_at",)
 
     fieldsets = (
-        ("Loja", {"fields": ("name", "slug", "whatsapp_number")}),
+        ("Loja", {"fields": ("name", "slug", "whatsapp_number", "whatsapp_order_number")}),
         (
             "Operação",
             {
@@ -128,7 +128,7 @@ class TenantAdmin(ModelAdmin):
     add_fieldsets = (
         (
             "Dados da loja",
-            {"fields": ("name", "slug", "whatsapp_number", "grant_free_month")},
+            {"fields": ("name", "slug", "whatsapp_number", "whatsapp_order_number", "grant_free_month")},
         ),
         (
             "Acesso do lojista",
@@ -677,6 +677,7 @@ class StoreSettingsAdmin(ModelAdmin):
                     "name",
                     "slug",
                     "whatsapp_number",
+                    "whatsapp_order_number",
                     "fulfillment_mode",
                 ),
             },
@@ -1022,4 +1023,3 @@ class BusinessHourAdmin(ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return self.has_view_permission(request, obj)
-

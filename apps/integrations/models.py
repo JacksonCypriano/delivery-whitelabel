@@ -274,3 +274,52 @@ class TenantWhatsAppAgentEvent(models.Model):
 
     def __str__(self):
         return f"{self.agent} — {self.description}"
+
+
+class WhatsAppCheckout(models.Model):
+    """Persistent cart/payment intent. An Order exists only after confirmation/payment."""
+    conversation = models.ForeignKey(TenantWhatsAppConversation, on_delete=models.PROTECT, related_name="checkouts")
+    cart = models.OneToOneField("orders.Cart", on_delete=models.PROTECT)
+    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    step = models.CharField(max_length=32, default="product")
+    data = models.JSONField(default=dict)
+    snapshot = models.JSONField(default=dict)
+    status = models.CharField(max_length=24, default="editing", db_index=True)
+    environment = models.CharField(max_length=12, blank=True)
+    account_id = models.CharField(max_length=80, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    provider_id = models.CharField(max_length=80, unique=True, null=True, blank=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+    order = models.OneToOneField("orders.Order", on_delete=models.PROTECT, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class WhatsAppCartReservation(models.Model):
+    checkout = models.ForeignKey(WhatsAppCheckout, on_delete=models.CASCADE, related_name="reservations")
+    product = models.ForeignKey("stores.Product", on_delete=models.PROTECT)
+    quantity = models.DecimalField(max_digits=12, decimal_places=2)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["checkout", "product"], name="wa_unique_reserved_product")]
+
+
+class WhatsAppCheckoutReceipt(models.Model):
+    conversation = models.ForeignKey(TenantWhatsAppConversation, on_delete=models.CASCADE)
+    message_id = models.CharField(max_length=160)
+    reply = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["conversation", "message_id"], name="wa_unique_checkout_message")]
+
+
+class WhatsAppOrderNotice(models.Model):
+    checkout = models.ForeignKey(WhatsAppCheckout, on_delete=models.PROTECT, related_name="notices")
+    recipient = models.CharField(max_length=20)
+    text = models.TextField()
+    sent_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["checkout", "recipient"], name="wa_unique_order_recipient")]

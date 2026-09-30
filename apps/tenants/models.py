@@ -27,6 +27,19 @@ class Tenant(models.Model):
         verbose_name="WhatsApp (formato: 5511999999999)"
     )
 
+    whatsapp_order_number = models.CharField(
+        max_length=13,
+        blank=True,
+        default="",
+        db_default="",
+        validators=[validate_whatsapp_number],
+        verbose_name="WhatsApp para receber pedidos",
+        help_text=(
+            "Opcional. As confirmações dos pedidos serão enviadas para este número. "
+            "Se ficar vazio, serão enviadas para o WhatsApp público da loja."
+        ),
+    )
+
     is_active = models.BooleanField(
         default=True,
         verbose_name="Loja ativa"
@@ -141,6 +154,7 @@ class Tenant(models.Model):
 
     def save(self, *args, **kwargs):
         self.whatsapp_number = re.sub(r"\D", "", self.whatsapp_number)
+        self.whatsapp_order_number = re.sub(r"\D", "", self.whatsapp_order_number or "")
 
         is_new = self.pk is None
 

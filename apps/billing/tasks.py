@@ -91,6 +91,13 @@ def process_event(event_pk):
                     return
             BillingEvent.objects.filter(pk=event.pk).update(processed_at=timezone.now())
             return
+        from apps.integrations.models import WhatsAppCheckout
+        from apps.integrations.whatsapp_agent.checkout_payments import apply_pix_event
+        wa_checkout = WhatsAppCheckout.objects.filter(provider_id=event.payment_id, environment=event.environment).first()
+        if wa_checkout:
+            apply_pix_event(wa_checkout.pk, event)
+            BillingEvent.objects.filter(pk=event.pk).update(processed_at=timezone.now())
+            return
         payment = Asaas().get_payment(event.payment_id)
         reference = payment.get("externalReference") or ""
         prefix = f"vdd-billing:{environment()}:"

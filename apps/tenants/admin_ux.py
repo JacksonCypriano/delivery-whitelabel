@@ -82,6 +82,26 @@ class TenantAdminUXMixin:
                 "maxlength": "20",
             })
 
+        if "whatsapp_order_number" in self.fields:
+            order_field = self.fields["whatsapp_order_number"]
+            order_field.max_length = 20
+            order_field.validators = [
+                validator
+                for validator in order_field.validators
+                if not isinstance(validator, MaxLengthValidator)
+            ]
+            order_field.validators.append(MaxLengthValidator(20))
+            order_field.help_text = (
+                "Opcional: informe o celular que receberá os pedidos fechados. "
+                "Se deixar vazio, usamos o WhatsApp público da loja. Ex.: +55 (11) 99999-9999."
+            )
+            order_field.widget.attrs.update({
+                "placeholder": "+55 (11) 99999-9999",
+                "inputmode": "tel",
+                "autocomplete": "tel",
+                "maxlength": "20",
+            })
+
         if "fulfillment_mode" in self.fields:
             self.fields["fulfillment_mode"].help_text = (
                 "Escolha como o cliente poderá receber o pedido: entrega e retirada, somente retirada ou somente entrega."
@@ -146,6 +166,13 @@ class TenantAdminUXMixin:
         value = self.cleaned_data.get("whatsapp_number", "")
         clean = re.sub(r"\D", "", value or "")
         validate_whatsapp_number(clean)
+        return clean
+
+    def clean_whatsapp_order_number(self):
+        value = self.cleaned_data.get("whatsapp_order_number", "")
+        clean = re.sub(r"\D", "", value or "")
+        if clean:
+            validate_whatsapp_number(clean)
         return clean
 
     class Media:

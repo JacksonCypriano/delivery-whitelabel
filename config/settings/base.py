@@ -667,6 +667,16 @@ UNFOLD_SUPER = {
                         "icon": "support_agent",
                         "link": reverse_lazy("super_admin:integrations_tenantwhatsappconversation_changelist"),
                     },
+                    {
+                        "title": _("Carrinhos e Pix WhatsApp"),
+                        "icon": "shopping_cart",
+                        "link": reverse_lazy("super_admin:integrations_whatsappcheckout_changelist"),
+                    },
+                    {
+                        "title": _("Envios de pedidos WhatsApp"),
+                        "icon": "outgoing_mail",
+                        "link": reverse_lazy("super_admin:integrations_whatsappordernotice_changelist"),
+                    },
                 ],
             },
             {
@@ -809,3 +819,16 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=8, minute=20),
     },
 }
+
+# WhatsApp conversational checkout. Keep payments/webhooks and the outbox running
+# even if new conversational checkouts are disabled during a rollback.
+WHATSAPP_AGENT_CHECKOUT_ENABLED = os.getenv("WHATSAPP_AGENT_CHECKOUT_ENABLED", "true").lower() == "true"
+WHATSAPP_AGENT_BUTTONS_ENABLED = os.getenv("WHATSAPP_AGENT_BUTTONS_ENABLED", "true").lower() == "true"
+CELERY_BEAT_SCHEDULE["whatsapp-order-notices"] = {
+    "task": "apps.integrations.tasks.deliver_whatsapp_order_notices", "schedule": 15.0,
+}
+CELERY_BEAT_SCHEDULE["whatsapp-checkout-maintenance"] = {
+    "task": "apps.integrations.tasks.maintain_whatsapp_checkouts", "schedule": 60.0,
+}
+# The optional Ollama interpreter produces proposals only, never orders/payments.
+WHATSAPP_AGENT_NLU_ENABLED = os.getenv("WHATSAPP_AGENT_NLU_ENABLED", "true").lower() == "true"

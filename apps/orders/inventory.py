@@ -31,7 +31,7 @@ def active_reservations():
     ).exclude(order__status='cancelled')
 
 
-def check_stock(lines, *, exclude_cart_id=None, exclude_order_id=None, lock=False):
+def check_stock(lines, *, exclude_cart_id=None, exclude_order_id=None, exclude_whatsapp_checkout_id=None, lock=False):
     from .cart_service import CartError
     demand = requirements(lines)
     qs = Product.objects.filter(pk__in=demand).order_by('pk')
@@ -46,6 +46,12 @@ def check_stock(lines, *, exclude_cart_id=None, exclude_order_id=None, lock=Fals
     if exclude_order_id is not None:
         reservations = reservations.exclude(order_id=exclude_order_id)
     reserved = dict(reservations.values('product_id').annotate(amount=Sum('quantity')).values_list('product_id', 'amount'))
+    from apps.integrations.models import WhatsAppCartReservation
+    wa_reservations = WhatsAppCartReservation.objects.filter(product_id__in=demand)
+    if exclude_whatsapp_checkout_id is not None:
+        wa_reservations = wa_reservations.exclude(checkout_id=exclude_whatsapp_checkout_id)
+    for pk, amount in wa_reservations.values('product_id').annotate(amount=Sum('quantity')).values_list('product_id', 'amount'):
+        reserved[pk] = reserved.get(pk, Decimal('0')) + amount
     for pk, amount in demand.items():
         p = products[pk]
         if p.stock is not None:
@@ -67,12 +73,12 @@ def reserve(order, lines):
 
 
 @transaction.atomic
-def consume(order, lines):
+def consume(order, lines, *, exclude_whatsapp_checkout_id=None):
     """Only called with a locked order that has not been sent or cancelled."""
     from .cart_service import CartError
     if order.whatsapp_opened_at or order.status == 'cancelled':
         raise CartError('Este pedido já foi encaminhado ou cancelado.')
-    products, demand = check_stock(lines, exclude_order_id=order.pk, lock=True)
+    products, demand = check_stock(lines, exclude_order_id=order.pk, exclude_whatsapp_checkout_id=exclude_whatsapp_checkout_id, lock=True)
     for pk, amount in demand.items():
         p = products[pk]
         movement, _ = StockReservation.objects.get_or_create(

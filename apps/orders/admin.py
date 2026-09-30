@@ -61,11 +61,25 @@ class OrderAdmin(TenantModelAdmin):
         "customer_phone",
         "items_summary",
         "total_display",
+        "payment_confirmation",
         "delivery_display",
         "whatsapp_badge",
         "status",
         "created_at",
     )
+
+    @admin.display(description="Confirmação do pagamento")
+    def payment_confirmation(self, obj):
+        from apps.integrations.models import WhatsAppCheckout
+        checkout = WhatsAppCheckout.objects.filter(order_id=obj.pk).first()
+        if checkout and checkout.paid_at:
+            if checkout.status == "payment_review":
+                return "Pagamento requer revisão no Asaas (estorno/contestação)"
+            return f"Pix pago e validado pelo Asaas — {checkout.provider_id}"
+        payment = getattr(obj, "online_payment", None)
+        if payment:
+            return payment.get_status_display()
+        return "Pagamento na entrega/retirada" if obj.payment_flow == "in_person" else "Aguardando confirmação"
 
     list_filter = (
         "delivery_type",
@@ -105,6 +119,7 @@ class OrderAdmin(TenantModelAdmin):
         "payment_flow",
         "payment_method",
         "payment_change_for",
+        "payment_confirmation",
         "whatsapp_opened_at",
         "created_at",
         "delivery_zip_code",
@@ -137,6 +152,7 @@ class OrderAdmin(TenantModelAdmin):
                     "payment_flow",
                     "payment_method",
                     "payment_change_for",
+                    "payment_confirmation",
                     "subtotal",
                     "delivery_fee",
                     "coupon_code",

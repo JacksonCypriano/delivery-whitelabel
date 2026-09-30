@@ -286,3 +286,23 @@ class TenantWhatsAppConversationAdmin(SuperOnly):
     search_fields = ("tenant__name", "phone_number")
     list_select_related = ("tenant",)
     readonly_fields = tuple(field.name for field in TenantWhatsAppConversation._meta.fields)
+
+
+from .models import WhatsAppCheckout, WhatsAppOrderNotice
+
+
+@admin.register(WhatsAppCheckout, site=super_admin_site)
+class WhatsAppCheckoutAdmin(SuperOnly):
+    list_display = ("id", "conversation", "status", "step", "provider_id", "order", "updated_at")
+    list_filter = ("status", "environment")
+    search_fields = ("provider_id", "conversation__phone_number", "conversation__tenant__name")
+    fields = ("conversation", "status", "step", "provider_id", "account_id", "environment", "paid_at", "order", "created_at", "updated_at")
+    readonly_fields = fields
+
+
+@admin.register(WhatsAppOrderNotice, site=super_admin_site)
+class WhatsAppOrderNoticeAdmin(SuperOnly):
+    list_display = ("id", "checkout", "recipient", "sent_at", "created_at")
+    list_filter = ("sent_at",)
+    fields = ("checkout", "recipient", "text", "sent_at", "created_at")
+    readonly_fields = fields

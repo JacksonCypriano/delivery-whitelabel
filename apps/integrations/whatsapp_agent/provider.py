@@ -1,6 +1,7 @@
 import base64
 import binascii
 import hashlib
+import json
 import re
 
 from django.core.cache import cache
@@ -72,7 +73,24 @@ def extract_text(data):
     if not isinstance(data, dict):
         return ""
     message = _unwrap_message(data.get("message"))
-    candidates = [message.get("conversation")]
+    candidates = []
+    for kind, field in (("buttonsResponseMessage", "selectedButtonId"), ("templateButtonReplyMessage", "selectedId")):
+        data = message.get(kind)
+        if isinstance(data, dict):
+            candidates.append(data.get(field))
+    data = message.get("listResponseMessage")
+    if isinstance(data, dict) and isinstance(data.get("singleSelectReply"), dict):
+        candidates.append(data["singleSelectReply"].get("selectedRowId"))
+    data = message.get("interactiveResponseMessage")
+    if isinstance(data, dict) and isinstance(data.get("nativeFlowResponseMessage"), dict):
+        raw = data["nativeFlowResponseMessage"].get("paramsJson", "")
+        try:
+            params = json.loads(raw) if isinstance(raw, str) and len(raw) <= 8000 else {}
+            if isinstance(params, dict):
+                candidates.append(params.get("id") or params.get("selectedRowId"))
+        except (ValueError, TypeError):
+            pass
+    candidates.append(message.get("conversation"))
     extended = message.get("extendedTextMessage")
     if isinstance(extended, dict):
         candidates.append(extended.get("text"))

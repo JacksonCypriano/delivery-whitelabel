@@ -99,7 +99,7 @@ def configure_subaccount_webhook(api_key, email):
         "apiVersion": 3,
         "authToken": settings.ASAAS_WEBHOOK_TOKEN,
         "sendType": "SEQUENTIALLY",
-        "events": list(ACCOUNT_STATUS_EVENTS),
+        "events": list(ACCOUNT_STATUS_EVENTS) + ["PAYMENT_CREATED", "PAYMENT_RECEIVED", "PAYMENT_CONFIRMED", "PAYMENT_DELETED", "PAYMENT_REFUNDED"],
     }
     try:
         Asaas(api_key=api_key).request("POST", "/webhooks", json=payload)

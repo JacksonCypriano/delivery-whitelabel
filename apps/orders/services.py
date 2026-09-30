@@ -184,6 +184,14 @@ def build_whatsapp_message(order):
             f"Código de confirmação: *{payment.confirmation_code}*\n"
         )
 
+    if not payment:
+        from apps.integrations.models import WhatsAppCheckout
+        wa_payment = WhatsAppCheckout.objects.filter(order_id=order.pk, paid_at__isnull=False).first() if order.pk else None
+        if wa_payment:
+            paid_block = (
+                "\n*Pix online pago e validado pelo Asaas*\n"
+                f"Referência: {wa_payment.provider_id}\nNão cobrar novamente.\n"
+            )
     if order.delivery_type == "pickup":
         delivery_block = "Retirada na loja"
     else:

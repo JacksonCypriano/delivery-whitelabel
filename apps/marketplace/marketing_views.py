@@ -1,8 +1,8 @@
 """Public merchant acquisition pages.
 
-These endpoints deliberately avoid tenant/customer data and tracking cookies. They
-are indexable only on the canonical public host; homologation, DEBUG and tenant
-subdomains receive explicit noindex protection.
+These endpoints deliberately avoid tenant/customer data. Marketing analytics are
+loaded only on the canonical public host when explicitly configured; homologation,
+DEBUG and tenant subdomains receive explicit noindex protection and no GTM snippet.
 """
 
 import json
@@ -157,9 +157,14 @@ def _schema(*, canonical, title, description, faq=(), breadcrumb=()):
 
 
 def _common_context(request, *, canonical, title, description, faq=(), breadcrumb=()):
+    indexable = _indexable(request)
+    google_tag_manager_id = (
+        getattr(settings, "GOOGLE_TAG_MANAGER_ID", "").strip() if indexable else ""
+    )
     return {
         "canonical": canonical,
-        "indexable": _indexable(request),
+        "indexable": indexable,
+        "google_tag_manager_id": google_tag_manager_id,
         "whatsapp": _whatsapp_url(),
         "demo_url": getattr(
             settings,

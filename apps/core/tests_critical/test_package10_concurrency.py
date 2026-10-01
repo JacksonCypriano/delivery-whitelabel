@@ -3,6 +3,7 @@
 import json
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
+from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -10,6 +11,7 @@ from django.contrib.messages.storage.fallback import FallbackStorage
 from django.contrib.sessions.backends.db import SessionStore
 from django.db import close_old_connections, connections, transaction
 from django.test import RequestFactory, TransactionTestCase, skipUnlessDBFeature
+from django.utils import timezone
 
 from apps.checkout.views import add_to_cart, checkout_step_one
 from apps.orders.views import open_whatsapp
@@ -150,19 +152,31 @@ class Package10ConcurrencyTests(TransactionTestCase):
             discount_type="fixed_amount",
             discount_value=2,
             usage_limit=1,
+            # O objetivo aqui é disputar a última utilização, não testar a
+            # fronteira de início da campanha. Use um início inequivocamente
+            # passado para não depender de ajuste do relógio do host/container.
+            starts_at=timezone.now() - timedelta(minutes=1),
         )
         carts = [self.seed(u) for u in self.users]
         requests = [
             self.submit_request(self.users[0], carts[0], "ULTIMO"),
             self.submit_request(self.users[1], carts[1], "ULTIMO"),
         ]
-        codes = self.run_parallel(
+        responses = self.run_parallel(
             [
-                lambda: checkout_step_one(requests[0]).status_code,
-                lambda: checkout_step_one(requests[1]).status_code,
+                lambda: checkout_step_one(requests[0]),
+                lambda: checkout_step_one(requests[1]),
             ]
         )
-        self.assertEqual(sorted(codes), [200, 400])
+        codes = [response.status_code for response in responses]
+        details = [
+            {
+                "status": response.status_code,
+                "body": response.content.decode(errors="replace"),
+            }
+            for response in responses
+        ]
+        self.assertEqual(sorted(codes), [200, 400], details)
         self.assertEqual(Order.objects.count(), 1)
         self.assertEqual(campaign.redemptions.count(), 1)
 

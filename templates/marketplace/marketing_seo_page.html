@@ -1,6 +1,7 @@
 {% load static %}<!doctype html>
 <html lang="pt-BR">
 <head>
+  {% include "marketplace/_gtm_head.html" %}
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ page.title }}</title>
@@ -27,6 +28,7 @@
   <script type="application/ld+json">{{ schema_json|safe }}</script>
 </head>
 <body>
+{% include "marketplace/_gtm_body.html" %}
 <a class="skip" href="#conteudo">Pular para o conteúdo</a>
 <header class="site-header">
   <div class="wrap top">

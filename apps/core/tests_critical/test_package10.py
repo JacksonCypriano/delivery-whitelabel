@@ -85,6 +85,10 @@ class Package10Tests(CriticalTestCase):
             discount_value=Decimal("2"),
             usage_limit=1,
             usage_limit_per_customer=1,
+            # Estes testes validam limites/reservas, não a borda temporal de
+            # início da campanha. Evita depender de dois timezone.now()
+            # consecutivos enquanto o relógio do host/container é sincronizado.
+            starts_at=timezone.now() - timedelta(minutes=1),
         )
 
     def test_negative_client_price_and_fake_name_are_ignored(self):
@@ -331,7 +335,12 @@ class Package10Tests(CriticalTestCase):
         self.campaign()
         self.add()
         self.ready()
-        self.submit(coupon_code="TESTE")
+        response = self.submit(coupon_code="TESTE")
+        self.assertEqual(
+            response.status_code,
+            200,
+            response.content.decode(errors="replace"),
+        )
         order = Order.objects.get()
         self.assertEqual(CouponRedemption.objects.count(), 1)
         response = self.client.post(
@@ -357,7 +366,12 @@ class Package10Tests(CriticalTestCase):
         self.campaign()
         self.add()
         self.ready()
-        self.submit(coupon_code="TESTE")
+        response = self.submit(coupon_code="TESTE")
+        self.assertEqual(
+            response.status_code,
+            200,
+            response.content.decode(errors="replace"),
+        )
         order = Order.objects.get()
         Order.objects.filter(pk=order.pk).update(
             created_at=timezone.now() - timedelta(minutes=31)
@@ -385,7 +399,12 @@ class Package10Tests(CriticalTestCase):
         self.campaign()
         self.add()
         self.ready()
-        self.submit(coupon_code="TESTE")
+        response = self.submit(coupon_code="TESTE")
+        self.assertEqual(
+            response.status_code,
+            200,
+            response.content.decode(errors="replace"),
+        )
         order = Order.objects.get()
         url = f"/pedido/{order.public_token}/whatsapp/"
         response = self.client.post(url, HTTP_HOST=self.host(self.tenant_a))
@@ -521,7 +540,12 @@ class Package10Tests(CriticalTestCase):
         campaign = self.campaign()
         self.add()
         self.ready()
-        self.submit(coupon_code="TESTE")
+        response = self.submit(coupon_code="TESTE")
+        self.assertEqual(
+            response.status_code,
+            200,
+            response.content.decode(errors="replace"),
+        )
         order = Order.objects.get()
         campaign.is_active = False
         campaign.save()

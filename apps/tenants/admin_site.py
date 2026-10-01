@@ -242,7 +242,12 @@ class SuperAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
             "TenantWhatsAppAgentEvent": 50,
             "TenantWhatsAppConversation": 60,
         },
-        "marketplace": {"MarketplaceCategory": 10},
+        "marketplace": {
+            "MarketplaceCategory": 10,
+            "MarketingLead": 20,
+            "MarketingMilestone": 30,
+            "MarketingPaidConversion": 40,
+        },
     }
 
     def get_app_list(self, request, app_label=None):

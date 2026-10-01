@@ -6,6 +6,7 @@ from urllib.parse import parse_qs, urlsplit
 from xml.etree import ElementTree
 
 from django.test import RequestFactory, SimpleTestCase, override_settings
+from django.utils.html import escapejs
 from django.urls import resolve, reverse
 
 from apps.marketplace import marketing_views
@@ -19,6 +20,10 @@ from apps.marketplace.marketing_content import MARKETING_PAGES
     GOOGLE_TAG_MANAGER_ID="GTM-NGQGBHG9",
 )
 class MarketingLandingTests(SimpleTestCase):
+    # Django escapejs intentionally writes '-' as \u002D in JavaScript
+    # strings. Match the rendered, safely escaped tag ID rather than the
+    # literal env value. JavaScript resolves both to the same GTM container.
+    rendered_gtm_id = escapejs("GTM-NGQGBHG9")
     def request(self, path="/para-lojistas/?utm_source=google", host="vemdedelivery.com.br", tenant=None):
         request = RequestFactory().get(path, HTTP_HOST=host)
         request.tenant = tenant
@@ -42,9 +47,10 @@ class MarketingLandingTests(SimpleTestCase):
         self.assertIn('property="og:image"', html)
         self.assertIn('href="https://demo.vemdedelivery.com.br/"', html)
         self.assertNotIn("vitrine-demo.vemdedelivery.com.br", html)
-        self.assertIn("GTM-NGQGBHG9", html)
+        self.assertIn(self.rendered_gtm_id, html)
         self.assertIn("googletagmanager.com/gtm.js", html)
-        self.assertIn("googletagmanager.com/ns.html", html)
+        self.assertIn("if (window.vddMarketingAnalyticsGranted)", html)
+        self.assertNotIn("googletagmanager.com/ns.html", html)
 
         schema = self.schema(html)
         graph = schema["@graph"]
@@ -71,7 +77,7 @@ class MarketingLandingTests(SimpleTestCase):
                 self.assertIn(page["description"], html)
                 self.assertIn("R$ 149", html)
                 self.assertIn("WhatsApp", html)
-                self.assertIn("GTM-NGQGBHG9", html)
+                self.assertIn(self.rendered_gtm_id, html)
                 titles.add(page["title"])
                 descriptions.add(page["description"])
 
@@ -107,7 +113,7 @@ class MarketingLandingTests(SimpleTestCase):
                 request = self.request(host=host, tenant=tenant)
                 landing_response = marketing_views.landing(request)
                 self.assertEqual(landing_response["X-Robots-Tag"], "noindex, follow")
-                self.assertNotIn("GTM-NGQGBHG9", landing_response.content.decode())
+                self.assertNotIn(self.rendered_gtm_id, landing_response.content.decode())
                 self.assertEqual(marketing_views.sitemap_index(request).status_code, 404)
                 self.assertEqual(marketing_views.marketing_sitemap(request).status_code, 404)
                 self.assertIn("Disallow: /", marketing_views.robots_txt(request).content.decode())
@@ -115,7 +121,7 @@ class MarketingLandingTests(SimpleTestCase):
                 page_key = "sistema-para-pet-shop"
                 page_response = marketing_views.seo_page(request, page_key)
                 self.assertEqual(page_response["X-Robots-Tag"], "noindex, follow")
-                self.assertNotIn("GTM-NGQGBHG9", page_response.content.decode())
+                self.assertNotIn(self.rendered_gtm_id, page_response.content.decode())
 
     @override_settings(DEBUG=True)
     def test_debug_not_indexed(self):

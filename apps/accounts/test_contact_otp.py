@@ -219,14 +219,27 @@ class ContactOTPTests(TestCase):
 
     def test_hourly_limit_expires(self):
         pending = self.stage()[0]
-        for _ in range(5):
-            self.age_send(pending)
+        start = timezone.now()
+
+        # Use a controlled clock, not real elapsed time or a manually modified
+        # cooldown timestamp. This exercises both limits deterministically.
+        for index in range(5):
+            instant = start + timedelta(seconds=61 * index)
+            with patch("django.utils.timezone.now", return_value=instant):
+                self.send(pending)
+
+        # After five sends within one hour, waiting out the 60-second
+        # cooldown alone must not bypass the hourly rate limit.
+        instant = start + timedelta(seconds=61 * 5)
+        with patch("django.utils.timezone.now", return_value=instant):
+            with self.assertRaises(OTPError) as caught:
+                self.send(pending)
+        self.assertEqual(caught.exception.reason, "rate_limit")
+
+        # The first event expires at the one-hour boundary, so one new
+        # send is allowed; all remaining recent sends still count.
+        with patch("django.utils.timezone.now", return_value=start + timedelta(hours=1)):
             self.send(pending)
-        for bucket in RegistrationRateLimit.objects.all():
-            bucket.events = [timezone.now().timestamp() - 3601] * 5
-            bucket.save()
-        self.age_send(pending)
-        self.send(pending)
 
     def test_duplicate_email_at_confirmation_preserves_original(self):
         pending = self.stage()[0]

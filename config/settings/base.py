@@ -20,6 +20,11 @@ MARKETING_DEMO_URL = os.getenv(
     "MARKETING_DEMO_URL", "https://demo.vemdedelivery.com.br/"
 ).strip()
 GOOGLE_TAG_MANAGER_ID = os.getenv("GOOGLE_TAG_MANAGER_ID", "").strip()
+# Habilitar somente após migrate; no store subdomains, no DEBUG/homolog.
+MARKETING_LEAD_TRACKING_ENABLED = os.getenv("MARKETING_LEAD_TRACKING_ENABLED", "false").lower() == "true"
+# Envio GA4 por comando explícito (nunca dentro do webhook financeiro).
+MARKETING_GA4_MEASUREMENT_ID = os.getenv("MARKETING_GA4_MEASUREMENT_ID", "").strip()
+MARKETING_GA4_API_SECRET = os.getenv("MARKETING_GA4_API_SECRET", "").strip()
 
 # URL pública do Superadmin usada em links enviados fora do navegador (ex.: WhatsApp).
 # Em produção, se vazia, o código usa CUSTOMER_PORTAL_URL. Em homologação pode
@@ -697,6 +702,21 @@ UNFOLD_SUPER = {
                         "title": _("Categorias"),
                         "icon": "category",
                         "link": reverse_lazy("super_admin:marketplace_marketplacecategory_changelist"),
+                    },
+                    {
+                        "title": _("Leads comerciais / WhatsApp"),
+                        "icon": "campaign",
+                        "link": reverse_lazy("super_admin:marketplace_marketinglead_changelist"),
+                    },
+                    {
+                        "title": _("Etapas de aquisição"),
+                        "icon": "conversion_path",
+                        "link": reverse_lazy("super_admin:marketplace_marketingmilestone_changelist"),
+                    },
+                    {
+                        "title": _("Primeiras assinaturas pagas"),
+                        "icon": "payments",
+                        "link": reverse_lazy("super_admin:marketplace_marketingpaidconversion_changelist"),
                     },
                 ],
             },

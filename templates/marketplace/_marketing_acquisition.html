@@ -1,0 +1,12 @@
+{% load static %}
+{% if marketing_consent_enabled %}
+<div id="vdd-consent-banner" class="vdd-consent" role="region" aria-label="Preferências de privacidade" hidden>
+  <p><strong>Métricas opcionais</strong><br>Usamos o Google Analytics, se você permitir, para entender visitas e campanhas. O contato por WhatsApp funciona mesmo sem aceitar. <a href="{% url 'marketplace:privacy' %}">Privacidade</a>.</p>
+  <div class="vdd-consent-actions">
+    <button type="button" data-vdd-consent="no">Recusar</button>
+    <button type="button" data-vdd-consent="yes">Aceitar métricas</button>
+  </div>
+</div>
+<div id="vdd-marketing-data" hidden data-token="{{ marketing_contact_token }}" data-csrf="{{ csrf_token }}" data-click-url="{% url 'marketplace:marketing_click' %}"></div>
+<script src="{% static 'js/vdd-marketing.js' %}" defer></script>
+{% endif %}

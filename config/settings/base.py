@@ -19,6 +19,7 @@ MARKETING_WHATSAPP = os.getenv("MARKETING_WHATSAPP", "5511964059470").strip()
 MARKETING_DEMO_URL = os.getenv(
     "MARKETING_DEMO_URL", "https://demo.vemdedelivery.com.br/"
 ).strip()
+GOOGLE_TAG_MANAGER_ID = os.getenv("GOOGLE_TAG_MANAGER_ID", "").strip()
 
 # URL pública do Superadmin usada em links enviados fora do navegador (ex.: WhatsApp).
 # Em produção, se vazia, o código usa CUSTOMER_PORTAL_URL. Em homologação pode

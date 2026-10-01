@@ -86,7 +86,7 @@ class BillingTests(TestCase):
             "externalReference": bill.reference,
             "customer": "cus_123",
             "billingType": bill.method,
-            "value": 199,
+            "value": bill.amount,
             "status": "RECEIVED",
             **extra,
         }
@@ -94,7 +94,7 @@ class BillingTests(TestCase):
     def test_plans_and_disabled_methods(self):
         self.assertEqual(
             [p.price for p in Plan.objects.all()],
-            [Decimal("199"), Decimal("567.15"), Decimal("1074.60"), Decimal("2029.80")],
+            [Decimal("149.00"), Decimal("424.65"), Decimal("804.60"), Decimal("1519.80")],
         )
         for method in ("BOLETO", "CREDIT_CARD"):
             with self.assertRaises(BillingError):
@@ -102,7 +102,7 @@ class BillingTests(TestCase):
         p = BillingSettings.current()
         p.card_enabled = True
         p.save()
-        self.assertEqual(price_for(self.plan, "CREDIT_CARD"), Decimal("203.59"))
+        self.assertEqual(price_for(self.plan, "CREDIT_CARD"), Decimal("152.05"))
 
     def test_installation_does_not_suspend_existing(self):
         self.assertFalse(self.sub.managed)
@@ -262,7 +262,7 @@ class BillingTests(TestCase):
             self.tenant,
             self.plan,
             "PIX",
-            Decimal("199"),
+            self.plan.price,
             token,
             "Pagador",
             "12345678909",
@@ -286,7 +286,7 @@ class BillingTests(TestCase):
             self.tenant,
             self.plan,
             "PIX",
-            Decimal("199"),
+            self.plan.price,
             token,
             "Teste",
             "12345678909",
@@ -388,7 +388,7 @@ class BillingTests(TestCase):
             self.tenant,
             self.plan,
             "PIX",
-            Decimal("199"),
+            self.plan.price,
             uuid.uuid4(),
             "Teste",
             "11111111111",
@@ -410,7 +410,7 @@ class BillingTests(TestCase):
             self.tenant,
             self.plan,
             "PIX",
-            Decimal("199"),
+            self.plan.price,
             uuid.uuid4(),
             "Teste",
             "12345678909",
@@ -455,7 +455,7 @@ class BillingTests(TestCase):
                 "tenant": self.tenant.pk,
                 "plan": self.plan.pk,
                 "method": "PIX",
-                "amount": "199.00",
+                "amount": "149.00",
                 "token": str(uuid.uuid4()),
             },
             salt="billing-quote",
@@ -488,7 +488,7 @@ class BillingTests(TestCase):
                 self.tenant,
                 self.plan,
                 "PIX",
-                Decimal("199.00"),
+                self.plan.price,
                 uuid.uuid4(),
                 "Pagador",
                 "12345678909",
@@ -503,7 +503,7 @@ class BillingTests(TestCase):
             self.tenant,
             self.plan,
             "PIX",
-            Decimal("199.00"),
+            self.plan.price,
             uuid.uuid4(),
             "Pagador",
             "12345678909",
@@ -552,7 +552,7 @@ class BillingTests(TestCase):
             self.tenant,
             self.plan,
             "PIX",
-            Decimal("199"),
+            self.plan.price,
             uuid.uuid4(),
             "Pagador",
             "12345678909",
@@ -574,14 +574,14 @@ class BillingTests(TestCase):
         self.assertTrue(customer.call_args.args[0]["notificationDisabled"])
         body = payment.call_args.args[0]
         self.assertEqual(body["billingType"], "PIX")
-        self.assertEqual(body["value"], 199.0)
+        self.assertEqual(body["value"], 149.0)
         self.assertEqual(body["externalReference"], b.reference)
         self.assertEqual(Credit.objects.count(), 0)
 
     @override_settings(**OPTIONS)
     def test_existing_customer_address_is_synced_before_payment(self):
         b = reserve_invoice(
-            self.tenant, self.plan, "PIX", Decimal("199"), uuid.uuid4(),
+            self.tenant, self.plan, "PIX", self.plan.price, uuid.uuid4(),
             "Pagador", "12345678909", "x@example.com",
         )
         BillingCustomer.objects.filter(tenant=self.tenant).update(provider_id="cus_123")
@@ -611,7 +611,7 @@ class BillingTests(TestCase):
             self.tenant,
             self.plan,
             "PIX",
-            Decimal("199"),
+            self.plan.price,
             uuid.uuid4(),
             "Pagador",
             "12345678909",

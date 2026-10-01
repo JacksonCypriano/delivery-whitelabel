@@ -1,0 +1,172 @@
+{% load static %}<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page.title }}</title>
+  <meta name="description" content="{{ page.description }}">
+  <meta name="robots" content="{% if indexable %}index, follow{% else %}noindex, follow{% endif %}">
+  <link rel="canonical" href="{{ canonical }}">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="pt_BR">
+  <meta property="og:site_name" content="VemDeDelivery">
+  <meta property="og:title" content="{{ page.title }}">
+  <meta property="og:description" content="{{ page.description }}">
+  <meta property="og:url" content="{{ canonical }}">
+  <meta property="og:image" content="{{ og_image }}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="VemDeDelivery — catálogo, pedidos e WhatsApp para comércio local">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ page.title }}">
+  <meta name="twitter:description" content="{{ page.description }}">
+  <meta name="twitter:image" content="{{ og_image }}">
+  <meta name="theme-color" content="#173b32">
+  <link rel="icon" href="{% static 'images/brand/icone-vemdedelivery.svg' %}" type="image/svg+xml">
+  <link rel="stylesheet" href="{% static 'css/for-merchants.css' %}">
+  <script type="application/ld+json">{{ schema_json|safe }}</script>
+</head>
+<body>
+<a class="skip" href="#conteudo">Pular para o conteúdo</a>
+<header class="site-header">
+  <div class="wrap top">
+    <a href="{% url 'marketplace:for_merchants' %}" aria-label="VemDeDelivery para lojistas"><img src="{% static 'images/brand/logo-vemdedelivery.svg' %}" width="220" height="44" alt="VemDeDelivery"></a>
+    <nav aria-label="Navegação principal"><a href="{% url 'marketplace:for_merchants' %}#recursos">Recursos</a><a href="{% url 'marketplace:for_merchants' %}#agente">Agente</a><a href="{% url 'marketplace:for_merchants' %}#segmentos">Segmentos</a><a href="#duvidas">Dúvidas</a></nav>
+    <a class="button small" href="{{ whatsapp }}" data-cta="seo_header">Quero minha loja ↗</a>
+  </div>
+</header>
+
+<main id="conteudo">
+  <div class="wrap breadcrumb" aria-label="Breadcrumb"><a href="/">VemDeDelivery</a><span>›</span><a href="{{ landing_url }}">Para lojistas</a><span>›</span><strong>{{ page.eyebrow|title }}</strong></div>
+
+  <section class="seo-hero wrap">
+    <div>
+      <p class="eyebrow">{{ page.eyebrow }}</p>
+      <h1>{{ page.h1 }} <em>{{ page.highlight }}</em>.</h1>
+      <p class="lead">{{ page.lead }}</p>
+      <div class="actions">
+        <a class="button" href="{{ whatsapp }}" data-cta="seo_hero">Quero conhecer para minha loja ↗</a>
+        <a class="text-link" href="{{ demo_url }}" data-cta="seo_demo">Abrir loja demo →</a>
+      </div>
+      <p class="note"><strong>R$ 149/mês</strong> · sem comissão do VemDeDelivery sobre pedidos</p>
+    </div>
+    <aside class="seo-summary">
+      <span class="summary-kicker">O QUE ENTRA NO CANAL</span>
+      <ul>
+        <li><strong>Catálogo próprio</strong><span>produtos, fotos, preços e categorias</span></li>
+        <li><strong>Pedido estruturado</strong><span>carrinho, entrega ou retirada</span></li>
+        <li><strong>WhatsApp</strong><span>agente e atendimento da própria loja</span></li>
+        <li><strong>Painel</strong><span>gestão da operação e do catálogo</span></li>
+      </ul>
+    </aside>
+  </section>
+
+  <div class="strip compact-strip"><div class="wrap"><span>Canal próprio</span><span>Sem app para o cliente</span><span>Sem comissão por pedido</span><span>Feito para comércio local</span></div></div>
+
+  <section class="wrap section seo-intro">
+    <div class="section-heading">
+      <p class="eyebrow">POR QUE FAZ SENTIDO</p>
+      <h2>{{ page.section_title }}</h2>
+      <p class="intro">{{ page.section_text }}</p>
+    </div>
+    <div class="cards seo-benefits">
+      {% for title, text in page.benefits %}
+        <article><span class="number">0{{ forloop.counter }}</span><h3>{{ title }}</h3><p>{{ text }}</p></article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="soft use-cases">
+    <div class="wrap section split">
+      <div>
+        <p class="eyebrow">NA PRÁTICA</p>
+        <h2>O catálogo acompanha o jeito que seu negócio vende.</h2>
+        <p class="intro">Você escolhe o que destacar e como organizar a vitrine. O VemDeDelivery fornece a estrutura para transformar essa apresentação em um caminho claro até o pedido.</p>
+      </div>
+      <div class="example-list">
+        {% for example in page.examples %}<div><span>0{{ forloop.counter }}</span><strong>{{ example }}</strong></div>{% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap section seo-platform">
+    <div class="section-heading wide-heading">
+      <p class="eyebrow">A MESMA PLATAFORMA POR TRÁS</p>
+      <h2>Catálogo, pedido e atendimento conversando entre si.</h2>
+      <p class="intro">Independentemente do segmento, a loja usa os mesmos dados para apresentar produtos, orientar o cliente e operar o pedido.</p>
+    </div>
+    <div class="platform-grid">
+      <article><h3>Catálogo e carrinho</h3><p>Categorias, produtos, fotos, preços, opções e adicionais, com carrinho para revisar a compra.</p><a href="{% url 'marketplace:cardapio_online' %}">Ver cardápio online →</a></article>
+      <article><h3>Agente no WhatsApp</h3><p>Responde com base nos dados da loja e pode apoiar alterações no carrinho, entrega, retirada e finalização.</p><a href="{% url 'marketplace:agente_whatsapp_delivery' %}">Ver agente no WhatsApp →</a></article>
+      <article><h3>Operação local</h3><p>Horários, áreas e taxas de entrega, retirada e formas de pagamento configuradas pelo estabelecimento.</p><a href="{% url 'marketplace:pedidos_pelo_whatsapp' %}">Ver pedidos pelo WhatsApp →</a></article>
+      <article><h3>Canal sem comissão</h3><p>Assinatura do VemDeDelivery sem percentual sobre o valor de cada pedido feito pelo seu canal.</p><a href="{% url 'marketplace:delivery_sem_comissao' %}">Ver modelo sem comissão →</a></article>
+    </div>
+  </section>
+
+  <section class="agent-section seo-agent-callout">
+    <div class="wrap agent-layout">
+      <div>
+        <p class="eyebrow">ATENDIMENTO INTELIGENTE</p>
+        <h2>O WhatsApp não precisa ser só uma caixa de entrada.</h2>
+        <p class="intro">O agente consulta produtos, preços, opções, horários e entrega. Quando o cliente quer comprar, ele pode ajudar a montar e revisar o carrinho; quando precisa de uma pessoa, a loja pode assumir.</p>
+      </div>
+      <div class="mini-chat" aria-label="Exemplo de atendimento">
+        <p class="bubble customer">Tem esse produto? E vocês entregam no meu bairro?</p>
+        <p class="bubble agent">Vou conferir no catálogo e nas áreas de entrega da loja. Se estiver tudo certo, posso ajudar a montar seu pedido.</p>
+        <p class="chat-caption">O atendimento usa informações configuradas pelo estabelecimento.</p>
+      </div>
+    </div>
+  </section>
+
+  {% if related_pages %}
+  <section class="wrap section related-section">
+    <div class="section-heading"><p class="eyebrow">CONTINUE EXPLORANDO</p><h2>Outras soluções que podem fazer sentido.</h2></div>
+    <div class="related-grid">
+      {% for item in related_pages %}
+        <a href="{{ item.url }}"><strong>{{ item.title }}</strong><span>{{ item.description }}</span><b>Conhecer →</b></a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="pricing-band compact-pricing">
+    <div class="wrap section split pricing">
+      <div>
+        <p class="eyebrow">SEU CANAL PRÓPRIO</p>
+        <h2>R$ 149/mês no plano mensal.</h2>
+        <p class="intro">Sem comissão do VemDeDelivery por pedido. Há opções trimestral, semestral e anual com descontos progressivos, além de serviços opcionais de implantação contratados separadamente.</p>
+      </div>
+      <article class="plan slim-plan">
+        <span class="pill">Incluído</span>
+        <ul><li>Catálogo com sua marca</li><li>Carrinho e pedido</li><li>Agente no WhatsApp</li><li>Painel do lojista</li><li>Entrega ou retirada</li></ul>
+        <a class="button" href="{{ whatsapp }}" data-cta="seo_plan">Quero falar sobre minha loja ↗</a>
+        <small>Pagamentos online podem ter tarifas do provedor quando habilitados.</small>
+      </article>
+    </div>
+  </section>
+
+  <section id="duvidas" class="wrap section faq">
+    <div><p class="eyebrow">DÚVIDAS SOBRE ESTA SOLUÇÃO</p><h2>Perguntas frequentes.</h2></div>
+    <div>
+      {% for question, answer in page.faq %}<details><summary>{{ question }}</summary><p>{{ answer }}</p></details>{% endfor %}
+      <details><summary>Como conheço o VemDeDelivery antes de contratar?</summary><p>Você pode <a href="{{ demo_url }}">navegar na loja demo</a> e conversar com a equipe pelo WhatsApp para explicar sua operação.</p></details>
+    </div>
+  </section>
+
+  <section class="final">
+    <div class="wrap">
+      <p class="eyebrow">SEU NEGÓCIO, SEU CANAL</p>
+      <h2>Quer ver como isso pode funcionar na sua loja?</h2>
+      <p class="final-lead">Conte o que você vende, como entrega e como atende hoje. A equipe explica a contratação e os próximos passos.</p>
+      <a class="button light" href="{{ whatsapp }}" data-cta="seo_footer">Conversar pelo WhatsApp ↗</a>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap bottom">
+  <img src="{% static 'images/brand/logo-vemdedelivery.svg' %}" width="200" height="40" alt="VemDeDelivery">
+  <p>COBRADEV SOLUTIONS · CNPJ 59.198.345/0001-44<br>© {% now 'Y' %} VemDeDelivery</p>
+  <div><a href="{% url 'marketplace:for_merchants' %}">Para lojistas</a><a href="{% url 'marketplace:privacy' %}">Privacidade</a><a href="{% url 'marketplace:terms' %}">Termos</a></div>
+</footer>
+</body>
+</html>

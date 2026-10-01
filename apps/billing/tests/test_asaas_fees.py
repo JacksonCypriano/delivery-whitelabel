@@ -101,9 +101,9 @@ class AsaasFeeTests(TestCase):
         policy.save(update_fields=["card_enabled"])
         plan = Plan.objects.get(months=1)
 
-        # R$ 202,54 no cartão deixa aproximadamente o mesmo líquido que
-        # R$ 199,00 no Pix considerando apenas a tarifa do meio de pagamento.
-        self.assertEqual(price_for(plan, "CREDIT_CARD"), Decimal("202.54"))
+        # R$ 151,52 no cartão deixa aproximadamente o mesmo líquido que
+        # R$ 149,00 no Pix considerando apenas a tarifa promocional vigente.
+        self.assertEqual(price_for(plan, "CREDIT_CARD"), Decimal("151.52"))
 
     @patch("apps.billing.tasks._send_fee_whatsapp", return_value=1)
     @patch("apps.billing.fees.Asaas.request")

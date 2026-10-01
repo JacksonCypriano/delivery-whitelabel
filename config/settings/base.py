@@ -12,6 +12,14 @@ DEBUG = False
 
 CUSTOMER_PORTAL_URL = os.getenv("CUSTOMER_PORTAL_URL", "http://lvh.me:8000").rstrip("/")
 
+# Aquisição pública / SEO. A URL pública sempre aponta para o domínio canônico
+# de marketing; homologação e subdomínios de tenant permanecem com noindex.
+MARKETING_PUBLIC_URL = os.getenv("MARKETING_PUBLIC_URL", "https://vemdedelivery.com.br").rstrip("/")
+MARKETING_WHATSAPP = os.getenv("MARKETING_WHATSAPP", "5511964059470").strip()
+MARKETING_DEMO_URL = os.getenv(
+    "MARKETING_DEMO_URL", "https://demo.vemdedelivery.com.br/"
+).strip()
+
 # URL pública do Superadmin usada em links enviados fora do navegador (ex.: WhatsApp).
 # Em produção, se vazia, o código usa CUSTOMER_PORTAL_URL. Em homologação pode
 # apontar temporariamente para um Cloudflare Tunnel para o link abrir no celular.

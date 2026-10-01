@@ -172,7 +172,7 @@ class AdminExamplesAndListsCriticalTests(TestCase):
         plan_form = PlanAdminForm()
         service_form = AdditionalServiceAdminForm()
         self.assertIn("3", settings_form.fields["grace_days"].widget.attrs["placeholder"])
-        self.assertIn("199,00", plan_form.fields["monthly_price"].widget.attrs["placeholder"])
+        self.assertIn("149,00", plan_form.fields["monthly_price"].widget.attrs["placeholder"])
         self.assertIn("49,90", service_form.fields["price"].widget.attrs["placeholder"])
 
         visible_settings_fields = {

@@ -108,7 +108,7 @@ class Plan(models.Model):
         "Valor mensal de referência",
         max_digits=9,
         decimal_places=2,
-        default=199,
+        default=149,
         validators=[MinValueValidator(Decimal("1"))],
     )
     discount = models.DecimalField(

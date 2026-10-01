@@ -15,6 +15,7 @@ from django.templatetags.static import static
 from django.urls import reverse
 from django.utils.html import escape
 from django.views.decorators.http import require_safe
+from django.views.decorators.csrf import ensure_csrf_cookie
 
 from .marketing_content import MARKETING_PAGES, PRICE, grouped_pages
 
@@ -161,11 +162,19 @@ def _common_context(request, *, canonical, title, description, faq=(), breadcrum
     google_tag_manager_id = (
         getattr(settings, "GOOGLE_TAG_MANAGER_ID", "").strip() if indexable else ""
     )
+    tracking = indexable and getattr(settings, "MARKETING_LEAD_TRACKING_ENABLED", False)
+    contact = None
+    if tracking:
+        from .acquisition import new_contact
+        contact = new_contact(request)
     return {
+        "marketing_contact_token": contact["token"] if contact else "",
+        "marketing_contact_reference": contact["reference"] if contact else "",
+        "marketing_consent_enabled": bool(google_tag_manager_id or tracking),
         "canonical": canonical,
         "indexable": indexable,
         "google_tag_manager_id": google_tag_manager_id,
-        "whatsapp": _whatsapp_url(),
+        "whatsapp": contact["url"] if contact else _whatsapp_url(),
         "demo_url": getattr(
             settings,
             "MARKETING_DEMO_URL",
@@ -185,9 +194,13 @@ def _common_context(request, *, canonical, title, description, faq=(), breadcrum
 def _protect_non_public(response, request):
     if not _indexable(request):
         response["X-Robots-Tag"] = "noindex, follow"
+    elif getattr(settings, "MARKETING_LEAD_TRACKING_ENABLED", False):
+        # CSRF token and signed lead reference are unique per visitor/render.
+        response["Cache-Control"] = "private, no-store"
     return response
 
 
+@ensure_csrf_cookie
 @require_safe
 def landing(request):
     origin = _origin()
@@ -251,6 +264,7 @@ def landing(request):
     return _protect_non_public(response, request)
 
 
+@ensure_csrf_cookie
 @require_safe
 def seo_page(request, page_key):
     page = MARKETING_PAGES.get(page_key)

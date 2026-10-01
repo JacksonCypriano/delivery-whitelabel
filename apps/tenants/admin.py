@@ -28,7 +28,40 @@ from apps.billing.asaas_fields import (
 )
 
 
-class TenantCreateForm(TenantAdminUXMixin, forms.ModelForm):
+class MarketingLeadReferenceFormMixin:
+    marketing_lead_reference = forms.CharField(
+        label="Referência do contato (WhatsApp)", max_length=20,
+        required=False, help_text="Ex.: VDD-A1B2C3D4E5. Opcional; recebido na mensagem comercial."
+    )
+
+    def clean_marketing_lead_reference(self):
+        from apps.marketplace.acquisition import REFERENCE_RE
+        from apps.marketplace.models import MarketingLead
+        ref = (self.cleaned_data.get("marketing_lead_reference") or "").strip().upper()
+        if not ref:
+            return ""
+        if not REFERENCE_RE.fullmatch(ref):
+            raise forms.ValidationError("Formato esperado: VDD- seguido de 10 caracteres hexadecimais.")
+        taken = MarketingLead.objects.filter(reference=ref, tenant__isnull=False)
+        if self.instance.pk:
+            taken = taken.exclude(tenant_id=self.instance.pk)
+        if taken.exists():
+            raise forms.ValidationError("Essa referência já pertence a outra loja.")
+        if self.instance.pk:
+            previous = MarketingLead.objects.filter(tenant_id=self.instance.pk).first()
+            if previous and previous.reference != ref:
+                raise forms.ValidationError(
+                    "A loja já possui outra referência comercial. Revise o vínculo antes de substituí-lo."
+                )
+        return ref
+
+
+class TenantCreateForm(MarketingLeadReferenceFormMixin, TenantAdminUXMixin, forms.ModelForm):
+    marketing_lead_reference = forms.CharField(
+        label="Referência do contato (WhatsApp)", max_length=20, required=False,
+        help_text="Ex.: VDD-A1B2C3D4E5. Opcional; código informado pelo interessado."
+    )
+
     # Estes campos permanecem opcionais no formulário-base para preservar
     # criações internas/legadas de Tenant. O Superadmin usa a subclasse
     # TenantSuperAdminCreateForm, onde ambos são obrigatórios.
@@ -95,7 +128,20 @@ class TenantSuperAdminCreateForm(TenantCreateForm):
     )
 
 
-class TenantChangeForm(TenantAdminUXMixin, forms.ModelForm):
+class TenantChangeForm(MarketingLeadReferenceFormMixin, TenantAdminUXMixin, forms.ModelForm):
+    marketing_lead_reference = forms.CharField(
+        label="Referência do contato (WhatsApp)", max_length=20, required=False,
+        help_text="Ex.: VDD-A1B2C3D4E5. Opcional; código informado pelo interessado."
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            from apps.marketplace.models import MarketingLead
+            lead = MarketingLead.objects.filter(tenant_id=self.instance.pk).first()
+            if lead:
+                self.fields["marketing_lead_reference"].initial = lead.reference
+
     class Meta:
         model = Tenant
         fields = "__all__"
@@ -122,6 +168,7 @@ class TenantAdmin(ModelAdmin):
                 ),
             },
         ),
+        ("Aquisição comercial", {"fields": ("marketing_lead_reference",), "description": "Preencha a referência recebida no WhatsApp para medir a origem do novo lojista."}),
         ("Informações", {"fields": ("created_at",), "classes": ("collapse",)}),
     )
 
@@ -133,7 +180,7 @@ class TenantAdmin(ModelAdmin):
         (
             "Acesso do lojista",
             {
-                "fields": ("merchant_name", "merchant_email"),
+                "fields": ("merchant_name", "merchant_email", "marketing_lead_reference"),
                 "description": (
                     "Ao salvar, o sistema criará o usuário administrador da loja, gerará uma senha temporária "
                     "e enviará por e-mail o login, a senha, o link da loja e o link do painel."
@@ -210,6 +257,10 @@ class TenantAdmin(ModelAdmin):
                 sub.save(update_fields=['manually_blocked'])
                 audit(sub,'Ativação manual da loja', 'Ativar' if obj.is_active else 'Suspender',request.user)
             set_store(sub)
+            lead_ref = form.cleaned_data.get("marketing_lead_reference")
+            if lead_ref:
+                from apps.marketplace.acquisition import link_lead
+                link_lead(obj, lead_ref)
 
             if not change:
                 email = (form.cleaned_data.get("merchant_email") or "").strip().lower()

@@ -265,3 +265,21 @@ details a{font-weight:700}
   html{scroll-behavior:auto}
   .button,.segment-links>a{transition:none}
 }
+
+/* Commercial analytics choice: small, keyboard-accessible, never blocks CTA. */
+.vdd-consent[hidden] { display: none !important; }
+.vdd-consent {
+  position: fixed; z-index: 4000; inset: auto 18px 18px auto;
+  width: min(460px, calc(100vw - 36px));
+  background: #fff; color: #173b32; border: 1px solid #bed2c9;
+  border-radius: 14px; padding: 18px;
+  box-shadow: 0 10px 35px rgba(0,0,0,.18);
+}
+.vdd-consent p { margin: 0 0 12px; line-height: 1.5; font-size: 14px; }
+.vdd-consent-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.vdd-consent button { cursor: pointer; border: 1px solid #173b32; padding: 9px 14px;
+  border-radius: 8px; background: #fff; color: #173b32; font-weight: 650; }
+.vdd-consent button:last-child { background: #173b32; color: white; }
+.vdd-consent button:focus-visible, [data-vdd-reopen]:focus-visible { outline: 3px solid #df8c43; }
+[data-vdd-reopen] { cursor: pointer; background: none; border: 0; color: inherit;
+  text-decoration: underline; font: inherit; padding: 0; }

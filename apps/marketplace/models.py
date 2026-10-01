@@ -204,3 +204,92 @@ class MarketplaceFavoriteStore(models.Model):
             f"{self.customer} ♥ "
             f"{self.tenant.name}"
         )
+
+
+class MarketingLead(models.Model):
+    """Reference supplied by a prospect through the WhatsApp message.
+
+    Recording a CTA click does NOT mean a WhatsApp conversation occurred.
+    The ad/cookie identifiers below are stored only with an affirmative choice.
+    """
+    reference = models.CharField("Referência comercial", max_length=20, unique=True)
+    tenant = models.OneToOneField(
+        "tenants.Tenant", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="marketing_lead", verbose_name="Loja vinculada",
+    )
+    landing_path = models.CharField("Página de entrada", max_length=220, blank=True)
+    cta = models.CharField("Botão de contato", max_length=64, blank=True)
+    source_note = models.CharField("Origem da referência", max_length=30, blank=True)
+    analytics_consent = models.BooleanField("Consentiu com análise", default=False)
+    ga_client_id = models.CharField("GA4 client ID", max_length=80, blank=True)
+    utm_source = models.CharField(max_length=180, blank=True)
+    utm_medium = models.CharField(max_length=180, blank=True)
+    utm_campaign = models.CharField(max_length=180, blank=True)
+    utm_content = models.CharField(max_length=180, blank=True)
+    utm_term = models.CharField(max_length=180, blank=True)
+    gclid = models.CharField(max_length=180, blank=True)
+    gbraid = models.CharField(max_length=180, blank=True)
+    wbraid = models.CharField(max_length=180, blank=True)
+    qualified_at = models.DateTimeField("Contato qualificado em", null=True, blank=True)
+    linked_at = models.DateTimeField("Loja cadastrada/vinculada em", null=True, blank=True)
+    created_at = models.DateTimeField("Clique identificado em", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Lead comercial (WhatsApp)"
+        verbose_name_plural = "Leads comerciais (WhatsApp)"
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"{self.reference} · {self.tenant or 'Sem loja'}"
+
+
+class MarketingPaidConversion(models.Model):
+    """First-paid-subscription acquisition. One immutable conversion per lead/invoice."""
+    lead = models.OneToOneField(MarketingLead, on_delete=models.PROTECT, related_name="first_payment")
+    # O banco de testes da suíte crítica desfaz/aplica migrações históricas e
+    # executa TRUNCATE isolado em billing_invoice. Esta relação ORM mantém
+    # unicidade e PROTECT, mas sem FK PostgreSQL entre apps para evitar
+    # bloqueio do flush (o vínculo é validado pela camada de aplicação).
+    invoice = models.OneToOneField(
+        "billing.Invoice", on_delete=models.PROTECT,
+        related_name="marketing_conversion", db_constraint=False,
+    )
+    amount = models.DecimalField("Valor pago (BRL)", max_digits=12, decimal_places=2)
+    paid_at = models.DateTimeField("Pagamento confirmado em")
+    retracted_at = models.DateTimeField("Em revisão/estornado em", null=True, blank=True)
+    ga4_sent_at = models.DateTimeField("Enviado ao GA4", null=True, blank=True)
+    ga4_last_error = models.CharField("Último erro GA4", max_length=250, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Primeira assinatura paga (aquisição)"
+        verbose_name_plural = "Primeiras assinaturas pagas (aquisição)"
+        ordering = ("-paid_at",)
+
+    def __str__(self):
+        return f"{self.lead.reference} · {self.amount} BRL"
+
+
+class MarketingMilestone(models.Model):
+    """Recorded business milestones; NOT inferred from CTA clicks."""
+    name = models.CharField("Etapa", max_length=32, choices=(
+        ("lead_qualified", "Contato confirmado/qualificado"),
+        ("signup_completed", "Loja cadastrada"),
+        ("subscription_created", "Cobrança inicial criada"),
+    ))
+    lead = models.ForeignKey(MarketingLead, on_delete=models.PROTECT, related_name="milestones")
+    invoice = models.ForeignKey(
+        "billing.Invoice", null=True, blank=True,
+        on_delete=models.PROTECT, db_constraint=False,
+    )
+    occurred_at = models.DateTimeField("Data da etapa")
+    ga4_sent_at = models.DateTimeField(null=True, blank=True)
+    ga4_last_error = models.CharField(max_length=250, blank=True)
+
+    class Meta:
+        verbose_name = "Etapa de aquisição"
+        verbose_name_plural = "Etapas de aquisição"
+        constraints = [models.UniqueConstraint(fields=["lead", "name"], name="uniq_vdd_marketing_milestone")]
+
+    def __str__(self):
+        return f"{self.lead.reference} · {self.name}"

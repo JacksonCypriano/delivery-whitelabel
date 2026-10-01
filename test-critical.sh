@@ -48,6 +48,7 @@ TEST_SUITES=(
     apps.integrations.tests
     apps.prospecting
     apps.core.tests_critical
+    apps.marketplace.tests_marketing_acquisition
 )
 
 if ! command -v docker >/dev/null 2>&1; then

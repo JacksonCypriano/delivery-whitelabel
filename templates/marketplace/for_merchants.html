@@ -220,7 +220,8 @@
 <footer class="wrap bottom">
   <img src="{% static 'images/brand/logo-vemdedelivery.svg' %}" width="200" height="40" alt="VemDeDelivery">
   <p>COBRADEV SOLUTIONS · CNPJ 59.198.345/0001-44<br>© {% now 'Y' %} VemDeDelivery</p>
-  <div><a href="{% url 'marketplace:privacy' %}">Privacidade</a><a href="{% url 'marketplace:terms' %}">Termos</a><a href="/">Encontrar lojas</a></div>
+  <div>{% if marketing_consent_enabled %}<button type="button" data-vdd-reopen>Preferências de métricas</button>{% endif %}<a href="{% url 'marketplace:privacy' %}">Privacidade</a><a href="{% url 'marketplace:terms' %}">Termos</a><a href="/">Encontrar lojas</a></div>
 </footer>
+{% include "marketplace/_marketing_acquisition.html" %}
 </body>
 </html>

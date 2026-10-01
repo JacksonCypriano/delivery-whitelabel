@@ -1,12 +1,13 @@
 from django.urls import path
 
-from . import legal_views, marketing_views, views
+from . import acquisition_views, legal_views, marketing_views, views
 from .marketing_content import MARKETING_PAGES
 
 app_name = "marketplace"
 
 urlpatterns = [
     path("para-lojistas/", marketing_views.landing, name="for_merchants"),
+    path("marketing/registrar-clique/", acquisition_views.record_whatsapp_click, name="marketing_click"),
     path("sitemap.xml", marketing_views.sitemap_index, name="sitemap"),
     # Compatibilidade com o sitemap publicado na primeira versão da landing.
     path("sitemap-lojistas.xml", marketing_views.marketing_sitemap, name="marketing_sitemap"),

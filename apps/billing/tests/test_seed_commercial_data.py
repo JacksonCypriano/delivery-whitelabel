@@ -28,7 +28,7 @@ class SeedCommercialDataTests(TestCase):
 
         monthly = Plan.objects.get(months=1)
         self.assertEqual(monthly.name, "Mensal")
-        self.assertEqual(monthly.monthly_price, Decimal("199.00"))
+        self.assertEqual(monthly.monthly_price, Decimal("149.00"))
         self.assertEqual(Plan.objects.filter(active=True, months__in=[1, 3, 6, 12]).count(), 4)
         self.assertEqual(AdditionalService.objects.filter(active=True).count(), 4)
         self.assertEqual(MarketplaceCategory.objects.filter(is_active=True, name="Pizzaria").count(), 1)

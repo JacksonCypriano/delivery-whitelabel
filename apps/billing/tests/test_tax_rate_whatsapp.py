@@ -108,8 +108,14 @@ class TaxRateWhatsAppReminderTests(TestCase):
         self.assertFalse(TaxRateWhatsAppReminder.objects.exists())
 
 
+    @patch(
+        "apps.billing.management.commands.send_tax_rate_whatsapp_test.fiscal_today",
+        return_value=date(2026, 10, 1),
+    )
     @patch("apps.integrations.whatsapp.client.EvolutionClient.send_text")
-    def test_manual_test_command_sends_without_consuming_monthly_reminder(self, send_text):
+    def test_manual_test_command_sends_without_consuming_monthly_reminder(
+        self, send_text, _today
+    ):
         call_command("send_tax_rate_whatsapp_test", username=self.user.username, verbosity=0)
         number, text = send_text.call_args.args
         self.assertEqual(number, "5511999999999")
@@ -118,10 +124,13 @@ class TaxRateWhatsAppReminderTests(TestCase):
             "https://app.contabilizei.com.br/painel-de-controle/#/minhas-aliquotas",
             text,
         )
-        self.assertRegex(
+        self.assertIn(
+            "https://homolog.vemdedelivery.example/superadmin/billing/taxrate/add/",
             text,
-            r"https://homolog\.vemdedelivery\.example/superadmin/billing/taxrate/\d+/change/",
         )
+        self.assertIn(f"configuration={self.config.pk}", text)
+        self.assertIn("month=2026-10-01", text)
+        self.assertIn("iss=2.90", text)
         self.assertFalse(TaxRateWhatsAppReminder.objects.exists())
 
     def test_daily_schedule_exists_at_0805(self):

@@ -8,10 +8,10 @@ from apps.marketplace.models import MarketplaceCategory
 
 
 PLANS = (
-    (1, "Mensal", Decimal("199.00"), Decimal("0.00")),
-    (3, "Trimestral", Decimal("199.00"), Decimal("5.00")),
-    (6, "Semestral", Decimal("199.00"), Decimal("10.00")),
-    (12, "Anual", Decimal("199.00"), Decimal("15.00")),
+    (1, "Mensal", Decimal("149.00"), Decimal("0.00")),
+    (3, "Trimestral", Decimal("149.00"), Decimal("5.00")),
+    (6, "Semestral", Decimal("149.00"), Decimal("10.00")),
+    (12, "Anual", Decimal("149.00"), Decimal("15.00")),
 )
 
 SERVICES = (

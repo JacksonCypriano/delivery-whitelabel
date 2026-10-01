@@ -60,8 +60,8 @@ class PlanAdminForm(forms.ModelForm):
         if "monthly_price" in self.fields:
             self.fields["monthly_price"].localize = True
             self.fields["monthly_price"].widget.is_localized = True
-            self.fields["monthly_price"].help_text = "Valor mensal de referência em reais. Ex.: 199,00."
-            self.fields["monthly_price"].widget.attrs.update({"placeholder": "Ex.: 199,00", "inputmode": "decimal"})
+            self.fields["monthly_price"].help_text = "Valor mensal de referência em reais. Ex.: 149,00."
+            self.fields["monthly_price"].widget.attrs.update({"placeholder": "Ex.: 149,00", "inputmode": "decimal"})
         if "discount" in self.fields:
             self.fields["discount"].localize = True
             self.fields["discount"].widget.is_localized = True

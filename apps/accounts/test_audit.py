@@ -293,7 +293,7 @@ class SecurityAuditTests(TransactionTestCase):
         self.assertEqual(self.events("login_succeeded").get().user_id, admin.pk)
         token = response.data["refresh"]
         response = client.post("/dashboard/auth/refresh/", {"refresh": token}, HTTP_HOST="loja.lvh.me")
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(self.events("token_refreshed").count(), 1)
         self.assertNotIn(token, json.dumps(list(SecurityEvent.objects.values()), default=str))
 

@@ -871,6 +871,7 @@ class TenantWhatsAppAgentTests(TestCase):
             minimum_order_value=Decimal("20.00"),
             audience_type=AudienceType.ALL,
             is_active=True,
+            starts_at=timezone.now() - timedelta(minutes=1),
         )
         CouponCampaign.objects.create(
             tenant=self.tenant,
@@ -880,6 +881,7 @@ class TenantWhatsAppAgentTests(TestCase):
             discount_value=Decimal("5.00"),
             audience_type=AudienceType.SPECIFIC,
             is_active=True,
+            starts_at=timezone.now() - timedelta(minutes=1),
         )
         answer = answer_from_store(self.tenant, "tem promocao ou cupom?")
         self.assertEqual(answer.intent, "promotion")

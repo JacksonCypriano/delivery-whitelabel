@@ -18,3 +18,10 @@ WHATSAPP_AGENT_ENABLED = False
 WHATSAPP_AGENT_WEBHOOK_URL = ""
 WHATSAPP_AGENT_WEBHOOK_TOKEN = ""
 WHATSAPP_AGENT_OLLAMA_ENABLED = False
+# A suíte crítica cria e valida JWTs em sequência imediata. Em ambientes
+# virtualizados/containers, pequenas correções do relógio do host podem fazer
+# um token recém-emitido parecer alguns segundos "no futuro". O leeway é
+# exclusivo dos testes e elimina essa dependência do relógio de parede sem
+# alterar a configuração de produção.
+SIMPLE_JWT = {"LEEWAY": 30}
+

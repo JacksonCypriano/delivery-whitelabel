@@ -58,7 +58,7 @@ class TaxRateWhatsAppReminderTests(TestCase):
             "https://app.contabilizei.com.br/painel-de-controle/#/minhas-aliquotas",
             text,
         )
-        self.assertIn("https://homolog.vemdedelivery.example/superadmin/billing/taxrate/add/", text)
+        self.assertIn("https://homolog.vemdedelivery.example/painel/billing-taxrate/novo", text)
         self.assertIn("month=2026-10-01", text)
         self.assertIn("iss=2.90", text)
         self.assertIn("Última alíquota confirmada: 2.90% (09/2026)", text)
@@ -125,7 +125,7 @@ class TaxRateWhatsAppReminderTests(TestCase):
             text,
         )
         self.assertIn(
-            "https://homolog.vemdedelivery.example/superadmin/billing/taxrate/add/",
+            "https://homolog.vemdedelivery.example/painel/billing-taxrate/novo",
             text,
         )
         self.assertIn(f"configuration={self.config.pk}", text)

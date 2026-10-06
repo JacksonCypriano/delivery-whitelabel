@@ -30,16 +30,16 @@ case "$COMMAND" in
         done
 
         info "Executando migrations"
-        "${DC[@]}" exec web python manage.py migrate --noinput
+        "${DC[@]}" exec backend python manage.py migrate --noinput
 
         info "Executando collectstatic"
-        "${DC[@]}" exec web python manage.py collectstatic --noinput
+        "${DC[@]}" exec backend python manage.py collectstatic --noinput
 
         info "Validando Django"
-        "${DC[@]}" exec web python manage.py check
+        "${DC[@]}" exec backend python manage.py check
 
         info "Reiniciando aplicação"
-        "${DC[@]}" restart web celery celery-prospecting
+        "${DC[@]}" restart backend celery celery-prospecting
 
         info "Recriando Nginx"
         "${DC[@]}" up -d --force-recreate nginx
@@ -63,19 +63,19 @@ case "$COMMAND" in
         ;;
 
     migrate)
-        "${DC[@]}" exec web python manage.py migrate
+        "${DC[@]}" exec backend python manage.py migrate
         ;;
 
     collectstatic)
-        "${DC[@]}" exec web python manage.py collectstatic --noinput
+        "${DC[@]}" exec backend python manage.py collectstatic --noinput
         ;;
 
     logs)
-        "${DC[@]}" logs -f "${2:-web}"
+        "${DC[@]}" logs -f "${2:-backend}"
         ;;
 
     shell)
-        "${DC[@]}" exec web python manage.py shell
+        "${DC[@]}" exec backend python manage.py shell
         ;;
 
     status)

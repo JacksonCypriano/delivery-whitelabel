@@ -159,7 +159,7 @@ def _backup(prune=True):
         with (path / 'database.dump').open('rb') as source:
             subprocess.run(['docker', 'compose', '-f', CFG['compose_file'], 'exec', '-T', 'db', 'pg_restore', '--list'], cwd=APP, stdin=source, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, check=True, timeout=600)
         with (path / 'media.tar.gz').open('wb') as out:
-            dc('run', '--rm', '--no-deps', '-T', '--entrypoint', 'tar', 'web', '-C', '/app/media', '-czf', '-', '.', output=out)
+            dc('run', '--rm', '--no-deps', '-T', '--entrypoint', 'tar', 'backend', '-C', '/app/media', '-czf', '-', '.', output=out)
         try:
             commit = run(['git', 'rev-parse', 'HEAD']).decode().strip()
         except subprocess.CalledProcessError:
@@ -236,14 +236,14 @@ def restore_production(path, confirmed):
             raise RuntimeError('Restauração cancelada.')
     # Keep even an old target set during the pre-restore backup.
     backup(prune=False)
-    services = ('web', 'celery', 'celery-beat', 'nginx')
+    services = ('backend', 'celery', 'celery-beat', 'nginx')
     dc('stop', *services)
     try:
         with (path / 'database.dump').open('rb') as source:
             subprocess.run(['docker', 'compose', '-f', CFG['compose_file'], 'exec', '-T', 'db', 'pg_restore', '-U', user, '-d', database, '--clean', '--if-exists', '--no-owner', '--no-privileges', '--exit-on-error', '--single-transaction'], cwd=APP, stdin=source, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, timeout=3600)
-        dc('run', '--rm', '--no-deps', '-T', '--entrypoint', 'find', 'web', '/app/media', '-mindepth', '1', '-delete')
+        dc('run', '--rm', '--no-deps', '-T', '--entrypoint', 'find', 'backend', '/app/media', '-mindepth', '1', '-delete')
         with (path / 'media.tar.gz').open('rb') as source:
-            subprocess.run(['docker', 'compose', '-f', CFG['compose_file'], 'run', '--rm', '--no-deps', '-T', '--entrypoint', 'tar', 'web', '-C', '/app/media', '-xzf', '-'], cwd=APP, stdin=source, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, timeout=3600)
+            subprocess.run(['docker', 'compose', '-f', CFG['compose_file'], 'run', '--rm', '--no-deps', '-T', '--entrypoint', 'tar', 'backend', '-C', '/app/media', '-xzf', '-'], cwd=APP, stdin=source, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, timeout=3600)
     except Exception:
         raise RuntimeError('Restauração falhou; aplicação mantida parada. Consulte o backup de segurança antes de retomar.') from None
     print('Banco e mídia restaurados. Aplicação permanece parada: selecione o código/imagem compatível antes de iniciar (o entrypoint pode executar migrações).')
@@ -274,7 +274,7 @@ def healthy_http():
 
 def check():
     problems = []
-    for service in ('web', 'db', 'redis', 'celery', 'celery-beat', 'nginx'):
+    for service in ('backend', 'db', 'redis', 'celery', 'celery-beat', 'nginx'):
         try:
             container = capture('ps', '-q', service)
             if not container:
@@ -289,13 +289,13 @@ def check():
     except Exception:
         problems.append('HTTPS/readiness não respondeu corretamente.')
     try:
-        dc('exec', '-T', 'web', 'python', 'manage.py', 'check_admin_security', timeout=60)
-        dc('exec', '-T', 'web', 'python', 'manage.py', 'migrate', '--check', timeout=60)
+        dc('exec', '-T', 'backend', 'python', 'manage.py', 'check_admin_security', timeout=60)
+        dc('exec', '-T', 'backend', 'python', 'manage.py', 'migrate', '--check', timeout=60)
     except Exception:
         problems.append('Verificação administrativa/cache/proxy ou migrações pendentes; execute check_admin_security e migrate --check.')
     try:
         # No new public health endpoint. Disabled environments return success.
-        dc('exec', '-T', 'web', 'python', 'manage.py', 'check_whatsapp_monitor', '--require-fresh', timeout=30)
+        dc('exec', '-T', 'backend', 'python', 'manage.py', 'check_whatsapp_monitor', '--require-fresh', timeout=30)
     except Exception:
         problems.append('Monitor WhatsApp atrasado, desconectado ou mal configurado; consulte o superadmin e check_whatsapp_monitor --require-fresh.')
     try:
@@ -356,7 +356,7 @@ def notify(problems):
 
 def migration_snapshot():
     code = 'import json; from django.db.migrations.recorder import MigrationRecorder; print(json.dumps(sorted(list(MigrationRecorder.Migration.objects.values_list("app", "name")))))'
-    output = capture('exec', '-T', 'web', 'python', 'manage.py', 'shell', '-c', code)
+    output = capture('exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c', code)
     return json.loads(output.splitlines()[-1])
 
 
@@ -365,7 +365,7 @@ def release_snapshot():
     path = Path(CFG['release_root']) / name
     path.mkdir(parents=True, mode=0o700)
     services = {}
-    for service in ('web', 'celery', 'celery-beat'):
+    for service in ('backend', 'celery', 'celery-beat'):
         container = capture('ps', '-q', service)
         if not container:
             raise RuntimeError('Serviço ausente para snapshot: ' + service)
@@ -390,7 +390,7 @@ def rollback(name, confirmed):
     override = json.loads((path / 'compose.json').read_text())
     for service in override['services'].values():
         run(['docker', 'image', 'inspect', service['image']])
-    run(['docker', 'compose', '-f', CFG['compose_file'], '-f', path / 'compose.json', 'up', '-d', '--no-build', '--no-deps', '--force-recreate', 'web', 'celery', 'celery-beat'])
+    run(['docker', 'compose', '-f', CFG['compose_file'], '-f', path / 'compose.json', 'up', '-d', '--no-build', '--no-deps', '--force-recreate', 'backend', 'celery', 'celery-beat'])
     print('Imagens anteriores restauradas. Aguarde os health checks e execute operations.py check.')
 
 

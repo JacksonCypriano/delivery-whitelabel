@@ -112,6 +112,9 @@ def tenant_whatsapp_agent_panel(request):
             settings, "WHATSAPP_AGENT_CONTEXT_TIMEOUT_MINUTES", 45
         ),
     }
+    if getattr(request, "merchant_api", False):
+        from apps.merchant.presenters import whatsapp_json
+        return whatsapp_json(context)
     response = TemplateResponse(request, "admin/tenant/whatsapp_agent.html", context)
     response["Cache-Control"] = "private, no-store, max-age=0"
     return response

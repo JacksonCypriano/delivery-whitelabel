@@ -94,6 +94,7 @@ MIDDLEWARE = [
     "apps.accounts.audit.AuditContextMiddleware",
 
     "apps.tenants.middleware.TenantMiddleware",
+    "apps.merchant.navigation.MerchantCutoverMiddleware",
     "apps.tenants.middleware.ForceInitialPasswordChangeMiddleware",
     "apps.marketplace.middleware.GlobalDeliveryLocationMiddleware",
 
@@ -861,3 +862,6 @@ CELERY_BEAT_SCHEDULE["whatsapp-checkout-maintenance"] = {
 }
 # The optional Ollama interpreter produces proposals only, never orders/payments.
 WHATSAPP_AGENT_NLU_ENABLED = os.getenv("WHATSAPP_AGENT_NLU_ENABLED", "true").lower() == "true"
+
+# Enable after the Package 12 homologation gates. No production rollout implied.
+MERCHANT_REACT_ENABLED = os.getenv("MERCHANT_REACT_ENABLED", "false").lower() == "true"

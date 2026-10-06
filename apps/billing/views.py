@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.core import signing
 from django.db import transaction
 from django.http import Http404, HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect, render as django_render
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
@@ -38,6 +38,13 @@ from .services import (
 )
 
 log = logging.getLogger("vemdedelivery.billing")
+
+
+def render(request, template, context):
+    if getattr(request, "merchant_api", False):
+        from apps.merchant.presenters import billing_json
+        return billing_json(template, context)
+    return django_render(request, template, context)
 
 
 def context(request, title):
@@ -133,6 +140,8 @@ def purchase(request):
     try:
         ensure_billing_registration_complete(request.tenant)
         if not form.is_valid():
+            if getattr(request, "merchant_api", False):
+                return JsonResponse({"detail": "Confira os dados do pagador.", "errors": form.errors}, status=400)
             raise BillingError(
                 "Confira nome, CPF/CNPJ e e-mail antes de gerar a cobrança."
             )

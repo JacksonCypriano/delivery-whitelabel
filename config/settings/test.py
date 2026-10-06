@@ -25,3 +25,7 @@ WHATSAPP_AGENT_OLLAMA_ENABLED = False
 # alterar a configuração de produção.
 SIMPLE_JWT = {"LEEWAY": 30}
 
+
+# Hosts artificiais usados pelo Django test client para exercitar o fallback
+# técnico do SuperAdmin. Não existe em produção e não amplia os hosts reais.
+PLATFORM_ADMIN_HOST_ALIASES = ("testserver", "localhost")

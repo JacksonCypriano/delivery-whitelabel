@@ -130,7 +130,7 @@ class MarketingAcquisitionTests(TestCase):
         from apps.tenants.admin import TenantAdmin
         from apps.tenants.admin_site import super_admin_site
         admin = TenantAdmin(Tenant, super_admin_site)
-        request = self.request("/superadmin/tenants/tenant/add/")
+        request = self.request("/superadmin-legacy/tenants/tenant/add/")
         from django.contrib.auth import get_user_model
         request.user = get_user_model().objects.create_superuser(
             username="super-marketing", email="super-marketing@example.com", password="test-12345"

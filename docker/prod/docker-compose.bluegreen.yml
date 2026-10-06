@@ -1,10 +1,10 @@
 # Compose de produção blue/green. Não use junto com docker-compose.yml.
 services:
-  web-blue: &web
+  backend-blue: &backend
     build: {context: ../../}
     env_file: [.env]
     environment: {RUN_MIGRATIONS: "true", COLLECTSTATIC: "true"}
-    command: ["web"]
+    command: ["backend"]
     depends_on: {db: {condition: service_healthy}, redis: {condition: service_healthy}}
     restart: unless-stopped
     init: true
@@ -15,8 +15,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-  web-green:
-    <<: *web
+  backend-green:
+    <<: *backend
   db:
     image: postgres:15
     env_file: [.env]
@@ -30,11 +30,11 @@ services:
     volumes: [redisdata:/data]
     healthcheck: {test: ["CMD", "redis-cli", "ping"], interval: 10s, timeout: 5s, retries: 5}
   celery:
-    <<: *web
+    <<: *backend
     command: ["celery"]
     volumes: []
   celery-prospecting:
-    <<: *web
+    <<: *backend
     command: ["celery-prospecting"]
     volumes: []
     healthcheck:
@@ -44,7 +44,7 @@ services:
       retries: 3
       start_period: 30s
   celery-beat:
-    <<: *web
+    <<: *backend
     command: ["beat"]
     volumes: []
   nginx:

@@ -10,9 +10,19 @@ class TenantSecurityCriticalTests(CriticalTestCase):
         response = self.client.get("/", HTTP_HOST=self.host(self.tenant_a))
         self.assertEqual(response.wsgi_request.tenant, self.tenant_a)
 
-    def test_superadmin_has_no_tenant(self):
-        response = self.client.get("/superadmin/login/", HTTP_HOST=self.host(self.tenant_a))
+    def test_platform_panel_has_no_tenant(self):
+        response = self.client.get("/painel/", HTTP_HOST="lvh.me")
         self.assertIsNone(response.wsgi_request.tenant)
+
+    def test_tenant_host_never_becomes_global_admin_by_path(self):
+        response = self.client.get("/superadmin-legacy/login/", HTTP_HOST=self.host(self.tenant_a))
+        self.assertEqual(response.wsgi_request.tenant, self.tenant_a)
+        self.assertEqual(response.status_code, 404)
+
+    def test_platform_host_never_exposes_merchant_legacy_login(self):
+        response = self.client.get("/admin/login/", HTTP_HOST="lvh.me")
+        self.assertIsNone(response.wsgi_request.tenant)
+        self.assertEqual(response.status_code, 404)
 
     def test_correct_tenant_admin_can_login(self):
         response = self.client.post("/admin/login/?next=/admin/", {"username": self.admin_a.username, "password": self.password, "next": "/admin/"}, HTTP_HOST=self.host(self.tenant_a))

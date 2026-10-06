@@ -43,6 +43,7 @@ DC=(docker compose -f "$COMPOSE_FILE")
 # Ao adicionar testes críticos de outros apps, inclua o módulo nesta lista.
 TEST_SUITES=(
     apps.accounts
+    apps.merchant.tests
     apps.billing.tests
     apps.tenants.tests
     apps.integrations.tests
@@ -93,7 +94,7 @@ echo "▶ A consulta externa de WhatsApp fica desativada neste processo de teste
     -e DJANGO_SETTINGS_MODULE=config.settings.test \
     -e EVOLUTION_WHATSAPP_VALIDATION_ENABLED=false \
     --entrypoint python \
-    web manage.py test "${TEST_SUITES[@]}" \
+    backend manage.py test "${TEST_SUITES[@]}" \
     --settings=config.settings.test \
     --verbosity=2 \
     --noinput

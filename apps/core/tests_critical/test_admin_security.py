@@ -24,10 +24,16 @@ class AdminSecurityTests(CriticalTestCase):
         self.assertContains(response, 'Muitas tentativas', status_code=429)
         self.assertNotIn('_auth_user_id', self.client.session)
 
-    def test_superadmin_limit_applies_to_html_form(self):
+    def test_superadmin_limit_applies_to_react_api_login(self):
         for _ in range(2):
-            self.post(path='/superadmin/login/', host='vemdedelivery.com.br')
-        self.assertEqual(self.post(path='/superadmin/login/', host='vemdedelivery.com.br').status_code, 429)
+            self.assertEqual(
+                self.post(path='/api/superadmin/session/', host='vemdedelivery.com.br').status_code,
+                400,
+            )
+        self.assertEqual(
+            self.post(path='/api/superadmin/session/', host='vemdedelivery.com.br').status_code,
+            429,
+        )
 
     def test_account_limit_survives_ip_rotation(self):
         self.post(REMOTE_ADDR='192.0.2.1')
@@ -54,9 +60,10 @@ class AdminSecurityTests(CriticalTestCase):
     def test_authorized_logins_and_forbidden_admin_role(self):
         self.assertEqual(self.post(user=self.admin_a.username, password=self.password).status_code, 302)
         self.client.logout()
-        self.assertEqual(self.post(user=self.admin_a.username, password=self.password, path='/superadmin/login/', host='vemdedelivery.com.br').status_code, 200)
+        self.assertEqual(self.post(user=self.admin_a.username, password=self.password, path='/api/superadmin/session/', host='vemdedelivery.com.br').status_code, 400)
         self.assertNotIn('_auth_user_id', self.client.session)
-        self.assertEqual(self.post(user=self.superuser.username, password=self.password, path='/superadmin/login/', host='vemdedelivery.com.br').status_code, 302)
+        self.assertEqual(self.post(user=self.superuser.username, password=self.password, path='/api/superadmin/session/', host='vemdedelivery.com.br').status_code, 200)
+        self.assertIn('_auth_user_id', self.client.session)
 
     def test_staff_without_tenant_admin_role_cannot_use_existing_session(self):
         self.admin_a.is_tenant_admin = False

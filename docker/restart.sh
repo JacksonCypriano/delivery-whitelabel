@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "Restarting web..."
-$DC restart web
+echo "Restarting backend..."
+$DC restart backend
 echo "Restart finished."

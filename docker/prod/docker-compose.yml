@@ -5,7 +5,7 @@ x-logging: &default-logging
     max-file: "5"
 
 services:
-  web:
+  backend:
     build:
       context: ../../
     env_file:
@@ -13,7 +13,7 @@ services:
     environment:
       RUN_MIGRATIONS: "true"
       COLLECTSTATIC: "true"
-    command: ["web"]
+    command: ["backend"]
     depends_on:
       db:
         condition: service_healthy
@@ -134,7 +134,7 @@ services:
       - static_volume:/app/staticfiles:ro
       - media_volume:/app/media:ro
     depends_on:
-      web:
+      backend:
         condition: service_healthy
     restart: unless-stopped
     networks:

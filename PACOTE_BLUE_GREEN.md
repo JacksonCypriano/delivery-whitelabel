@@ -1,7 +1,7 @@
 # Deploy blue/green
 
-Este pacote substitui o deploy de produção atual por duas versões do `web`:
-`web-blue` e `web-green`. Apenas uma recebe tráfego; a outra é criada, testada
+Este pacote substitui o deploy de produção atual por duas versões do `backend`:
+`backend-blue` e `backend-green`. Apenas uma recebe tráfego; a outra é criada, testada
 e validada antes da troca do Nginx. Celery, beat, PostgreSQL e Redis continuam
 únicos para não duplicar tarefas.
 

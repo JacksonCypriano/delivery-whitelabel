@@ -1,5 +1,5 @@
 services:
-  web:
+  backend:
     build:
       context: ../../
     env_file:
@@ -73,7 +73,7 @@ services:
       - ../../staticfiles:/app/staticfiles:ro
       - ../../media:/app/media:ro
     depends_on:
-      - web
+      - backend
     restart: unless-stopped
 
 volumes:

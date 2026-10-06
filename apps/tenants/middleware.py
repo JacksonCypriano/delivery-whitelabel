@@ -1,4 +1,5 @@
 from .models import Tenant
+from .domains import tenant_slug_from_request
 import logging
 
 from django.shortcuts import redirect
@@ -9,27 +10,32 @@ from apps.core.observability import set_tenant_slug
 logger = logging.getLogger(__name__)
 
 class TenantMiddleware:
-    """Resolve o tenant atual a partir do subdomínio da requisição.
+    """Resolve tenant exclusively from the host.
 
-    Rotas iniciadas em /superadmin não pertencem a nenhum tenant (request.tenant = None).
+    The path never changes tenant scope. This is intentional: the platform
+    panel lives at dominio/painel/ and a merchant panel at
+    slug.dominio/painel/.
     """
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        if request.path.startswith('/superadmin'):
-            request.tenant = None
-            set_tenant_slug('-')
-            return self.get_response(request)
+        subdomain = tenant_slug_from_request(request)
+        tenant = None
 
-        host = request.META.get('HTTP_HOST', '')
-        subdomain = host.split('.')[0]
-
-        try:
-            tenant = Tenant.objects.get(slug=subdomain)
-        except Tenant.DoesNotExist:
-            tenant = None
+        if subdomain:
+            try:
+                tenant = Tenant.objects.get(slug=subdomain)
+            except Tenant.DoesNotExist:
+                # Compatibilidade da vitrine demo: o domínio público foi renomeado
+                # de vitrine-demo para demo sem exigir renomear o tenant existente.
+                demo_alias = {"demo": "vitrine-demo", "vitrine-demo": "demo"}.get(subdomain)
+                tenant = (
+                    Tenant.objects.filter(slug=demo_alias).first()
+                    if demo_alias
+                    else None
+                )
 
         request.tenant = tenant
         set_tenant_slug(getattr(tenant, "slug", "-") if tenant is not None else "-")

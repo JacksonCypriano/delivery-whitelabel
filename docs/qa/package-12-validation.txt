@@ -1,0 +1,91 @@
+Validação local — 2026-10-06
+Python 3.12, SQLite em memória; PostgreSQL/Docker/homologação não executados.
+Nenhum deploy ou migration em produção.
+
+final-backend-tests.log
+Ran 728 tests in 29.915s
+OK (skipped=22)
+Found 728 test(s).
+System check identified no issues (0 silenced).
+
+merchant-final-tests.log
+Ran 21 tests in 0.965s
+OK
+Found 21 test(s).
+System check identified no issues (0 silenced).
+
+frontend-tests.log
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> vemdedelivery-merchant@12.0.0 test
+> vitest run
+
+
+ RUN  v3.2.7 /workspace/scratch/78518621bff2/project/frontend
+
+ ✓ src/utils/masks.test.ts (3 tests) 3ms
+ ✓ src/api/client.test.ts (3 tests) 5ms
+ ✓ src/components/Fields.test.tsx (5 tests) 88ms
+
+ Test Files  3 passed (3)
+      Tests  11 passed (11)
+   Start at  23:51:19
+   Duration  666ms (transform 86ms, setup 0ms, collect 172ms, tests 96ms, environment 537ms, prepare 148ms)
+
+
+frontend-build.log
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> vemdedelivery-merchant@12.0.0 build
+> tsc --noEmit && vite build
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 57 modules transformed.
+rendering chunks...
+computing gzip size...
+../static/merchant/.vite/manifest.json         0.19 kB │ gzip:  0.14 kB
+../static/merchant/assets/main-BGzf1C9J.css    8.76 kB │ gzip:  2.80 kB
+../static/merchant/assets/main-B2l01lLW.js   302.73 kB │ gzip: 95.25 kB
+✓ built in 1.56s
+
+operational-tests.log
+
+----------------------------------------------------------------------
+Ran 13 tests in 0.066s
+
+OK
+
+migration-check.log
+No changes detected
+
+homolog-critical.log
+❌ Docker não foi encontrado.
+
+browser-qa-final.log
+Opened products
+Opened categories
+Opened groups
+Opened labels
+Opened orders
+Opened customers
+Opened coupons
+Opened redemptions
+Opened store
+Opened branding
+Opened hours
+Opened delivery
+Opened profile
+Opened assinatura
+Opened notas
+Opened taxas
+Opened whatsapp
+Category created through React
+price initial 51,90
+Product edited through React
+Quick list editing saved
+mobile dimensions { width: 390, scroll: 390, height: 1164 }
+{
+  "errors": [],
+  "tests": "login, 17 routes, category create, product update, mobile menu, viewport overflow"
+}

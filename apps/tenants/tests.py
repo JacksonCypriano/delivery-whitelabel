@@ -20,7 +20,7 @@ class FreeSubscriptionOnTenantCreationTests(TestCase):
             "grant_free_month": "on",
         })
         self.assertTrue(form.is_valid(), form.errors)
-        request = RequestFactory().post("/superadmin/tenants/tenant/add/")
+        request = RequestFactory().post("/superadmin-legacy/tenants/tenant/add/")
         request.user = get_user_model().objects.create_superuser(
             "free-month-admin", "free-month@example.com", "Senha!123"
         )

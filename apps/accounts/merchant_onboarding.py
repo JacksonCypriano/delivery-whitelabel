@@ -36,7 +36,7 @@ def generate_temporary_password(length=16):
 
 def build_merchant_access_urls(tenant):
     store_url = build_tenant_url(tenant)
-    return store_url, urljoin(store_url, "admin/")
+    return store_url, urljoin(store_url, "painel/")
 
 
 @sensitive_variables("temporary_password")

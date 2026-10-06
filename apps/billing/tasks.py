@@ -198,7 +198,7 @@ def reconcile_fiscal_invoices():
 def _tax_rate_admin_url(alert):
     current = alert["current"]
     if current:
-        path = reverse("super_admin:billing_taxrate_change", args=[current.pk])
+        path = f"/painel/billing-taxrate/{current.pk}"
     else:
         query = {
             "configuration": alert["configuration"].pk,
@@ -207,7 +207,7 @@ def _tax_rate_admin_url(alert):
         previous = alert["previous"]
         if previous:
             query["iss"] = str(previous.iss)
-        path = reverse("super_admin:billing_taxrate_add") + "?" + urlencode(query)
+        path = "/painel/billing-taxrate/novo?" + urlencode(query)
 
     base = (getattr(settings, "SUPERADMIN_PUBLIC_URL", "") or "").strip().rstrip("/")
     if not base:
@@ -344,7 +344,7 @@ def send_tax_rate_whatsapp_reminders():
 
 
 def _asaas_fee_admin_url():
-    path = reverse("super_admin:billing_asaasfeesnapshot_changelist")
+    path = "/painel/billing-asaasfeesnapshot"
     base = (getattr(settings, "SUPERADMIN_PUBLIC_URL", "") or "").strip().rstrip("/")
     if not base:
         base = (getattr(settings, "CUSTOMER_PORTAL_URL", "") or "").strip().rstrip("/")

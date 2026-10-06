@@ -10,10 +10,10 @@ echo "== Containers =="
 docker compose -f "$COMPOSE_FILE" ps
 
 echo "== Django deployment checks =="
-docker compose -f "$COMPOSE_FILE" exec web python manage.py check --deploy
+docker compose -f "$COMPOSE_FILE" exec backend python manage.py check --deploy
 
 echo "== Django migrations =="
-docker compose -f "$COMPOSE_FILE" exec web python manage.py showmigrations --plan | tail -20
+docker compose -f "$COMPOSE_FILE" exec backend python manage.py showmigrations --plan | tail -20
 
 echo "== HTTPS principal =="
 curl -fsSI https://vemdedelivery.com.br/ | head

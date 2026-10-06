@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.conf.urls.static import static
-from django.urls import include, path
+from django.urls import include, path, re_path
+from apps.frontend.panel import panel_shell
 from apps.checkout.views import delivery_fee_api
 from apps.core import health as health_views
 from apps.marketplace import views as marketplace_views
@@ -11,6 +12,9 @@ from apps.billing.views import webhook as billing_webhook
 from apps.integrations.views import evolution_webhook, tenant_evolution_webhook
 
 urlpatterns = [
+    path("api/merchant/", include("apps.merchant.urls")),
+    path("api/superadmin/", include("apps.superpanel.urls")),
+    re_path(r"^painel/(?P<path>.*)$", panel_shell, name="admin-panel"),
     path("integracoes/evolution/webhook/", evolution_webhook, name="evolution_webhook"),
     path("integracoes/evolution/tenant-webhook/", tenant_evolution_webhook, name="tenant_evolution_webhook"),
     path("integracoes/asaas/webhook/", billing_webhook, name="billing_webhook"),
@@ -26,8 +30,8 @@ urlpatterns = [
     path("dashboard/auth/", include("apps.accounts.urls")),
     path("conta/", include("apps.accounts.customer_urls", namespace="customer_accounts")),
 
-    # Admin
-    path("superadmin/", super_admin_site.urls),
+    # Admin legado (mantido temporariamente como fallback interno durante a migração React)
+    path("superadmin-legacy/", super_admin_site.urls),
     path("admin/", tenant_admin_site.urls),
 
     # Checkout

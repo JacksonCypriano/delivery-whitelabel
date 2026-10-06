@@ -74,6 +74,6 @@ python manage.py purge_marketing_leads
 
 Remove cliques **sem loja vinculada** com mais de 90 dias. Leads vinculados e registros fiscais/financeiros seguem suas políticas contratuais/legais; revise a retenção e exclusão conforme LGPD e acordos de terceiros. Sem dados analíticos consentidos não há GA4 Client ID para relacionar o pagamento a sessões.
 
-Se o Google Tag Assistant não conectar depois da implantação, confirme primeiro que o visitante aceitou as métricas na página comercial. Não espere tags em homolog, `/superadmin/`, `/admin/` ou catálogos dos tenants.
+Se o Google Tag Assistant não conectar depois da implantação, confirme primeiro que o visitante aceitou as métricas na página comercial. Não espere tags em homolog, `/painel/`, `/superadmin-legacy/`, `/admin/` ou catálogos dos tenants.
 
 **Segurança do projeto ZIP:** nunca incluir `.secrets/`, certificados privados em `deploy/nginx/certs/`, `.env`, dumps ou tokens nos próximos compartilhamentos.

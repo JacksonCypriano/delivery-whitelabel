@@ -257,7 +257,7 @@ def process_tenant_whatsapp_message(agent_id, message_id, phone, text, message_k
     else:
         from .whatsapp_agent.checkout import handle_checkout
         checkout_reply = handle_checkout(agent.tenant, phone, message_id, text) if getattr(settings, "WHATSAPP_AGENT_CHECKOUT_ENABLED", True) else None
-        reply = checkout_reply or answer(agent.tenant, text, context=context)
+        reply = checkout_reply or answer(agent.tenant, text, context=context, phone=phone)
         if not reply.text:
             return "no-reply"
         reply_text = reply.text

@@ -6,12 +6,13 @@ from decimal import Decimal
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
+from django.utils import timezone
 
 from apps.core.models import TenantModel
 from apps.stores.models import Product
 from apps.tenants.models import Tenant
 
-from .choices import Status
+from .choices import OrderSource, Status, StatusEventSource
 
 
 User = settings.AUTH_USER_MODEL
@@ -85,9 +86,25 @@ class Order(TenantModel):
     )
 
     customer_name = models.CharField(max_length=150, blank=True, verbose_name="Nome do cliente")
-    customer_phone = models.CharField(max_length=20, verbose_name="Telefone do cliente")
+    customer_phone = models.CharField(max_length=20, blank=True, verbose_name="Telefone do cliente")
 
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, verbose_name="Situação")
+    status = models.CharField(max_length=24, choices=Status.choices, default=Status.PENDING, verbose_name="Situação")
+    source = models.CharField(
+        max_length=16,
+        choices=OrderSource.choices,
+        default=OrderSource.WEB,
+        verbose_name="Origem do pedido",
+    )
+    status_updated_at = models.DateTimeField(
+        default=timezone.now,
+        db_index=True,
+        verbose_name="Última mudança de status",
+    )
+    estimated_ready_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Previsão para ficar pronto",
+    )
 
     total = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Total")
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Subtotal")
@@ -204,6 +221,131 @@ class Order(TenantModel):
             parts.append(f"CEP {self.delivery_zip_code}")
 
         return " · ".join(parts)
+
+
+class OrderStatusEvent(models.Model):
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        related_name="status_events",
+        verbose_name="Pedido",
+    )
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="order_status_events",
+        verbose_name="Loja",
+    )
+    from_status = models.CharField(
+        max_length=24,
+        choices=Status.choices,
+        blank=True,
+        verbose_name="Status anterior",
+    )
+    to_status = models.CharField(
+        max_length=24,
+        choices=Status.choices,
+        verbose_name="Novo status",
+    )
+    source = models.CharField(
+        max_length=16,
+        choices=StatusEventSource.choices,
+        default=StatusEventSource.PANEL,
+        verbose_name="Origem",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="order_status_events",
+        verbose_name="Responsável",
+    )
+    note = models.CharField(max_length=255, blank=True, verbose_name="Observação")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ("-created_at", "-pk")
+        indexes = [
+            models.Index(fields=("tenant", "created_at"), name="order_evt_tenant_time_idx"),
+            models.Index(fields=("order", "created_at"), name="order_evt_order_time_idx"),
+        ]
+        verbose_name = "Evento de status do pedido"
+        verbose_name_plural = "Eventos de status dos pedidos"
+
+    def save(self, *args, **kwargs):
+        if self.order_id and not self.tenant_id:
+            self.tenant_id = self.order.tenant_id
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Pedido #{self.order_id}: {self.from_status or '—'} → {self.to_status}"
+
+
+class OrderNotificationSettings(models.Model):
+    tenant = models.OneToOneField(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="order_notification_settings",
+        verbose_name="Loja",
+    )
+    enabled = models.BooleanField("Avisos automáticos de status", default=True)
+    notify_confirmed = models.BooleanField("Avisar pedido confirmado", default=True)
+    notify_preparing = models.BooleanField("Avisar pedido em preparo", default=True)
+    notify_ready = models.BooleanField("Avisar pedido pronto", default=True)
+    notify_out_for_delivery = models.BooleanField("Avisar saída para entrega", default=True)
+    notify_delivered = models.BooleanField("Avisar pedido entregue", default=True)
+    notify_cancelled = models.BooleanField("Avisar cancelamento", default=True)
+    default_prep_minutes = models.PositiveSmallIntegerField(
+        "Tempo padrão de preparo (minutos)",
+        default=30,
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Configuração de avisos de pedido"
+        verbose_name_plural = "Configurações de avisos de pedido"
+
+    def __str__(self):
+        return f"Avisos de pedidos — {self.tenant}"
+
+
+class OrderStatusNotification(models.Model):
+    event = models.OneToOneField(
+        OrderStatusEvent,
+        on_delete=models.CASCADE,
+        related_name="notification",
+        verbose_name="Evento",
+    )
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="order_status_notifications",
+        verbose_name="Loja",
+    )
+    recipient = models.CharField(max_length=24, verbose_name="WhatsApp do cliente")
+    text = models.TextField(verbose_name="Mensagem")
+    attempts = models.PositiveSmallIntegerField(default=0)
+    attempted_at = models.DateTimeField(null=True, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    skipped_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.CharField(max_length=160, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ("created_at", "pk")
+        indexes = [
+            models.Index(fields=("sent_at", "skipped_at", "created_at"), name="order_notice_pending_idx"),
+        ]
+        verbose_name = "Aviso de status do pedido"
+        verbose_name_plural = "Avisos de status dos pedidos"
+
+    @property
+    def pending(self):
+        return self.sent_at is None and self.skipped_at is None
+
+    def __str__(self):
+        return f"Pedido #{self.event.order_id} → {self.recipient}"
 
 
 class OrderItem(models.Model):

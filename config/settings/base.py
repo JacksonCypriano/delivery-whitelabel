@@ -75,7 +75,7 @@ INSTALLED_APPS = [
     "apps.tenants",
     "apps.accounts",
     "apps.stores",
-    "apps.orders",
+    "apps.orders.apps.OrdersConfig",
     "apps.checkout",
     "apps.frontend",
     "apps.customers",
@@ -105,6 +105,7 @@ MIDDLEWARE = [
 ROOT_URLCONF = "config.urls"
 
 WSGI_APPLICATION = "config.wsgi.application"
+ASGI_APPLICATION = "config.asgi.application"
 
 # Banco
 DATABASES = {
@@ -859,6 +860,9 @@ CELERY_BEAT_SCHEDULE["whatsapp-order-notices"] = {
 }
 CELERY_BEAT_SCHEDULE["whatsapp-checkout-maintenance"] = {
     "task": "apps.integrations.tasks.maintain_whatsapp_checkouts", "schedule": 60.0,
+}
+CELERY_BEAT_SCHEDULE["order-status-notifications"] = {
+    "task": "apps.orders.tasks.deliver_order_status_notifications", "schedule": 15.0,
 }
 # The optional Ollama interpreter produces proposals only, never orders/payments.
 WHATSAPP_AGENT_NLU_ENABLED = os.getenv("WHATSAPP_AGENT_NLU_ENABLED", "true").lower() == "true"

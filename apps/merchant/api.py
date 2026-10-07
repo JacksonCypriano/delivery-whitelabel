@@ -1,6 +1,7 @@
 """Session/CSRF-protected merchant API, reusing the existing backend policies."""
 
 from django.contrib import messages
+from django.conf import settings
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.admin.utils import label_for_field
@@ -428,6 +429,11 @@ class ResourceDetail(MerchantAPI):
 class ResourceAction(MerchantAPI):
     @transaction.atomic
     def post(self, request, resource):
+        if resource == "orders" and getattr(settings, "MERCHANT_REACT_ENABLED", False):
+            return Response(
+                {"detail": "Use a operação de pedidos do novo painel."},
+                status=409,
+            )
         admin, _ = guarded(request, resource, operation="change")
         data = request.data
         raw = request._request

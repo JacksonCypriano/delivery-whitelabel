@@ -20,6 +20,7 @@ from .models import (
 from .services import build_whatsapp_message
 from . import cart_service as integrity
 from . import inventory
+from .operations import record_initial_event
 from apps.coupons.models import CouponCampaign
 from apps.coupons.services import validate_coupon
 from apps.billing.models import OrderPayment
@@ -147,6 +148,9 @@ def open_whatsapp(request, public_token):
             cart.items.all().delete()
             integrity.invalidate_draft(cart)
             request.session["checkout_token"] = str(cart.checkout_token)
+    # Only after this commit point is the generated web draft an operational
+    # order for the merchant. get_or_create also backfills older finalized rows.
+    record_initial_event(order, note="Pedido confirmado pelo cliente na loja online.")
     # Reopening an old order must never delete the customer's new cart.
     message = build_whatsapp_message(order)
     return redirect(

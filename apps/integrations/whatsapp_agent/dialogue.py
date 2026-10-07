@@ -782,7 +782,12 @@ def handle_dialogue(c, text, action):
                 "intent": "product",
                 "product_ids": [c.data["pending"]["product_id"]],
             }
-        result = answer(c.cart.tenant, text, context=context)
+        result = answer(
+            c.cart.tenant,
+            text,
+            context=context,
+            phone=getattr(c.conversation, "phone_number", ""),
+        )
         c.data["dialogue_knowledge"] = result.context
         if result.pause_minutes:
             response = reply(result.text)

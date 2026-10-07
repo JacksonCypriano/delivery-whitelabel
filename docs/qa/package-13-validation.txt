@@ -1,0 +1,24 @@
+Pacote 13 — validação executada neste ambiente de trabalho
+
+Executado:
+- python -m compileall -q apps config: OK
+- python -m unittest discover -s scripts/tests -p 'test_*.py' -v: 13/13 OK
+- verificação estática das novas rotas, migration, imports, isolamento por tenant e fluxo de rascunho operacional: OK
+- TypeScript parser acionado com tsc global nos arquivos alterados: sem erro de sintaxe. A checagem de tipos completa não pôde ser concluída porque as dependências npm não estão instaladas neste ambiente.
+- revisão de segurança do ZIP de entrega: segredos, .env reais, certificados privados, node_modules e caches devem ficar fora do pacote.
+
+Não executado aqui:
+- Django test suite: o runtime desta sessão não possui Django instalado.
+- PostgreSQL/migrations reais: Docker não está disponível nesta sessão.
+- npm ci / npm run test / npm run build: a instalação offline falhou porque o cache npm local não contém todas as dependências e esta sessão não possui acesso de rede para baixá-las.
+- Evolution/Redis/Celery reais: dependem do ambiente de homologação.
+
+Gates obrigatórios antes de produção:
+1. build da imagem/frontend em homologação (o Dockerfile já executa npm test + npm build);
+2. python manage.py migrate em homologação;
+3. python manage.py makemigrations --check para confirmar que a migration 0013 corresponde aos models;
+4. suíte crítica completa do VemDeDelivery;
+5. fluxo manual do Pacote 13 descrito em docs/packages/package-13-order-operations.md;
+6. somente depois dos gates verdes e autorização explícita, considerar produção.
+
+Produção não foi alterada por este trabalho.

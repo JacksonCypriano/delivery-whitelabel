@@ -1,0 +1,145 @@
+{
+  "package": "13",
+  "name": "Operação completa de pedidos",
+  "created": [
+    {
+      "path": "apps/core/tests_critical/test_package13_orders.py",
+      "sha256": "e5b1489597b7124d4f494c12ad3780a56f2f45f1833906f789ec1e633b262ca3"
+    },
+    {
+      "path": "apps/merchant/orders.py",
+      "sha256": "cae7ea2bb5364e125027c6210c7e5c69c1d49c10e6004a4b7de1918a50053c8b"
+    },
+    {
+      "path": "apps/orders/migrations/0013_order_operations.py",
+      "sha256": "393d43fe9642f5161e2ae4efaa5d2003d8b9407b0bfdc71172a46a7c2062ff53"
+    },
+    {
+      "path": "apps/orders/operations.py",
+      "sha256": "ef8b53b2c9711abc91ee3f5d1a42aac926706997ed18c4eac0eb91755ac85269"
+    },
+    {
+      "path": "apps/orders/realtime.py",
+      "sha256": "c9bea60ecc8376783fd34cf08f699ac80bad92017249409946a263b51fea6ee2"
+    },
+    {
+      "path": "apps/orders/signals.py",
+      "sha256": "9998bcd041fe0c90a568921e4bccdede6faa4d53cc01684009639d0d03bb8885"
+    },
+    {
+      "path": "apps/orders/tasks.py",
+      "sha256": "862fc6906e4b0e3ffc13b9b27bfab40f96659e6fcedd51ab7977413a9d146b82"
+    },
+    {
+      "path": "docs/packages/package-13-order-operations.md",
+      "sha256": "de5078a2eb99d46e2bfc318d8743d559217ef4e0ffa074bc1a08b8af00733ec5"
+    },
+    {
+      "path": "docs/qa/package-13-validation.txt",
+      "sha256": "02e0af4e758b8d6e9e9cf14fc1ecff46e1fd1c7fad7318423e2c64db3c1fdedd"
+    },
+    {
+      "path": "frontend/src/api/orders.ts",
+      "sha256": "b84f4b3fe3bbeacde1036ce7f512ae2ade300a654efe9c58db90d703bc1af6ae"
+    },
+    {
+      "path": "frontend/src/features/orders/ManualOrder.tsx",
+      "sha256": "58a1f4b88be14a21aacb349e776b38feb071dc8645c36ddf4680e1bd76f9bc06"
+    },
+    {
+      "path": "frontend/src/features/orders/OrderDetail.tsx",
+      "sha256": "fe58d9396d8bdf6299ce901c90d79153d59bc06c7f157fce64ea388bca115643"
+    },
+    {
+      "path": "frontend/src/features/orders/OrdersBoard.tsx",
+      "sha256": "a193268fbf7ec30c32e58ca21b4ed57e32c406c620c3736210ade151ecc28e89"
+    },
+    {
+      "path": "frontend/src/features/orders/orderHelpers.test.ts",
+      "sha256": "7a0fc65c1d884529eeaf8de4c58c2af98e96dc1134b68d563a91d010662bd6f3"
+    },
+    {
+      "path": "frontend/src/features/orders/orderHelpers.ts",
+      "sha256": "6b3be9baccf693af63eb94df5dc716e74ed959bd6010c740f014b0b22d252441"
+    }
+  ],
+  "modified": [
+    {
+      "path": "apps/integrations/tasks.py",
+      "sha256": "8d60ec7851ba2ce925ab7a5c5d054ec6424f391464c73bf8222accbd48113438"
+    },
+    {
+      "path": "apps/integrations/whatsapp_agent/agent.py",
+      "sha256": "5a41df5a81d9044f64a60f683c7d07393aa73691873f241b454fda338635b599"
+    },
+    {
+      "path": "apps/integrations/whatsapp_agent/checkout_payments.py",
+      "sha256": "e0950a28bf437c0da4ee782fa94c9c0e27f549b6e5b8c3d101b9be6ffb7a8111"
+    },
+    {
+      "path": "apps/integrations/whatsapp_agent/dialogue.py",
+      "sha256": "344ebf2c5e142887ad27a01361df2696cf22d7c8ce56e39fb5b733aaab3baddd"
+    },
+    {
+      "path": "apps/integrations/whatsapp_agent/knowledge.py",
+      "sha256": "edb4399f8963d7d2a647a78f6f2a063558cb750eac6bdebc7bc5c80f494cf48b"
+    },
+    {
+      "path": "apps/merchant/api.py",
+      "sha256": "5c0a04a835780ffaafa8b47341c0f2ecc50580c85c2d5f191dbdfe10ca9e00a0"
+    },
+    {
+      "path": "apps/merchant/urls.py",
+      "sha256": "d4c260c1eef03471bf5976e22b6cf276cfc552a08081db52c316fd0284d11451"
+    },
+    {
+      "path": "apps/orders/apps.py",
+      "sha256": "7bbfb2299c1e9435aedb5832e2d0dbcdcf1c63ba4382bfbf72276f0dc14c6091"
+    },
+    {
+      "path": "apps/orders/choices.py",
+      "sha256": "714fe53e939a82c9ed54f54f2d1d41e86a02223408d887b6aa755fc4c9523f0a"
+    },
+    {
+      "path": "apps/orders/inventory.py",
+      "sha256": "9ddcdc714231093216a2b5d96a5f0e162b786f12b35c7e1bd21495eebd5facc0"
+    },
+    {
+      "path": "apps/orders/models.py",
+      "sha256": "be5120437b8c77e85a17cfe567065b17dfaec77eca55cc549c7b2f1c17626239"
+    },
+    {
+      "path": "apps/orders/views.py",
+      "sha256": "97382b343e9fad13ce3c12106408eb778b433e9b4329ff21535baccc0f577057"
+    },
+    {
+      "path": "config/asgi.py",
+      "sha256": "3eaad32c0c6bc85aa1fd28e36d3077df33337407b1d4578a1be611d42061a8d9"
+    },
+    {
+      "path": "config/settings/base.py",
+      "sha256": "2cb4f4c1302b3a3eaedb5906689f86da74693a6f48596d5ad58d7ab64a6acc79"
+    },
+    {
+      "path": "frontend/package-lock.json",
+      "sha256": "decc58027937ad40a0b7956d2936faf0d02f6f2bead732f6a9276aaf3fb85db1"
+    },
+    {
+      "path": "frontend/package.json",
+      "sha256": "aa78504a3495ab92c9940c59b9d2574bb31173affe3b658421f1218bb5988f28"
+    },
+    {
+      "path": "frontend/src/routes/App.tsx",
+      "sha256": "53170b6471acc8ae8fa8c55b366dd5f2f09c7a22f72df75808163f1ffd591e22"
+    },
+    {
+      "path": "frontend/src/style.css",
+      "sha256": "c9abfea4cdb34213ab2ba6454a6c0baff57b9f12901e425f8acd972d79d547db"
+    }
+  ],
+  "deleted": [],
+  "notes": [
+    "Manifest excludes real .env files, private certificates/secrets, dependency caches and generated Python caches.",
+    "Production was not modified; package is candidate for homologation only."
+  ]
+}

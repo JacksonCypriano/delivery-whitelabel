@@ -26,7 +26,9 @@ def requirements(lines):
 def active_reservations():
     from .cart_service import DRAFT_TTL
     return StockReservation.objects.filter(
-        order__abandoned_at__isnull=True, order__whatsapp_opened_at__isnull=True,
+        deducted_quantity=0,
+        order__abandoned_at__isnull=True,
+        order__whatsapp_opened_at__isnull=True,
         order__created_at__gt=timezone.now() - DRAFT_TTL,
     ).exclude(order__status='cancelled')
 
@@ -92,28 +94,69 @@ def consume(order, lines, *, exclude_whatsapp_checkout_id=None):
             movement.save(update_fields=['deducted_quantity'])
 
 
-@transaction.atomic
-def cancel(order_id, tenant):
-    """Cancel through the tenant panel; cart -> order -> products lock order."""
-    from .cart_service import invalidate_draft
+def _cancel_locked(order_id, tenant, *, allowed_statuses=None):
+    """Cancel with the historical cart -> order -> products lock ordering.
+
+    Returns ``(changed, previous_status, order)`` so the operational state
+    machine can append its audit event without reordering locks. Legacy callers
+    keep using ``cancel`` below and still receive a boolean.
+    """
+    from .cart_service import CartError, invalidate_draft
+
     candidate = Order.objects.get(pk=order_id, tenant=tenant)
-    cart = Cart.objects.select_for_update().filter(pk=candidate.source_cart_id, tenant=tenant).first()
+    cart = Cart.objects.select_for_update().filter(
+        pk=candidate.source_cart_id, tenant=tenant
+    ).first()
     order = Order.objects.select_for_update().get(pk=order_id, tenant=tenant)
     if order.status == 'cancelled':
-        return False
-    movements = list(order.stock_reservations.filter(returned_at__isnull=True).order_by('product_id'))
-    products = {p.pk: p for p in Product.objects.select_for_update().filter(
-        pk__in=[m.product_id for m in movements if m.product_id], tenant=tenant,
-    ).order_by('pk')}
+        return False, 'cancelled', order
+    if allowed_statuses is not None and order.status not in set(allowed_statuses):
+        raise CartError('Este pedido não pode mais ser cancelado por este fluxo.')
+
+    previous_status = order.status
+    movements = list(
+        order.stock_reservations.filter(returned_at__isnull=True).order_by('product_id')
+    )
+    products = {
+        p.pk: p
+        for p in Product.objects.select_for_update()
+        .filter(
+            pk__in=[m.product_id for m in movements if m.product_id],
+            tenant=tenant,
+        )
+        .order_by('pk')
+    }
     now = timezone.now()
     for movement in movements:
         p = products.get(movement.product_id)
         if p is not None and p.stock is not None and movement.deducted_quantity:
-            Product.objects.filter(pk=p.pk).update(stock=F('stock') + movement.deducted_quantity)
+            Product.objects.filter(pk=p.pk).update(
+                stock=F('stock') + movement.deducted_quantity
+            )
         movement.returned_at = now
         movement.save(update_fields=['returned_at'])
     order.status = 'cancelled'
-    order.save(update_fields=['status'])
-    if order.whatsapp_opened_at is None and cart and str(cart.checkout_token) == str(order.checkout_token):
+    if hasattr(order, 'status_updated_at'):
+        order.status_updated_at = now
+        order.save(update_fields=['status', 'status_updated_at'])
+    else:  # migration compatibility for historical migration/test states
+        order.save(update_fields=['status'])
+    if (
+        order.whatsapp_opened_at is None
+        and cart
+        and str(cart.checkout_token) == str(order.checkout_token)
+    ):
         invalidate_draft(cart)
-    return True
+    return True, previous_status, order
+
+
+@transaction.atomic
+def cancel_with_previous(order_id, tenant, *, allowed_statuses=None):
+    return _cancel_locked(order_id, tenant, allowed_statuses=allowed_statuses)
+
+
+@transaction.atomic
+def cancel(order_id, tenant):
+    """Cancel through the tenant panel; cart -> order -> products lock order."""
+    changed, _previous, _order = _cancel_locked(order_id, tenant)
+    return changed

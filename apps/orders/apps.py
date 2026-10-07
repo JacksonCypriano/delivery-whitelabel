@@ -2,6 +2,11 @@ from django.apps import AppConfig
 
 
 class OrdersConfig(AppConfig):
-    default_auto_field = 'django.db.models.BigAutoField'
-    name = 'apps.orders'
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "apps.orders"
     verbose_name = "Pedidos"
+
+    def ready(self):
+        from . import signals
+
+        signals.connect_payment_signals()

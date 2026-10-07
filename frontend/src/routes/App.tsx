@@ -7,6 +7,9 @@ import { ResourceList } from "../features/resources/ResourceList";
 import { ResourceDetail } from "../features/resources/ResourceDetail";
 import { Finance } from "../features/finance/Finance";
 import { Whatsapp } from "../features/whatsapp/Whatsapp";
+import { OrdersBoard } from "../features/orders/OrdersBoard";
+import { OrderDetail } from "../features/orders/OrderDetail";
+import { ManualOrder } from "../features/orders/ManualOrder";
 import { panel, panelUrl } from "../panel";
 
 export function App() {
@@ -32,6 +35,9 @@ export function App() {
         {panel.kind === "merchant" && (
           <>
             <Route path="whatsapp" element={<Whatsapp />} />
+            <Route path="orders" element={<OrdersBoard />} />
+            <Route path="orders/novo" element={<ManualOrder />} />
+            <Route path="orders/:id" element={<OrderDetail />} />
             <Route path="assinatura" element={<Finance mode="assinatura" />} />
             <Route path="notas" element={<Finance mode="notas" />} />
             <Route path="taxas" element={<Finance mode="taxas" />} />

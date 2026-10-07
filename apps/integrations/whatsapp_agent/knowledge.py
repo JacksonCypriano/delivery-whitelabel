@@ -2398,7 +2398,8 @@ def _requested_product_label(question):
     return text.strip().strip("?.! ")[:120] or "esse item"
 
 
-def answer_from_store(tenant, question, context=None):
+def answer_from_store(tenant, question, context=None, phone=""):
+
     context = context if isinstance(context, dict) else {}
     q = normalize(question)
 
@@ -2420,10 +2421,24 @@ def answer_from_store(tenant, question, context=None):
     # expressões genéricas como "pedido", que também aparecem na intenção de
     # iniciar uma compra/cardápio.
     if _looks_like_order_status(question):
+        from apps.orders.operations import customer_status_reply
+
+        status_text = customer_status_reply(
+            tenant=tenant,
+            phone=phone,
+            question=question,
+        )
+        if status_text:
+            return KnowledgeAnswer(
+                "order_status",
+                (status_text,),
+                status_text,
+                context={"intent": "order_status"},
+            )
         return KnowledgeAnswer(
             "order_status",
-            ("O agente não acompanha status, alteração ou cancelamento de pedido.",),
-            "Certo 😊 Para acompanhar, alterar ou cancelar seu pedido, vou deixar a equipe da loja continuar seu atendimento por aqui.",
+            ("Não foi possível identificar com segurança o pedido deste WhatsApp.",),
+            "Para localizar seu pedido com segurança, vou deixar a equipe da loja continuar seu atendimento por aqui.",
             pause_minutes=60,
             pause_reason="human",
         )

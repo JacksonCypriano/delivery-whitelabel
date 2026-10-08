@@ -1,0 +1,10 @@
+# Renderer for a Python backend started outside Compose.
+# docker compose -f docker/dev/docker-compose.public.yml up --build -d
+services:
+  public-ssr:
+    build:
+      context: ../../
+      dockerfile: docker/Dockerfile.public-ssr
+    ports:
+      - "127.0.0.1:3001:3001"
+    restart: unless-stopped

@@ -193,6 +193,10 @@ def process_tenant_whatsapp_message(agent_id, message_id, phone, text, message_k
         return "missing-agent"
 
     row = conversation(agent.tenant, phone)
+    from .models import ConversationEntry
+    _, first_delivery = ConversationEntry.objects.get_or_create(conversation=row,key="in:"+message_id,defaults={"role":"customer","text":text[:4000] or "["+message_kind+"]"})
+    if not first_delivery:
+        return "duplicate-message"
     now = timezone.now()
     context = active_context(row, now=now)
     row.last_customer_message_at = now
@@ -211,6 +215,17 @@ def process_tenant_whatsapp_message(agent_id, message_id, phone, text, message_k
     if row.ai_paused_until and row.ai_paused_until > now:
         return "conversation-paused"
 
+    media_image = message_kind == "image"
+    if message_kind in {"audio", "image"} and getattr(settings, "WHATSAPP_MEDIA_ENABLED", False):
+        from .whatsapp_agent.media import interpret, MediaUnavailable
+        try:
+            text = interpret(agent, message_id, phone, message_kind)
+            ConversationEntry.objects.get_or_create(conversation=row,key="media:"+message_id,defaults={"role":"transcript","text":text})
+            message_kind = "text"
+        except MediaUnavailable:
+            pause(agent.tenant, phone, 60, TenantWhatsAppConversation.PauseReason.HUMAN)
+            add_event(agent,"media_handoff","Mídia encaminhada para atendimento humano; sem confirmação financeira.")
+            return "media-handoff"
     checkout_reply = None
     if message_kind in {"audio", "image", "video", "document", "sticker", "location", "contact"}:
         media_replies = {
@@ -256,7 +271,7 @@ def process_tenant_whatsapp_message(agent_id, message_id, phone, text, message_k
         reply_pause_reason = ""
     else:
         from .whatsapp_agent.checkout import handle_checkout
-        checkout_reply = handle_checkout(agent.tenant, phone, message_id, text) if getattr(settings, "WHATSAPP_AGENT_CHECKOUT_ENABLED", True) else None
+        checkout_reply = handle_checkout(agent.tenant, phone, message_id, text) if getattr(settings, "WHATSAPP_AGENT_CHECKOUT_ENABLED", True) and not media_image else None
         reply = checkout_reply or answer(agent.tenant, text, context=context, phone=phone)
         if not reply.text:
             return "no-reply"
@@ -266,6 +281,9 @@ def process_tenant_whatsapp_message(agent_id, message_id, phone, text, message_k
         reply_pause_minutes = reply.pause_minutes
         reply_pause_reason = reply.pause_reason
 
+    row.refresh_from_db()
+    if row.is_paused:
+        return "conversation-paused"
     reply_text = format_whatsapp_text(reply_text)
     client = TenantEvolutionClient()
     mark_outbound_pending(agent.instance_name, phone, reply_text)
@@ -291,6 +309,9 @@ def process_tenant_whatsapp_message(agent_id, message_id, phone, text, message_k
             send_checkout_pix(checkout_reply.pix_checkout_id)
     row.last_agent_message_at = timezone.now()
     row.save(update_fields=("last_agent_message_at", "updated_at"))
+    ConversationEntry.objects.get_or_create(conversation=row,key="out:"+message_id,defaults={"role":"agent","text":reply_text})
+    if reply_pause_minutes:
+        ConversationEntry.objects.get_or_create(conversation=row,key="handoff-context:"+message_id,defaults={"role":"handoff","text":reply_pause_reason,"context":context})
     update_context(row, reply_context)
 
     if reply_pause_minutes:

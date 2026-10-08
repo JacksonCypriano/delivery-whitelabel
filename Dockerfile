@@ -20,6 +20,7 @@ RUN pip install --upgrade pip setuptools wheel \
 
 COPY . .
 COPY --from=merchant-build /static/merchant /app/static/merchant
+COPY --from=merchant-build /static/public /app/static/public
 
 RUN mkdir -p /app/staticfiles /app/media \
     && chmod +x /app/entrypoint.sh

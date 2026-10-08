@@ -44,6 +44,10 @@ class MerchantCutoverMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        if request.path.startswith("/superadmin-legacy/") and not getattr(settings, "LEGACY_ADMIN_ENABLED", False):
+            if request.method in ("GET", "HEAD"):
+                return redirect("/painel/")
+            return JsonResponse({"detail": "Acesse /painel/ para continuar."}, status=409)
         if getattr(settings, "MERCHANT_REACT_ENABLED", False) and (
             request.path.startswith("/admin/")
             or request.path in ("/dashboard/", "/dashboard/login/")

@@ -999,3 +999,60 @@ dialog::backdrop {
   border-bottom: 1px dashed #dfe6e0;
   font-size: 12px;
 }
+
+/* Package 14.1: operational cards and accessible native confirmation dialog. */
+.order-fresh { outline: 3px solid var(--primary, #ff5a1f); outline-offset: 2px; }
+.operation-note { display: block; background: #fff4ce; color: #663c00; padding: .55rem; border-left: 3px solid #d69700; border-radius: .3rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.operation-message { white-space: pre-wrap; overflow-wrap: anywhere; }
+.order-transition-dialog { width: min(560px, calc(100vw - 32px)); max-height: 90dvh; overflow-y: auto; }
+.order-transition-dialog textarea { min-height: 100px; }
+.order-items-mini small { display: block; padding-left: .6rem; }
+.status-ready_for_pickup .order-column-head { border-color: #188454; }
+@media (max-width: 700px) { .order-transition-dialog .actions { flex-wrap: wrap; } .order-transition-dialog .actions button { flex: 1; min-height: 44px; } }
+.kitchen-screen{background:var(--bg,#f5f6f8);padding:12px;overflow:auto}.kitchen-screen:fullscreen{height:100vh}.kitchen-columns{display:grid;grid-template-columns:repeat(3,minmax(260px,1fr));gap:20px}.kitchen-card header{display:flex;align-items:center;justify-content:space-between;gap:12px}.kitchen-card>button{width:100%;min-height:56px;font-size:18px}.kitchen-card.late{border:2px solid #c63838}.kitchen-card h3{font-size:20px}.kitchen-card section{border-bottom:1px solid #ddd;padding:12px 0}@media(max-width:850px){.kitchen-columns{grid-template-columns:1fr}}
+
+/* Panel usability: clear rhythm, identity colors, monitor layouts. */
+main > button, main > .button {margin-bottom:20px}
+.card form > .field, form.card > .field {margin-block:16px}
+form > button, form > .actions {margin-top:20px;margin-bottom:8px}
+.field {display:flex;flex-direction:column;gap:8px;margin-bottom:16px;min-width:0}
+.field:has(> input[type="checkbox"]) {flex-direction:row;align-items:center;gap:12px;padding-block:8px}
+main > .field {max-width:420px;margin-block:24px}
+.page-heading {gap:20px;flex-wrap:wrap;margin-bottom:24px}
+.heading-actions,.actions {flex-wrap:wrap;gap:12px}
+.nav-group {border-top:1px solid #ffffff24;margin-top:12px;padding-top:4px}
+.nav-group > summary {cursor:pointer;padding:12px 8px;list-style:revert;color:#bce3ce}
+.sidebar .nav-group a.active {border-left:3px solid #f2a269}
+.card {border-top:3px solid #d6e9df}
+.stats .card:nth-child(2n) {background:#fff6ec;border-top-color:#eeb17c}
+.stats .card:nth-child(2n+1) {background:#edf8f1;border-top-color:#5a9b77}
+.automation-group {border:1px solid #cbded3;border-radius:12px;padding:20px;margin:0 0 24px;background:#f6faf7}
+.automation-group legend {font-weight:750;padding:0 8px}
+.automation-group .toggle-row {grid-column:1/-1}
+.pagination {gap:12px;flex-wrap:wrap;margin-top:24px}
+.pagination label {display:flex;align-items:center;gap:8px}
+.pagination select {width:auto}
+.monitor-screen {min-width:0;background:#f4f7f5}
+.monitor-screen:fullscreen {width:100%;height:100%;overflow:auto;padding:24px}
+.monitor-toolbar {display:flex;align-items:center;justify-content:flex-end;gap:12px;margin-bottom:20px}
+.kitchen-columns {grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start}
+.kitchen-columns > section {padding:12px;background:#e9f0ec;border-radius:12px;border-top:4px solid #e5a353;min-width:0}
+.kitchen-columns > section:nth-child(2) {border-color:#5d91bc;background:#edf3f9}
+.kitchen-columns > section:nth-child(3) {border-color:#4c9870;background:#edf6ef}
+.kitchen-columns h2 {font-size:17px;margin:0 0 12px}
+.kitchen-card {padding:12px;margin-bottom:12px}
+.kitchen-card header {flex-wrap:wrap;font-size:14px}
+.kitchen-card h3 {font-size:16px;margin:0}
+.kitchen-card p {font-size:14px;margin:6px 0;overflow-wrap:anywhere}
+.kitchen-card section {padding:8px 0}
+.kitchen-card > button {min-height:44px;font-size:14px;margin-top:10px}
+.kitchen-card header button {font-size:13px;padding:6px 10px}
+@media(min-width:1100px){.order-board {display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}.order-column{min-width:0}.order-card{overflow-wrap:anywhere}}
+@media(min-width:1800px){.monitor-screen .order-column-body{max-height:calc(100vh - 280px)}.kitchen-card{padding:16px}.main-column main{max-width:none}}
+@media(max-width:850px){.kitchen-columns{grid-template-columns:repeat(3,minmax(250px,1fr));overflow-x:auto}.monitor-screen:fullscreen{padding:12px}}
+
+.card > button + details {margin-top:20px}
+main:has(.monitor-screen) {max-width:none;width:100%}
+.monitor-screen .order-board {grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+@media(min-width:1100px) and (max-width:1599px){.monitor-screen .order-board{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(min-width:1600px){.monitor-screen .order-board{grid-template-columns:repeat(6,minmax(0,1fr))}}

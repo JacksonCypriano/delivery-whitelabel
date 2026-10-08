@@ -1,12 +1,13 @@
+import { Pagination } from "../../components/Pagination";
 import { request } from "../../api/client";
 import { useQuery } from "../../hooks/useQuery";
 import { Feedback, Empty } from "../../components/Feedback";
 import { useState } from "react";
 export function History({ resource, id }: { resource: string; id: string }) {
-  const [page, setPage] = useState(1),
+  const [size,setSize] = useState(10), [page, setPage] = useState(1),
     q = useQuery(
-      () => request(`resources/${resource}/${id}/history/?page=${page}`),
-      [resource, id, page],
+      () => request(`resources/${resource}/${id}/history/?page=${page}&page_size=${size}`),
+      [resource, id, page, size],
     );
   return (
     <section className="card">
@@ -26,25 +27,7 @@ export function History({ resource, id }: { resource: string; id: string }) {
             ) : (
               <Empty />
             )}
-            <div className="pagination">
-              <button
-                className="secondary"
-                disabled={page <= 1}
-                onClick={() => setPage(page - 1)}
-              >
-                Anterior
-              </button>
-              <span>
-                {page} / {q.data.pages}
-              </span>
-              <button
-                className="secondary"
-                disabled={page >= q.data.pages}
-                onClick={() => setPage(page + 1)}
-              >
-                Próxima
-              </button>
-            </div>
+            <Pagination page={q.data.page} pages={q.data.pages} size={size} onPage={setPage} onSize={n=>{setSize(n);setPage(1);}}/>
           </>
         )}
       </Feedback>

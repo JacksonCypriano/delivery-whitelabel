@@ -220,6 +220,8 @@ class ResourceList(SuperAdminAPI):
         from django.contrib.admin.options import IncorrectLookupParameters
 
         try:
+            from apps.merchant.pagination import paged_admin
+            admin = paged_admin(admin, raw)
             cl = admin.get_changelist_instance(raw)
         except (IncorrectLookupParameters, ValueError):
             return Response({"detail": "Filtro inválido."}, status=400)
@@ -302,6 +304,7 @@ class ResourceList(SuperAdminAPI):
                     {"id": obj.pk, "values": [display(admin, obj, n) for n in columns]}
                     for obj in cl.result_list
                 ],
+                "page_size": cl.list_per_page,
                 "count": cl.result_count,
                 "pages": cl.paginator.num_pages,
                 "page": cl.page_num,
@@ -468,7 +471,8 @@ class History(SuperAdminAPI):
             .select_related("user")
             .order_by("-action_time")
         )
-        page = Paginator(entries, 30).get_page(request.query_params.get("page"))
+        from apps.merchant.pagination import page_size
+        page = Paginator(entries, page_size(request)).get_page(request.query_params.get("page"))
         return Response(
             {
                 "rows": [
@@ -496,6 +500,8 @@ class ListEdit(SuperAdminAPI):
         from django.contrib.admin.options import IncorrectLookupParameters
 
         try:
+            from apps.merchant.pagination import paged_admin
+            admin = paged_admin(admin, raw)
             cl = admin.get_changelist_instance(raw)
         except (IncorrectLookupParameters, ValueError):
             raise PermissionDenied("Filtro inválido.")

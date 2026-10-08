@@ -868,4 +868,16 @@ CELERY_BEAT_SCHEDULE["order-status-notifications"] = {
 WHATSAPP_AGENT_NLU_ENABLED = os.getenv("WHATSAPP_AGENT_NLU_ENABLED", "true").lower() == "true"
 
 # Enable after the Package 12 homologation gates. No production rollout implied.
-MERCHANT_REACT_ENABLED = os.getenv("MERCHANT_REACT_ENABLED", "false").lower() == "true"
+MERCHANT_REACT_ENABLED = os.getenv("MERCHANT_REACT_ENABLED", "true").lower() == "true"
+
+CELERY_BEAT_SCHEDULE["sales-automations"] = {"task": "apps.orders.sales.plan_sales_messages", "schedule": 300.0}
+
+WHATSAPP_MEDIA_ENABLED = os.getenv("WHATSAPP_MEDIA_ENABLED", "false").lower() == "true"
+WHATSAPP_MEDIA_API_KEY = os.getenv("WHATSAPP_MEDIA_API_KEY", "")
+WHATSAPP_AUDIO_MODEL = os.getenv("WHATSAPP_AUDIO_MODEL", "gpt-4o-mini-transcribe")
+WHATSAPP_IMAGE_MODEL = os.getenv("WHATSAPP_IMAGE_MODEL", "gpt-4o-mini")
+
+CELERY_BEAT_SCHEDULE["crm-loyalty"] = {"task":"apps.orders.crm.accrue_loyalty","schedule":300.0}
+CELERY_BEAT_SCHEDULE["crm-campaigns"] = {"task":"apps.orders.crm.plan_customer_campaigns","schedule":300.0}
+
+LEGACY_ADMIN_ENABLED = os.getenv("LEGACY_ADMIN_ENABLED", "false").lower() == "true"

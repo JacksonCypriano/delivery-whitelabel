@@ -291,6 +291,7 @@ export function ResourceList() {
               )}
               <nav className="pagination" aria-label="Paginação">
                 <span>{d.count} registros</span>
+                <label>Por página <select aria-label="Registros por página" value={params.get("page_size") || "10"} onChange={e=>{const next=new URLSearchParams(params);next.set("page_size",e.target.value);next.delete("p");setParams(next);setSelected([]);}}>{[10,25,50,100].map(n=><option key={n} value={n}>{n}</option>)}</select></label>
                 <button
                   className="secondary"
                   disabled={d.page <= 1}

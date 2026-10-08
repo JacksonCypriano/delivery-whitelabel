@@ -1,3 +1,5 @@
+> Atualização para homologação: leia [LEIA-ME-PACOTES-14-A-19.md](LEIA-ME-PACOTES-14-A-19.md). Produção não autorizada.
+
 # 🍕 Delivery White-label
 
 Plataforma de **cardápio digital e delivery white-label** (multi-tenant): cada

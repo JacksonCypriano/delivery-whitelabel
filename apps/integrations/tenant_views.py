@@ -99,6 +99,9 @@ def tenant_whatsapp_agent_panel(request):
     # elementos que aparecem nas telas administrativas padrão.
     from apps.tenants.admin_site import tenant_admin_site
 
+    from django.core.paginator import Paginator
+    from apps.merchant.pagination import page_size
+    events = Paginator(agent.events.all().order_by("-created_at", "-pk"), page_size(request)).get_page(request.GET.get("page"))
     context = {
         **tenant_admin_site.each_context(request),
         "title": "Atendimento WhatsApp",
@@ -106,7 +109,7 @@ def tenant_whatsapp_agent_panel(request):
         "feature_enabled": feature_enabled(),
         "stale": stale,
         "qr": qr,
-        "events": agent.events.all()[:25],
+        "events": events,
         "back_url": reverse("tenant_admin:index"),
         "context_timeout_minutes": getattr(
             settings, "WHATSAPP_AGENT_CONTEXT_TIMEOUT_MINUTES", 45

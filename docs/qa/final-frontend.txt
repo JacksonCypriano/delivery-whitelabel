@@ -1,0 +1,54 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> vemdedelivery-merchant@19.0.0-rc.1 test
+> vitest run
+
+
+ RUN  v3.2.7 /workspace/scratch/0d58e9533532/project/frontend
+
+ ✓ src/features/orders/Sales.test.tsx (2 tests) 70ms
+ ✓ src/features/orders/NewModules.test.tsx (3 tests) 98ms
+ ✓ src/features/orders/Kitchen.test.tsx (1 test) 131ms
+ ✓ src/components/Fields.test.tsx (5 tests) 139ms
+ ✓ src/features/orders/TransitionDialog.test.tsx (5 tests) 213ms
+ ✓ src/features/orders/OrdersBoard.test.tsx (2 tests) 213ms
+ ✓ src/public/Commerce.test.tsx (4 tests) 219ms
+ ✓ src/utils/masks.test.ts (3 tests) 3ms
+ ✓ src/features/orders/orderHelpers.test.ts (3 tests) 24ms
+ ✓ src/features/orders/orderAlerts.test.ts (3 tests) 6ms
+ ✓ src/api/client.test.ts (3 tests) 8ms
+
+ Test Files  11 passed (11)
+      Tests  34 passed (34)
+   Start at  14:22:21
+   Duration  1.81s (transform 992ms, setup 0ms, collect 2.39s, tests 1.12s, environment 3.67s, prepare 789ms)
+
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> vemdedelivery-merchant@19.0.0-rc.1 build
+> tsc --noEmit && vite build && vite build --config vite.public.config.ts && vite build --config vite.ssr.config.ts
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 70 modules transformed.
+rendering chunks...
+computing gzip size...
+../static/merchant/.vite/manifest.json         0.19 kB │ gzip:   0.14 kB
+../static/merchant/assets/main-BkmIJgV6.css   17.19 kB │ gzip:   4.78 kB
+../static/merchant/assets/main-boYWTXrV.js   352.71 kB │ gzip: 107.84 kB
+✓ built in 1.80s
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 32 modules transformed.
+rendering chunks...
+computing gzip size...
+../static/public/.vite/manifest.json           0.21 kB │ gzip:  0.15 kB
+../static/public/assets/client-BbfUE3Md.css    3.26 kB │ gzip:  1.17 kB
+../static/public/assets/client-C_yVxIPH.js   307.20 kB │ gzip: 92.27 kB
+✓ built in 1.60s
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 44 modules transformed.
+rendering chunks...
+../public-ssr/server.mjs  1,587.51 kB
+✓ built in 1.50s

@@ -1,0 +1,53 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> vemdedelivery-merchant@14.0.0-alpha.1 test
+> vitest run
+
+
+ RUN  v3.2.7 /workspace/scratch/0d58e9533532/project/frontend
+
+ ✓ src/features/orders/orderAlerts.test.ts (3 tests) 5ms
+ ✓ src/features/orders/Sales.test.tsx (2 tests) 87ms
+ ✓ src/components/Fields.test.tsx (5 tests) 119ms
+ ✓ src/features/orders/Kitchen.test.tsx (1 test) 118ms
+ ✓ src/features/orders/TransitionDialog.test.tsx (5 tests) 228ms
+ ✓ src/features/orders/OrdersBoard.test.tsx (2 tests) 222ms
+ ✓ src/public/Commerce.test.tsx (4 tests) 235ms
+ ✓ src/utils/masks.test.ts (3 tests) 3ms
+ ✓ src/features/orders/orderHelpers.test.ts (3 tests) 22ms
+ ✓ src/api/client.test.ts (3 tests) 7ms
+
+ Test Files  10 passed (10)
+      Tests  31 passed (31)
+   Start at  21:09:14
+   Duration  1.52s (transform 884ms, setup 0ms, collect 2.53s, tests 1.05s, environment 3.27s, prepare 760ms)
+
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> vemdedelivery-merchant@14.0.0-alpha.1 build
+> tsc --noEmit && vite build && vite build --config vite.public.config.ts && vite build --config vite.ssr.config.ts
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 67 modules transformed.
+rendering chunks...
+computing gzip size...
+../static/merchant/.vite/manifest.json         0.19 kB │ gzip:   0.14 kB
+../static/merchant/assets/main-BkmIJgV6.css   17.19 kB │ gzip:   4.78 kB
+../static/merchant/assets/main-woDVxatO.js   341.36 kB │ gzip: 105.02 kB
+✓ built in 1.80s
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 31 modules transformed.
+rendering chunks...
+computing gzip size...
+../static/public/.vite/manifest.json           0.21 kB │ gzip:  0.15 kB
+../static/public/assets/client-BbfUE3Md.css    3.26 kB │ gzip:  1.17 kB
+../static/public/assets/client-DHdTITBD.js   305.78 kB │ gzip: 91.74 kB
+✓ built in 1.56s
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 43 modules transformed.
+rendering chunks...
+../public-ssr/server.mjs  1,585.26 kB
+✓ built in 1.34s

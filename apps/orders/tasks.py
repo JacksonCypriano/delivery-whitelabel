@@ -108,3 +108,7 @@ def deliver_order_status_notifications():
         else:
             results["pending"] += 1
     return results
+
+from .sales import plan_sales_messages, deliver_sales_message  # noqa: E402,F401
+
+from .crm import accrue_loyalty, plan_customer_campaigns  # noqa: E402,F401

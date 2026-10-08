@@ -1,3 +1,4 @@
+import { Pagination } from "../../components/Pagination";
 import { panel, panelUrl } from "../../panel";
 import { useState } from "react";
 import {
@@ -102,7 +103,7 @@ export function Finance({
           {
             assinatura: "Minha assinatura",
             notas: "Notas fiscais",
-            taxas: "Taxas de pagamentos online",
+            taxas: "Tarifas Asaas · somente consulta",
             cobrancas: "Detalhes da cobrança",
           }[mode]
         }
@@ -110,7 +111,7 @@ export function Finance({
       <nav className="tabs">
         <Link to={panelUrl("assinatura")}>Assinatura e histórico</Link>
         <Link to={panelUrl("notas")}>Notas fiscais</Link>
-        {context.online_payments_allowed && (
+        {context?.online_payments_allowed && (
           <Link to={panelUrl("taxas")}>Tarifas Asaas</Link>
         )}
       </nav>
@@ -366,13 +367,13 @@ export function Finance({
             ) : mode === "notas" ? (
               <>
                 <div className="stats">
-                  <section className="card">{d.total} notas</section>
-                  <section className="card">{d.authorized} autorizadas</section>
+                  <section className="card">{d.total ?? 0} notas</section>
+                  <section className="card">{d.authorized ?? 0} autorizadas</section>
                   <section className="card">
-                    {d.processing} em processamento
+                    {d.processing ?? 0} em processamento
                   </section>
                 </div>
-                {d.notes.length ? (
+                {(d.notes || []).length ? (
                   d.notes.map((n: any) => (
                     <section className="card" key={n.pk}>
                       <Link to={panelUrl("cobrancas/" + n.invoice_id)}>
@@ -382,13 +383,13 @@ export function Finance({
                     </section>
                   ))
                 ) : (
-                  <Empty />
+                  <section className="card"><h2>Documentos fiscais</h2><p>Nenhuma nota fiscal emitida para esta loja.</p></section>
                 )}
               </>
             ) : (
               <section className="card">
                 <p>
-                  As vendas online são recebidas na subconta Asaas da loja, sem
+                  Esta tela é somente para consulta; o lojista não cadastra taxas aqui. A configuração administrativa permanece no painel do administrador. As vendas online são recebidas na subconta Asaas da loja, sem
                   comissão do VemDeDelivery. As tarifas são definidas e
                   debitadas pelo Asaas.
                 </p>
@@ -451,25 +452,7 @@ export function Finance({
                 </p>
               </section>
             )}
-            {d.pages > 1 && (
-              <nav className="pagination">
-                <button
-                  disabled={d.page <= 1}
-                  onClick={() => setParams({ pagina: String(d.page - 1) })}
-                >
-                  Anterior
-                </button>
-                <span>
-                  {d.page} / {d.pages}
-                </span>
-                <button
-                  disabled={d.page >= d.pages}
-                  onClick={() => setParams({ pagina: String(d.page + 1) })}
-                >
-                  Próxima
-                </button>
-              </nav>
-            )}
+            {(mode === "notas" || mode === "assinatura") && <Pagination page={d.page} pages={d.pages} size={Number(params.get("page_size")||10)} onPage={n=>{const next=new URLSearchParams(params);next.set("pagina",String(n));setParams(next);}} onSize={n=>{const next=new URLSearchParams(params);next.set("page_size",String(n));next.delete("pagina");setParams(next);}}/>}
           </>
         )}
       </Feedback>

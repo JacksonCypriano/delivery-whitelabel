@@ -9,6 +9,7 @@ class Status(models.TextChoices):
     CONFIRMED = "confirmed", "Confirmado"
     PREPARING = "preparing", "Em preparo"
     READY = "ready", "Pronto"
+    READY_FOR_PICKUP = "ready_for_pickup", "Pronto para retirada"
     OUT_FOR_DELIVERY = "out_for_delivery", "Saiu para entrega"
     DELIVERED = "delivered", "Entregue"
     CANCELLED = "cancelled", "Cancelado"

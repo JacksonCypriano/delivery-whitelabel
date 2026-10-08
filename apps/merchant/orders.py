@@ -17,6 +17,9 @@ from apps.orders.operations import (
     OrderOperationError,
     STATUS_LABELS,
     allowed_transitions,
+    build_status_message,
+    notification_enabled,
+    _prep_minutes,
     create_manual_order,
     manual_catalog,
     quote_manual_order,
@@ -52,11 +55,13 @@ def _payment_info(order, whatsapp_checkout=None):
     return {"status": "pending", "label": "Aguardando confirmação", "paid": False}
 
 
-def _order_card(order, whatsapp_checkout=None):
+def _order_card(order, whatsapp_checkout=None, settings=None):
     now = timezone.now()
     estimate = order.estimated_ready_at
     return {
         "id": order.pk,
+        "kitchen_priority": order.kitchen_priority,
+        "scheduled_for": value(order.scheduled_for),
         "customer_name": order.customer_name or "Cliente",
         "customer_phone": order.customer_phone,
         "status": order.status,
@@ -71,10 +76,13 @@ def _order_card(order, whatsapp_checkout=None):
         "created_at": value(order.created_at),
         "status_updated_at": value(order.status_updated_at),
         "estimated_ready_at": value(estimate),
+        "estimated_fulfillment_at": value(order.estimated_fulfillment_at),
+        "delivery_address": order.delivery_address_label,
+        "delivery_reference": order.delivery_reference,
         "late": bool(
             estimate
             and estimate < now
-            and order.status not in {Status.READY, Status.OUT_FOR_DELIVERY, Status.DELIVERED, Status.CANCELLED}
+            and order.status not in {Status.READY, Status.READY_FOR_PICKUP, Status.OUT_FOR_DELIVERY, Status.DELIVERED, Status.CANCELLED}
         ),
         "items": [
             {
@@ -83,12 +91,15 @@ def _order_card(order, whatsapp_checkout=None):
                 "quantity": item.quantity,
                 "price": str(item.price),
                 "notes": item.notes,
+                "combination_details": item.combination_details or {},
             }
-            for item in list(order.items.all())[:6]
+            for item in order.items.all()
         ],
         "item_count": sum(item.quantity for item in order.items.all()),
         "allowed_transitions": [
-            {"value": status, "label": STATUS_LABELS[status]}
+            {"value": status, "label": STATUS_LABELS[status],
+             "message": build_status_message(order, status, include_estimate=False),
+             "notification_enabled": notification_enabled(settings, status) if settings else None}
             for status in allowed_transitions(order)
         ],
     }
@@ -106,11 +117,14 @@ def _base_queryset(tenant):
 class OrdersBoard(MerchantAPI):
     def get(self, request):
         base = _base_queryset(request.tenant)
+        active_only = request.query_params.get("active_only") == "1"
+        settings, _ = OrderNotificationSettings.objects.get_or_create(tenant=request.tenant)
         active_statuses = [
             Status.PENDING,
             Status.CONFIRMED,
             Status.PREPARING,
             Status.READY,
+            Status.READY_FOR_PICKUP,
             Status.OUT_FOR_DELIVERY,
         ]
         # Keep every operational order visible regardless of volume. Only the
@@ -119,10 +133,9 @@ class OrdersBoard(MerchantAPI):
         active_rows = list(
             base.filter(status__in=active_statuses).order_by("created_at", "pk")
         )
-        finished_rows = list(
-            base.filter(status__in=[Status.DELIVERED, Status.CANCELLED])
-            .order_by("-created_at", "-pk")[:50]
-        )
+        from .pagination import paginate, metadata
+        finished_page = None if active_only else paginate(base.filter(status__in=[Status.DELIVERED, Status.CANCELLED]).order_by("-created_at", "-pk"), request)
+        finished_rows = list(finished_page) if finished_page is not None else []
         rows = active_rows + finished_rows
         order_ids = [row.pk for row in rows]
         wa = {
@@ -131,7 +144,7 @@ class OrdersBoard(MerchantAPI):
                 "order_id", "status", "paid_at"
             )
         }
-        cards = [_order_card(row, wa.get(row.pk)) for row in rows]
+        cards = [_order_card(row, wa.get(row.pk), settings) for row in rows]
         columns = [
             {
                 "status": status,
@@ -152,6 +165,7 @@ class OrdersBoard(MerchantAPI):
             {
                 "columns": columns,
                 "finished": finished,
+                "finished_pagination": metadata(finished_page) if finished_page is not None else None,
                 "counts": {
                     row["status"]: row["total"]
                     for row in Order.objects.filter(
@@ -176,8 +190,10 @@ class OrderOperationsDetail(MerchantAPI):
             return Response({"detail": "Pedido não encontrado."}, status=404)
         checkout = WhatsAppCheckout.objects.filter(order_id=order.pk).first()
         events = order.status_events.select_related("actor").order_by("-created_at", "-pk")[:100]
-        card = _order_card(order, checkout)
+        settings, _ = OrderNotificationSettings.objects.get_or_create(tenant=request.tenant)
+        card = _order_card(order, checkout, settings)
         card.update(
+            notification_settings=_settings_json(settings),
             subtotal=str(order.subtotal),
             delivery_fee=str(order.delivery_fee),
             discount_amount=str(order.discount_amount),
@@ -198,6 +214,7 @@ class OrderOperationsDetail(MerchantAPI):
                         else "Sistema"
                     ),
                     "note": event.note,
+                    "metadata": event.metadata,
                     "created_at": value(event.created_at),
                     "notification": _notification_json(getattr(event, "notification", None)),
                 }
@@ -229,6 +246,10 @@ class OrderTransition(MerchantAPI):
                 actor=request.user,
                 prep_minutes=request.data.get("prep_minutes"),
                 note=str(request.data.get("note") or ""),
+                fulfillment_minutes=request.data.get("fulfillment_minutes"),
+                message=request.data.get("message"),
+                complement=request.data.get("complement", ""),
+                send_notification=request.data.get("send_notification"),
             )
         except Order.DoesNotExist:
             return Response({"detail": "Pedido não encontrado."}, status=404)
@@ -268,6 +289,9 @@ def _settings_json(settings):
         "notify_delivered": settings.notify_delivered,
         "notify_cancelled": settings.notify_cancelled,
         "default_prep_minutes": settings.default_prep_minutes,
+        "default_delivery_minutes": settings.default_delivery_minutes,
+        "default_pickup_minutes": settings.default_pickup_minutes,
+        "allow_skip_notification": settings.allow_skip_notification,
     }
 
 
@@ -284,6 +308,7 @@ class OrderSettings(MerchantAPI):
         )
         boolean_fields = [
             "enabled",
+            "allow_skip_notification",
             "notify_confirmed",
             "notify_preparing",
             "notify_ready",
@@ -297,17 +322,15 @@ class OrderSettings(MerchantAPI):
                 if not isinstance(raw, bool):
                     return Response({"detail": f"Valor inválido para {field}."}, status=400)
                 setattr(settings, field, raw)
-        if "default_prep_minutes" in request.data:
-            try:
-                minutes = int(request.data.get("default_prep_minutes"))
-            except (TypeError, ValueError):
-                return Response({"detail": "Tempo padrão inválido."}, status=400)
-            if not 5 <= minutes <= 240:
-                return Response(
-                    {"detail": "O tempo padrão deve ficar entre 5 e 240 minutos."},
-                    status=400,
-                )
-            settings.default_prep_minutes = minutes
+        for field in ("default_prep_minutes", "default_delivery_minutes", "default_pickup_minutes"):
+            if field in request.data:
+                try:
+                    minutes = _prep_minutes(request.data[field])
+                    if minutes is None:
+                        raise OrderOperationError("Informe um prazo padrão.")
+                except OrderOperationError as exc:
+                    return Response({"detail": str(exc)}, status=400)
+                setattr(settings, field, minutes)
         settings.save()
         return Response({"detail": "Preferências salvas.", **_settings_json(settings)})
 
@@ -380,6 +403,7 @@ def _notification_json(notice):
     return {
         "status": status,
         "attempts": notice.attempts,
+        "text": notice.text,
         "sent_at": value(notice.sent_at),
         "last_error": notice.last_error,
     }

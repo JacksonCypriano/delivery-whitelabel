@@ -1,0 +1,52 @@
+{
+  "baseline": "vemdedelivery-atual-20261007-1837.zip",
+  "version": "14.0.0-alpha.1",
+  "scope": "Etapa operacional parcial; frontend público ainda legado",
+  "created": [
+    "LEIA-ME-PACOTE-14-ETAPA-1.md",
+    "apps/core/tests_critical/test_package14_operations.py",
+    "apps/orders/migrations/0014_operational_pickup.py",
+    "docs/packages/package-14-react-everywhere.md",
+    "docs/packages/package-14-template-inventory.json",
+    "docs/packages/package-14-template-inventory.md",
+    "docs/packages/package-15-kds.md",
+    "docs/packages/package-16-sales-automation.md",
+    "docs/packages/package-17-advanced-agent.md",
+    "docs/packages/package-18-crm-growth.md",
+    "docs/packages/package-19-logistics-integrations.md",
+    "docs/qa/package-14-etapa-1-validation.txt",
+    "frontend/src/features/orders/OrdersBoard.test.tsx",
+    "frontend/src/features/orders/TransitionDialog.test.tsx",
+    "frontend/src/features/orders/TransitionDialog.tsx",
+    "frontend/src/features/orders/orderAlerts.test.ts",
+    "frontend/src/features/orders/orderAlerts.ts",
+    "scripts/inventory_templates.py",
+    "static/merchant/assets/main-CkSYuQfe.js",
+    "static/merchant/assets/main-CukWBAO8.css",
+    "docs/package-14-etapa-1-files.json"
+  ],
+  "modified": [
+    "apps/merchant/orders.py",
+    "apps/orders/choices.py",
+    "apps/orders/models.py",
+    "apps/orders/operations.py",
+    "frontend/package-lock.json",
+    "frontend/package.json",
+    "frontend/src/api/orders.ts",
+    "frontend/src/features/orders/OrderDetail.tsx",
+    "frontend/src/features/orders/OrdersBoard.tsx",
+    "frontend/src/features/orders/orderHelpers.ts",
+    "frontend/src/layouts/MerchantLayout.tsx",
+    "frontend/src/routes/App.tsx",
+    "frontend/src/style.css",
+    "static/merchant/.vite/manifest.json"
+  ],
+  "removed": [
+    "static/merchant/assets/main-B2l01lLW.js",
+    "static/merchant/assets/main-BGzf1C9J.css",
+    "static/merchant/assets/main-BOmqsQwi.js",
+    "static/merchant/assets/main-CD2ZMRJ8.js",
+    "static/merchant/assets/main-CGBwTI-X.js",
+    "static/merchant/assets/main-CYfVZWRr.css"
+  ]
+}

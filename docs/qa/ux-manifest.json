@@ -1,0 +1,52 @@
+{
+  "base": "pacotes-14-a-19-homologacao",
+  "revision": "ux-paineis-2026-10-08",
+  "new": [
+    "LEIA-ME-UX-PAINEIS.md",
+    "apps/core/tests_critical/test_panel_pagination.py",
+    "apps/merchant/pagination.py",
+    "docs/qa/ux-admin-pagination.txt",
+    "docs/qa/ux-backend.txt",
+    "docs/qa/ux-frontend.txt",
+    "frontend/src/components/Monitor.test.tsx",
+    "frontend/src/components/Monitor.tsx",
+    "frontend/src/components/Pagination.tsx",
+    "frontend/src/features/finance/Finance.test.tsx",
+    "static/merchant/assets/main-CBJ7BAEW.css",
+    "static/merchant/assets/main-DR-930UB.js"
+  ],
+  "changed": [
+    "apps/billing/views.py",
+    "apps/integrations/tenant_views.py",
+    "apps/merchant/api.py",
+    "apps/merchant/conversations.py",
+    "apps/merchant/crm.py",
+    "apps/merchant/logistics.py",
+    "apps/merchant/orders.py",
+    "apps/merchant/presenters.py",
+    "apps/merchant/sales.py",
+    "apps/merchant/tests.py",
+    "apps/orders/crm.py",
+    "apps/superpanel/api.py",
+    "frontend/src/api/orders.ts",
+    "frontend/src/api/whatsapp.ts",
+    "frontend/src/features/finance/Finance.tsx",
+    "frontend/src/features/orders/CRM.tsx",
+    "frontend/src/features/orders/Kitchen.tsx",
+    "frontend/src/features/orders/Logistics.tsx",
+    "frontend/src/features/orders/OrdersBoard.test.tsx",
+    "frontend/src/features/orders/OrdersBoard.tsx",
+    "frontend/src/features/orders/Sales.tsx",
+    "frontend/src/features/resources/History.tsx",
+    "frontend/src/features/resources/ResourceList.tsx",
+    "frontend/src/features/whatsapp/Conversations.tsx",
+    "frontend/src/features/whatsapp/Whatsapp.tsx",
+    "frontend/src/layouts/MerchantLayout.tsx",
+    "frontend/src/style.css",
+    "static/merchant/.vite/manifest.json"
+  ],
+  "removed": [
+    "static/merchant/assets/main-BkmIJgV6.css",
+    "static/merchant/assets/main-boYWTXrV.js"
+  ]
+}

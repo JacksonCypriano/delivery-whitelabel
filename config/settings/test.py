@@ -29,3 +29,8 @@ SIMPLE_JWT = {"LEEWAY": 30}
 # Hosts artificiais usados pelo Django test client para exercitar o fallback
 # técnico do SuperAdmin. Não existe em produção e não amplia os hosts reais.
 PLATFORM_ADMIN_HOST_ALIASES = ("testserver", "localhost")
+
+# Legacy permission tests intentionally exercise the retained fallback backend.
+# Dedicated cutover tests enable the production-default React routing.
+MERCHANT_REACT_ENABLED = False
+LEGACY_ADMIN_ENABLED = True

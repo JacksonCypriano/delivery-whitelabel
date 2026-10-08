@@ -239,6 +239,19 @@ class MerchantAPITests(TestCase):
         self.assertEqual(response.status_code, 200, response.content)
         self.assertEqual(self.client.get("/api/merchant/dashboard/").status_code, 200)
 
+    def test_empty_fiscal_structure_and_bounded_pagination(self):
+        response = self.client.get("/api/merchant/finance/notes/?page_size=10")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["notes"], [])
+        self.assertEqual(response.json()["total"], 0)
+        for number in range(15):
+            Category.objects.create(tenant=self.a, name=f"Extra {number}", slug=f"extra-{number}")
+        for size, expected in [("10", 10), ("25", 16), ("100000", 10), ("invalid", 10)]:
+            response = self.client.get("/api/merchant/resources/categories/", {"page_size": size})
+            self.assertEqual(response.status_code, 200, response.content)
+            self.assertEqual(len(response.json()["rows"]), expected)
+            self.assertNotIn("Segredo", str(response.json()))
+
     def test_finance_and_whatsapp_json_and_no_secrets(self):
         for path in ["finance/", "finance/notes/", "whatsapp/"]:
             response = self.client.get("/api/merchant/" + path)

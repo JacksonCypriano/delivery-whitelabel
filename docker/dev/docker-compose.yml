@@ -1,5 +1,13 @@
 services:
+  public-ssr:
+    build:
+      context: ../../
+      dockerfile: docker/Dockerfile.public-ssr
+    restart: unless-stopped
+
   backend:
+    environment:
+      PUBLIC_REACT_SSR_URL: http://public-ssr:3001
     build:
       context: ../../
     env_file:
@@ -9,6 +17,7 @@ services:
     ports:
       - "8000:8000"
     depends_on:
+      - public-ssr
       - db
       - redis
 

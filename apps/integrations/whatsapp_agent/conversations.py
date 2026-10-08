@@ -55,6 +55,9 @@ def pause(tenant, phone, minutes, reason):
     row.pause_reason = reason
     if reason == TenantWhatsAppConversation.PauseReason.MANUAL:
         row.last_store_message_at = timezone.now()
+    from apps.integrations.models import ConversationEntry
+    import uuid
+    ConversationEntry.objects.create(conversation=row,key="handoff:"+str(uuid.uuid4()),role="handoff",text=str(reason),context=row.context or {})
     row.context = {}
     row.context_updated_at = None
     row.save()

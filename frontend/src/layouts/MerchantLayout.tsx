@@ -57,34 +57,40 @@ export function MerchantLayout() {
               <NavLink to={panelUrl()} end>
                 ◈ Visão geral
               </NavLink>
+              {panel.kind === "merchant" && <NavLink to={panelUrl("operacao")}>⚡ Pedidos ativos</NavLink>}
+              {panel.kind === "merchant" && <NavLink to={panelUrl("atendimento")}>Atendimento humano</NavLink>}
+              {panel.kind === "merchant" && <NavLink to={panelUrl("crm")}>CRM e fidelidade</NavLink>}
+              {panel.kind === "merchant" && <NavLink to={panelUrl("logistica")}>Logística</NavLink>}
+              {panel.kind === "merchant" && <NavLink to={panelUrl("automacoes")}>Automações</NavLink>}
+              {panel.kind === "merchant" && <NavLink to={panelUrl("cozinha")}>Cozinha / KDS</NavLink>}
               {groups.map(([group, title]) => {
                 const links = d.resources.filter((r: any) => r.group === group);
                 if (!links.length) return null;
                 return (
-                  <div key={group}>
-                    <p className="nav-label">{title}</p>
+                  <details className="nav-group" key={group} open>
+                    <summary className="nav-label">{title}</summary>
                     {links.map((r: any) => (
                       <NavLink key={r.key} to={panelUrl(r.key)}>
                         {r.title}
                       </NavLink>
                     ))}
-                  </div>
+                  </details>
                 );
               })}
               {panel.kind === "merchant" && (
                 <>
-                  <p className="nav-label">Atendimento e financeiro</p>
+                  <details className="nav-group" open><summary className="nav-label">Atendimento e financeiro</summary>
                   <NavLink to={panelUrl("whatsapp")}>WhatsApp e agente</NavLink>
                   <NavLink to={panelUrl("assinatura")}>Minha assinatura</NavLink>
                   <NavLink to={panelUrl("notas")}>Notas fiscais</NavLink>
                   {d.online_payments_allowed && (
-                    <NavLink to={panelUrl("taxas")}>Taxas de pagamentos online</NavLink>
-                  )}
+                    <NavLink to={panelUrl("taxas")}>Tarifas Asaas · consulta</NavLink>
+                  )}</details>
                 </>
               )}
-              <p className="nav-label">Conta</p>
+              <details className="nav-group" open><summary className="nav-label">Conta</summary>
               <NavLink to={panelUrl("senha")}>Alterar senha</NavLink>
-              <NavLink to={panelUrl("logout")}>Sair</NavLink>
+              <NavLink to={panelUrl("logout")}>Sair</NavLink></details>
             </nav>
           </aside>
           {open && (

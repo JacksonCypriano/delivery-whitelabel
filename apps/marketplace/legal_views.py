@@ -1,5 +1,5 @@
 """Public information pages; never require a customer or admin session."""
-from django.shortcuts import render
+from apps.public_ui.rendering import render_public as render
 from django.views.decorators.http import require_safe
 
 

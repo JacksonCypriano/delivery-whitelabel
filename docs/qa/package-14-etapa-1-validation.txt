@@ -1,0 +1,28 @@
+VemDeDelivery — Pacote 14, etapa 1 — 2026-10-07
+Estado: entrega parcial 14.0.0-alpha.1; não homologada.
+
+BASE RECEBIDA (antes das alterações)
+Backend: 747 descobertos, 725 aprovados, 22 ignorados, 0 falhas — SQLite, 32.246s.
+Pacote 13 isolado: 11 testes, OK.
+Frontend: 14 testes, OK; TypeScript/Vite build OK.
+
+ESTADO FINAL
+Backend: 768 descobertos, 746 aprovados, 22 ignorados, 0 falhas — SQLite, 34.170s.
+Comando: python manage.py test apps.accounts apps.merchant.tests apps.billing.tests apps.tenants.tests apps.integrations.tests apps.prospecting apps.core.tests_critical apps.marketplace.tests_marketing_acquisition --settings=config.settings.test_sqlite --noinput
+Frontend: 24 testes em 7 arquivos — todos aprovados.
+Comandos: npm test; npm run build.
+TypeScript: OK; Vite: OK.
+Migrations: makemigrations --check --dry-run — No changes detected.
+Migrations aplicadas em banco SQLite efêmero: OK, incluindo orders.0014_operational_pickup.
+Scripts operacionais: 13 testes — OK (python -m unittest discover -s scripts/tests -p 'test_*.py').
+21 testes backend e 10 testes frontend adicionados. Testes anteriores preservados.
+
+LIMITES
+Python 3.12 / Node 24 local; sem Docker/PostgreSQL disponíveis.
+Homologação real com PostgreSQL: NÃO executada.
+22 testes foram ignorados pela configuração SQLite; isso NÃO equivale a 768 testes aprovados.
+WebSocket/Redis/Evolution reais e verificação visual em navegador/dispositivos: NÃO executados.
+Tentativa de provisionar PostgreSQL por apt falhou por permissões do ambiente.
+Não houve contato com servidor, execução em produção ou envio real ao WhatsApp.
+Migração das páginas públicas para React: NÃO implementada nesta etapa.
+Pacotes 15–19: NÃO implementados, documentação registra apenas escopo e dependências.

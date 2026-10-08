@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from "react";
+import { Pagination } from "../../components/Pagination";
+import { Monitor } from "../../components/Monitor";
 import { Link } from "react-router-dom";
 import { orders } from "../../api/orders";
 import { useQuery } from "../../hooks/useQuery";
 import { Feedback, Notice, Empty } from "../../components/Feedback";
 import { panelUrl } from "../../panel";
-import { actionLabel, localTime, money, statusIcon } from "./orderHelpers";
+import { claimOrderAlerts } from "./orderAlerts";
+import { TransitionDialog } from "./TransitionDialog";
+import { actionLabel, itemDetails, localTime, money, statusIcon } from "./orderHelpers";
 
-function useOrderRealtime(reload: () => void) {
+export function useOrderRealtime(reload: () => void) {
   const [state, setState] = useState<"connecting" | "online" | "fallback">(
     "connecting",
   );
@@ -23,7 +27,7 @@ function useOrderRealtime(reload: () => void) {
       setState("connecting");
       const scheme = location.protocol === "https:" ? "wss" : "ws";
       socket = new WebSocket(`${scheme}://${location.host}/ws/merchant/orders/`);
-      socket.onopen = () => setState("online");
+      socket.onopen = () => { setState("online"); reloadRef.current(); };
       socket.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
@@ -73,13 +77,17 @@ function OrderCard({
   order,
   onTransition,
   busy,
+  expanded = false,
+  fresh = false,
 }: {
   order: any;
   onTransition: (order: any, status: string) => void;
   busy: boolean;
+  expanded?: boolean;
+  fresh?: boolean;
 }) {
   return (
-    <article className={`order-card ${order.late ? "late" : ""}`}>
+    <article className={`order-card ${order.late ? "late" : ""} ${fresh ? "order-fresh" : ""}`}>
       <div className="order-card-head">
         <div>
           <strong>#{order.id}</strong>
@@ -92,14 +100,24 @@ function OrderCard({
       <Link className="order-customer" to={panelUrl(`orders/${order.id}`)}>
         {order.customer_name}
       </Link>
+      {order.scheduled_for&&<p>Agendado: {new Date(order.scheduled_for).toLocaleString("pt-BR")}</p>}
       <small>{order.delivery_label} · {order.payment.label}</small>
+      {expanded && <>
+        <small>{order.payment_label}</small>
+        <small>Há {Math.max(0, Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60000))} min · {order.status_label}</small>
+        {order.delivery_type === "delivery" && <p>{order.delivery_address}</p>}
+        {order.delivery_reference && <p className="operation-note">Referência: {order.delivery_reference}</p>}
+        {order.estimated_fulfillment_at && <small>Previsão de {order.delivery_type === "pickup" ? "retirada" : "entrega"}: {localTime(order.estimated_fulfillment_at)}</small>}
+      </>}
       <div className="order-items-mini">
-        {order.items.slice(0, 3).map((item: any) => (
+        {(expanded ? order.items : order.items.slice(0, 3)).map((item: any) => (
           <span key={item.id}>
             {item.quantity}× {item.name}
+            {expanded && itemDetails(item.combination_details).map((line, index) => <small key={index}>{line}</small>)}
+            {expanded && item.notes && <em className="operation-note">Obs.: {item.notes}</em>}
           </span>
         ))}
-        {order.items.length > 3 && <span>+ mais itens</span>}
+        {!expanded && order.items.length > 3 && <span>+ mais itens</span>}
       </div>
       <div className="order-card-meta">
         <strong>{money(order.total)}</strong>
@@ -189,6 +207,8 @@ function NotificationSettings({ data, onSaved }: { data: any; onSaved: () => voi
             {label}
           </label>
         ))}
+        <label className="toggle-row"><input type="checkbox" checked={Boolean(form.allow_skip_notification)} onChange={(e) => setForm({ ...form, allow_skip_notification: e.target.checked })} />Permitir omitir aviso por pedido</label>
+        {[["default_delivery_minutes", "Entrega"], ["default_pickup_minutes", "Retirada"]].map(([key, label]) => <label className="field" key={key}>Prazo padrão de {label.toLowerCase()}<input type="number" min={5} max={240} value={form[key]} onChange={(e) => setForm({ ...form, [key]: Number(e.target.value) })} /><small>Em minutos.</small></label>)}
         <label className="field">
           Tempo padrão de preparo
           <input
@@ -211,8 +231,13 @@ function NotificationSettings({ data, onSaved }: { data: any; onSaved: () => voi
   );
 }
 
-export function OrdersBoard() {
-  const q = useQuery(() => orders.board(), []);
+export function OrdersBoard({ activeOnly = false }: { activeOnly?: boolean }) {
+  const [page,setPage]=useState(1),[size,setSize]=useState(10);
+  const q = useQuery(() => orders.board(activeOnly,page,size), [activeOnly,page,size]);
+  const [selected, setSelected] = useState<{ order: any; status: string } | null>(null);
+  const [freshIds, setFreshIds] = useState<number[]>([]);
+  const [, tick] = useState(0);
+  useEffect(() => { const timer = window.setInterval(() => tick((n) => n + 1), 30000); return () => window.clearInterval(timer); }, []);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -230,19 +255,30 @@ export function OrdersBoard() {
         .filter((row: any) => row.status === "pending")
         .map((row: any) => row.id),
     );
-    if (seen.current && alerts) {
+    if (seen.current) {
       const fresh = [...current].filter((id) => !seen.current!.has(id));
-      if (fresh.length) {
+      if (fresh.length) setFreshIds(fresh);
+      if (fresh.length && alerts) {
+        void claimOrderAlerts(fresh).then((claimed) => {
+        if (!claimed.length) return;
         playAlert();
         if ("Notification" in window && Notification.permission === "granted") {
           new Notification("Novo pedido no VemDeDelivery", {
-            body: `${fresh.length} novo(s) pedido(s) aguardando confirmação.`,
+            body: `${claimed.length} novo(s) pedido(s) aguardando confirmação.`,
+            tag: `vdd-orders-${claimed.join("-")}`,
           });
         }
+        });
       }
     }
-    seen.current = current;
+    seen.current = new Set([...(seen.current || []), ...current]);
   }, [q.data, alerts]);
+
+  useEffect(() => {
+    if (!freshIds.length) return;
+    const timer = window.setTimeout(() => setFreshIds([]), 20000);
+    return () => window.clearTimeout(timer);
+  }, [freshIds]);
 
   async function enableAlerts() {
     if ("Notification" in window && Notification.permission === "default") {
@@ -253,17 +289,15 @@ export function OrdersBoard() {
     setAlerts(true);
   }
 
-  async function transition(order: any, status: string) {
-    if (status === "cancelled" && !window.confirm(`Cancelar o pedido #${order.id}?`)) return;
+  async function transition(options: Parameters<typeof orders.transition>[2]) {
+    if (!selected) return;
+    const { order, status } = selected;
     setBusyId(order.id);
     setError(null);
     try {
-      const options =
-        status === "confirmed"
-          ? { prep_minutes: q.data?.notification_settings?.default_prep_minutes || 30 }
-          : {};
       const result = await orders.transition(order.id, status, options);
       setMessages([{ level: "success", text: result.detail }]);
+      setSelected(null);
       q.reload();
     } catch (e) {
       setError(e as Error);
@@ -274,12 +308,12 @@ export function OrdersBoard() {
 
   const d = q.data;
   return (
-    <>
+    <Monitor>
       <div className="page-heading orders-heading">
         <div>
           <p className="eyebrow">Operação em tempo real</p>
-          <h1>Pedidos</h1>
-          <div className="realtime-status">
+          <h1>{activeOnly ? "Pedidos ativos" : "Pedidos e histórico"}</h1>
+          <p className="muted">{activeOnly ? "Todos os pedidos em andamento, com detalhes para a equipe." : "Acompanhe a operação e consulte os pedidos finalizados abaixo."}</p><div className="realtime-status">
             <span className={`live-dot ${realtime}`} />
             {realtime === "online"
               ? "Atualização em tempo real"
@@ -289,6 +323,8 @@ export function OrdersBoard() {
           </div>
         </div>
         <div className="heading-actions">
+          <Link className="button secondary" to={panelUrl(activeOnly ? "orders" : "operacao")}>{activeOnly ? "Todos os pedidos" : "Operação rápida"}</Link>
+          {alerts && <button className="secondary" onClick={() => { localStorage.setItem("vdd_order_alerts", "off"); setAlerts(false); }}>Silenciar alertas</button>}
           {!alerts && (
             <button className="secondary" onClick={enableAlerts}>
               🔔 Ativar alertas
@@ -326,7 +362,9 @@ export function OrdersBoard() {
                           key={order.id}
                           order={order}
                           busy={busyId === order.id}
-                          onTransition={transition}
+                          expanded={activeOnly}
+                          fresh={freshIds.includes(order.id)}
+                          onTransition={(order, status) => { setError(null); setSelected({ order, status }); }}
                         />
                       ))
                     ) : (
@@ -337,8 +375,8 @@ export function OrdersBoard() {
               ))}
             </div>
             <NotificationSettings data={d.notification_settings} onSaved={q.reload} />
-            <details className="card finished-orders">
-              <summary>Pedidos finalizados recentemente ({d.finished.length})</summary>
+            {!activeOnly && <details className="card finished-orders">
+              <summary>Pedidos finalizados recentemente ({d.finished_pagination?.count ?? d.finished.length})</summary><Pagination page={d.finished_pagination?.page} pages={d.finished_pagination?.pages} size={size} onPage={setPage} onSize={n=>{setSize(n);setPage(1);}}/>
               {d.finished.length ? (
                 <div className="finished-grid">
                   {d.finished.map((order: any) => (
@@ -350,10 +388,11 @@ export function OrdersBoard() {
               ) : (
                 <Empty />
               )}
-            </details>
+            </details>}
           </>
         )}
       </Feedback>
-    </>
+      {selected && <TransitionDialog order={selected.order} status={selected.status} settings={d.notification_settings} busy={busyId !== null} error={error} onConfirm={transition} onClose={() => setSelected(null)} />}
+    </Monitor>
   );
 }

@@ -5,16 +5,25 @@ x-logging: &default-logging
     max-file: "5"
 
 services:
+  public-ssr:
+    build:
+      context: ../../
+      dockerfile: docker/Dockerfile.public-ssr
+    restart: unless-stopped
+
   backend:
     build:
       context: ../../
     env_file:
       - .env
     environment:
+      PUBLIC_REACT_SSR_URL: http://public-ssr:3001
       RUN_MIGRATIONS: "true"
       COLLECTSTATIC: "true"
     command: ["backend"]
     depends_on:
+      public-ssr:
+        condition: service_healthy
       db:
         condition: service_healthy
       redis:

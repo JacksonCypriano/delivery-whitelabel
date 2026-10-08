@@ -7,6 +7,11 @@ import { ResourceList } from "../features/resources/ResourceList";
 import { ResourceDetail } from "../features/resources/ResourceDetail";
 import { Finance } from "../features/finance/Finance";
 import { Whatsapp } from "../features/whatsapp/Whatsapp";
+import { Conversations } from "../features/whatsapp/Conversations";
+import { CRM } from "../features/orders/CRM";
+import { Logistics } from "../features/orders/Logistics";
+import { Sales } from "../features/orders/Sales";
+import { Kitchen } from "../features/orders/Kitchen";
 import { OrdersBoard } from "../features/orders/OrdersBoard";
 import { OrderDetail } from "../features/orders/OrderDetail";
 import { ManualOrder } from "../features/orders/ManualOrder";
@@ -34,8 +39,14 @@ export function App() {
         <Route index element={<Dashboard />} />
         {panel.kind === "merchant" && (
           <>
+            <Route path="atendimento" element={<Conversations />} />
+            <Route path="crm" element={<CRM />} />
+            <Route path="logistica" element={<Logistics />} />
+            <Route path="automacoes" element={<Sales />} />
+            <Route path="cozinha" element={<Kitchen />} />
             <Route path="whatsapp" element={<Whatsapp />} />
             <Route path="orders" element={<OrdersBoard />} />
+            <Route path="operacao" element={<OrdersBoard activeOnly />} />
             <Route path="orders/novo" element={<ManualOrder />} />
             <Route path="orders/:id" element={<OrderDetail />} />
             <Route path="assinatura" element={<Finance mode="assinatura" />} />

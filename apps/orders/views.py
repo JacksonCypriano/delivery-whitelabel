@@ -5,7 +5,9 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.http import Http404
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect
+from apps.public_ui.rendering import render_public as render
+from apps.public_ui.rendering import render_public
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
@@ -79,6 +81,9 @@ def open_whatsapp(request, public_token):
     if order.whatsapp_opened_at is None:
         try:
             integrity.ensure_store(request.tenant)
+            if order.scheduled_for:
+                from .scheduling import validate_schedule
+                validate_schedule(request.tenant, order.scheduled_for, order.delivery_type)
             if integrity.expired(order):
                 raise integrity.CartError(
                     "A revisão do pedido expirou. Confira os valores e confirme novamente."
@@ -244,7 +249,7 @@ def order_history(request):
     paginator = Paginator(orders, 8)
     page_obj = paginator.get_page(request.GET.get("page"))
 
-    return render(
+    return render_public(
         request, "orders/history.html", {"orders": page_obj, "page_obj": page_obj}
     )
 

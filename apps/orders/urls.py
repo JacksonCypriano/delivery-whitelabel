@@ -4,7 +4,14 @@ from . import views
 
 app_name = "orders"
 
+from .sales_views import feedback, consent
+
+from .analytics import event
+
 urlpatterns = [
+    path("eventos/loja/", event),
+    path("avaliacao/<uuid:token>/", feedback),
+    path("preferencias/mensagens/", consent),
     path(
         "pedido/<uuid:public_token>/whatsapp/",
         views.open_whatsapp,

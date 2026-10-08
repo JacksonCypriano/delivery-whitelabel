@@ -21,7 +21,24 @@ from .orders import (
     ManualOrderCreate,
 )
 
+from .kitchen import Kitchen, KitchenAction
+
+from .sales import Sales
+
+from .conversations import Conversations
+
+from .crm import CRM
+
+from .logistics import Logistics, DeliveryPhoto
+
 urlpatterns = [
+    path("logistics/", Logistics.as_view()),
+    path("logistics/<int:pk>/photo/", DeliveryPhoto.as_view()),
+    path("crm/", CRM.as_view()),
+    path("conversations/", Conversations.as_view()),
+    path("sales/", Sales.as_view()),
+    path("kitchen/", Kitchen.as_view()),
+    path("kitchen/<int:pk>/", KitchenAction.as_view()),
     path("session/", Session.as_view()),
     path("password/", Password.as_view()),
     path("dashboard/", Dashboard.as_view()),

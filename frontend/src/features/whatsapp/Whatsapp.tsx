@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
+import { Pagination } from "../../components/Pagination";
 import { whatsapp } from "../../api/whatsapp";
 import { useQuery } from "../../hooks/useQuery";
 import { Feedback, Notice, Empty } from "../../components/Feedback";
 export function Whatsapp() {
-  const q = useQuery(whatsapp.get),
+  const [page,setPage]=useState(1),[size,setSize]=useState(10);
+  const q = useQuery(()=>whatsapp.get(`?page=${page}&page_size=${size}`),[page,size]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState<Error | null>(null),
     [messages, setMessages] = useState<any[]>([]),
@@ -169,7 +171,7 @@ export function Whatsapp() {
               </p>
             </section>
             <section className="card">
-              <h2>Histórico da conexão</h2>
+              <h2>Histórico da conexão</h2><Pagination page={d.page} pages={d.pages} size={size} onPage={setPage} onSize={n=>{setSize(n);setPage(1);}}/>
               {d.events.length ? (
                 d.events.map((e: any, i: number) => (
                   <div className="event" key={i}>

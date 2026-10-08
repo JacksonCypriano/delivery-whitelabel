@@ -33,7 +33,7 @@ class TenantEvolutionClient:
         return base
 
     @sensitive_variables("payload")
-    def _request(self, method, path, payload=None):
+    def _request(self, method, path, payload=None, *, max_bytes=512_000):
         url = f"{self._base()}/{path.lstrip('/')}"
         timeout = max(1, min(int(settings.EVOLUTION_API_TIMEOUT), 10))
         try:
@@ -64,7 +64,7 @@ class TenantEvolutionClient:
                     started = time.monotonic()
                     for chunk in response.iter_content(8192):
                         content.extend(chunk)
-                        if len(content) > 512_000 or time.monotonic() - started > 20:
+                        if len(content) > max_bytes or time.monotonic() - started > 20:
                             raise EvolutionError("invalid_response")
                     if not content:
                         return {}

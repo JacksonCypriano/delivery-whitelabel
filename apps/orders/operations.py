@@ -41,6 +41,7 @@ BASE_TRANSITIONS = {
     Status.CONFIRMED: (Status.PREPARING, Status.READY, Status.CANCELLED),
     Status.PREPARING: (Status.READY,),
     Status.READY: (Status.OUT_FOR_DELIVERY, Status.DELIVERED),
+    Status.READY_FOR_PICKUP: (Status.DELIVERED,),
     Status.OUT_FOR_DELIVERY: (Status.DELIVERED,),
     Status.DELIVERED: (),
     Status.CANCELLED: (),
@@ -67,14 +68,18 @@ def _settings_for(tenant):
 
 def allowed_transitions(order: Order):
     allowed = list(BASE_TRANSITIONS.get(order.status, ()))
-    if order.delivery_type == "pickup" and Status.OUT_FOR_DELIVERY in allowed:
-        allowed.remove(Status.OUT_FOR_DELIVERY)
+    if order.delivery_type == "pickup":
+        allowed = [Status.READY_FOR_PICKUP if status == Status.READY else status for status in allowed]
+        if Status.OUT_FOR_DELIVERY in allowed:
+            allowed.remove(Status.OUT_FOR_DELIVERY)
     return allowed
 
 
 def _prep_minutes(value, default=None):
     if value in (None, ""):
         return default
+    if isinstance(value, bool) or (isinstance(value, float) and not value.is_integer()):
+        raise OrderOperationError("Informe um prazo em minutos inteiros.")
     try:
         minutes = int(value)
     except (TypeError, ValueError):
@@ -84,10 +89,10 @@ def _prep_minutes(value, default=None):
     return minutes
 
 
-def build_status_message(order: Order, target_status: str):
+def build_status_message(order: Order, target_status: str, *, include_estimate=True):
     number = f"#{order.pk}"
     estimate = ""
-    if order.estimated_ready_at and target_status in {
+    if include_estimate and order.estimated_ready_at and target_status in {
         Status.CONFIRMED,
         Status.PREPARING,
     }:
@@ -98,6 +103,8 @@ def build_status_message(order: Order, target_status: str):
         return f"✅ Seu pedido {number} foi confirmado pela loja.{estimate}"
     if target_status == Status.PREPARING:
         return f"👨‍🍳 Seu pedido {number} está em preparo.{estimate}"
+    if target_status == Status.READY_FOR_PICKUP:
+        return f"✅ Seu pedido {number} está pronto para retirada! Você já pode vir buscar na loja."
     if target_status == Status.READY:
         if order.delivery_type == "pickup":
             return f"✅ Seu pedido {number} está pronto para retirada."
@@ -118,6 +125,7 @@ def notification_enabled(settings: OrderNotificationSettings, status: str):
         Status.CONFIRMED: settings.notify_confirmed,
         Status.PREPARING: settings.notify_preparing,
         Status.READY: settings.notify_ready,
+        Status.READY_FOR_PICKUP: settings.notify_ready,
         Status.OUT_FOR_DELIVERY: settings.notify_out_for_delivery,
         Status.DELIVERED: settings.notify_delivered,
         Status.CANCELLED: settings.notify_cancelled,
@@ -152,7 +160,9 @@ def _queue_notification(event: OrderStatusEvent):
     phone = re.sub(r"\D", "", order.customer_phone or "")
     if not phone or not notification_enabled(settings, event.to_status):
         return None
-    text = build_status_message(order, event.to_status)
+    if event.metadata.get("send_notification") is False:
+        return None
+    text = event.metadata.get("message") or build_status_message(order, event.to_status)
     if not text:
         return None
     notice, _ = OrderStatusNotification.objects.get_or_create(
@@ -190,11 +200,26 @@ def transition_order(
     prep_minutes=None,
     note: str = "",
     source: str = StatusEventSource.PANEL,
+    fulfillment_minutes=None,
+    message=None,
+    complement="",
+    send_notification=None,
 ):
     if target_status not in Status.values:
         raise OrderOperationError("Status de pedido inválido.")
 
+    if send_notification is not None and not isinstance(send_notification, bool):
+        raise OrderOperationError("A opção de envio deve ser verdadeira ou falsa.")
+    if message is not None and (not isinstance(message, str) or len(message) > 2000):
+        raise OrderOperationError("A mensagem deve ter no máximo 2000 caracteres.")
+    if not isinstance(complement, str) or len(complement) > 500:
+        raise OrderOperationError("O complemento deve ter no máximo 500 caracteres.")
+    minutes = _prep_minutes(prep_minutes)
+    fulfillment = _prep_minutes(fulfillment_minutes)
     with transaction.atomic():
+        settings = _settings_for(tenant)
+        if send_notification is False and not settings.allow_skip_notification:
+            raise OrderOperationError("Esta loja exige os avisos de status configurados.")
         if target_status == Status.CANCELLED:
             if not Order.objects.filter(
                 pk=order_id, tenant=tenant, abandoned_at__isnull=True
@@ -215,6 +240,11 @@ def transition_order(
                 .filter(operational_order_q())
                 .get()
             )
+            if target_status == order.status:
+                return order, None
+            # Old clients may still submit ready for pickup; persist the real new state.
+            if target_status == Status.READY and order.delivery_type == "pickup":
+                target_status = Status.READY_FOR_PICKUP
             previous = order.status
             if target_status == previous:
                 return order, None
@@ -234,14 +264,40 @@ def transition_order(
                 if minutes is not None:
                     order.estimated_ready_at = timezone.now() + timedelta(minutes=minutes)
 
+            if target_status == Status.OUT_FOR_DELIVERY:
+                fulfillment = fulfillment or settings.default_delivery_minutes
+            elif order.delivery_type == "pickup" and target_status in {Status.CONFIRMED, Status.PREPARING}:
+                if fulfillment is None and order.estimated_fulfillment_at is None:
+                    fulfillment = settings.default_pickup_minutes
+            if fulfillment is not None:
+                order.estimated_fulfillment_at = timezone.now() + timedelta(minutes=fulfillment)
+            if target_status == Status.READY_FOR_PICKUP:
+                order.estimated_fulfillment_at = timezone.now()
+
             order.status = target_status
             order.status_updated_at = timezone.now()
-            update_fields = ["status", "status_updated_at"]
+            update_fields = ["status", "status_updated_at", "estimated_fulfillment_at"]
             if target_status in {Status.CONFIRMED, Status.PREPARING}:
                 update_fields.append("estimated_ready_at")
             order.save(update_fields=update_fields)
 
+        text = (message or "").strip() or build_status_message(order, target_status)
+        if (message or "").strip() and order.estimated_ready_at and target_status in {Status.CONFIRMED, Status.PREPARING}:
+            local = timezone.localtime(order.estimated_ready_at)
+            text += f"\nPrevisão para ficar pronto: {local:%H:%M}."
+        if order.estimated_fulfillment_at and target_status in {Status.CONFIRMED, Status.PREPARING, Status.OUT_FOR_DELIVERY}:
+            local = timezone.localtime(order.estimated_fulfillment_at)
+            label = "retirada" if order.delivery_type == "pickup" else "entrega"
+            text += f"\nPrevisão de {label}: {local:%H:%M}."
+        if complement.strip():
+            text += "\n" + complement.strip()
         event = OrderStatusEvent.objects.create(
+            metadata={
+                "prep_minutes": minutes, "fulfillment_minutes": fulfillment,
+                "estimated_ready_at": order.estimated_ready_at.isoformat() if order.estimated_ready_at else None,
+                "estimated_fulfillment_at": order.estimated_fulfillment_at.isoformat() if order.estimated_fulfillment_at else None,
+                "send_notification": send_notification, "message": text,
+            },
             order=order,
             tenant=tenant,
             from_status=previous,
@@ -261,6 +317,8 @@ def transition_order(
 
 def update_estimate(*, order_id: int, tenant, minutes, actor=None):
     minutes = _prep_minutes(minutes)
+    if minutes is None:
+        raise OrderOperationError("Informe o prazo em minutos.")
     with transaction.atomic():
         order = (
             Order.objects.select_for_update()
@@ -281,6 +339,7 @@ def update_estimate(*, order_id: int, tenant, minutes, actor=None):
             actor=actor if getattr(actor, "is_authenticated", False) else None,
             source=StatusEventSource.PANEL,
             note=f"Previsão de preparo ajustada para {minutes} minuto(s).",
+            metadata={"prep_minutes": minutes, "estimated_ready_at": order.estimated_ready_at.isoformat()},
         )
         transaction.on_commit(lambda oid=order.pk: _after_commit(oid))
         return order, event
@@ -551,7 +610,7 @@ def customer_status_reply(*, tenant, phone, question=""):
         text = f"Seu pedido #{order.pk} está *confirmado* ✅."
     elif order.status == Status.PREPARING:
         text = f"Seu pedido #{order.pk} está *em preparo* 👨‍🍳."
-    elif order.status == Status.READY:
+    elif order.status in {Status.READY, Status.READY_FOR_PICKUP}:
         text = (
             f"Seu pedido #{order.pk} está *pronto para retirada* ✅."
             if order.delivery_type == "pickup"
@@ -569,4 +628,8 @@ def customer_status_reply(*, tenant, phone, question=""):
     if order.estimated_ready_at and order.status in {Status.CONFIRMED, Status.PREPARING}:
         local = timezone.localtime(order.estimated_ready_at)
         text += f"\nPrevisão para ficar pronto: *{local:%H:%M}*."
+    if order.estimated_fulfillment_at and order.status in {Status.CONFIRMED, Status.PREPARING, Status.OUT_FOR_DELIVERY}:
+        local = timezone.localtime(order.estimated_fulfillment_at)
+        label = "retirada" if order.delivery_type == "pickup" else "entrega"
+        text += f"\nPrevisão de {label}: *{local:%H:%M}*."
     return text

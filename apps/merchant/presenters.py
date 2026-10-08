@@ -104,6 +104,8 @@ def whatsapp_json(ctx):
         "qr": ctx["qr"],
         "context_timeout_minutes": ctx["context_timeout_minutes"],
         "events": [pick(e, "created_at kind description") for e in ctx["events"]],
+        "page": ctx["events"].number,
+        "pages": ctx["events"].paginator.num_pages,
     }
     data["agent"]["status_label"] = agent.get_status_display()
     from .api import notices

@@ -100,6 +100,10 @@ class Order(TenantModel):
         db_index=True,
         verbose_name="Última mudança de status",
     )
+    attribution = models.JSONField(default=dict, blank=True)
+    scheduled_for = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name="Agendado para")
+    kitchen_priority = models.BooleanField(default=False, verbose_name="Prioridade na cozinha")
+    estimated_fulfillment_at = models.DateTimeField(null=True, blank=True, verbose_name="Previsão de entrega/retirada")
     estimated_ready_at = models.DateTimeField(
         null=True,
         blank=True,
@@ -261,6 +265,7 @@ class OrderStatusEvent(models.Model):
         related_name="order_status_events",
         verbose_name="Responsável",
     )
+    metadata = models.JSONField(default=dict, blank=True, verbose_name="Detalhes operacionais")
     note = models.CharField(max_length=255, blank=True, verbose_name="Observação")
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
@@ -300,6 +305,9 @@ class OrderNotificationSettings(models.Model):
         "Tempo padrão de preparo (minutos)",
         default=30,
     )
+    default_delivery_minutes = models.PositiveSmallIntegerField("Prazo padrão de entrega (minutos)", default=40)
+    default_pickup_minutes = models.PositiveSmallIntegerField("Prazo padrão de retirada (minutos)", default=20)
+    allow_skip_notification = models.BooleanField("Permitir omitir aviso por pedido", default=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -474,3 +482,7 @@ class StockReservation(models.Model):
             models.CheckConstraint(condition=Q(quantity__gt=0), name='stock_reserved_positive'),
             models.CheckConstraint(condition=Q(deducted_quantity__gte=0), name='stock_deducted_nonnegative'),
         ]
+
+from .automation_models import SalesSettings, MarketingConsent, SalesMessage, OrderFeedback  # noqa: E402,F401
+from .crm_models import LoyaltySettings, LoyaltyEntry, CustomerProfile, CustomerCampaign, FunnelEvent  # noqa: E402,F401
+from .logistics_models import Courier, DeliveryAssignment, DeliveryAudit  # noqa: E402,F401

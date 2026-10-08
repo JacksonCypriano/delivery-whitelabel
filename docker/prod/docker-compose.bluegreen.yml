@@ -1,11 +1,14 @@
 # Compose de produção blue/green. Não use junto com docker-compose.yml.
 services:
+  public-ssr:
+    build: {context: ../../, dockerfile: docker/Dockerfile.public-ssr}
+    restart: unless-stopped
   backend-blue: &backend
     build: {context: ../../}
     env_file: [.env]
-    environment: {RUN_MIGRATIONS: "true", COLLECTSTATIC: "true"}
+    environment: {PUBLIC_REACT_SSR_URL: "http://public-ssr:3001", RUN_MIGRATIONS: "true", COLLECTSTATIC: "true"}
     command: ["backend"]
-    depends_on: {db: {condition: service_healthy}, redis: {condition: service_healthy}}
+    depends_on: {public-ssr: {condition: service_healthy}, db: {condition: service_healthy}, redis: {condition: service_healthy}}
     restart: unless-stopped
     init: true
     volumes: [static_volume:/app/staticfiles, media_volume:/app/media]

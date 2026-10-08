@@ -1,5 +1,5 @@
 from django.db.models import Prefetch
-from django.shortcuts import render
+from django.shortcuts import redirect
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
@@ -16,6 +16,10 @@ class CatalogoView(ListView):
     model = Product
     template_name = 'stores/catalogo.html'
     context_object_name = 'produtos'
+
+    def render_to_response(self, context, **response_kwargs):
+        from apps.public_ui.rendering import render_public
+        return render_public(self.request, self.template_name, context, **response_kwargs)
 
     def get_queryset(self):
         tenant = getattr(self.request, 'tenant', None)
@@ -107,15 +111,8 @@ class CatalogoView(ListView):
 class DashboardHomeView(View):
     @method_decorator(dashboard_auth_required)
     def get(self, request):
-        total_produtos = Product.objects.filter(tenant=request.tenant).count()
-        total_categorias = Category.objects.filter(tenant=request.tenant).count()
-        context = {
-            'stats': {
-                'produtos': total_produtos,
-                'categorias': total_categorias,
-            }
-        }
-        return render(request, 'dashboard/home.html', context)
+        return redirect('/painel/')
+
 
 def dashboard_login_page(request):
-    return render(request, 'dashboard/login.html')
+    return redirect('/painel/login')

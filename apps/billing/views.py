@@ -115,7 +115,8 @@ def dashboard(request):
     from django.core.paginator import Paginator
 
     history_qs = Invoice.objects.filter(tenant=request.tenant).order_by("-created_at")
-    history = Paginator(history_qs, 20).get_page(request.GET.get("pagina"))
+    from apps.merchant.pagination import page_size
+    history = Paginator(history_qs, page_size(request)).get_page(request.GET.get("pagina"))
     latest_invoice = history_qs.first()
 
     ctx = context(request, "Minha assinatura")
@@ -246,7 +247,8 @@ def fiscal_list(request):
         .defer("pdf_content", "xml_content")
         .order_by("-created_at")
     )
-    page = Paginator(notes_qs, 30).get_page(request.GET.get("pagina"))
+    from apps.merchant.pagination import page_size
+    page = Paginator(notes_qs, page_size(request)).get_page(request.GET.get("pagina"))
     ctx = context(request, "Notas fiscais")
     ctx.update(
         notes=page,

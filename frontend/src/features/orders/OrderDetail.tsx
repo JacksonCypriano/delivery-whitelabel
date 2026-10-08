@@ -4,6 +4,7 @@ import { orders } from "../../api/orders";
 import { useQuery } from "../../hooks/useQuery";
 import { Feedback, Notice } from "../../components/Feedback";
 import { panelUrl } from "../../panel";
+import { TransitionDialog } from "./TransitionDialog";
 import { actionLabel, itemDetails, localDate, money } from "./orderHelpers";
 
 export function OrderDetail() {
@@ -13,15 +14,16 @@ export function OrderDetail() {
   const [error, setError] = useState<Error | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [minutes, setMinutes] = useState(30);
+  const [target, setTarget] = useState<string | null>(null);
 
-  async function transition(status: string) {
-    if (status === "cancelled" && !window.confirm(`Cancelar o pedido #${id}?`)) return;
+  async function transition(options: Parameters<typeof orders.transition>[2]) {
+    if (!target) return;
+    const status = target;
     setBusy(true);
     setError(null);
     try {
-      const result = await orders.transition(id, status, {
-        ...(status === "confirmed" ? { prep_minutes: minutes } : {}),
-      });
+      const result = await orders.transition(id, status, options);
+      setTarget(null);
       setMessages([{ level: "success", text: result.detail }]);
       q.reload();
     } catch (e) {
@@ -116,12 +118,12 @@ export function OrderDetail() {
                 {d.estimated_ready_at && <p className={d.late ? "late-text" : "muted"}>Previsão atual: {localDate(d.estimated_ready_at)}</p>}
                 <div className="detail-actions">
                   {d.allowed_transitions.filter((a: any) => a.value !== "cancelled").map((a: any) => (
-                    <button key={a.value} disabled={busy} onClick={() => transition(a.value)}>
+                    <button key={a.value} disabled={busy} onClick={() => { setError(null); setTarget(a.value); }}>
                       {actionLabel[a.value] || a.label}
                     </button>
                   ))}
                   {d.allowed_transitions.some((a: any) => a.value === "cancelled") && (
-                    <button className="secondary danger-text" disabled={busy} onClick={() => transition("cancelled")}>Cancelar pedido</button>
+                    <button className="secondary danger-text" disabled={busy} onClick={() => { setError(null); setTarget("cancelled"); }}>Cancelar pedido</button>
                   )}
                 </div>
               </section>
@@ -132,6 +134,8 @@ export function OrderDetail() {
                     <small>{localDate(event.created_at)} · {event.actor}</small>
                     <strong>{event.from_label ? `${event.from_label} → ` : ""}{event.to_label}</strong>
                     {event.note && <p>{event.note}</p>}
+                    {event.notification?.text && <p className="operation-message">{event.notification.text}</p>}
+                    {event.metadata?.fulfillment_minutes && <small>Prazo informado: {event.metadata.fulfillment_minutes} min</small>}
                     {event.notification && (
                       <span className={`notice-state ${event.notification.status}`}>
                         WhatsApp: {event.notification.status === "sent" ? "enviado" : event.notification.status === "skipped" ? "ignorado" : "pendente"}
@@ -145,6 +149,7 @@ export function OrderDetail() {
           </div>
         )}
       </Feedback>
+      {target && d && <TransitionDialog order={d} status={target} settings={d.notification_settings} busy={busy} error={error} onConfirm={transition} onClose={() => setTarget(null)} />}
     </>
   );
 }

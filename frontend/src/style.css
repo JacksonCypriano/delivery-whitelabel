@@ -1065,3 +1065,13 @@ main:has(.monitor-screen) {max-width:none;width:100%}
 .kitchen-columns.has-new{grid-template-columns:repeat(4,minmax(0,1fr))}.integration-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.integration-grid .card{min-width:0}.integration-grid p{overflow-wrap:anywhere}.integration-grid button{margin:12px 0}.integration-events{margin-top:24px;overflow:auto}.integration-events td{overflow-wrap:anywhere;max-width:280px}
 @media(max-width:1150px){.kitchen-columns.has-new{grid-template-columns:repeat(4,minmax(240px,1fr));overflow-x:auto}}
 @media(max-width:700px){.integration-grid{grid-template-columns:1fr}}
+
+/* External marketplace cancellation is a temporary operational lane. */
+.order-column.status-awaiting_cancellation {background:#fff5e7;border-color:#e8bb7f}
+.order-column.status-awaiting_cancellation .order-column-head {background:#ffecd0;border-bottom-color:#e8bb7f}
+.kitchen-columns > section.kitchen-cancel-column {background:#fff1df;border-top-color:#c97928}
+.kitchen-card.cancel-awaiting {border:2px solid #d59037}
+.channel-notice.cancellation-waiting {background:#fff1d9;border-left:4px solid #c77d2c;color:#754300}
+.channel-notice.cancellation-rejected {background:#ffebea;border-left:4px solid #bc493d;color:#782e26}
+
+@media (min-width:1100px) { .order-board {display:flex;gap:12px;overflow-x:auto} .order-column {flex:0 0 min(22vw,300px);min-width:245px} }

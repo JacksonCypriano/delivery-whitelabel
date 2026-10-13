@@ -25,7 +25,7 @@ def permitted(order, ignore_pending=False):
     x=external(order)
     if not x or not x.connection.enabled:return []
     if x.connection.provider=='99food' and x.connection.mode!='simulation':return []
-    if not ignore_pending and any(c.state in WAITING for c in x.commands.all()):return []
+    if not ignore_pending and (x.cancellation_state == 'requested' or any(c.state in WAITING for c in x.commands.all())):return []
     if order.status in ('delivered','cancelled'):return []
     if order.status=='pending':return ['confirmed','cancelled']
     if order.status in ('confirmed','preparing') and x.prepare_after and x.prepare_after>timezone.now():return ['cancelled']
@@ -39,7 +39,34 @@ def presentation(order):
     x=external(order)
     if not x:return {'channel':'vemdedelivery','channel_label':'VemDeDelivery','external_id':None}
     command=max(x.commands.all(),key=lambda c:(c.created_at,c.pk),default=None)
-    return {'channel':x.connection.provider,'channel_label':x.connection.get_provider_display(),'external_id':x.external_id,'external_display_id':x.display_id,'channel_financials':x.financials,'prepare_after':x.prepare_after,'scheduled_until':x.scheduled_until,'platform_notes':x.platform_notes,'channel_test':x.connection.mode!='live','channel_simulated':x.connection.mode=='simulation','delivery_by':x.delivery_by,'channel_warning':x.warning,'sync_state':command.state if command else '', 'sync_error':command.error if command else ''}
+    cancel_command = next((c for c in x.commands.all() if c.target == 'cancelled'), None)
+    active = order.status not in ('cancelled', 'delivered')
+    cancel_pending = active and (
+        x.cancellation_state == 'requested'
+        or (cancel_command is not None and cancel_command.state in WAITING)
+    )
+    cancel_error = (x.cancellation_error or (
+        cancel_command.error if cancel_command is not None and cancel_command.state == 'failed' else ''
+    )) if active and not cancel_pending else ''
+    return {
+        'channel': x.connection.provider,
+        'channel_label': x.connection.get_provider_display(),
+        'external_id': x.external_id,
+        'external_display_id': x.display_id,
+        'channel_financials': x.financials,
+        'prepare_after': x.prepare_after,
+        'scheduled_until': x.scheduled_until,
+        'platform_notes': x.platform_notes,
+        'channel_test': x.connection.mode != 'live',
+        'channel_simulated': x.connection.mode == 'simulation',
+        'delivery_by': x.delivery_by,
+        'channel_warning': x.warning,
+        'sync_state': command.state if command and active else '',
+        'sync_error': command.error if command and active and command.state == 'failed' else '',
+        'cancellation_pending': bool(cancel_pending),
+        'cancellation_requested_at': x.cancellation_requested_at.isoformat() if x.cancellation_requested_at else None,
+        'cancellation_error': cancel_error,
+    }
 
 @transaction.atomic
 def receive(connection, payload):
@@ -81,9 +108,38 @@ def apply_event(event_id, normalized=None, raw=None):
     if not conn.enabled:raise ProviderError('Integração desconectada.')
     x=ExternalOrder.objects.select_for_update().filter(connection=conn,external_id=e.order_id).first()
     target=STATES.get(e.code)
-    if e.code in ('CANCELLATION_REQUEST_FAILED','CARF'):
-        if x:x.commands.filter(target='cancelled',state__in=WAITING).update(state='failed',error='A plataforma recusou o cancelamento.')
-        e.state='processed';e.save(update_fields=['state']);return
+    if e.code in ('CANCELLATION_REQUESTED', 'CAR'):
+        if x is None:
+            raise ProviderError('Pedido externo ainda não importado.', retryable=True)
+        if x.order.status not in ('cancelled', 'delivered'):
+            if not x.last_event_at or e.occurred_at >= x.last_event_at:
+                was_requested = x.cancellation_state == 'requested'
+                x.cancellation_state = 'requested'
+                x.cancellation_requested_at = x.cancellation_requested_at if was_requested and x.cancellation_requested_at else e.occurred_at
+                x.cancellation_error = ''
+                x.save(update_fields=['cancellation_state', 'cancellation_requested_at', 'cancellation_error'])
+                from apps.orders.realtime import publish_order_event
+                transaction.on_commit(lambda: publish_order_event(x.order_id, conn.tenant_id))
+        e.state = 'processed'
+        e.error = ''
+        e.save(update_fields=['state', 'error'])
+        return
+    if e.code in ('CANCELLATION_REQUEST_FAILED', 'CARF'):
+        if x is None:
+            raise ProviderError('Pedido externo ainda não importado.', retryable=True)
+        if x.order.status not in ('cancelled', 'delivered'):
+            x.commands.filter(target='cancelled', state__in=WAITING).update(
+                state='failed', error='A plataforma recusou o cancelamento.'
+            )
+            x.cancellation_state = 'rejected'
+            x.cancellation_error = 'A plataforma recusou o cancelamento. Confira o pedido antes de tentar novamente.'
+            x.save(update_fields=['cancellation_state', 'cancellation_error'])
+            from apps.orders.realtime import publish_order_event
+            transaction.on_commit(lambda: publish_order_event(x.order_id, conn.tenant_id))
+        e.state = 'processed'
+        e.error = ''
+        e.save(update_fields=['state', 'error'])
+        return
     if not target:
         e.state='ignored';e.error='Evento sem transição implementada; revisão operacional necessária.';e.save(update_fields=['state','error'])
         if x:
@@ -130,7 +186,11 @@ def apply_event(event_id, normalized=None, raw=None):
             cfg,_=OrderNotificationSettings.objects.get_or_create(tenant=order.tenant)
             order.estimated_ready_at=order.scheduled_for or e.occurred_at+timedelta(minutes=cfg.default_prep_minutes)
         order.save(update_fields=['status','status_updated_at','estimated_ready_at'])
-    x.last_event_at=e.occurred_at;x.save(update_fields=['last_event_at','stock_state','warning'])
+    x.last_event_at = e.occurred_at
+    if target in ('cancelled', 'delivered'):
+        x.cancellation_state = ''
+        x.cancellation_error = ''
+    x.save(update_fields=['last_event_at', 'stock_state', 'warning', 'cancellation_state', 'cancellation_error'])
     OrderStatusEvent.objects.create(order=order,tenant=order.tenant,from_status=previous,to_status=target,source='system',note='Evento '+conn.get_provider_display(),metadata={'external_event':e.external_id,'send_notification':False})
     x.commands.filter(target=target,state__in=WAITING).update(state='confirmed',error='')
     # Superseded requests are no longer eligible for retransmission.
@@ -140,6 +200,8 @@ def apply_event(event_id, normalized=None, raw=None):
     remaining.update(state='superseded')
     e.state='processed';e.error='';e.save(update_fields=['state','error'])
     conn.last_sync=timezone.now();conn.last_error='';conn.status='connected';conn.save(update_fields=['last_sync','last_error','status'])
+    from apps.orders.realtime import publish_order_event
+    transaction.on_commit(lambda: publish_order_event(order.pk, conn.tenant_id))
 
 @transaction.atomic
 def queue_transition(order_id,tenant,target,actor=None,payload=None):
@@ -158,6 +220,11 @@ def queue_transition(order_id,tenant,target,actor=None,payload=None):
     if not created:
         if command.state not in ('failed',):raise OrderOperationError('Comando já registrado; aguarde a conciliação.')
         command.state='pending';command.error='';command.payload=payload;command.from_status=order.status;command.save(update_fields=['state','error','payload','from_status'])
+    if target == 'cancelled':
+        x.cancellation_state = 'requested'
+        x.cancellation_requested_at = timezone.now()
+        x.cancellation_error = ''
+        x.save(update_fields=['cancellation_state', 'cancellation_requested_at', 'cancellation_error'])
     event=OrderStatusEvent.objects.create(order=order,tenant=tenant,from_status=order.status,to_status=order.status,actor=actor,source='panel',note='Solicitado '+target+' à plataforma.',metadata={'channel_command':command.pk,'send_notification':False,'cancellation_code':payload.get('cancellationCode'),'justification':payload.get('reason')})
     from apps.orders.realtime import publish_order_event
     transaction.on_commit(lambda:publish_order_event(order.pk,tenant.pk))
@@ -201,13 +268,32 @@ def process_command(command_id):
         cmd=Outbox.objects.select_for_update(of=('self',)).select_related('external_order__connection','external_order__order').get(pk=command_id)
         if cmd.state!='pending':return
         x=cmd.external_order
-        if not x.connection.enabled or x.order.status!=cmd.from_status:
-            cmd.state='superseded';cmd.save(update_fields=['state']);return
-        if cmd.target not in permitted(x.order,ignore_pending=True):
-            cmd.state='failed';cmd.error='Transição não permitida para este pedido.';cmd.save(update_fields=['state','error']);return
+        if not x.connection.enabled or x.order.status != cmd.from_status:
+            cmd.state = 'superseded'
+            cmd.save(update_fields=['state'])
+            if cmd.target == 'cancelled':
+                x.cancellation_state = ''
+                x.save(update_fields=['cancellation_state'])
+            return
+        if cmd.target not in permitted(x.order, ignore_pending=True):
+            cmd.state = 'failed'
+            cmd.error = 'Transição não permitida para este pedido.'
+            cmd.save(update_fields=['state', 'error'])
+            if cmd.target == 'cancelled':
+                x.cancellation_state = 'rejected'
+                x.cancellation_error = cmd.error
+                x.save(update_fields=['cancellation_state', 'cancellation_error'])
+            return
         if x.connection.mode=='simulation':
             if not settings.CHANNELS_SIMULATOR_ENABLED:
-                cmd.state='failed';cmd.error='Simulador desativado.';cmd.save(update_fields=['state','error']);return
+                cmd.state = 'failed'
+                cmd.error = 'Simulador desativado.'
+                cmd.save(update_fields=['state', 'error'])
+                if cmd.target == 'cancelled':
+                    x.cancellation_state = 'rejected'
+                    x.cancellation_error = cmd.error
+                    x.save(update_fields=['cancellation_state', 'cancellation_error'])
+                return
             target='ready' if cmd.target=='ready_for_pickup' else cmd.target
             code=next(k for k,v in STATES.items() if v==target)
             e=receive(x.connection,{'id':f'sim-command-{cmd.pk}','orderId':x.external_id,'merchantId':x.connection.merchant_id,'code':code,'createdAt':timezone.now().isoformat()})
@@ -219,7 +305,18 @@ def process_command(command_id):
     except ProviderError as exc:
         state='uncertain' if exc.uncertain else 'pending' if exc.retryable else 'failed'
         error=str(exc)
-    # An event may arrive before this HTTP request completes; don't overwrite it.
-    Outbox.objects.filter(pk=cmd.pk,state='sending').update(state=state,error=error,next_attempt=timezone.now()+timedelta(seconds=min(3600,30*2**min(cmd.attempts,7))))
-    from apps.orders.realtime import publish_order_event
-    publish_order_event(x.order_id,x.connection.tenant_id)
+    # An event may arrive before the HTTP request completes. Preserve its result.
+    with transaction.atomic():
+        Connection.objects.select_for_update().get(pk=x.connection_id)
+        current_x = ExternalOrder.objects.select_for_update().get(pk=x.pk)
+        Order.objects.select_for_update().get(pk=current_x.order_id)
+        updated = Outbox.objects.filter(pk=cmd.pk, state='sending').update(
+            state=state, error=error,
+            next_attempt=timezone.now() + timedelta(seconds=min(3600, 30 * 2 ** min(cmd.attempts, 7)))
+        )
+        if updated and cmd.target == 'cancelled' and state == 'failed':
+            current_x.cancellation_state = 'rejected'
+            current_x.cancellation_error = error[:240]
+            current_x.save(update_fields=['cancellation_state', 'cancellation_error'])
+        from apps.orders.realtime import publish_order_event
+        transaction.on_commit(lambda: publish_order_event(x.order_id, x.connection.tenant_id))

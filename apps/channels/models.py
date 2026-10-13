@@ -40,6 +40,10 @@ class ExternalOrder(models.Model):
     last_event_at = models.DateTimeField(null=True)
     stock_state = models.CharField(max_length=24, default='pending')
     warning = models.CharField(max_length=240, blank=True)
+    # Operational state only: the Order.status changes only on a provider event.
+    cancellation_state = models.CharField(max_length=16, blank=True, default='')
+    cancellation_requested_at = models.DateTimeField(null=True, blank=True)
+    cancellation_error = models.CharField(max_length=240, blank=True)
     class Meta:
         constraints = [models.UniqueConstraint(fields=['connection','external_id'], name='channel_external_order_unique')]
 

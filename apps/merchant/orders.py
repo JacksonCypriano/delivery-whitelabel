@@ -151,14 +151,20 @@ class OrdersBoard(MerchantAPI):
             )
         }
         cards = [_order_card(row, wa.get(row.pk), settings) for row in rows]
+        # Cancellation is an operational lane, not a terminal Order.status.
         columns = [
             {
                 "status": status,
                 "label": "Novos" if status == Status.PENDING else STATUS_LABELS[status],
-                "orders": [card for card in cards if card["status"] == status],
+                "orders": [card for card in cards if card["status"] == status and not card.get("cancellation_pending")],
             }
             for status in active_statuses
         ]
+        columns.insert(1, {
+            "status": "awaiting_cancellation",
+            "label": "Aguardando cancelamento",
+            "orders": [card for card in cards if card.get("cancellation_pending")],
+        })
         finished = [
             card
             for card in cards

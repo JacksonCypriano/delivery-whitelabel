@@ -6,7 +6,6 @@ The simulator consumes our internal normalized contract, never a fabricated 99 A
 
 import hashlib
 import hmac
-import logging
 import re
 from datetime import timedelta
 from typing import Protocol
@@ -20,8 +19,6 @@ from django.utils import timezone
 from apps.billing.secrets import decrypt_secret, encrypt_secret
 
 from .models import AppToken
-
-logger = logging.getLogger(__name__)
 
 
 class ProviderError(Exception):
@@ -130,18 +127,6 @@ class IFood:
                 retryable=method == "GET",
                 uncertain=method == "POST",
             ) from None
-
-        if (
-            self.mode == "test"
-            and path.endswith("/requestCancellation")
-            and r.status_code == 400
-        ):
-            try:
-                diagnostic = r.json()
-            except ValueError:
-                diagnostic = {"response_format": "non_json"}
-
-            logger.warning("IFOOD_TEST_CANCEL_400: %s", diagnostic)
         if r.status_code == 404:
             raise ProviderError(
                 "Pedido ou recurso ainda indisponível no iFood.",

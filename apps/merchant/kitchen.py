@@ -1,10 +1,12 @@
 """KDS uses the same orders, transition service, audit and realtime channel."""
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 from rest_framework.response import Response
 from apps.orders.models import OrderStatusEvent, OrderNotificationSettings
 from apps.orders.operations import transition_order, OrderOperationError
 from apps.orders.realtime import publish_order_event
+from apps.channels.models import Outbox
+from apps.channels.services import WAITING
 from .api import MerchantAPI
 from .orders import _base_queryset, _order_card, _settings_json
 
@@ -14,7 +16,19 @@ KITCHEN_STATES = ('confirmed', 'preparing', 'ready', 'ready_for_pickup')
 class Kitchen(MerchantAPI):
     def get(self, request):
         settings, _ = OrderNotificationSettings.objects.get_or_create(tenant=request.tenant)
-        rows = _base_queryset(request.tenant).filter(Q(status__in=KITCHEN_STATES) | Q(status='pending',source__in=['ifood','99food'])).order_by('-kitchen_priority', 'created_at', 'pk')
+        cancel_commands = Outbox.objects.filter(
+            external_order__order_id=OuterRef('pk'),
+            target='cancelled',
+            state__in=WAITING,
+        )
+        rows = _base_queryset(request.tenant).annotate(
+            has_pending_cancellation=Exists(cancel_commands)
+        ).filter(
+            Q(status__in=KITCHEN_STATES)
+            | Q(status='pending', source__in=['ifood', '99food'])
+            | Q(external_order__cancellation_state='requested', source__in=['ifood', '99food'])
+            | Q(has_pending_cancellation=True)
+        ).exclude(status__in=['cancelled', 'delivered']).order_by('-kitchen_priority', 'created_at', 'pk')
         cards = []
         for row in rows:
             card = _order_card(row, settings=settings)

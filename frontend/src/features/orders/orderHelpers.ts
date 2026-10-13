@@ -9,6 +9,7 @@ export const actionLabel: Record<string, string> = {
 };
 
 export const statusIcon: Record<string, string> = {
+  awaiting_cancellation: "⏳",
   pending: "●",
   confirmed: "✓",
   preparing: "◷",

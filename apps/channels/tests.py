@@ -130,6 +130,84 @@ class ChannelTests(TestCase):
         with self.assertRaises(OrderOperationError):transition_order(order_id=o.pk,tenant=self.a,target_status='cancelled')
         transition_order(order_id=o.pk,tenant=self.a,target_status='cancelled',cancellation_code='SIM',cancellation_reason='Teste local')
         process_command(Outbox.objects.get().pk);o.refresh_from_db();self.assertEqual(o.status,'cancelled')
+    def test_cancellation_request_moves_to_temporary_board_and_kitchen_lane(self):
+        x = self.event('CONFIRMED')
+        transition_order(
+            order_id=x.order_id, tenant=self.a, target_status='cancelled',
+            cancellation_code='SIM', cancellation_reason='Teste de cancelamento',
+        )
+        x.refresh_from_db()
+        x.order.refresh_from_db()
+        self.assertEqual(x.order.status, 'confirmed')
+        self.assertEqual(x.cancellation_state, 'requested')
+        self.assertEqual(allowed_transitions(x.order), [])
+        data = self.client.get('/api/merchant/orders/').json()
+        lane = next(row for row in data['columns'] if row['status'] == 'awaiting_cancellation')
+        self.assertEqual([row['id'] for row in lane['orders']], [x.order_id])
+        self.assertTrue(lane['orders'][0]['cancellation_requested_at'])
+        regular = next(row for row in data['columns'] if row['status'] == 'confirmed')
+        self.assertEqual(regular['orders'], [])
+        kitchen = self.client.get('/api/merchant/kitchen/').json()
+        self.assertEqual(len(kitchen['orders']), 1)
+        self.assertTrue(kitchen['orders'][0]['cancellation_pending'])
+        self.assertEqual(kitchen['orders'][0]['allowed_transitions'], [])
+
+    def test_provider_request_and_rejection_update_temporary_lane(self):
+        x = self.event('CONFIRMED')
+        self.event('CANCELLATION_REQUESTED', offset=1)
+        x.refresh_from_db()
+        self.assertEqual(x.cancellation_state, 'requested')
+        self.assertEqual(Inbox.objects.get(code='CANCELLATION_REQUESTED').state, 'processed')
+        self.assertTrue(presentation(x.order)['cancellation_pending'])
+        self.event('CANCELLATION_REQUEST_FAILED', offset=2)
+        x.refresh_from_db()
+        x.order.refresh_from_db()
+        self.assertEqual(x.order.status, 'confirmed')
+        self.assertEqual(x.cancellation_state, 'rejected')
+        self.assertFalse(presentation(x.order)['cancellation_pending'])
+        self.assertTrue(presentation(x.order)['cancellation_error'])
+        self.assertEqual(Inbox.objects.get(code='CANCELLATION_REQUEST_FAILED').state, 'processed')
+        self.assertEqual(allowed_transitions(x.order), ['preparing', 'ready', 'cancelled'])
+
+    def test_final_cancellation_clears_temporary_lane_and_keeps_audit(self):
+        x = self.event('CONFIRMED')
+        transition_order(
+            order_id=x.order_id, tenant=self.a, target_status='cancelled',
+            cancellation_code='SIM', cancellation_reason='Cancelamento válido',
+        )
+        self.event('CANCELLATION_REQUESTED', offset=1)
+        self.event('CANCELLED', offset=2)
+        x.refresh_from_db()
+        x.order.refresh_from_db()
+        self.assertEqual(x.order.status, 'cancelled')
+        self.assertFalse(presentation(x.order)['cancellation_pending'])
+        self.assertFalse(presentation(x.order)['cancellation_error'])
+        self.assertEqual(Outbox.objects.get(target='cancelled').state, 'confirmed')
+        self.assertEqual(x.cancellation_state, '')
+
+    def test_provider_error_returns_cancellation_to_previous_lane(self):
+        x = self.event('CONFIRMED')
+        self.conn.mode = 'test'
+        self.conn.save(update_fields=['mode'])
+        transition_order(
+            order_id=x.order_id, tenant=self.a, target_status='cancelled',
+            cancellation_code='SIM', cancellation_reason='Teste de recusa',
+        )
+        with patch('apps.channels.services.connector') as factory:
+            factory.return_value.command.side_effect = ProviderError('iFood recusou cancelamento (HTTP 400).', status_code=400)
+            process_command(Outbox.objects.get(target='cancelled').pk)
+        x.refresh_from_db()
+        x.order.refresh_from_db()
+        self.assertEqual(x.order.status, 'confirmed')
+        self.assertEqual(x.cancellation_state, 'rejected')
+        self.assertEqual(Outbox.objects.get(target='cancelled').state, 'failed')
+        board = self.client.get('/api/merchant/orders/').json()
+        lane = next(row for row in board['columns'] if row['status'] == 'awaiting_cancellation')
+        self.assertEqual(lane['orders'], [])
+        old = next(row for row in board['columns'] if row['status'] == 'confirmed')['orders'][0]
+        self.assertIn('HTTP 400', old['cancellation_error'])
+        self.assertIn('cancelled', [t['value'] for t in old['allowed_transitions']])
+
     def test_platform_delivery_and_pickup_cannot_dispatch(self):
         d=deepcopy(self.dto);d['delivery_by']='IFOOD';o=self.event('READY_TO_PICKUP',dto=d).order
         self.assertNotIn('out_for_delivery',allowed_transitions(o))
@@ -298,7 +376,7 @@ class ChannelTests(TestCase):
         api=IFood();x=SimpleNamespace(external_id='order-1')
         with patch.object(api,'request',side_effect=[[{'cancelCode':'503','description':'Indisponível'}],None]) as req:
             api.command(x,'cancelled',{'cancellationCode':'503','reason':'Teste'})
-            self.assertEqual(req.call_args.kwargs['json'],{'reason':'503'})
+            self.assertEqual(req.call_args.kwargs['json'],{'reason':'503','cancellationCode':'503'})
         with patch.object(api,'request',return_value=[]):
             with self.assertRaises(ProviderError):api.command(x,'cancelled',{'cancellationCode':'999','reason':'Teste'})
 

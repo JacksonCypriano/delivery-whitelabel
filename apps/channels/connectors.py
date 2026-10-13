@@ -79,7 +79,23 @@ class IFood:
         if r.status_code == 401: raise ProviderError('iFood: autorização expirada ou inválida.')
         if r.status_code == 429: raise ProviderError('iFood: limite de chamadas atingido.',retryable=True)
         if r.status_code >= 500: raise ProviderError('iFood temporariamente indisponível.',retryable=method=='GET',uncertain=method=='POST')
-        if r.status_code not in (200,201,202,204): raise ProviderError(f'iFood recusou a operação (HTTP {r.status_code}).')
+        if r.status_code not in (200,201,202,204):
+            # Only machine-readable provider codes are shown. Never forward the
+            # raw response body/message: they may contain confidential data.
+            provider_code = ''
+            try:
+                error_data = r.json()
+                if isinstance(error_data, dict):
+                    candidate = error_data.get('code')
+                    if isinstance(candidate, str) and re.fullmatch(r'[A-Za-z0-9_ .-]{1,80}', candidate):
+                        provider_code = candidate
+            except ValueError:
+                pass
+            operation = ('consulta de motivos de cancelamento' if path.endswith('/cancellationReasons')
+                         else 'solicitação de cancelamento' if path.endswith('/requestCancellation')
+                         else 'operação')
+            detail = f'; código do iFood: {provider_code}' if provider_code else ''
+            raise ProviderError(f'iFood recusou {operation} (HTTP {r.status_code}{detail}).', status_code=r.status_code)
         if not r.content: return None
         try: return r.json()
         except ValueError: raise ProviderError('iFood retornou uma resposta inválida.',uncertain=method=='POST') from None

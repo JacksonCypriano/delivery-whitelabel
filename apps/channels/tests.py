@@ -268,6 +268,32 @@ class ChannelTests(TestCase):
             with self.assertRaisesRegex(ProviderError, 'sem código válido'):
                 api.reasons('order-1')
 
+    def test_ifood_400_identifies_endpoint_without_exposing_response_body(self):
+        api = IFood()
+        response = Mock(status_code=400)
+        response.json.return_value = {'code': 'OrderHasACancellationInProgress', 'message': 'private-customer-name'}
+        with patch('requests.request', return_value=response):
+            with self.assertRaises(ProviderError) as reasons:
+                api._http('GET', '/order/v1.0/orders/private-order-id/cancellationReasons')
+            self.assertIn('consulta de motivos', str(reasons.exception))
+            self.assertIn('OrderHasACancellationInProgress', str(reasons.exception))
+            self.assertNotIn('private-customer-name', str(reasons.exception))
+            self.assertNotIn('private-order-id', str(reasons.exception))
+            self.assertEqual(reasons.exception.status_code, 400)
+            with self.assertRaises(ProviderError) as cancellation:
+                api._http('POST', '/order/v1.0/orders/private-order-id/requestCancellation', json={'reason': '502'})
+            self.assertIn('solicitação de cancelamento', str(cancellation.exception))
+
+    def test_ifood_400_omits_unsafe_codes(self):
+        api = IFood()
+        response = Mock(status_code=400)
+        response.json.return_value = {'code': 'private:unsafe:content', 'message': 'secret'}
+        with patch('requests.request', return_value=response):
+            with self.assertRaises(ProviderError) as error:
+                api._http('POST', '/order/v1.0/orders/private-order-id/requestCancellation')
+            self.assertNotIn('unsafe', str(error.exception))
+            self.assertNotIn('secret', str(error.exception))
+
     def test_ifood_cancellation_fetches_dynamic_reasons(self):
         api=IFood();x=SimpleNamespace(external_id='order-1')
         with patch.object(api,'request',side_effect=[[{'cancelCode':'503','description':'Indisponível'}],None]) as req:

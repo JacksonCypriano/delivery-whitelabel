@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 export default defineConfig(({ command }) => ({
   plugins: [react()],
@@ -8,6 +8,11 @@ export default defineConfig(({ command }) => ({
     emptyOutDir: true,
     manifest: true,
     rollupOptions: { input: "src/main.tsx" },
+  },
+  test: {
+    maxWorkers: 1,
+    fileParallelism: false,
+    testTimeout: 15000,
   },
   server: {
     allowedHosts: [".lvh.me", "localhost"],

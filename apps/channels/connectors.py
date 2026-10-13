@@ -115,7 +115,16 @@ class IFood:
         data=self.request('GET','/order/v1.0/orders/'+quote(str(order_id),safe='')+'/cancellationReasons')
         rows=data.get('reasons',[]) if isinstance(data,dict) else data or []
         if not isinstance(rows,list):raise ProviderError('Motivos de cancelamento inválidos.')
-        return [{'code':str(r.get('cancelCode',r.get('code',''))),'description':str(r.get('description',''))} for r in rows]
+        normalized = []
+        for r in rows:
+            if not isinstance(r, dict):
+                raise ProviderError('Motivo de cancelamento inválido no iFood.')
+            # A API oficial documenta `code`; alguns contratos retornam `cancelCodeId`.
+            raw_code = r.get('cancelCodeId') or r.get('code') or r.get('cancelCode')
+            if raw_code is None or not str(raw_code).strip():
+                raise ProviderError('iFood retornou motivo de cancelamento sem código válido.')
+            normalized.append({'code': str(raw_code).strip(), 'description': str(r.get('description') or '')})
+        return normalized
     def command(self,external,target,payload):
         paths={'confirmed':'confirm','preparing':'startPreparation','ready':'readyToPickup','ready_for_pickup':'readyToPickup','out_for_delivery':'dispatch','cancelled':'requestCancellation'}
         if target not in paths:raise ProviderError('Transição não suportada pelo iFood.')

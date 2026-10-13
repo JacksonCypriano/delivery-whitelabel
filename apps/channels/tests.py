@@ -251,6 +251,23 @@ class ChannelTests(TestCase):
         with patch('requests.request',return_value=Mock(status_code=503)):
             with self.assertRaises(ProviderError) as error:api._http('GET','/x')
             self.assertTrue(error.exception.retryable)
+    def test_ifood_cancellation_reasons_support_all_known_code_fields(self):
+        api = IFood()
+        with patch.object(api, 'request', return_value={'reasons': [
+            {'cancelCodeId': '501', 'description': 'Problemas de sistema'},
+            {'code': '502', 'description': 'Pedido duplicado'},
+            {'cancelCode': '503', 'description': 'Item indisponível'},
+        ]}):
+            self.assertEqual([r['code'] for r in api.reasons('order-1')], ['501', '502', '503'])
+
+    def test_ifood_cancellation_reasons_reject_missing_code(self):
+        api = IFood()
+        with patch.object(api, 'request', return_value={'reasons': [
+            {'description': 'Motivo sem código'},
+        ]}):
+            with self.assertRaisesRegex(ProviderError, 'sem código válido'):
+                api.reasons('order-1')
+
     def test_ifood_cancellation_fetches_dynamic_reasons(self):
         api=IFood();x=SimpleNamespace(external_id='order-1')
         with patch.object(api,'request',side_effect=[[{'cancelCode':'503','description':'Indisponível'}],None]) as req:

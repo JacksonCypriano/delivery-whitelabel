@@ -17,6 +17,7 @@ from apps.orders.operations import (
     OrderOperationError,
     STATUS_LABELS,
     allowed_transitions,
+    operational_order_q,
     build_status_message,
     notification_enabled,
     _prep_minutes,
@@ -32,6 +33,9 @@ from .schema import value
 
 
 def _payment_info(order, whatsapp_checkout=None):
+    if order.source in ("ifood", "99food"):
+        x = getattr(order, "external_order", None)
+        return {"status": order.payment_flow, "label": "Pago no marketplace" if x and x.paid else "Cobrança na entrega · conferir plataforma", "paid": bool(x and x.paid)}
     if order.payment_flow == "in_person":
         return {
             "status": "in_person",
@@ -58,7 +62,9 @@ def _payment_info(order, whatsapp_checkout=None):
 def _order_card(order, whatsapp_checkout=None, settings=None):
     now = timezone.now()
     estimate = order.estimated_ready_at
+    from apps.channels.services import presentation
     return {
+        **presentation(order),
         "id": order.pk,
         "kitchen_priority": order.kitchen_priority,
         "scheduled_for": value(order.scheduled_for),
@@ -99,7 +105,7 @@ def _order_card(order, whatsapp_checkout=None, settings=None):
         "allowed_transitions": [
             {"value": status, "label": STATUS_LABELS[status],
              "message": build_status_message(order, status, include_estimate=False),
-             "notification_enabled": notification_enabled(settings, status) if settings else None}
+             "notification_enabled": False if order.source in ("ifood", "99food") else notification_enabled(settings, status) if settings else None}
             for status in allowed_transitions(order)
         ],
     }
@@ -108,8 +114,8 @@ def _order_card(order, whatsapp_checkout=None, settings=None):
 def _base_queryset(tenant):
     return (
         Order.objects.filter(tenant=tenant, abandoned_at__isnull=True)
-        .filter(Q(source=OrderSource.MANUAL) | Q(whatsapp_opened_at__isnull=False))
-        .select_related("online_payment")
+        .filter(operational_order_q())
+        .select_related("online_payment", "external_order__connection").prefetch_related("external_order__commands")
         .prefetch_related(Prefetch("items", queryset=OrderItem.objects.order_by("pk")))
     )
 
@@ -172,7 +178,7 @@ class OrdersBoard(MerchantAPI):
                         tenant=request.tenant, abandoned_at__isnull=True
                     )
                     .filter(
-                        Q(source=OrderSource.MANUAL) | Q(whatsapp_opened_at__isnull=False)
+                        operational_order_q()
                     )
                     .values("status")
                     .annotate(total=Count("id"))
@@ -250,6 +256,8 @@ class OrderTransition(MerchantAPI):
                 message=request.data.get("message"),
                 complement=request.data.get("complement", ""),
                 send_notification=request.data.get("send_notification"),
+                cancellation_code=request.data.get("cancellation_code"),
+                cancellation_reason=request.data.get("cancellation_reason"),
             )
         except Order.DoesNotExist:
             return Response({"detail": "Pedido não encontrado."}, status=404)
@@ -257,7 +265,7 @@ class OrderTransition(MerchantAPI):
             return Response({"detail": str(exc)}, status=400)
         return Response(
             {
-                "detail": "Status atualizado." if event else "O pedido já estava neste status.",
+                "detail": ("Solicitação registrada; aguardando confirmação da plataforma." if order.source in ("ifood", "99food") else "Status atualizado.") if event else "O pedido já estava neste status.",
                 "order": _order_card(order),
             }
         )

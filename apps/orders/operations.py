@@ -58,7 +58,7 @@ def operational_order_q():
     stock/opens WhatsApp. Those drafts must never leak into the operational board
     or status automation. Manual orders are operational immediately.
     """
-    return Q(source=OrderSource.MANUAL) | Q(whatsapp_opened_at__isnull=False)
+    return Q(source__in=[OrderSource.MANUAL, OrderSource.IFOOD, OrderSource.FOOD99]) | Q(whatsapp_opened_at__isnull=False)
 
 
 def _settings_for(tenant):
@@ -67,6 +67,9 @@ def _settings_for(tenant):
 
 
 def allowed_transitions(order: Order):
+    if order.source in (OrderSource.IFOOD, OrderSource.FOOD99):
+        from apps.channels.services import permitted
+        return permitted(order)
     allowed = list(BASE_TRANSITIONS.get(order.status, ()))
     if order.delivery_type == "pickup":
         allowed = [Status.READY_FOR_PICKUP if status == Status.READY else status for status in allowed]
@@ -156,6 +159,8 @@ def record_initial_event(
 
 def _queue_notification(event: OrderStatusEvent):
     order = event.order
+    if order.source in (OrderSource.IFOOD, OrderSource.FOOD99):
+        return None
     settings = _settings_for(order.tenant)
     phone = re.sub(r"\D", "", order.customer_phone or "")
     if not phone or not notification_enabled(settings, event.to_status):
@@ -204,9 +209,16 @@ def transition_order(
     message=None,
     complement="",
     send_notification=None,
+    cancellation_code=None,
+    cancellation_reason=None,
 ):
     if target_status not in Status.values:
         raise OrderOperationError("Status de pedido inválido.")
+
+    candidate = Order.objects.only("source").get(pk=order_id, tenant=tenant)
+    if candidate.source in (OrderSource.IFOOD, OrderSource.FOOD99):
+        from apps.channels.services import queue_transition
+        return queue_transition(order_id, tenant, target_status, actor, {"cancellationCode": cancellation_code, "reason": cancellation_reason})
 
     if send_notification is not None and not isinstance(send_notification, bool):
         raise OrderOperationError("A opção de envio deve ser verdadeira ou falsa.")

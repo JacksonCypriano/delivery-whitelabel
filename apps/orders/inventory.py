@@ -30,7 +30,7 @@ def active_reservations():
         order__abandoned_at__isnull=True,
         order__whatsapp_opened_at__isnull=True,
         order__created_at__gt=timezone.now() - DRAFT_TTL,
-    ).exclude(order__status='cancelled')
+    ).exclude(order__status='cancelled').exclude(order__source__in=['ifood', '99food'])
 
 
 def check_stock(lines, *, exclude_cart_id=None, exclude_order_id=None, exclude_whatsapp_checkout_id=None, lock=False):
@@ -94,7 +94,7 @@ def consume(order, lines, *, exclude_whatsapp_checkout_id=None):
             movement.save(update_fields=['deducted_quantity'])
 
 
-def _cancel_locked(order_id, tenant, *, allowed_statuses=None):
+def _cancel_locked(order_id, tenant, *, allowed_statuses=None, external_event=False):
     """Cancel with the historical cart -> order -> products lock ordering.
 
     Returns ``(changed, previous_status, order)`` so the operational state
@@ -104,6 +104,8 @@ def _cancel_locked(order_id, tenant, *, allowed_statuses=None):
     from .cart_service import CartError, invalidate_draft
 
     candidate = Order.objects.get(pk=order_id, tenant=tenant)
+    if candidate.source in ("ifood", "99food") and not external_event:
+        raise CartError("Cancele este pedido pelo painel multicanal para sincronizar com a plataforma.")
     cart = Cart.objects.select_for_update().filter(
         pk=candidate.source_cart_id, tenant=tenant
     ).first()

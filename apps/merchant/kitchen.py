@@ -1,5 +1,6 @@
 """KDS uses the same orders, transition service, audit and realtime channel."""
 from django.db import transaction
+from django.db.models import Q
 from rest_framework.response import Response
 from apps.orders.models import OrderStatusEvent, OrderNotificationSettings
 from apps.orders.operations import transition_order, OrderOperationError
@@ -13,11 +14,11 @@ KITCHEN_STATES = ('confirmed', 'preparing', 'ready', 'ready_for_pickup')
 class Kitchen(MerchantAPI):
     def get(self, request):
         settings, _ = OrderNotificationSettings.objects.get_or_create(tenant=request.tenant)
-        rows = _base_queryset(request.tenant).filter(status__in=KITCHEN_STATES).order_by('-kitchen_priority', 'created_at', 'pk')
+        rows = _base_queryset(request.tenant).filter(Q(status__in=KITCHEN_STATES) | Q(status='pending',source__in=['ifood','99food'])).order_by('-kitchen_priority', 'created_at', 'pk')
         cards = []
         for row in rows:
             card = _order_card(row, settings=settings)
-            card['allowed_transitions'] = [a for a in card['allowed_transitions'] if a['value'] in ('preparing', 'ready', 'ready_for_pickup')]
+            card['allowed_transitions'] = [a for a in card['allowed_transitions'] if a['value'] in (('confirmed','preparing','ready','ready_for_pickup','cancelled') if row.source in ('ifood','99food') else ('preparing','ready','ready_for_pickup'))]
             cards.append(card)
         return Response({'orders': cards, 'notification_settings': _settings_json(settings)})
 
@@ -25,10 +26,13 @@ class Kitchen(MerchantAPI):
 class KitchenAction(MerchantAPI):
     @transaction.atomic
     def post(self, request, pk):
-        order = _base_queryset(request.tenant).select_for_update(of=("self",)).filter(pk=pk).first()
+        order = _base_queryset(request.tenant).filter(pk=pk).first()
+        is_external = order is not None and order.source in ("ifood", "99food")
+        if order is not None and (not is_external or "priority" in request.data):
+            order = _base_queryset(request.tenant).select_for_update(of=("self",)).get(pk=pk)
         if order is None:
             return Response({'detail': 'Pedido não encontrado.'}, status=404)
-        if order.status not in KITCHEN_STATES:
+        if order.status not in KITCHEN_STATES and not (is_external and order.status=='pending'):
             return Response({'detail': 'Este pedido não está na cozinha.'}, status=400)
         if 'priority' in request.data:
             priority = request.data['priority']
@@ -43,12 +47,13 @@ class KitchenAction(MerchantAPI):
                 transaction.on_commit(lambda: publish_order_event(order.pk, request.tenant.pk))
             return Response({'detail': 'Prioridade atualizada.'})
         target = request.data.get('status')
-        if target not in ('preparing', 'ready', 'ready_for_pickup'):
+        if target not in (('confirmed','preparing','ready','ready_for_pickup','cancelled') if is_external else ('preparing','ready','ready_for_pickup')):
             return Response({'detail': 'Ação não permitida na cozinha.'}, status=400)
         try:
             order, event = transition_order(order_id=pk, tenant=request.tenant, actor=request.user,
                 target_status=target, note='Alterado no KDS.', message=request.data.get('message'),
                 complement=request.data.get('complement', ''), send_notification=request.data.get('send_notification'),
+                cancellation_code=request.data.get('cancellation_code'), cancellation_reason=request.data.get('cancellation_reason'),
                 prep_minutes=request.data.get('prep_minutes'), fulfillment_minutes=request.data.get('fulfillment_minutes'))
         except OrderOperationError as exc:
             return Response({'detail': str(exc)}, status=400)

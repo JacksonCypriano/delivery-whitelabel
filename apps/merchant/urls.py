@@ -31,7 +31,12 @@ from .crm import CRM
 
 from .logistics import Logistics, DeliveryPhoto
 
+from apps.channels.views import Integrations, CancellationReasons, IntegrationEvents
+
 urlpatterns = [
+    path("integrations/", Integrations.as_view()),
+    path("integrations/events/", IntegrationEvents.as_view()),
+    path("orders/<int:pk>/cancellation-reasons/", CancellationReasons.as_view()),
     path("logistics/", Logistics.as_view()),
     path("logistics/<int:pk>/photo/", DeliveryPhoto.as_view()),
     path("crm/", CRM.as_view()),

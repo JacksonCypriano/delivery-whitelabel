@@ -7,6 +7,7 @@ import { useQuery } from "../../hooks/useQuery";
 import { Feedback, Notice, Empty } from "../../components/Feedback";
 import { panelUrl } from "../../panel";
 import { claimOrderAlerts } from "./orderAlerts";
+import { ChannelBand } from "./ChannelBand";
 import { TransitionDialog } from "./TransitionDialog";
 import { actionLabel, itemDetails, localTime, money, statusIcon } from "./orderHelpers";
 
@@ -55,7 +56,7 @@ export function useOrderRealtime(reload: () => void) {
   return state;
 }
 
-function playAlert() {
+export function playAlert() {
   try {
     const Context = window.AudioContext || (window as any).webkitAudioContext;
     const ctx = new Context();
@@ -88,6 +89,7 @@ function OrderCard({
 }) {
   return (
     <article className={`order-card ${order.late ? "late" : ""} ${fresh ? "order-fresh" : ""}`}>
+      <ChannelBand order={order} />
       <div className="order-card-head">
         <div>
           <strong>#{order.id}</strong>

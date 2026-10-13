@@ -13,6 +13,11 @@ from .models import OrderStatusNotification
 def _skip_if_superseded(notice, now):
     event = notice.event
     order = event.order
+    if order.source in ("ifood", "99food"):
+        notice.skipped_at = now
+        notice.last_error = "Pedido externo sem canal de contato autorizado."
+        notice.save(update_fields=["skipped_at", "last_error"])
+        return True
     newer = order.status_events.filter(created_at__gt=event.created_at).exclude(
         to_status=event.to_status
     ).exists()

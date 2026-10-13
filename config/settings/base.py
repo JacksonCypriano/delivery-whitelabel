@@ -76,6 +76,7 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.stores",
     "apps.orders.apps.OrdersConfig",
+    "apps.channels.apps.ChannelsConfig",
     "apps.checkout",
     "apps.frontend",
     "apps.customers",
@@ -881,3 +882,17 @@ CELERY_BEAT_SCHEDULE["crm-loyalty"] = {"task":"apps.orders.crm.accrue_loyalty","
 CELERY_BEAT_SCHEDULE["crm-campaigns"] = {"task":"apps.orders.crm.plan_customer_campaigns","schedule":300.0}
 
 LEGACY_ADMIN_ENABLED = os.getenv("LEGACY_ADMIN_ENABLED", "false").lower() == "true"
+
+# Marketplace network access is opt-in; simulator is local-only and off by default.
+CHANNELS_NETWORK_ENABLED = os.getenv("CHANNELS_NETWORK_ENABLED", "0") == "1"
+CHANNELS_LIVE_ENABLED = os.getenv("CHANNELS_LIVE_ENABLED", "0") == "1"
+CHANNELS_SIMULATOR_ENABLED = os.getenv("CHANNELS_SIMULATOR_ENABLED", "0") == "1"
+IFOOD_TEST_CLIENT_ID = os.getenv("IFOOD_TEST_CLIENT_ID", "")
+IFOOD_TEST_CLIENT_SECRET = os.getenv("IFOOD_TEST_CLIENT_SECRET", "")
+IFOOD_LIVE_CLIENT_ID = os.getenv("IFOOD_LIVE_CLIENT_ID", "")
+IFOOD_LIVE_CLIENT_SECRET = os.getenv("IFOOD_LIVE_CLIENT_SECRET", "")
+CELERY_BEAT_SCHEDULE.update({
+    "marketplace-ifood-test": {"task": "apps.channels.tasks.poll_ifood", "schedule": 30.0, "args": ["test"]},
+    "marketplace-ifood-live": {"task": "apps.channels.tasks.poll_ifood", "schedule": 30.0, "args": ["live"]},
+    "marketplace-durable-queues": {"task": "apps.channels.tasks.drain", "schedule": 5.0},
+})

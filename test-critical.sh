@@ -42,6 +42,8 @@ DC=(docker compose -f "$COMPOSE_FILE")
 # Novos testes dentro desses módulos são descobertos automaticamente.
 # Ao adicionar testes críticos de outros apps, inclua o módulo nesta lista.
 TEST_SUITES=(
+    apps.channels.tests
+    apps.orders
     apps.accounts
     apps.merchant.tests
     apps.billing.tests

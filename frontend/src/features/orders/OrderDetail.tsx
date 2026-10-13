@@ -4,6 +4,7 @@ import { orders } from "../../api/orders";
 import { useQuery } from "../../hooks/useQuery";
 import { Feedback, Notice } from "../../components/Feedback";
 import { panelUrl } from "../../panel";
+import { ChannelBand } from "./ChannelBand";
 import { TransitionDialog } from "./TransitionDialog";
 import { actionLabel, itemDetails, localDate, money } from "./orderHelpers";
 
@@ -66,7 +67,7 @@ export function OrderDetail() {
         {d && (
           <div className="order-detail-grid">
             <div>
-              <section className="card print-ticket">
+              <section className="card print-ticket"><ChannelBand order={d} />
                 <div className="ticket-title">
                   <div><strong>Pedido #{d.id}</strong><small>{localDate(d.created_at)}</small></div>
                   <strong>{money(d.total)}</strong>
@@ -76,6 +77,7 @@ export function OrderDetail() {
                   <span>{d.delivery_label}{d.delivery_type === "delivery" && d.delivery_address ? ` · ${d.delivery_address}` : ""}</span>
                   {d.delivery_reference && <span>Referência: {d.delivery_reference}</span>}
                   <span>{d.payment_label}</span>
+                  {d.channel_financials&&<span>Pago na plataforma: {money(d.channel_financials.prepaid)} · A cobrar: {money(d.channel_financials.pending)} · Taxas adicionais: {money(d.channel_financials.additional_fees)}</span>}
                 </div>
                 <h2>Itens</h2>
                 {d.items.map((item: any) => (

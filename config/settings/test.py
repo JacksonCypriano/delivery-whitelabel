@@ -34,3 +34,10 @@ PLATFORM_ADMIN_HOST_ALIASES = ("testserver", "localhost")
 # Dedicated cutover tests enable the production-default React routing.
 MERCHANT_REACT_ENABLED = False
 LEGACY_ADMIN_ENABLED = True
+
+# Marketplace tests cannot inherit real credentials or external access.
+CHANNELS_NETWORK_ENABLED = False
+CHANNELS_LIVE_ENABLED = False
+CHANNELS_SIMULATOR_ENABLED = False
+IFOOD_TEST_CLIENT_ID = IFOOD_TEST_CLIENT_SECRET = ""
+IFOOD_LIVE_CLIENT_ID = IFOOD_LIVE_CLIENT_SECRET = ""

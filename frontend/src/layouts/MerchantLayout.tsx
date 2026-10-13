@@ -80,6 +80,7 @@ export function MerchantLayout() {
               {panel.kind === "merchant" && (
                 <>
                   <details className="nav-group" open><summary className="nav-label">Atendimento e financeiro</summary>
+                  <NavLink to={panelUrl("integracoes")}>iFood e 99Food</NavLink>
                   <NavLink to={panelUrl("whatsapp")}>WhatsApp e agente</NavLink>
                   <NavLink to={panelUrl("assinatura")}>Minha assinatura</NavLink>
                   <NavLink to={panelUrl("notas")}>Notas fiscais</NavLink>

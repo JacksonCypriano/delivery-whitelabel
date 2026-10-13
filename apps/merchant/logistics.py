@@ -23,7 +23,7 @@ class Logistics(MerchantAPI):
         }
         orders = []
         for order in (
-            _base_queryset(request.tenant)
+            _base_queryset(request.tenant).exclude(source__in=["ifood", "99food"])
             .filter(delivery_type="delivery", status__in=["ready", "out_for_delivery"])
             .order_by("created_at")
         ):
@@ -121,7 +121,7 @@ class Logistics(MerchantAPI):
             if action not in ("assign", "dispatch", "complete"):
                 raise ValueError("Ação inválida.")
             order = (
-                _base_queryset(request.tenant)
+                _base_queryset(request.tenant).exclude(source__in=["ifood", "99food"])
                 .select_for_update(of=("self",))
                 .filter(pk=int(d.get("order")))
                 .first()

@@ -193,7 +193,9 @@ class OrderAdmin(TenantModelAdmin):
                 'action_checkbox_name': admin.helpers.ACTION_CHECKBOX_NAME,
             })
         from .inventory import cancel
-        count = sum(cancel(order_id, request.tenant) for order_id in queryset.order_by('pk').values_list('pk', flat=True))
+        if queryset.filter(source__in=['ifood', '99food']).exists():
+            self.message_user(request, 'Pedidos externos devem ser cancelados no painel multicanal.', messages.WARNING)
+        count = sum(cancel(order_id, request.tenant) for order_id in queryset.exclude(source__in=['ifood', '99food']).order_by('pk').values_list('pk', flat=True))
         self.message_user(request, f'{count} pedido(s) cancelado(s). O estoque baixado foi devolvido quando ainda está controlado.', messages.SUCCESS)
 
     def get_queryset(self, request):

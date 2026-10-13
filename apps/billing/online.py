@@ -332,6 +332,8 @@ def _checkout_url(identifier):
 
 def create_order_checkout(order, request):
     """Create an Asaas hosted Checkout in the tenant subaccount."""
+    if order.source in ("ifood", "99food"):
+        raise BillingError("Pedidos de marketplace não geram cobrança Asaas.")
     if order.payment_flow != "online" or order.payment_method not in ONLINE_METHODS:
         raise BillingError("Este pedido não utiliza pagamento online.")
     if not order.tenant.online_payments_allowed:

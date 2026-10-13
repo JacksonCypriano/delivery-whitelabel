@@ -13,7 +13,7 @@ export const orders = {
   transition: (
     id: string | number,
     status: string,
-    options: { prep_minutes?: number; fulfillment_minutes?: number; note?: string; message?: string; complement?: string; send_notification?: boolean } = {},
+    options: { prep_minutes?: number; fulfillment_minutes?: number; note?: string; message?: string; complement?: string; send_notification?: boolean; cancellation_code?: string; cancellation_reason?: string } = {},
   ) => jsonPost(`orders/${id}/transition/`, { status, ...options }),
   estimate: (id: string | number, minutes: number) =>
     jsonPost(`orders/${id}/estimate/`, { minutes }),

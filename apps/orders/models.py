@@ -140,6 +140,8 @@ class Order(TenantModel):
     PAYMENT_FLOW_CHOICES = (
         ("in_person", "Na entrega ou retirada"),
         ("online", "Online pelo Asaas"),
+        ("marketplace", "Pago no marketplace"),
+        ("marketplace_due", "Cobrança na entrega pelo marketplace"),
     )
 
     payment_flow = models.CharField(
@@ -194,6 +196,8 @@ class Order(TenantModel):
 
     @property
     def payment_flow_label(self):
+        if self.payment_flow in ("marketplace", "marketplace_due"):
+            return self.get_payment_flow_display()
         if self.payment_flow == "online":
             return "Online pelo Asaas"
         return "Na entrega ou retirada"
@@ -373,6 +377,8 @@ class OrderItem(models.Model):
         verbose_name_plural = "Itens do pedido"
 
     def get_total_price(self):
+        if (self.combination_details or {}).get("external_line_total") is not None and self.order_id and self.order.source in ("ifood", "99food"):
+            return Decimal(self.combination_details["external_line_total"])
         return self.price * self.quantity
 
     def _customizations(self):

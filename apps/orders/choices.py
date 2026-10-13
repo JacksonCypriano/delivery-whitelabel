@@ -19,6 +19,8 @@ class OrderSource(models.TextChoices):
     WEB = "web", "Loja online"
     WHATSAPP = "whatsapp", "WhatsApp"
     MANUAL = "manual", "Balcão / telefone"
+    IFOOD = "ifood", "iFood"
+    FOOD99 = "99food", "99Food"
 
 
 class StatusEventSource(models.TextChoices):

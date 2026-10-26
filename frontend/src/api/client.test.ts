@@ -6,7 +6,7 @@ describe("Cliente centralizado", () => {
   it("envia sessão e CSRF nas mutações", async () => {
     const fetch = vi
       .fn()
-      .mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+      .mockResolvedValue({ ok: true, headers: new Headers(), json: async () => ({ ok: true }) });
     vi.stubGlobal("fetch", fetch);
     setCsrf("csrf-test");
     await request("resources/products/1/", {
@@ -49,5 +49,21 @@ describe("Cliente centralizado", () => {
     } catch (e) {
       expect((e as ApiError).data.errors.price).toEqual(["Valor inválido"]);
     }
+  });
+});
+
+describe('Exportação autenticada', () => {
+  it('baixa a resposta binária com o nome retornado pelo servidor', async () => {
+    const create = vi.fn(() => 'blob:export');
+    Object.defineProperty(URL, 'createObjectURL', {configurable:true,value:create});
+    Object.defineProperty(URL, 'revokeObjectURL', {configurable:true,value:vi.fn()});
+    const click=vi.spyOn(HTMLAnchorElement.prototype,'click').mockImplementation(()=>{});
+    const blob=new Blob(['loja;valor\nTeste;149'],{type:'text/csv'});
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue({ok:true,headers:new Headers({'Content-Disposition':'attachment; filename="conferencia.csv"'}),blob:async()=>blob}));
+    await request('resources/billing-fiscalinvoice/actions/',{method:'POST',body:new FormData()});
+    expect(create).toHaveBeenCalledWith(blob);
+    expect(click).toHaveBeenCalledOnce();
+    expect((click.mock.instances[0] as unknown as HTMLAnchorElement).download).toBe('conferencia.csv');
+    click.mockRestore();
   });
 });

@@ -1,3 +1,5 @@
+import { FreeDays } from "../features/superadmin/FreeDays";
+import { Credit, Prospecting, Evolution, UserPassword } from "../features/superadmin/Operations";
 import { useEffect } from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
 import { MerchantLayout } from "../layouts/MerchantLayout";
@@ -57,6 +59,13 @@ export function App() {
             <Route path="cobrancas/:id" element={<Finance mode="cobrancas" />} />
           </>
         )}
+        {panel.kind === "superadmin" && <>
+          <Route path="accounts-user/:id/senha" element={<UserPassword />} />
+          <Route path="tenants-tenant/:id/gratuidade" element={<FreeDays />} />
+          <Route path="prospeccao" element={<Prospecting />} />
+          <Route path="evolution" element={<Evolution />} />
+          <Route path="billing-subscription/:id/credito" element={<Credit />} />
+        </>}
         <Route path=":resource" element={<ResourceList />} />
         <Route path=":resource/:id" element={<ResourceDetail />} />
       </Route>

@@ -100,6 +100,7 @@ MIDDLEWARE = [
     "apps.marketplace.middleware.GlobalDeliveryLocationMiddleware",
 
     "django.contrib.messages.middleware.MessageMiddleware",
+    "apps.merchant.activity_middleware.ActivityScopeMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -826,6 +827,10 @@ CELERY_BEAT_SCHEDULE = {
     "evolution-monitor": {"task": "apps.integrations.tasks.monitor_whatsapp", "schedule": 60.0},
     "evolution-alerts": {"task": "apps.integrations.tasks.send_whatsapp_alerts", "schedule": 60.0},
     "tenant-whatsapp-agent-monitor": {"task": "apps.integrations.tasks.monitor_tenant_whatsapp_agents", "schedule": 60.0},
+    "admin-selection-cleanup": {
+        "task": "apps.core.tasks.prune_expired_admin_selections",
+        "schedule": crontab(minute="*/15"),
+    },
     "billing-suspend-daily": {
         "task": "apps.billing.tasks.suspend_expired_subscriptions",
         "schedule": crontab(hour=6, minute=0),

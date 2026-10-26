@@ -1,6 +1,6 @@
-import { panelUrl } from "../../panel";
+import { panel, panelUrl } from "../../panel";
 import { ListEditor } from "./ListEditor";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { resources } from "../../api/resources";
 import { useQuery } from "../../hooks/useQuery";
@@ -14,6 +14,17 @@ export function ResourceList() {
       () => resources.list(resource, "?" + params.toString()),
       [resource, params.toString()],
     );
+  const [across, setAcross] = useState<{
+    selection: string;
+    count: number;
+  } | null>(null);
+  const selectionParams = new URLSearchParams(params);
+  selectionParams.delete("p");
+  selectionParams.delete("page_size");
+  useEffect(() => {
+    setAcross(null);
+    setSelected([]);
+  }, [resource, selectionParams.toString()]);
   const [selected, setSelected] = useState<string[]>([]),
     [action, setAction] = useState(""),
     [busy, setBusy] = useState(false),
@@ -25,10 +36,17 @@ export function ResourceList() {
     setError(null);
     setConfirm(null);
     try {
-      const r = await resources.action(resource, action, selected, confirmed);
+      const r = await resources.action(
+        resource,
+        action,
+        selected,
+        confirmed,
+        across?.selection || "",
+      );
       if (r.confirmation_required) setConfirm(r.objects);
       else {
         setSelected([]);
+        setAcross(null);
         setMessages(r.messages || [{ level: "success", text: r.detail }]);
         query.reload();
       }
@@ -53,6 +71,18 @@ export function ResourceList() {
           </Link>
         )}
       </div>
+      {panel.kind === "superadmin" &&
+        resource === "prospecting-prospectingbatch" && (
+          <Link className="button" to={panelUrl("prospeccao")}>
+            Importação e campanhas
+          </Link>
+        )}
+      {panel.kind === "superadmin" &&
+        resource === "integrations-whatsappintegrationstate" && (
+          <Link className="button" to={panelUrl("evolution")}>
+            Operar conexão da plataforma
+          </Link>
+        )}
       {d?.can_list_edit && !editing && (
         <button className="secondary" onClick={() => setEditing(true)}>
           Editar campos desta página
@@ -205,10 +235,51 @@ export function ResourceList() {
                     ))}
                   </select>
                   <button
-                    disabled={busy || !selected.length || !action}
+                    disabled={
+                      busy || (!selected.length && !across?.count) || !action
+                    }
                     onClick={() => run()}
                   >
-                    {busy ? "Processando…" : `Aplicar (${selected.length})`}
+                    {busy
+                      ? "Processando…"
+                      : `Aplicar (${across?.count ?? selected.length})`}
+                  </button>
+                </div>
+              )}
+              {d.actions.length > 0 && (
+                <div className="toolbar">
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={busy || !d.count}
+                    onClick={async () => {
+                      setBusy(true);
+                      try {
+                        const result = await resources.selectAll(
+                          resource,
+                          params.toString(),
+                        );
+                        setAcross(result);
+                        setSelected([]);
+                      } catch (e) {
+                        setError(e as Error);
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                  >
+                    Selecionar todos os {d.count} resultados filtrados
+                  </button>
+                  <span>{across?.count ?? selected.length} selecionados</span>
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => {
+                      setAcross(null);
+                      setSelected([]);
+                    }}
+                  >
+                    Desfazer seleção
                   </button>
                 </div>
               )}
@@ -224,16 +295,18 @@ export function ResourceList() {
                             type="checkbox"
                             aria-label="Selecionar página"
                             checked={
-                              selected.length === d.rows.length &&
-                              d.rows.length > 0
+                              !!across ||
+                              (selected.length === d.rows.length &&
+                                d.rows.length > 0)
                             }
-                            onChange={(e) =>
+                            onChange={(e) => {
+                              setAcross(null);
                               setSelected(
                                 e.target.checked
                                   ? d.rows.map((r: any) => String(r.id))
                                   : [],
-                              )
-                            }
+                              );
+                            }}
                           />
                         </th>
                         {d.columns.map((c: any) => (
@@ -263,16 +336,19 @@ export function ResourceList() {
                             <input
                               type="checkbox"
                               aria-label={"Selecionar " + row.id}
-                              checked={selected.includes(String(row.id))}
-                              onChange={(e) =>
+                              checked={
+                                !!across || selected.includes(String(row.id))
+                              }
+                              onChange={(e) => {
+                                setAcross(null);
                                 setSelected(
                                   e.target.checked
                                     ? [...selected, String(row.id)]
                                     : selected.filter(
                                         (id) => id !== String(row.id),
                                       ),
-                                )
-                              }
+                                );
+                              }}
                             />
                           </td>
                           {row.values.map((v: any, i: number) => (
@@ -291,7 +367,26 @@ export function ResourceList() {
               )}
               <nav className="pagination" aria-label="Paginação">
                 <span>{d.count} registros</span>
-                <label>Por página <select aria-label="Registros por página" value={params.get("page_size") || "10"} onChange={e=>{const next=new URLSearchParams(params);next.set("page_size",e.target.value);next.delete("p");setParams(next);setSelected([]);}}>{[10,25,50,100].map(n=><option key={n} value={n}>{n}</option>)}</select></label>
+                <label>
+                  Por página{" "}
+                  <select
+                    aria-label="Registros por página"
+                    value={params.get("page_size") || "10"}
+                    onChange={(e) => {
+                      const next = new URLSearchParams(params);
+                      next.set("page_size", e.target.value);
+                      next.delete("p");
+                      setParams(next);
+                      setSelected([]);
+                    }}
+                  >
+                    {[10, 25, 50, 100].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <button
                   className="secondary"
                   disabled={d.page <= 1}

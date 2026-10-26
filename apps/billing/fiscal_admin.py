@@ -350,6 +350,7 @@ class FiscalCustomerRuleAdmin(GlobalAdmin):
 class MunicipalExportForm(forms.ModelForm):
     upload = forms.FileField(
         label="CSV V.004 ORIGINAL exportado da prefeitura",
+        widget=forms.ClearableFileInput(attrs={"accept": ".csv,text/csv"}),
         help_text="Arquivo mensal para importação na Contabilizei. Não envie o relatório genérico do sistema. Máximo 5 MB; não é disponibilizado aos lojistas.",
     )
 

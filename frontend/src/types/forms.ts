@@ -3,6 +3,9 @@ export type Field = {
   html_name: string;
   label: string;
   kind: string;
+  accept?: string;
+  lookup?: string;
+  multiple?: boolean;
   value: any;
   required: boolean;
   disabled: boolean;

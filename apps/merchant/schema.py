@@ -3,6 +3,7 @@
 import datetime
 from decimal import Decimal
 from django import forms
+from django.core.exceptions import ValidationError
 from django.contrib.admin.utils import label_for_field, lookup_field
 from django.db.models import Model
 from django.utils import timezone
@@ -30,8 +31,58 @@ def value(v):
 
 
 def display(admin, obj, name):
+    if name in {"password", "encrypted_api_key", "lease_token"}:
+        return "Protegido"
     if obj is None or not obj.pk:
         return ""
+    if getattr(admin.admin_site, "name", "") == "super_admin":
+        label = obj._meta.label_lower
+        if label == "billing.subscription" and name == "credit_link":
+            return {
+                "url": f"/painel/billing-subscription/{obj.pk}/credito",
+                "label": "Acrescentar meses",
+            }
+        if label == "integrations.whatsappintegrationstate" and name == "panel_link":
+            from apps.integrations.whatsapp.monitor import identity
+
+            if obj.identity == identity():
+                return {"url": "/painel/evolution", "label": "Abrir painel"}
+        if label == "billing.fiscalinvoice" and name == "document_links":
+            return {
+                "links": [
+                    {
+                        "url": f"/api/superadmin/resources/billing-fiscalinvoice/{obj.pk}/download/{kind}/",
+                        "label": kind.upper(),
+                    }
+                    for kind in ("pdf", "xml")
+                    if getattr(obj, kind + "_sha256")
+                ]
+            }
+        if label == "billing.municipalexport" and name == "download_link":
+            return {
+                "url": f"/api/superadmin/resources/billing-municipalexport/{obj.pk}/download/csv/",
+                "label": "Baixar CSV municipal",
+            }
+    if name == "iss_warning" and obj._meta.label_lower == "billing.fiscalsettings":
+        from apps.billing.fiscal import monthly_warning
+
+        return {
+            "text": monthly_warning(obj),
+            "links": [
+                {
+                    "url": "/painel/billing-taxrate",
+                    "label": "Conferir/cadastrar alíquota",
+                }
+            ],
+        }
+    if name == "fee_information":
+        return {"url": "/painel/taxas", "label": "Consultar tarifas atuais do Asaas"}
+    if name == "activation_url" and getattr(obj, "activation_url", ""):
+        from urllib.parse import urlsplit
+
+        url = obj.activation_url
+        if urlsplit(url).scheme == "https":
+            return {"url": url, "label": "Ativar conta Asaas"}
     if name == "thumbnail" and hasattr(obj, "get_primary_image"):
         url = obj.get_primary_image()
         return {"image": url, "label": str(obj)} if url else ""
@@ -53,7 +104,7 @@ def display(admin, obj, name):
         return ""
 
 
-def fields_schema(form):
+def fields_schema(form, lookup=None):
     result = []
     for name, f in form.fields.items():
         bound = form[name]
@@ -83,9 +134,16 @@ def fields_schema(form):
             kind = "decimal"
         elif isinstance(f, forms.IntegerField):
             kind = "number"
+        if isinstance(widget, forms.CheckboxSelectMultiple):
+            kind = "checkboxes"
         if widget.is_hidden and name != "terms_accepted":
             kind = "hidden"
-        current = bound.value()
+        current = "" if isinstance(widget, forms.PasswordInput) else bound.value()
+        from django.contrib.auth.forms import ReadOnlyPasswordHashField
+
+        if isinstance(f, ReadOnlyPasswordHashField):
+            current = "Senha protegida. Use a operação Alterar senha."
+            kind = "text"
         if isinstance(f, forms.BooleanField):
             current = f.to_python(current)
         if isinstance(f, forms.SplitDateTimeField) and isinstance(
@@ -105,7 +163,32 @@ def fields_schema(form):
         elif isinstance(f, forms.DecimalField) and current is not None:
             current = str(current).replace(".", ",") if f.localize else str(current)
         choices = []
-        if kind in ("select", "multiple"):
+        relation = (
+            lookup
+            and isinstance(f, (forms.ModelChoiceField, forms.ModelMultipleChoiceField))
+            and kind != "hidden"
+        )
+        if relation:
+            kind = "relationship"
+            selected = current if isinstance(current, (list, tuple)) else [current]
+            selected = [x for x in selected if x not in (None, "")]
+            try:
+                choices = (
+                    [
+                        {
+                            "value": str(f.prepare_value(x)),
+                            "label": f.label_from_instance(x),
+                        }
+                        for x in f.queryset.filter(
+                            **{(f.to_field_name or "pk") + "__in": selected}
+                        )
+                    ]
+                    if selected
+                    else []
+                )
+            except (ValueError, TypeError, ValidationError):
+                choices = []
+        if kind in ("select", "multiple", "checkboxes"):
             for k, label in f.choices:
                 if isinstance(label, (tuple, list)):
                     choices.extend(
@@ -124,9 +207,16 @@ def fields_schema(form):
                 "html_name": bound.html_name,
                 "label": str(f.label or name),
                 "kind": kind,
+                "lookup": lookup + "&field=" + name if relation else None,
+                "multiple": isinstance(f, forms.ModelMultipleChoiceField),
+                "accept": (
+                    "image/*"
+                    if isinstance(f, forms.ImageField)
+                    else str(widget.attrs.get("accept", ""))
+                ),
                 "value": value(current),
                 "required": f.required and not form.empty_permitted,
-                "disabled": f.disabled,
+                "disabled": f.disabled or isinstance(f, ReadOnlyPasswordHashField),
                 "help": strip_tags(str(f.help_text)),
                 "choices": choices,
                 "max_length": getattr(f, "max_length", None),

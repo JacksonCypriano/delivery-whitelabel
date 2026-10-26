@@ -1,4 +1,4 @@
-import { panelUrl } from "../../panel";
+import { panel, panelUrl } from "../../panel";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { resources } from "../../api/resources";
@@ -23,6 +23,8 @@ export function ResourceDetail() {
     [confirm, setConfirm] = useState<any>(null),
     [generation, setGeneration] = useState(0),
     [history, setHistory] = useState(false);
+  const [createPreview, setCreatePreview] = useState<any>(null);
+  const [createData, setCreateData] = useState<FormData | null>(null);
   const d = q.data;
   async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -33,8 +35,18 @@ export function ResourceDetail() {
       ...d.fields,
       ...d.inlines.flatMap((g: any) => g.forms.flatMap((f: any) => f.fields)),
     ]);
+    await submitData(data);
+  }
+  async function submitData(data: FormData) {
+    setBusy(true);
+    setError(null);
     try {
       const r = await resources.save(resource, id, data);
+      if (r.free_days_preview) {
+        setCreateData(data);
+        setCreatePreview(r);
+        return;
+      }
       setMessages([
         { level: "success", text: r.detail },
         ...(r.messages || []),
@@ -103,10 +115,42 @@ export function ResourceDetail() {
           </button>
         )}
       </div>
+      {panel.kind === "superadmin" &&
+        resource === "accounts-user" &&
+        id !== "novo" && (
+          <Link
+            className="button secondary"
+            to={panelUrl(`accounts-user/${id}/senha`)}
+          >
+            Alterar senha
+          </Link>
+        )}
+      {d?.free_days_url && (
+        <Link className="button" to={d.free_days_url}>
+          Conceder dias gratuitos
+        </Link>
+      )}
       {id !== "novo" && (
         <button className="text-button" onClick={() => setHistory(!history)}>
           Histórico de alterações
         </button>
+      )}
+      {createPreview && (
+        <Confirm
+          title="Confirmar cadastro com gratuidade"
+          details={createPreview.details}
+          onClose={() => setCreatePreview(null)}
+          onConfirm={() => {
+            if (createData) {
+              createData.set(
+                "free_days_preview",
+                createPreview.free_days_preview,
+              );
+              setCreatePreview(null);
+              void submitData(createData);
+            }
+          }}
+        />
       )}
       {history && id !== "novo" && <History resource={resource} id={id} />}
       <Notice messages={messages} />

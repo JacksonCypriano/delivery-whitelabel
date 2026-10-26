@@ -1,3 +1,4 @@
+import { RelationshipInput } from "./RelationshipInput";
 import { useState } from "react";
 import {
   formatWhatsapp,
@@ -8,6 +9,18 @@ import {
 import type { Field, FormRow } from "../types/forms";
 import { request } from "../api/client";
 export function Display({ value }: { value: any }) {
+  if (value && Array.isArray(value.links))
+    return (
+      <>
+        {value.text && <span>{value.text} </span>}
+        {value.links.map((link: any) => (
+          <span key={link.url}>
+            <a href={link.url}>{link.label}</a>
+            {" · "}
+          </span>
+        ))}
+      </>
+    );
   if (value && typeof value === "object" && value.image)
     return <img className="thumbnail" src={value.image} alt={value.label} />;
   if (value && typeof value === "object" && value.url)
@@ -114,7 +127,27 @@ export function FieldInput({ field: f }: { field: Field }) {
     return (
       <input type="hidden" name={f.html_name} defaultValue={String(current)} />
     );
-  if (f.kind === "checkbox")
+  if (f.kind === "relationship") input = <RelationshipInput field={f} />;
+  else if (f.kind === "checkboxes")
+    input = (
+      <div>
+        {f.choices.map((c) => (
+          <label key={c.value}>
+            <input
+              type="checkbox"
+              name={f.html_name}
+              value={c.value}
+              disabled={f.disabled}
+              defaultChecked={
+                Array.isArray(current) && current.map(String).includes(c.value)
+              }
+            />
+            {c.label}
+          </label>
+        ))}
+      </div>
+    );
+  else if (f.kind === "checkbox")
     input = <input {...shared} type="checkbox" defaultChecked={!!current} />;
   else if (f.kind === "file")
     input = (
@@ -123,7 +156,7 @@ export function FieldInput({ field: f }: { field: Field }) {
           {...shared}
           required={f.required && !current?.url}
           type="file"
-          accept="image/*"
+          accept={f.accept || undefined}
         />
         {current?.url && (
           <>
@@ -133,7 +166,7 @@ export function FieldInput({ field: f }: { field: Field }) {
             {!f.required && (
               <label>
                 <input type="checkbox" name={f.html_name + "-clear"} /> Remover
-                imagem
+                arquivo
               </label>
             )}
           </>
@@ -212,11 +245,49 @@ export function FieldInput({ field: f }: { field: Field }) {
   );
 }
 export function FormFields({ row }: { row: FormRow }) {
+  const [values, setValues] = useState<Record<string, any>>(() =>
+    Object.fromEntries(row.fields.map((f) => [f.name, f.value])),
+  );
+  const payment = row.fields.some((f) => f.name === "terms_accepted");
+  const document = String(values.document || "").replace(/[^a-zA-Z0-9]/g, "");
+  function visible(f: Field) {
+    if (
+      payment &&
+      !values.enabled &&
+      !["enabled", "id", "DELETE"].includes(f.name)
+    )
+      return false;
+    if (payment && f.name === "birth_date" && document.length === 14)
+      return false;
+    if (payment && f.name === "company_type" && /^\d{11}$/.test(document))
+      return false;
+    if (
+      row.fields.some((x) => x.name === "is_closed") &&
+      values.is_closed &&
+      ["opens_at", "closes_at", "opening_time", "closing_time"].includes(f.name)
+    )
+      return false;
+    return true;
+  }
   return (
     <>
-      <div className="form-grid">
+      <div
+        className="form-grid"
+        onChange={(e) => {
+          const target = e.target as HTMLInputElement;
+          const field = row.fields.find((f) => f.html_name === target.name);
+          if (field)
+            setValues((v) => ({
+              ...v,
+              [field.name]:
+                target.type === "checkbox" ? target.checked : target.value,
+            }));
+        }}
+      >
         {row.fields.map((f) => (
-          <FieldInput key={f.html_name} field={f} />
+          <div key={f.html_name} hidden={!visible(f)}>
+            <FieldInput field={{ ...f, required: visible(f) && f.required }} />
+          </div>
         ))}
         {row.readonly.map((f) => (
           <div className="field readonly" key={f.name}>

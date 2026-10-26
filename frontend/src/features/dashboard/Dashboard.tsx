@@ -1,3 +1,4 @@
+import { Activity } from "./Activity";
 import { panel, panelUrl } from "../../panel";
 import { Link, useOutletContext } from "react-router-dom";
 export function Dashboard() {
@@ -12,10 +13,13 @@ export function Dashboard() {
             <p className="muted">Gestão central da plataforma VemDeDelivery.</p>
           </div>
         </div>
+        {d.alerts?.map((a:any) => <div className="alert" key={a.url}><Link to={a.url}>{a.text}</Link></div>)}
+        <div className="actions"><Link className="button" to={panelUrl("prospeccao")}>Prospecção WhatsApp</Link><Link className="button secondary" to={panelUrl("evolution")}>Evolution API</Link></div>
         <div className="stats">
           <section className="card"><span>Módulos disponíveis</span><strong>{d.stats?.resources || 0}</strong></section>
           <section className="card"><span>Áreas administrativas</span><strong>{Object.keys(d.groups || {}).length}</strong></section>
         </div>
+        <Activity />
         <div className="cards">
           {d.resources.map((r: any) => (
             <Link className="card shortcut" key={r.key} to={panelUrl(r.key)}>
@@ -84,6 +88,7 @@ export function Dashboard() {
             ))}
         </div>
       </section>
+      <Activity />
       <div className="cards">
         {d.resources.map((r: any) => (
           <Link className="card shortcut" key={r.key} to={panelUrl(r.key)}>

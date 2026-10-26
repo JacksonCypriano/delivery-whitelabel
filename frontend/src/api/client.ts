@@ -39,6 +39,16 @@ export async function request<T = any>(
         ...options.headers,
       },
     });
+    if (response.ok && response.headers.get("Content-Disposition")?.includes("attachment")) {
+      const blob = await response.blob();
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = response.headers.get("Content-Disposition")?.match(/filename="?([^";]+)/)?.[1] || "download";
+      a.click();
+      window.setTimeout(() => URL.revokeObjectURL(href), 1000);
+      return { detail: "Arquivo exportado.", messages: [] } as T;
+    }
     const data = await response
       .json()
       .catch(() => ({

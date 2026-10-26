@@ -54,12 +54,12 @@ class PublicReactTests(CriticalTestCase):
 
 @override_settings(MERCHANT_REACT_ENABLED=True, LEGACY_ADMIN_ENABLED=False)
 class ReactCutoverTests(CriticalTestCase):
-    def test_legacy_get_redirects_and_posts_are_not_executed(self):
+    def test_legacy_remains_functional_during_react_validation(self):
         client=Client(HTTP_HOST=self.host(self.tenant_a))
         client.force_login(self.admin_a)
-        self.assertEqual(client.get('/admin/')['Location'],'/painel/')
-        self.assertEqual(client.post('/admin/').status_code,409)
+        self.assertEqual(client.get('/admin/').status_code,200)
+        self.assertEqual(client.post('/admin/').status_code,200)
         root=Client(HTTP_HOST='vemdedelivery.com.br')
         root.force_login(self.superuser)
-        self.assertEqual(root.get('/superadmin-legacy/')['Location'],'/painel/')
-        self.assertEqual(root.post('/superadmin-legacy/').status_code,409)
+        self.assertEqual(root.get('/superadmin-legacy/').status_code,200)
+        self.assertEqual(root.post('/superadmin-legacy/').status_code,200)

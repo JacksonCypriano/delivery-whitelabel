@@ -33,7 +33,12 @@ from .logistics import Logistics, DeliveryPhoto
 
 from apps.channels.views import Integrations, CancellationReasons, IntegrationEvents
 
+from .api import Selection, Relationships, Activity
+
 urlpatterns = [
+    path("activity/", Activity.as_view()),
+    path("resources/<slug:resource>/selection/", Selection.as_view()),
+    path("resources/<slug:resource>/<str:pk>/relationships/", Relationships.as_view()),
     path("integrations/", Integrations.as_view()),
     path("integrations/events/", IntegrationEvents.as_view()),
     path("orders/<int:pk>/cancellation-reasons/", CancellationReasons.as_view()),

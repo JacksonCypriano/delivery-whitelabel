@@ -1,3 +1,5 @@
+from apps.merchant.relationships import lookup_base
+
 """Session/CSRF-protected merchant API, reusing the existing backend policies."""
 
 from django.contrib import messages
@@ -172,6 +174,9 @@ class Dashboard(MerchantAPI):
 
 def guarded(request, resource, pk=None, operation="view"):
     admin = resource_admin(resource)
+    raw_request = getattr(request, "_request", request)
+    raw_request.react_resource = resource
+    raw_request.react_scope = "merchant"
     if not admin.has_module_permission(request):
         raise PermissionDenied()
     obj = (
@@ -188,6 +193,8 @@ def guarded(request, resource, pk=None, operation="view"):
 
 def form_bundle(admin, raw, obj, bound=False):
     kwargs = {"instance": obj}
+    if obj is None and not bound:
+        kwargs["initial"] = admin.get_changeform_initial_data(raw)
     if bound:
         kwargs.update(data=raw.POST, files=raw.FILES)
     form = admin.get_form(raw, obj)(**kwargs)
@@ -213,14 +220,16 @@ def bundle_schema(admin, raw, obj, form, formsets, inlines):
                 "can_delete": fs.can_delete and inline.has_delete_permission(raw, obj),
                 "forms": [
                     {
-                        "fields": fields_schema(f),
+                        "fields": fields_schema(f, lookup_base(raw, obj, fs.prefix)),
                         "readonly": readonly(inline, raw, f.instance),
                         "errors": list(f.non_field_errors()),
                     }
                     for f in fs.forms
                 ],
                 "empty": {
-                    "fields": fields_schema(fs.empty_form),
+                    "fields": fields_schema(
+                        fs.empty_form, lookup_base(raw, obj, fs.prefix)
+                    ),
                     "readonly": [],
                     "errors": [],
                 },
@@ -229,7 +238,7 @@ def bundle_schema(admin, raw, obj, form, formsets, inlines):
     return {
         "id": obj.pk if obj else None,
         "title": str(obj) if obj else "Novo cadastro",
-        "fields": fields_schema(form),
+        "fields": fields_schema(form, lookup_base(raw, obj)),
         "sections": sections(admin, raw, obj),
         "readonly": readonly(admin, raw, obj),
         "inlines": groups,
@@ -251,6 +260,7 @@ class ResourceList(MerchantAPI):
 
         try:
             from apps.merchant.pagination import paged_admin
+
             admin = paged_admin(admin, raw)
             cl = admin.get_changelist_instance(raw)
         except (IncorrectLookupParameters, ValueError):
@@ -437,26 +447,57 @@ class ResourceAction(MerchantAPI):
                 {"detail": "Use a operação de pedidos do novo painel."},
                 status=409,
             )
-        admin, _ = guarded(request, resource, operation="change")
+        admin, _ = guarded(request, resource, operation="view")
         data = request.data
         raw = request._request
         name = data.get("action")
         actions = admin.get_actions(raw)
         if name not in actions:
             raise PermissionDenied()
+        snapshot = None
         ids = data.getlist("ids") if hasattr(data, "getlist") else data.get("ids", [])
-        if not isinstance(ids, list) or not ids or len(ids) > 500:
-            return Response({"detail": "Selecione de 1 a 500 registros."}, status=400)
-        try:
-            qs = admin.get_queryset(raw).filter(pk__in=ids)
-        except (ValueError, TypeError):
-            return Response({"detail": "Seleção inválida."}, status=400)
-        if qs.count() != len(set(map(str, ids))):
-            raise Http404
-        if any(not admin.has_change_permission(raw, obj) for obj in qs):
+        if data.get("selection"):
+            from apps.merchant.selection import selected_queryset
+
+            qs, snapshot = selected_queryset(
+                admin, raw, resource, "merchant", data["selection"]
+            )
+            if data.get("confirmed") != "yes":
+                return Response(
+                    {
+                        "confirmation_required": True,
+                        "objects": [
+                            f"Executar {name} em {snapshot.count} registros filtrados."
+                        ],
+                    }
+                )
+        else:
+            if not isinstance(ids, list) or not ids or len(ids) > 500:
+                return Response(
+                    {"detail": "Selecione de 1 a 500 registros."}, status=400
+                )
+            try:
+                qs = admin.get_queryset(raw).filter(pk__in=ids)
+            except (ValueError, TypeError):
+                return Response({"detail": "Seleção inválida."}, status=400)
+            if qs.count() != len(set(map(str, ids))):
+                raise Http404
+        permissions = getattr(actions[name][0], "allowed_permissions", ["change"])
+        if any(
+            not any(
+                getattr(admin, "has_" + permission + "_permission")(raw, obj)
+                for permission in permissions
+            )
+            for obj in qs.iterator(chunk_size=1000)
+        ):
             raise PermissionDenied()
+        from apps.merchant.selection import finalize_selection
+
         if name == "delete_selected":
-            if any(not admin.has_delete_permission(raw, obj) for obj in qs):
+            if any(
+                not admin.has_delete_permission(raw, obj)
+                for obj in qs.iterator(chunk_size=1000)
+            ):
                 raise PermissionDenied()
             deleted, counts, perms, protected = admin.get_deleted_objects(qs, raw)
             if perms or protected:
@@ -487,7 +528,11 @@ class ResourceAction(MerchantAPI):
                     )
                 raw.POST = raw.POST.copy()
                 raw.POST["confirm_cancel"] = "1"
-            actions[name][0](admin, raw, qs)
+            result = actions[name][0](admin, raw, qs)
+            if result is not None:
+                finalize_selection(snapshot, result)
+                return result
+        finalize_selection(snapshot)
         return Response({"detail": "Ação concluída.", "messages": notices(raw)})
 
 
@@ -507,7 +552,10 @@ class History(MerchantAPI):
             .order_by("-action_time")
         )
         from apps.merchant.pagination import page_size
-        page = Paginator(entries, page_size(request)).get_page(request.query_params.get("page"))
+
+        page = Paginator(entries, page_size(request)).get_page(
+            request.query_params.get("page")
+        )
         return Response(
             {
                 "rows": [
@@ -536,6 +584,7 @@ class ListEdit(MerchantAPI):
 
         try:
             from apps.merchant.pagination import paged_admin
+
             admin = paged_admin(admin, raw)
             cl = admin.get_changelist_instance(raw)
         except (IncorrectLookupParameters, ValueError):
@@ -601,3 +650,32 @@ class ListEdit(MerchantAPI):
         return Response(
             {"detail": "Alterações da página salvas.", "messages": notices(raw)}
         )
+
+
+class Selection(MerchantAPI):
+    def post(self, request, resource):
+        admin, _ = guarded(request, resource)
+        from apps.merchant.selection import create_selection
+
+        selection = create_selection(admin, request._request, resource, "merchant")
+        return Response({"selection": str(selection.pk), "count": selection.count})
+
+
+class Relationships(MerchantAPI):
+    def get(self, request, resource, pk):
+        from apps.merchant.relationships import search_relationship
+
+        admin, obj = guarded(
+            request,
+            resource,
+            None if pk == "new" else pk,
+            "add" if pk == "new" else "view",
+        )
+        return search_relationship(request, admin, obj, form_bundle)
+
+
+class Activity(MerchantAPI):
+    def get(self, request):
+        from apps.merchant.activity import recent_activity
+
+        return Response(recent_activity(request, RESOURCES, resource_admin, "merchant"))

@@ -1,5 +1,8 @@
 """Session/CSRF-protected SuperAdmin API reusing existing Django Admin policies."""
 
+from apps.billing.provider import BillingError
+from apps.merchant.relationships import lookup_base
+
 from django.contrib import messages
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.forms import PasswordChangeForm
@@ -27,7 +30,10 @@ class SuperAdminHostPermission(BasePermission):
     """Global administration is exposed only on the root/base domain."""
 
     def has_permission(self, request, view):
-        if not is_platform_host(request) or getattr(request, "tenant", None) is not None:
+        if (
+            not is_platform_host(request)
+            or getattr(request, "tenant", None) is not None
+        ):
             raise NotFound("Administração global não disponível neste domínio.")
         return True
 
@@ -73,7 +79,10 @@ class Session(SuperAdminAPI):
             {
                 "csrf": get_token(request),
                 "authenticated": bool(
-                    user.is_authenticated and user.is_active and user.is_staff and user.is_superuser
+                    user.is_authenticated
+                    and user.is_active
+                    and user.is_staff
+                    and user.is_superuser
                 ),
                 "password_change_required": False,
                 "store": "Administração global",
@@ -127,11 +136,32 @@ class Dashboard(SuperAdminAPI):
         groups = {}
         for key, (_, title, group) in RESOURCES.items():
             admin = resource_admin(key)
-            if admin.has_module_permission(request._request) and admin.has_view_permission(request._request):
+            if admin.has_module_permission(
+                request._request
+            ) and admin.has_view_permission(request._request):
                 resources.append({"key": key, "title": title, "group": group})
                 groups[group] = groups.get(group, 0) + 1
+        context = resource_admin("billing-taxrate").admin_site.each_context(
+            request._request
+        )
+        alerts = []
+        if context.get("global_tax_rate_alert"):
+            alerts.append(
+                {
+                    "text": "Confira a alíquota de ISS deste mês na Contabilizei.",
+                    "url": "/painel/billing-taxrate",
+                }
+            )
+        if context.get("global_asaas_fee_alert"):
+            alerts.append(
+                {
+                    "text": "Tarifas Asaas pendentes de revisão.",
+                    "url": "/painel/billing-asaasfeesnapshot",
+                }
+            )
         return Response(
             {
+                "alerts": alerts,
                 "panel": "superadmin",
                 "store": "Administração global",
                 "resources": resources,
@@ -144,13 +174,19 @@ class Dashboard(SuperAdminAPI):
 def guarded(request, resource, pk=None, operation="view"):
     raw = getattr(request, "_request", request)
     admin = resource_admin(resource)
+    raw_request = getattr(request, "_request", request)
+    raw_request.react_resource = resource
+    raw_request.react_scope = "superadmin"
     if not admin.has_module_permission(raw):
         raise PermissionDenied()
-    obj = (
-        get_object_or_404(admin.get_queryset(raw), pk=pk)
-        if pk is not None
-        else None
-    )
+    try:
+        obj = (
+            get_object_or_404(admin.get_queryset(raw), pk=pk)
+            if pk is not None
+            else None
+        )
+    except (ValueError, TypeError, ValidationError) as exc:
+        raise Http404 from exc
     check = getattr(admin, "has_" + operation + "_permission")
     allowed = check(raw) if operation == "add" else check(raw, obj)
     if not allowed:
@@ -160,9 +196,15 @@ def guarded(request, resource, pk=None, operation="view"):
 
 def form_bundle(admin, raw, obj, bound=False):
     kwargs = {"instance": obj}
+    if obj is None and not bound:
+        kwargs["initial"] = admin.get_changeform_initial_data(raw)
     if bound:
         kwargs.update(data=raw.POST, files=raw.FILES)
     form = admin.get_form(raw, obj)(**kwargs)
+    if obj is None and getattr(raw, "react_resource", "") == "tenants-tenant":
+        from .free_days import creation_fields
+
+        creation_fields(form)
     formsets, inlines = admin._create_formsets(
         raw, form.instance, change=obj is not None
     )
@@ -183,14 +225,16 @@ def bundle_schema(admin, raw, obj, form, formsets, inlines):
                 "can_delete": fs.can_delete and inline.has_delete_permission(raw, obj),
                 "forms": [
                     {
-                        "fields": fields_schema(f),
+                        "fields": fields_schema(f, lookup_base(raw, obj, fs.prefix)),
                         "readonly": readonly(inline, raw, f.instance),
                         "errors": list(f.non_field_errors()),
                     }
                     for f in fs.forms
                 ],
                 "empty": {
-                    "fields": fields_schema(fs.empty_form),
+                    "fields": fields_schema(
+                        fs.empty_form, lookup_base(raw, obj, fs.prefix)
+                    ),
                     "readonly": [],
                     "errors": [],
                 },
@@ -199,7 +243,7 @@ def bundle_schema(admin, raw, obj, form, formsets, inlines):
     return {
         "id": obj.pk if obj else None,
         "title": str(obj) if obj else "Novo cadastro",
-        "fields": fields_schema(form),
+        "fields": fields_schema(form, lookup_base(raw, obj)),
         "sections": sections(admin, raw, obj),
         "readonly": readonly(admin, raw, obj),
         "inlines": groups,
@@ -210,6 +254,13 @@ def bundle_schema(admin, raw, obj, form, formsets, inlines):
             else admin.has_add_permission(raw)
         ),
         "can_delete": bool(obj and admin.has_delete_permission(raw, obj)),
+        "free_days_url": (
+            f"/painel/tenants-tenant/{obj.tenant_id if resource_model == 'billing.subscription' else obj.pk}/gratuidade"
+            if obj
+            and (resource_model := admin.model._meta.label_lower)
+            in ("tenants.tenant", "billing.subscription")
+            else None
+        ),
     }
 
 
@@ -221,6 +272,7 @@ class ResourceList(SuperAdminAPI):
 
         try:
             from apps.merchant.pagination import paged_admin
+
             admin = paged_admin(admin, raw)
             cl = admin.get_changelist_instance(raw)
         except (IncorrectLookupParameters, ValueError):
@@ -334,6 +386,21 @@ class ResourceDetail(SuperAdminAPI):
             admin.model.objects.select_for_update().get(pk=obj.pk)
         form, fss, ins = form_bundle(admin, raw, obj, True)
         valid = form.is_valid()
+        if (
+            valid
+            and resource == "tenants-tenant"
+            and obj is None
+            and form.cleaned_data.get("free_days")
+        ):
+            if not form.cleaned_data.get("free_days_reason"):
+                form.add_error("free_days_reason", "Informe a justificativa.")
+                valid = False
+            if form.cleaned_data.get("grant_free_month"):
+                form.add_error(
+                    "free_days",
+                    "Escolha dias gratuitos ou um mês grátis, sem combinar as duas opções.",
+                )
+                valid = False
         for fs, inline in zip(fss, ins):
             valid = fs.is_valid() and valid
             allowed_ids = {str(x.pk) for x in fs.get_queryset()}
@@ -353,11 +420,75 @@ class ResourceDetail(SuperAdminAPI):
                         raise PermissionDenied()
         if not valid:
             return Response(bundle_schema(admin, raw, obj, form, fss, ins), status=400)
+        if (
+            obj is None
+            and resource == "tenants-tenant"
+            and form.cleaned_data.get("free_days")
+        ):
+            from django.core import signing
+            from django.utils import timezone
+            from datetime import timedelta
+
+            days = form.cleaned_data["free_days"]
+            start = timezone.localdate()
+            preview_data = {
+                "actor": raw.user.pk,
+                "name": form.cleaned_data.get("name"),
+                "slug": form.cleaned_data.get("slug"),
+                "days": days,
+                "reason": form.cleaned_data["free_days_reason"],
+                "start": str(start),
+                "end": str(start + timedelta(days=days)),
+                "token": str(form.cleaned_data.get("free_days_token") or ""),
+            }
+            signature = request.data.get("free_days_preview")
+            if not signature:
+                return Response(
+                    {
+                        "free_days_preview": signing.dumps(
+                            preview_data, salt="new-store-free-days"
+                        ),
+                        "details": [
+                            f"Criar {preview_data['name']} ({preview_data['slug']}) com {days} dias gratuitos.",
+                            f"Período: {preview_data['start']} até {preview_data['end']} (fim exclusivo).",
+                            preview_data["reason"],
+                            "Nenhuma cobrança será criada ou quitada. Bloqueios independentes da validade serão preservados.",
+                        ],
+                    }
+                )
+            try:
+                if (
+                    signing.loads(signature, salt="new-store-free-days", max_age=900)
+                    != preview_data
+                ):
+                    raise signing.BadSignature()
+            except signing.BadSignature:
+                return Response(
+                    {
+                        "detail": "A prévia mudou ou expirou. Confira novamente o cadastro."
+                    },
+                    status=409,
+                )
         try:
             with transaction.atomic():
                 saved = admin.save_form(raw, form, change=obj is not None)
                 admin.save_model(raw, saved, form, change=obj is not None)
                 admin.save_related(raw, form, fss, change=obj is not None)
+                if (
+                    obj is None
+                    and resource == "tenants-tenant"
+                    and form.cleaned_data.get("free_days")
+                ):
+                    from apps.billing.free_access import grant_free_days
+
+                    grant_free_days(
+                        saved,
+                        form.cleaned_data["free_days"],
+                        form.cleaned_data["free_days_reason"],
+                        raw.user,
+                        form.cleaned_data.get("free_days_token")
+                        or __import__("uuid").uuid4(),
+                    )
                 change_message = admin.construct_change_message(
                     raw, form, fss, obj is None
                 )
@@ -365,7 +496,7 @@ class ResourceDetail(SuperAdminAPI):
                     admin.log_addition(raw, saved, change_message)
                 else:
                     admin.log_change(raw, saved, change_message)
-        except (ValidationError, IntegrityError):
+        except (ValidationError, IntegrityError, BillingError):
             return Response(
                 {
                     "detail": "Não foi possível salvar. Confira os dados e possíveis registros duplicados."
@@ -402,26 +533,57 @@ class ResourceDetail(SuperAdminAPI):
 class ResourceAction(SuperAdminAPI):
     @transaction.atomic
     def post(self, request, resource):
-        admin, _ = guarded(request, resource, operation="change")
+        admin, _ = guarded(request, resource, operation="view")
         data = request.data
         raw = request._request
         name = data.get("action")
         actions = admin.get_actions(raw)
         if name not in actions:
             raise PermissionDenied()
+        snapshot = None
         ids = data.getlist("ids") if hasattr(data, "getlist") else data.get("ids", [])
-        if not isinstance(ids, list) or not ids or len(ids) > 500:
-            return Response({"detail": "Selecione de 1 a 500 registros."}, status=400)
-        try:
-            qs = admin.get_queryset(raw).filter(pk__in=ids)
-        except (ValueError, TypeError):
-            return Response({"detail": "Seleção inválida."}, status=400)
-        if qs.count() != len(set(map(str, ids))):
-            raise Http404
-        if any(not admin.has_change_permission(raw, obj) for obj in qs):
+        if data.get("selection"):
+            from apps.merchant.selection import selected_queryset
+
+            qs, snapshot = selected_queryset(
+                admin, raw, resource, "superadmin", data["selection"]
+            )
+            if data.get("confirmed") != "yes":
+                return Response(
+                    {
+                        "confirmation_required": True,
+                        "objects": [
+                            f"Executar {name} em {snapshot.count} registros filtrados."
+                        ],
+                    }
+                )
+        else:
+            if not isinstance(ids, list) or not ids or len(ids) > 500:
+                return Response(
+                    {"detail": "Selecione de 1 a 500 registros."}, status=400
+                )
+            try:
+                qs = admin.get_queryset(raw).filter(pk__in=ids)
+            except (ValueError, TypeError):
+                return Response({"detail": "Seleção inválida."}, status=400)
+            if qs.count() != len(set(map(str, ids))):
+                raise Http404
+        permissions = getattr(actions[name][0], "allowed_permissions", ["change"])
+        if any(
+            not any(
+                getattr(admin, "has_" + permission + "_permission")(raw, obj)
+                for permission in permissions
+            )
+            for obj in qs.iterator(chunk_size=1000)
+        ):
             raise PermissionDenied()
+        from apps.merchant.selection import finalize_selection
+
         if name == "delete_selected":
-            if any(not admin.has_delete_permission(raw, obj) for obj in qs):
+            if any(
+                not admin.has_delete_permission(raw, obj)
+                for obj in qs.iterator(chunk_size=1000)
+            ):
                 raise PermissionDenied()
             deleted, counts, perms, protected = admin.get_deleted_objects(qs, raw)
             if perms or protected:
@@ -452,7 +614,11 @@ class ResourceAction(SuperAdminAPI):
                     )
                 raw.POST = raw.POST.copy()
                 raw.POST["confirm_cancel"] = "1"
-            actions[name][0](admin, raw, qs)
+            result = actions[name][0](admin, raw, qs)
+            if result is not None:
+                finalize_selection(snapshot, result)
+                return result
+        finalize_selection(snapshot)
         return Response({"detail": "Ação concluída.", "messages": notices(raw)})
 
 
@@ -472,7 +638,10 @@ class History(SuperAdminAPI):
             .order_by("-action_time")
         )
         from apps.merchant.pagination import page_size
-        page = Paginator(entries, page_size(request)).get_page(request.query_params.get("page"))
+
+        page = Paginator(entries, page_size(request)).get_page(
+            request.query_params.get("page")
+        )
         return Response(
             {
                 "rows": [
@@ -501,6 +670,7 @@ class ListEdit(SuperAdminAPI):
 
         try:
             from apps.merchant.pagination import paged_admin
+
             admin = paged_admin(admin, raw)
             cl = admin.get_changelist_instance(raw)
         except (IncorrectLookupParameters, ValueError):
@@ -565,4 +735,35 @@ class ListEdit(SuperAdminAPI):
                 )
         return Response(
             {"detail": "Alterações da página salvas.", "messages": notices(raw)}
+        )
+
+
+class Selection(SuperAdminAPI):
+    def post(self, request, resource):
+        admin, _ = guarded(request, resource)
+        from apps.merchant.selection import create_selection
+
+        selection = create_selection(admin, request._request, resource, "superadmin")
+        return Response({"selection": str(selection.pk), "count": selection.count})
+
+
+class Relationships(SuperAdminAPI):
+    def get(self, request, resource, pk):
+        from apps.merchant.relationships import search_relationship
+
+        admin, obj = guarded(
+            request,
+            resource,
+            None if pk == "new" else pk,
+            "add" if pk == "new" else "view",
+        )
+        return search_relationship(request, admin, obj, form_bundle)
+
+
+class Activity(SuperAdminAPI):
+    def get(self, request):
+        from apps.merchant.activity import recent_activity
+
+        return Response(
+            recent_activity(request, RESOURCES, resource_admin, "superadmin")
         )

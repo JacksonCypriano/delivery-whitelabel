@@ -265,13 +265,9 @@ class MerchantAPITests(TestCase):
 
     @override_settings(MERCHANT_REACT_ENABLED=True)
     def test_cutover_keeps_platform_and_public_routes(self):
-        self.assertRedirects(
-            self.client.get("/admin/stores/product/"),
-            "/painel/products",
-            fetch_redirect_response=False,
-        )
+        self.assertEqual(self.client.get("/admin/stores/product/").status_code, 200)
         self.assertEqual(
-            self.client.post("/admin/stores/product/add/", {}).status_code, 409
+            self.client.post("/admin/stores/product/add/", {}).status_code, 200
         )
         self.assertEqual(self.client.get("/superadmin/").status_code, 404)
         self.assertEqual(self.client.get("/painel/products").status_code, 200)
@@ -475,9 +471,11 @@ class MerchantAPITests(TestCase):
         data = self.payload(doc)
         g = doc["inlines"][0]
         prefix = g["prefix"]
-        choices = next(f for f in g["empty"]["fields"] if f["name"] == "customer")[
-            "choices"
-        ]
+        field = next(f for f in g["empty"]["fields"] if f["name"] == "customer")
+        self.assertEqual(field["choices"], [])
+        lookup = self.client.get("/api/merchant/" + field["lookup"])
+        self.assertEqual(lookup.status_code, 200)
+        choices = lookup.json()["results"]
         self.assertIn(str(customer.pk), [x["value"] for x in choices])
         self.assertNotIn(str(foreign.pk), [x["value"] for x in choices])
         data[f"{prefix}-TOTAL_FORMS"] = "1"

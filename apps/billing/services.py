@@ -180,6 +180,16 @@ def extend_locked(sub, months, invoice=None, actor=None, reason="", manual_token
     previous = sub.valid_until
     if previous and previous > today:
         start = previous
+        # Compatibilidade com cortesias concedidas antes do ajuste do dia-base:
+        # somente uma concessão cujo fim coincide com a validade atual pode
+        # redefinir o aniversário de renovação. Meses pagos comuns mantêm o
+        # dia-base original mesmo quando fevereiro encurta o mês.
+        from .models import FreeAccessGrant
+
+        if sub.anchor_day != start.day and FreeAccessGrant.objects.filter(
+            subscription=sub, ends_on=start
+        ).exists():
+            sub.anchor_day = start.day
     else:
         start = today
         sub.anchor_day = today.day
@@ -244,7 +254,7 @@ def suspend_due(today=None):
                 continue
             if (
                 sub.valid_until is not None
-                and sub.valid_until + timedelta(days=grace) > today
+                and (sub.valid_until - today).days + grace > 0
             ):
                 continue
             sub.billing_suspended = True

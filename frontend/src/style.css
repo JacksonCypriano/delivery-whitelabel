@@ -533,12 +533,24 @@ dialog::backdrop {
   background: #132e2677;
 }
 .confirmation {
-  white-space: pre-wrap;
+  white-space: normal;
   overflow: auto;
   max-height: 40vh;
   padding: 16px;
   background: #f4f7f2;
-  font-size: 13px;
+  font-size: 14px;
+}
+.confirmation-list {
+  margin: 0;
+  padding-left: 20px;
+}
+.confirmation-list li + li {
+  margin-top: 10px;
+}
+.confirmation pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .menu-toggle,
 .scrim {

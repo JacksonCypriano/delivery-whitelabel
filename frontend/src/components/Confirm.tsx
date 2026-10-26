@@ -18,7 +18,23 @@ export function Confirm({
     <dialog ref={ref} onCancel={onClose}>
       <h2>{title}</h2>
       <p>Confira os registros afetados antes de continuar.</p>
-      <div className="confirmation">{JSON.stringify(details, null, 2)}</div>
+      <div className="confirmation">
+        {Array.isArray(details) ? (
+          <ul className="confirmation-list">
+            {details.map((detail, index) => (
+              <li key={index}>
+                {typeof detail === "string" || typeof detail === "number"
+                  ? String(detail)
+                  : JSON.stringify(detail, null, 2)}
+              </li>
+            ))}
+          </ul>
+        ) : typeof details === "string" ? (
+          <p>{details}</p>
+        ) : (
+          <pre>{JSON.stringify(details, null, 2)}</pre>
+        )}
+      </div>
       <div className="actions">
         <button className="secondary" onClick={onClose}>
           Voltar

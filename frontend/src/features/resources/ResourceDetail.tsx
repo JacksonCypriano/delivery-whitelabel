@@ -127,7 +127,7 @@ export function ResourceDetail() {
         )}
       {d?.free_days_url && (
         <Link className="button" to={d.free_days_url}>
-          Conceder dias gratuitos
+          Conceder dias gratuitos (quantidade personalizada)
         </Link>
       )}
       {id !== "novo" && (

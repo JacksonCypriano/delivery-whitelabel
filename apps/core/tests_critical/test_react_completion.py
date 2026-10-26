@@ -12,6 +12,7 @@ from django.contrib.admin.models import LogEntry, ADDITION
 from django.contrib.contenttypes.models import ContentType
 from .base import CriticalTestCase
 from apps.billing.models import Subscription, FreeAccessGrant, Invoice, BillingAudit, Plan
+from apps.marketplace.models import MarketplaceCategory
 from apps.billing.free_access import grant_free_days, period
 from apps.billing.provider import BillingError
 from apps.stores.models import Product
@@ -363,22 +364,43 @@ class ReactCompletionTests(CriticalTestCase):
     def test_rejected_superadmin_bulk_delete_keeps_selection_available(self):
         from apps.superpanel.registry import resource_admin
 
-        plan = Plan.objects.create(name="Plano para teste", months=35, monthly_price=149)
-        endpoint = "/api/superadmin/resources/billing-plan/selection/?q=Plano"
+        # PlanAdmin intentionally forbids deletion, even for a superuser.
+        # Use a deletable resource to exercise the protected-object rejection
+        # and a subsequent successful retry without weakening admin policy.
+        category = MarketplaceCategory.objects.create(name="Categoria protegida teste")
+        resource = "marketplace-marketplacecategory"
+        endpoint = f"/api/superadmin/resources/{resource}/selection/?q=Categoria+protegida+teste"
         result = self.client.post(endpoint)
         self.assertEqual(result.status_code, 200, result.content)
+        self.assertEqual(result.json()["count"], 1)
         token = result.json()["selection"]
-        action = "/api/superadmin/resources/billing-plan/actions/"
+        action = f"/api/superadmin/resources/{resource}/actions/"
         data = {"selection": token, "action": "delete_selected", "confirmed": "yes"}
-        admin = resource_admin("billing-plan")
+        admin = resource_admin(resource)
         with patch.object(admin, "get_deleted_objects", return_value=([], {}, [], ["Protegido"])):
             denied = self.client.post(action, data)
         self.assertEqual(denied.status_code, 400, denied.content)
-        self.assertTrue(Plan.objects.filter(pk=plan.pk).exists())
+        self.assertTrue(MarketplaceCategory.objects.filter(pk=category.pk).exists())
         self.assertIsNone(AdminSelection.objects.get(pk=token).consumed_at)
         approved = self.client.post(action, data)
         self.assertEqual(approved.status_code, 200, approved.content)
+        self.assertFalse(MarketplaceCategory.objects.filter(pk=category.pk).exists())
         self.assertIsNotNone(AdminSelection.objects.get(pk=token).consumed_at)
+
+    def test_superadmin_cannot_delete_billing_plans(self):
+        # This 403 is expected: GlobalAdmin.has_delete_permission returns False.
+        plan = Plan.objects.create(name="Plano sem exclusão", months=35, monthly_price=149)
+        resource = "billing-plan"
+        result = self.client.post(f"/api/superadmin/resources/{resource}/selection/?q=Plano")
+        self.assertEqual(result.status_code, 200, result.content)
+        token = result.json()["selection"]
+        denied = self.client.post(
+            f"/api/superadmin/resources/{resource}/actions/",
+            {"selection": token, "action": "delete_selected", "confirmed": "yes"},
+        )
+        self.assertEqual(denied.status_code, 403, denied.content)
+        self.assertTrue(Plan.objects.filter(pk=plan.pk).exists())
+        self.assertIsNone(AdminSelection.objects.get(pk=token).consumed_at)
 
     def test_action_error_response_rolls_back_mutations(self):
         merchant = self.merchant()
@@ -468,7 +490,9 @@ class FreeDaysConcurrencyTests(TransactionTestCase):
             email="test@example.com",
             password="TestOnly123!",
         )
-        Subscription.objects.create(tenant=self.tenant)
+        # Tenant post_save already creates the OneToOne subscription.
+        # Reuse it rather than violating billing_subscription_tenant_id_key.
+        self.subscription = Subscription.objects.get(tenant=self.tenant)
 
     def concurrent(self, tokens):
         barrier = Barrier(2)

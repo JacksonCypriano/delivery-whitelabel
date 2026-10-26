@@ -6,6 +6,7 @@ import { FieldInput } from "../../components/Fields";
 import { Feedback } from "../../components/Feedback";
 import { Confirm } from "../../components/Confirm";
 import { panelUrl } from "../../panel";
+import { formatDateBR, formatDateTimeBR } from "../../utils/dates";
 export function FreeDays() {
   const { id } = useParams();
   const [page, setPage] = useState(1);
@@ -30,7 +31,7 @@ export function FreeDays() {
       } else {
         setPreview(null);
         setMessage(
-          `${r.detail} Período: ${r.grant.start} até ${r.grant.end} (término exclusivo). ${r.grant.access_after.active ? "Loja ativa." : "A loja permanece bloqueada por outro motivo."}`,
+          `${r.detail} Período: ${formatDateBR(r.grant.start)} até ${formatDateBR(r.grant.end)} (término exclusivo). ${r.grant.access_after.active ? "Loja ativa." : "A loja permanece bloqueada por outro motivo."}`,
         );
         q.reload();
       }
@@ -63,13 +64,13 @@ export function FreeDays() {
                   Último plano pago: {d.plan} · Situação: {d.status}
                 </p>
                 <p>
-                  Validade do acesso: {d.valid_until || "Sem prazo definido"} ·
+                  Validade do acesso: {d.valid_until ? formatDateBR(d.valid_until) : "Sem prazo definido"} ·
                   Loja {d.active ? "ativa" : "inativa"}
                 </p>
                 <p>
                   Total concedido em dias: {d.total_days} · Fim do período
                   gratuito atual:{" "}
-                  {d.free_until || "Nenhum período gratuito em andamento"}
+                  {d.free_until ? formatDateBR(d.free_until) : "Nenhum período gratuito em andamento"}
                 </p>
                 <p>
                   O início está incluído; a data final não está incluída. Datas
@@ -105,12 +106,12 @@ export function FreeDays() {
                 {d.history.map((g: any) => (
                   <article key={g.operation_id}>
                     <strong>
-                      {g.days} dias · {g.start} → {g.end}
+                      {g.days} dias · {formatDateBR(g.start)} → {formatDateBR(g.end)}
                     </strong>
                     <p>{g.reason}</p>
                     <p>
-                      {g.actor} · {new Date(g.date).toLocaleString("pt-BR")} ·
-                      Validade anterior: {g.previous || "Não definida"}
+                      {g.actor} · {formatDateTimeBR(g.date)} ·
+                      Validade anterior: {g.previous ? formatDateBR(g.previous) : "Não definida"}
                     </p>
                     <p>
                       Acesso: {g.access_before.active ? "ativo" : "inativo"} →{" "}
@@ -145,7 +146,7 @@ export function FreeDays() {
         <Confirm
           title="Confirmar gratuidade"
           details={[
-            `${preview.days} dias: ${preview.start} até ${preview.end} (fim exclusivo).`,
+            `${preview.days} dias: ${formatDateBR(preview.start)} até ${formatDateBR(preview.end)} (fim exclusivo).`,
             preview.reason,
             preview.impact.access,
             preview.impact.billing,

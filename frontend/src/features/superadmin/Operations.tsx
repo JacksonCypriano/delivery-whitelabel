@@ -6,6 +6,7 @@ import { Feedback, Notice } from "../../components/Feedback";
 import { FieldInput } from "../../components/Fields";
 import { Confirm } from "../../components/Confirm";
 import { panelUrl } from "../../panel";
+import { formatDateBR } from "../../utils/dates";
 
 export function Credit() {
   const { id } = useParams();
@@ -25,7 +26,7 @@ export function Credit() {
         setPending(data);
         setPreview(result);
       } else {
-        setDone(`${result.detail} Vencimento: ${result.valid_until}`);
+        setDone(`${result.detail} Vencimento: ${formatDateBR(result.valid_until)}`);
         setPreview(null);
       }
     } catch (e) {
@@ -38,7 +39,13 @@ export function Credit() {
   return (
     <>
       <Link to={panelUrl(`billing-subscription/${id}`)}>← Assinatura</Link>
-      <h1>Acrescentar meses</h1>
+      <h1>Acrescentar meses de calendário</h1>
+      <p>Esta operação é para créditos em meses. Para oferecer qualquer quantidade de dias, use a gratuidade em dias.</p>
+      {q.data?.free_days_url && (
+        <Link className="button" to={q.data.free_days_url}>
+          Conceder dias gratuitos (1, 7, 15 ou quantos desejar)
+        </Link>
+      )}
       <Feedback loading={q.loading} error={q.error || error}>
         <>
           {done ? (
@@ -52,7 +59,7 @@ export function Credit() {
                 <p>Último plano pago: {q.data.plan}</p>
                 <p>
                   {q.data.status} · Vencimento:{" "}
-                  {q.data.valid_until || "Sem vencimento"}
+                  {q.data.valid_until ? formatDateBR(q.data.valid_until) : "Sem vencimento"}
                 </p>
                 {(q.data.manually_blocked || q.data.payment_review) && (
                   <p className="alert">
@@ -82,7 +89,7 @@ export function Credit() {
         <Confirm
           title="Confirmar concessão"
           details={[
-            `${preview.months} mês(es). Vencimento: ${preview.previous || "Sem vencimento"} → ${preview.until}`,
+            `${preview.months} mês(es) de calendário. Vencimento: ${preview.previous ? formatDateBR(preview.previous) : "Sem vencimento"} → ${formatDateBR(preview.until)}`,
             preview.reason,
             "Esta operação registra crédito manual e não cria cobrança no Asaas.",
           ]}

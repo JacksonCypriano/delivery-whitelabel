@@ -8,6 +8,7 @@ import {
 } from "../utils/masks";
 import type { Field, FormRow } from "../types/forms";
 import { request } from "../api/client";
+import { formatDateBR } from "../utils/dates";
 export function Display({ value }: { value: any }) {
   if (value && Array.isArray(value.links))
     return (
@@ -30,6 +31,8 @@ export function Display({ value }: { value: any }) {
       </a>
     );
   if (typeof value === "boolean") return <>{value ? "Sim" : "Não"}</>;
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value))
+    return <>{formatDateBR(value)}</>;
   return <>{String(value ?? "—") || "—"}</>;
 }
 export function FieldInput({ field: f }: { field: Field }) {

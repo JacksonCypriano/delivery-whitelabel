@@ -30,6 +30,8 @@ class ManualCredit(SuperAdminAPI):
             {
                 "fields": fields_schema(form),
                 "tenant": str(sub.tenant),
+                "free_days_url": f"/painel/tenants-tenant/{sub.tenant_id}/gratuidade",
+
                 "valid_until": value(sub.valid_until),
                 "status": sub.situation,
                 "plan": (

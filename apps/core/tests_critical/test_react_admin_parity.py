@@ -60,6 +60,17 @@ class ReactAdminParityTests(CriticalTestCase):
             "token": str(uuid.uuid4()),
         }
 
+    def test_credit_screen_links_to_free_days_for_same_tenant(self):
+        sub, _ = Subscription.objects.get_or_create(tenant=self.tenant_a)
+        response = self.client.get(
+            f"/api/superadmin/subscriptions/{sub.pk}/credit/"
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(
+            response.json()["free_days_url"],
+            f"/painel/tenants-tenant/{self.tenant_a.pk}/gratuidade",
+        )
+
     def test_credit_preview_confirm_repeat_and_no_invoice(self):
         sub, _ = Subscription.objects.get_or_create(tenant=self.tenant_a)
         url = f"/api/superadmin/subscriptions/{sub.pk}/credit/"

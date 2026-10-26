@@ -53,6 +53,7 @@ describe("Operações globais", () => {
       tenant: "Loja",
       status: "Ativa",
       valid_until: "2026-12-01",
+      free_days_url: "/painel/tenants-tenant/2/gratuidade",
       fields: [],
     });
     vi.mocked(post)
@@ -72,8 +73,11 @@ describe("Operações globais", () => {
         <Credit />
       </MemoryRouter>,
     );
+    expect((await screen.findByRole("link", { name: /Conceder dias gratuitos/ })).getAttribute("href")).toBe("/painel/tenants-tenant/2/gratuidade");
+    expect(await screen.findByText(/Vencimento: 01\/12\/2026/)).toBeTruthy();
     fireEvent.click(await screen.findByText("Conferir resultado"));
-    expect(await screen.findByText(/2026-12-01 → 2027-02-01/)).toBeTruthy();
+    expect(await screen.findByText(/01\/12\/2026 → 01\/02\/2027/)).toBeTruthy();
+    expect(screen.queryByText(/\[\s*"2 mês/)).toBeNull();
     expect(post).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: "Confirmar" }));
     await screen.findByText(/Meses registrados/);
@@ -114,7 +118,7 @@ describe("Operações globais", () => {
       </MemoryRouter>,
     );
     fireEvent.click(await screen.findByText("Conferir período"));
-    await screen.findByText(/730 dias: 2026-10-26/);
+    await screen.findByText(/730 dias: 26\/10\/2026/);
     expect(post).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: "Confirmar" }));
     await screen.findByText(/Dias registrados/);

@@ -150,7 +150,8 @@ describe("Operações globais", () => {
     );
     fireEvent.click(await screen.findByText("Iniciar campanha"));
     await screen.findByText(/Iniciar envios/);
-    fireEvent.click(screen.getByRole("button", { name: "Confirmar" }));
+    // O dialog abre no useEffect; espere o botão ficar acessível.
+    fireEvent.click(await screen.findByRole("button", { name: "Confirmar" }));
     await waitFor(() => expect(post).toHaveBeenCalledTimes(2));
     expect(vi.mocked(post).mock.calls[1][1].get("confirmed")).toBe("yes");
   });

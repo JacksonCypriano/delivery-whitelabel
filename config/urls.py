@@ -12,9 +12,11 @@ from apps.billing.views import webhook as billing_webhook
 from apps.integrations.views import evolution_webhook, tenant_evolution_webhook
 
 from apps.channels.views import ifood_webhook
+from apps.channels.webhook_99food import food99_webhook
 
 urlpatterns = [
     path("integracoes/ifood/<str:mode>/webhook/", ifood_webhook, name="ifood_webhook"),
+    path("integracoes/99food/<str:mode>/webhook/", food99_webhook, name="food99_webhook"),
     path("api/merchant/", include("apps.merchant.urls")),
     path("api/superadmin/", include("apps.superpanel.urls")),
     re_path(r"^painel/(?P<path>.*)$", panel_shell, name="admin-panel"),

@@ -1,0 +1,102 @@
+name: hml
+
+x-log: &log
+  driver: json-file
+  options:
+    max-size: "5m"
+    max-file: "3"
+
+services:
+  db:
+    image: postgres:15
+    env_file:
+      - /opt/vemdedelivery/hml/config/.env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [internal]
+    mem_limit: 512m
+    cpus: "0.30"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *log
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    networks: [internal]
+    mem_limit: 128m
+    cpus: "0.10"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *log
+
+  public-ssr:
+    # Imagem preparada fora da VPS (CI ou estacao de desenvolvimento).
+    image: vdd-hml-public-ssr:homolog
+    networks: [internal]
+    mem_limit: 256m
+    cpus: "0.20"
+    restart: unless-stopped
+    logging: *log
+
+  backend:
+    # Imagem preparada fora da VPS (CI ou estacao de desenvolvimento).
+    image: vdd-hml-backend:homolog
+    env_file:
+      - /opt/vemdedelivery/hml/config/.env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.hml
+      PUBLIC_REACT_SSR_URL: http://public-ssr:3001
+      RUN_MIGRATIONS: "false"
+      COLLECTSTATIC: "true"
+      GUNICORN_WORKERS: "1"
+    command: ["backend"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      public-ssr:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:18080:8000" # Apenas testes locais na VPS; nunca exposicao publica direta.
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    networks:
+      internal: {}
+      edge:
+        aliases: [hml-backend]
+    mem_limit: 768m
+    cpus: "0.65"
+    restart: unless-stopped
+    init: true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; r=urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8000/health/live/', headers={'Host':'hml.vemdedelivery.com.br','X-Forwarded-Proto':'https'}), timeout=3); raise SystemExit(0 if r.status == 200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    logging: *log
+
+networks:
+  internal:
+    name: vdd_hml_internal
+  edge:
+    name: vdd_hml_edge
+
+volumes:
+  pgdata:
+  redisdata:
+  static_volume:
+  media_volume:

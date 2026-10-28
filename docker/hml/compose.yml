@@ -49,6 +49,22 @@ services:
     restart: unless-stopped
     logging: *log
 
+  assets:
+    # Servidor HTTP interno e leve, exclusivo para static/media da homologacao.
+    # O unico ponto de entrada HTTPS publico continua sendo prod-nginx-1.
+    image: caddy:2-alpine
+    command: ["file-server", "--root", "/srv", "--listen", ":8080"]
+    volumes:
+      - static_volume:/srv/static:ro
+      - media_volume:/srv/media:ro
+    networks:
+      edge:
+        aliases: [hml-assets]
+    mem_limit: 96m
+    cpus: "0.10"
+    restart: unless-stopped
+    logging: *log
+
   backend:
     # Imagem preparada fora da VPS (CI ou estacao de desenvolvimento).
     image: ghcr.io/jacksoncypriano/vdd-hml-backend:${HML_IMAGE_TAG:-homolog}

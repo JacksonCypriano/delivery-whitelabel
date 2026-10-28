@@ -59,7 +59,8 @@ services:
       - /opt/vemdedelivery/ssl:/etc/nginx/ssl:ro
       - static_volume:/app/staticfiles:ro
       - media_volume:/app/media:ro
-    networks: [default, evolution_network]
+    networks: [default, evolution_network, hml_edge_network]
 volumes: {pgdata: {}, redisdata: {}, static_volume: {}, media_volume: {}}
 networks:
   evolution_network: {external: true, name: evolution_evolution}
+  hml_edge_network: {external: true, name: vdd_hml_edge}

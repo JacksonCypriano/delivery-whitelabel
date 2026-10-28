@@ -53,7 +53,7 @@ services:
     # Servidor HTTP interno e leve, exclusivo para static/media da homologacao.
     # O unico ponto de entrada HTTPS publico continua sendo prod-nginx-1.
     image: caddy:2-alpine
-    command: ["file-server", "--root", "/srv", "--listen", ":8080"]
+    command: ["caddy", "file-server", "--root", "/srv", "--listen", ":8080"]
     volumes:
       - static_volume:/srv/static:ro
       - media_volume:/srv/media:ro

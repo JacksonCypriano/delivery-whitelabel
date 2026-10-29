@@ -54,3 +54,57 @@ jobs:
             ${{ steps.images.outputs.renderer }}:${{ github.sha }}
           cache-from: type=gha,scope=hml-ssr
           cache-to: type=gha,mode=max,scope=hml-ssr
+
+  deploy-homolog:
+    needs: publish
+    runs-on: ubuntu-latest
+    environment: homolog
+    concurrency:
+      group: vdd-homolog-deploy
+      cancel-in-progress: false
+    steps:
+      - name: Atualizar imagens de homologacao na VPS
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          envs: DEPLOY_SHA
+          script: |
+            set -eu
+            COMPOSE_FILE=/opt/vemdedelivery/app/docker/hml/compose.yml
+            [ -f "$COMPOSE_FILE" ] || { echo "Compose HML nao encontrado"; exit 1; }
+            cd /opt/vemdedelivery/app
+            previous_backend="$(docker inspect --format '{{.Config.Image}}' hml-backend-1 2>/dev/null || true)"
+            previous_tag="${previous_backend##*:}"
+            if [ -z "$previous_backend" ]; then
+              echo "HML nao esta inicializada; configure a primeira implantacao manualmente."
+              exit 1
+            fi
+            export HML_IMAGE_TAG="$DEPLOY_SHA"
+            docker compose -f "$COMPOSE_FILE" config --quiet
+            docker compose -f "$COMPOSE_FILE" pull backend public-ssr
+            if ! docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate public-ssr backend; then
+              echo "Falha na recriacao da homologacao; restaurando imagens anteriores."
+              HML_IMAGE_TAG="$previous_tag" docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate public-ssr backend || true
+              exit 1
+            fi
+            healthy=0
+            for i in $(seq 1 40); do
+              status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' hml-backend-1 2>/dev/null || true)"
+              [ "$status" = healthy ] && { healthy=1; break; }
+              [ "$status" = unhealthy ] && break
+              sleep 3
+            done
+            if [ "$healthy" != 1 ] || ! curl --fail --silent --show-error --max-time 15 -H 'Host: hml.vemdedelivery.com.br' http://127.0.0.1:18080/health/live/ >/dev/null; then
+              echo "Health check falhou; restaurando versao anterior."
+              HML_IMAGE_TAG="$previous_tag" docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate public-ssr backend || true
+              exit 1
+            fi
+            # Mantem a tag aplicada registrada sem alterar segredos da aplicacao.
+            mkdir -p /opt/vemdedelivery/hml/config
+            printf 'HML_IMAGE_TAG=%s\n' "$DEPLOY_SHA" > /opt/vemdedelivery/hml/config/images.env
+            echo "Homologacao atualizada para $DEPLOY_SHA"

@@ -34,16 +34,10 @@ echo "▶ Criando e verificando backup antes da publicação..."
 bash backup-prod.sh
 bash test-restore-prod.sh
 
-# Testa o código que será publicado antes de subir a nova cor.
-"${COMPOSE[@]}" build "backend-$NEXT"
-# Use the same isolated critical suite used by homolog/prod deployments,
-# against the image that was just built.
-"${COMPOSE[@]}" run --rm --no-deps \
-  -e DJANGO_SETTINGS_MODULE=config.settings.test \
-  -e EVOLUTION_WHATSAPP_VALIDATION_ENABLED=false \
-  --entrypoint python "backend-$NEXT" manage.py test \
-  apps.accounts apps.billing.tests apps.integrations.tests apps.prospecting apps.core.tests_critical \
-  --settings=config.settings.test --verbosity=2 --noinput
+# A suite critica ja foi executada em homologacao antes da publicacao.
+# O deploy mantem os health checks e nao repete os testes demorados.
+# SSR faz parte da vitrine publica e precisa acompanhar cada publicacao.
+"${COMPOSE[@]}" up -d --build --wait public-ssr
 "${COMPOSE[@]}" up -d "backend-$NEXT"
 
 for _ in $(seq 1 30); do

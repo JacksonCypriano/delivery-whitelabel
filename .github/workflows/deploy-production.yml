@@ -2,9 +2,17 @@ name: Publicar produção
 on:
   push:
     branches: [main]
+permissions:
+  contents: read
+
+concurrency:
+  group: vdd-production-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - name: Executar deploy blue/green na VPS
         uses: appleboy/ssh-action@v1.2.0
@@ -37,4 +45,5 @@ jobs:
               fi
               exit 1
             fi
+            # O script blue/green executa backup, verificacoes e rollback.
             bash scripts/prod/blue_green_deploy.sh

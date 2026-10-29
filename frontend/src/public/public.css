@@ -134,13 +134,15 @@
 .catalog-category-section-v2{scroll-margin-top:160px;margin:35px 0 43px}
 .catalog-category-title-v2{margin-bottom:21px}.catalog-category-title-v2 h2{font-size:clamp(24px,3vw,31px);line-height:1.14;margin:7px 0 0;color:var(--catalog-ink);letter-spacing:-.5px}.catalog-category-title-v2 h2:after{content:"";display:block;width:40px;height:4px;background:linear-gradient(90deg,var(--catalog-primary),var(--accent-color,#e5a83b));border-radius:9px;margin-top:10px}
 .catalog-product-grid-v2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.catalog-v2 .catalog-product-card-v2.product-card-featured{padding-top:0}
 .catalog-product-card-v2{display:flex;background:var(--catalog-card);min-height:150px;border:1px solid var(--catalog-border);border-radius:var(--catalog-radius);overflow:hidden;transition:transform .18s,border-color .18s,box-shadow .18s}
 .catalog-shadow .catalog-product-card-v2{box-shadow:0 2px 5px #0f172a0b,0 10px 28px #0f172a09}
 .catalog-hover .catalog-product-card-v2:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--catalog-primary) 30%,var(--catalog-border));box-shadow:0 12px 32px #0f172a15}
-.catalog-product-info-v2{display:flex;flex-direction:column;justify-content:space-between;min-width:0;flex:1;padding:16px;gap:11px}
+.catalog-product-info-v2{position:relative;display:flex;flex-direction:column;justify-content:space-between;min-width:0;flex:1;padding:16px;gap:11px}
 .catalog-product-info-v2 h3{font-weight:800;font-size:17px;line-height:1.24;margin:0 0 5px;letter-spacing:-.2px;color:var(--catalog-ink)}
 .catalog-v2 .catalog-product-info-v2 h3 a{text-decoration:none;color:inherit}
 .catalog-v2 .catalog-product-info-v2 h3 a:hover{color:var(--catalog-primary)}
+.catalog-featured-content-v2{padding-top:27px}
 .catalog-featured-v2{display:inline-flex;color:#fff;background:var(--catalog-primary);padding:4px 8px;font-size:10px;font-weight:800;border-radius:7px;margin-bottom:7px}
 .catalog-product-description-v2{font-size:12px;line-height:1.5;color:var(--catalog-muted);margin:7px 0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .catalog-product-tags-v2{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0 0}

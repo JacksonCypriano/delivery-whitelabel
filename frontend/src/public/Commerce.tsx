@@ -102,12 +102,12 @@ export function Catalog({data}:any) {
         if (!filtered.length) return null;
         return <section key={category.id} id={`category-${category.id}`} className="catalog-category-section-v2">
           <div className="catalog-category-title-v2"><small>Cardápio</small><h2>{category.name}</h2></div>
-          <div className="catalog-product-grid-v2">{filtered.map((p:any) => <article key={p.id} className={`catalog-product-card-v2 ${p.is_featured ? "is-featured" : ""}`} data-product-slug={p.slug} data-product-price={p.price}>
+          <div className="catalog-product-grid-v2">{filtered.map((p:any) => <article key={p.id} className={`catalog-product-card-v2 ${p.is_featured ? "product-card-featured is-featured" : ""}`} data-product-slug={p.slug} data-product-price={p.price}>
             <div className="catalog-product-info-v2">
-              <div>{p.is_featured && <span className="catalog-featured-v2">★ Destaque</span>}
+              <div className={p.is_featured ? "catalog-featured-content-v2" : undefined}>{p.is_featured && <span className="catalog-featured-v2 product-featured absolute top-3 right-3">★ Destaque</span>}
                 <h3><a href={`/produto/${p.slug}/`} onClick={e => { e.preventDefault(); setSelected(p); }}>{p.name}</a></h3>
                 {brand.show_product_description !== false && p.description && <p className="catalog-product-description-v2">{p.description}</p>}
-                <div className="catalog-product-tags-v2">{p.is_vegan && <span>Vegano</span>}{p.is_spicy && <span>Picante</span>}{p.prep_time && <span>~{p.prep_time} min</span>}{p.weight && <span>{Number(p.weight)} g</span>}{p.calories && <span>{p.calories} kcal</span>}</div>
+                <div className="catalog-product-tags-v2">{p.is_vegan && <span>Vegano</span>}{p.is_spicy && <span>Picante</span>}{p.prep_time && <span>{`~${p.prep_time} min`}</span>}{p.weight && <span>{`${Number(p.weight)} g`}</span>}{p.calories && <span>{`${p.calories} kcal`}</span>}</div>
               </div>
               <div className="catalog-product-bottom-v2"><div>{p.sale_price !== null && <span className="catalog-offer-v2">OFERTA</span>}{p.sale_price !== null && <del>{money(p.original_price)}</del>}<strong>{money(p.price)}</strong></div><button type="button" disabled={!p.available} aria-label={p.available ? `Escolher ${p.name}` : `${p.name} esgotado`} onClick={() => setSelected(p)}>{p.available ? "+" : "×"}</button></div>
             </div>

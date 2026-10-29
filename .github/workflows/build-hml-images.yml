@@ -75,9 +75,9 @@ jobs:
           envs: DEPLOY_SHA
           script: |
             set -eu
-            COMPOSE_FILE=/opt/vemdedelivery/app/docker/hml/compose.yml
+            COMPOSE_FILE=/opt/vemdedelivery/hml/app/docker/hml/compose.yml
             [ -f "$COMPOSE_FILE" ] || { echo "Compose HML nao encontrado"; exit 1; }
-            cd /opt/vemdedelivery/app
+            cd /opt/vemdedelivery/hml/app
             previous_backend="$(docker inspect --format '{{.Config.Image}}' hml-backend-1 2>/dev/null || true)"
             previous_tag="${previous_backend##*:}"
             if [ -z "$previous_backend" ]; then

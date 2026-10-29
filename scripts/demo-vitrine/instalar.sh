@@ -3,8 +3,9 @@ set -Eeuo pipefail
 DEMO_ENVIRONMENT="${1:-}"
 case "$DEMO_ENVIRONMENT" in
   homolog) DEMO_COMPOSE='docker/dev/docker-compose.yml' ;;
+  hml) DEMO_COMPOSE='docker/hml/compose.yml' ;;
   prod) DEMO_COMPOSE='docker/prod/docker-compose.yml' ;;
-  *) echo 'Uso: bash scripts/demo-vitrine/instalar.sh homolog|prod' >&2; exit 1 ;;
+  *) echo 'Uso: bash scripts/demo-vitrine/instalar.sh homolog|hml|prod' >&2; exit 1 ;;
 esac
 DEMO_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 DEMO_ROOT="$(cd -- "$DEMO_SCRIPT_DIR/../.." && pwd)"

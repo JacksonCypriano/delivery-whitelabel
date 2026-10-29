@@ -12,8 +12,9 @@ ACTIVE_FILE="docker/prod/nginx/conf.d/active-upstream.conf"
 git update-index --assume-unchanged "$ACTIVE_FILE" 2>/dev/null || true
 PREVIOUS_UPSTREAM="$(cat "$ACTIVE_FILE")"
 SWITCHED=0
-ACTIVE="$(grep -oE 'backend-(blue|green)' "$ACTIVE_FILE" | head -1 || true)"
-[[ "$ACTIVE" == "backend-blue" ]] && NEXT=green || NEXT=blue
+# No primeiro deploy migratorio, upstream pode ser web-blue/web-green.
+ACTIVE="$(grep -oE '(backend|web)-(blue|green)' "$ACTIVE_FILE" | head -1 || true)"
+[[ "$ACTIVE" == *-blue ]] && NEXT=green || NEXT=blue
 
 rollback() {
   if [[ "$SWITCHED" == 1 ]]; then
@@ -74,7 +75,11 @@ if [[ "$prospecting_status" != healthy ]]; then
   exit 1
 fi
 
-"${COMPOSE[@]}" stop "$ACTIVE" 2>/dev/null || true
+# Os containers web-* antigos nao pertencem ao Compose novo. Preserva-os
+# como fallback na primeira migracao; nao tenta parar um servico inexistente.
+if [[ "$ACTIVE" == backend-blue || "$ACTIVE" == backend-green ]]; then
+  "${COMPOSE[@]}" stop "$ACTIVE" 2>/dev/null || true
+fi
 # Remove somente o container legado do compose anterior, sem tocar em volumes.
 legacy="$(docker ps -q --filter name='^prod-backend-1$' || true)"
 [[ -z "$legacy" ]] || docker stop "$legacy" >/dev/null

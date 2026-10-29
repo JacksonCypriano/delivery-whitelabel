@@ -13,4 +13,28 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           port: ${{ secrets.VPS_PORT }}
-          script: cd /opt/vemdedelivery/app && bash scripts/prod/blue_green_deploy.sh
+          script: |
+            set -e
+            cd /opt/vemdedelivery/app
+            # Evita executar o script legado antes de atualizar o checkout.
+            git fetch origin main
+            HML_CONF=docker/prod/nginx/conf.d/hml.conf
+            if [ -f "$HML_CONF" ] && ! git ls-files --error-unmatch "$HML_CONF" >/dev/null 2>&1; then
+              # So remove o arquivo operacional se for IDENTICO ao versionado.
+              if git cat-file -e "origin/main:$HML_CONF" 2>/dev/null && git show "origin/main:$HML_CONF" | cmp -s - "$HML_CONF"; then
+                cp -p "$HML_CONF" /opt/vemdedelivery/hml/backups/hml.conf-before-first-main-merge
+                rm "$HML_CONF"
+              else
+                echo "hml.conf local diferente do Git. Deploy cancelado sem altera-lo."
+                exit 1
+              fi
+            fi
+            if ! git pull --ff-only origin main; then
+              # Se o pull falhar antes de restaurar o arquivo versionado,
+              # devolve a configuracao HML local ao volume do Nginx.
+              if [ -f /opt/vemdedelivery/hml/backups/hml.conf-before-first-main-merge ] && [ ! -e "$HML_CONF" ]; then
+                cp -p /opt/vemdedelivery/hml/backups/hml.conf-before-first-main-merge "$HML_CONF"
+              fi
+              exit 1
+            fi
+            bash scripts/prod/blue_green_deploy.sh

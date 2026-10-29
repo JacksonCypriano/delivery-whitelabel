@@ -185,3 +185,28 @@
 .catalog-half-card-v2{border-color:color-mix(in srgb,var(--catalog-primary) 25%,var(--catalog-border))}
 .catalog-half-badge-v2{display:inline-flex;background:#f9ead0;color:#8f5807;border-radius:25px;font-size:12px;font-weight:800;padding:5px 10px;margin-bottom:10px}
 .catalog-v2 .catalog-product-bottom-v2 .catalog-half-button-v2{width:auto;height:auto;min-height:41px;padding:10px 14px;border-radius:var(--catalog-button-radius);font-size:13px;font-weight:800;line-height:1.2}
+
+/* Paridade visual com templates/stores/catalogo.html de producao (29/10/2026).
+   Mantem componentes, dados e comportamento React atuais. */
+.catalog-v2 .catalog-banner-v2{background:var(--catalog-primary)}
+.catalog-v2[data-header-style="gradient"] .catalog-banner-v2{background:linear-gradient(135deg,var(--catalog-primary),var(--secondary-color,#1f2937))}
+.catalog-v2[data-header-style="transparent"] .catalog-banner-v2{background:linear-gradient(135deg,color-mix(in srgb,var(--catalog-primary) 18%,transparent),color-mix(in srgb,var(--secondary-color,#1f2937) 12%,transparent)),var(--catalog-bg)}
+.catalog-v2 .catalog-banner-overlay-v2{background:linear-gradient(to top,rgba(15,23,42,.38) 0%,rgba(15,23,42,.06) 58%,transparent 100%)}
+.catalog-v2.catalog-hover .catalog-banner-v2 img{transition:transform .6s ease}
+.catalog-v2.catalog-hover .catalog-banner-v2:hover img{transform:scale(1.02)}
+.catalog-v2 .catalog-logo-v2{width:92px;height:92px;margin-top:-46px;border-radius:50%;border-width:4px;box-shadow:0 8px 24px rgba(15,23,42,.16)}
+.catalog-v2 .catalog-logo-v2 img{object-fit:cover}
+.catalog-v2 .catalog-logo-v2:has(>span){background:linear-gradient(135deg,var(--catalog-primary),color-mix(in srgb,var(--catalog-primary) 70%,var(--secondary-color,#1f2937)))}
+.catalog-v2 .catalog-logo-v2 span{color:var(--button-text-color,#fff)}
+.catalog-v2 .catalog-product-photo-v2,.catalog-v2 .catalog-product-placeholder-v2{height:150px}
+.catalog-v2.catalog-compact .catalog-product-photo-v2,.catalog-v2.catalog-compact .catalog-product-placeholder-v2{height:118px}
+.catalog-v2 .catalog-product-bottom-v2 button:not(.catalog-half-button-v2){width:40px;height:40px;color:var(--catalog-primary);background:color-mix(in srgb,var(--catalog-primary) 10%,var(--catalog-card));border:1px solid color-mix(in srgb,var(--catalog-primary) 14%,transparent)}
+.catalog-v2 .catalog-product-bottom-v2 button:not(.catalog-half-button-v2):not(:disabled):hover{background:var(--catalog-primary);color:var(--button-text-color,#fff)}
+@media(max-width:640px){
+ .catalog-v2 .catalog-banner-v2{height:150px!important}
+ .catalog-v2 .catalog-logo-v2{width:74px;height:74px;margin-top:-37px;border-radius:50%;border-width:4px}
+ .catalog-v2 .catalog-product-card-v2{min-height:132px}
+ .catalog-v2 .catalog-product-photo-v2,.catalog-v2 .catalog-product-placeholder-v2{width:118px;min-width:118px;height:132px;min-height:132px}
+ .catalog-v2.catalog-compact .catalog-product-card-v2{min-height:104px}
+ .catalog-v2.catalog-compact .catalog-product-photo-v2,.catalog-v2.catalog-compact .catalog-product-placeholder-v2{width:98px;min-width:98px;height:104px;min-height:104px}
+}

@@ -12,6 +12,7 @@ def marketplace_props(request, c):
     page = c['page_obj']
     return {
         **{k: c[k] for k in ('search', 'selected_city', 'selected_state', 'selected_category', 'open_only', 'favorites_only', 'favorite_count', 'result_count', 'location_active', 'global_delivery_location', 'cities')},
+        'user_latitude': c.get('user_latitude'), 'user_longitude': c.get('user_longitude'), 'user_accuracy': c.get('user_accuracy'),
         'customer_addresses': [address_payload(a) for a in c['customer_addresses']],
         'categories': list(c['categories'].values('name', 'slug', 'icon')),
         'stores': [{

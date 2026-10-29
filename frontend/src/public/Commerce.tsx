@@ -30,11 +30,96 @@ export function ProductDialog({data, product, products, close}: any) {
     <label className="public-field">Quantidade<input type="number" min={product.min_qty} max={product.max_qty} value={qty} onChange={e=>setQty(Number(e.target.value))}/></label><label className="public-field">Observações<textarea maxLength={1000} value={notes} onChange={e=>setNotes(e.target.value)}/></label><p>Os valores finais e as opções serão conferidos pela loja ao adicionar.</p>{error && <p role="alert">{error}</p>}<button onClick={add} disabled={busy||!product.available}>{busy?"Adicionando…":"Adicionar ao carrinho"}</button></dialog>;
 }
 export function Catalog({data}:any) {
-  const [search,setSearch]=useState(""), [selected,setSelected]=useState<any>(null);
-  const brand=data.store?.brand||{};
-  const products = data.props.categories.flatMap((c:any)=>c.products);
-  useEffect(()=>{const q=new URLSearchParams(window.location.search).get("q");if(q)setSearch(q);const p=products.find((p:any)=>p.slug===data.props.open_product_slug);if(p)setSelected(p);},[]);
-  return <div data-open-product-slug={data.props.open_product_slug}>{data.store?.banner && <img className="store-banner" src={data.store.banner} alt=""/>}<p>{data.store?.is_open ? "Aberto agora" : "Fechado agora"}</p><details><summary>Horários e entrega</summary>{data.store?.hours?.map((h:any,n:number)=><p key={n}>{h.day}: {h.closed?"Fechado":`${h.open} — ${h.close}`}</p>)}{data.store?.pickup_address&&<p>Retirada: {data.store.pickup_address}</p>}{data.props.delivery_zones.map((z:any,n:number)=><p key={n}>{z.city} — {z.neighborhood}: {money(z.fee)}</p>)}</details>{data.props.deep_link_unavailable&&<p role="alert">Este produto não está disponível no momento.</p>}{brand.show_search_bar!==false&&<label className="public-field">Buscar no cardápio<input type="search" value={search} onChange={e=>setSearch(e.target.value)}/></label>}<nav className="category-nav">{data.props.categories.map((c:any)=><a key={c.id} href={`#category-${c.id}`}>{c.name}</a>)}</nav>{data.props.categories.map((category:any)=><section key={category.id} id={`category-${category.id}`}><h2>{category.name}</h2><div className="public-grid">{category.products.filter((p:any)=>`${p.name} ${p.description}`.toLocaleLowerCase().includes(search.toLocaleLowerCase())).map((p:any)=><article className={`public-card product-card ${p.is_featured?"product-card-featured":""}`} data-product-price={p.price} data-product-slug={p.slug} key={p.id}>{brand.show_product_image!==false && p.image && <img src={p.image} alt={p.name} loading="lazy"/>}<h3><a href={`/produto/${p.slug}/`} onClick={e=>{e.preventDefault();setSelected(p);}}>{p.name}</a></h3>{brand.show_product_description!==false&&<p>{p.description}</p>}{p.is_featured&&<span className="product-featured absolute top-3 right-3">Destaque</span>}<p>{p.is_vegan&&<span>Vegano </span>}{p.is_spicy&&<span>Picante </span>}{p.prep_time&&<span>{`~${p.prep_time} min `}</span>}{p.weight&&<span>{`${Number(p.weight)} g `}</span>}{p.calories&&<span>{`${p.calories} kcal`}</span>}</p>{p.sale_price!==null&&<><span>OFERTA </span><del>{money(p.original_price)}</del></>} <strong>{money(p.price)}</strong><button disabled={!p.available} onClick={()=>setSelected(p)}>{p.available?"Escolher":"Esgotado"}</button></article>)}</div></section>)}{!products.length && <p>Nenhum produto disponível no momento.</p>}<a className="cart-link" href="/checkout/cart/">Ver carrinho ({data.store?.cart_count||0})</a>{selected&&<ProductDialog key={selected.id} product={selected} products={products} data={data} close={()=>setSelected(null)}/>}</div>;
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<any>(null);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
+  const brand = data.store?.brand || {};
+  const store = data.store || {};
+  const categories = data.props.categories || [];
+  const products = categories.flatMap((category:any) => category.products);
+  const visibleProducts = products.filter((p:any) => `${p.name} ${p.description}`.toLocaleLowerCase().includes(search.toLocaleLowerCase()));
+
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) setSearch(q);
+    const product = products.find((p:any) => p.slug === data.props.open_product_slug);
+    if (product) setSelected(product);
+    try { if (brand.dark_mode_enabled) setDarkMode(window.localStorage.getItem("vdd_catalog_dark") === "true"); } catch { /* Storage can be blocked. */ }
+  }, []);
+
+  function toggleDarkMode() {
+    setDarkMode((old:boolean) => {
+      try { window.localStorage.setItem("vdd_catalog_dark", String(!old)); } catch { /* Optional preference */ }
+      return !old;
+    });
+  }
+
+  const darkVars:any = darkMode ? {
+    "--primary-color": brand.dark_mode_primary,
+    "--background-color": brand.dark_mode_background,
+    "--card-background-color": brand.dark_mode_card_background,
+    "--text-color": brand.dark_mode_text,
+    "--muted-text-color": brand.dark_mode_muted_text,
+    "--border-color": brand.dark_mode_border_color,
+  } : {};
+  const fontClass = brand.font_family === "Poppins" ? "font-poppins" : brand.font_family === "Roboto" ? "font-roboto" : "font-inter";
+  const layoutClasses = ["catalog-v2", fontClass, brand.compact_product_cards ? "catalog-compact" : "", brand.card_shadow ? "catalog-shadow" : "", brand.hover_effect ? "catalog-hover" : "", darkMode ? "catalog-dark" : "", brand.show_category_icons ? "catalog-category-icons" : ""].filter(Boolean).join(" ");
+  const fulfillment = store.accepts_delivery && store.accepts_pickup ? "Entrega e retirada" : store.accepts_pickup ? "Apenas retirada" : "Apenas entrega";
+
+  return <div className={layoutClasses} data-open-product-slug={data.props.open_product_slug || ""} data-header-style={brand.header_style || ""} style={darkVars}>
+    <div className="catalog-banner-v2" aria-label={`Banner da ${store.name || "loja"}`}>
+      {store.banner && <img src={store.banner} alt="" />}
+      <div className="catalog-banner-overlay-v2" />
+    </div>
+    <section className="catalog-identity-v2">
+      <div className="catalog-identity-inner-v2">
+        <div className="catalog-logo-v2">{store.logo ? <img src={store.logo} alt={`Logo ${store.name}`} /> : <span>{(store.name || "L").slice(0, 1)}</span>}</div>
+        <div className="catalog-store-info-v2"><h1>{store.name || "Cardápio"}</h1>
+          <div className="catalog-status-line-v2"><span className={store.is_open ? "catalog-open-v2" : "catalog-closed-v2"}>{store.is_open ? "● Aberto agora" : "● Fechado agora"}</span><span aria-hidden="true">•</span><span>{fulfillment}</span></div>
+          {store.accepts_pickup && store.pickup_address && <p className="catalog-pickup-v2">⌖ Retirada: {store.pickup_address}</p>}
+        </div>
+        {brand.dark_mode_enabled && <button type="button" className="catalog-theme-v2" onClick={toggleDarkMode} aria-label={darkMode ? "Usar tema claro" : "Usar tema escuro"}>{darkMode ? "☀ Tema claro" : "☾ Tema escuro"}</button>}
+      </div>
+    </section>
+    <div className="catalog-toolbar-v2">
+      <div className="catalog-toolbar-inner-v2">
+        <button type="button" aria-label="Ver todas as categorias" aria-expanded={categoriesOpen} onClick={() => setCategoriesOpen(value => !value)} className="catalog-categories-toggle-v2">☰</button>
+        <nav className="catalog-categories-v2" aria-label="Categorias do cardápio">{categories.map((cat:any) => <a key={cat.id} href={`#category-${cat.id}`}>{cat.name}</a>)}</nav>
+        <a className="catalog-cart-top-v2" href="/checkout/cart/">🛒 Carrinho ({store.cart_count || 0})</a>
+      </div>
+      {categoriesOpen && <nav className="catalog-categories-drawer-v2" aria-label="Todas as categorias">{categories.map((cat:any) => <a key={cat.id} onClick={() => setCategoriesOpen(false)} href={`#category-${cat.id}`}>{cat.name} <span>›</span></a>)}</nav>}
+    </div>
+    <div className="catalog-content-v2">
+      <div className="catalog-search-row-v2">
+        <div><small>Cardápio</small><h2>Escolha seus favoritos</h2></div>
+        {brand.show_search_bar !== false && <label className="catalog-search-v2"><span className="catalog-sr-only-v2">Buscar no cardápio</span><span aria-hidden="true">⌕</span><input type="search" placeholder="Buscar no cardápio..." value={search} onChange={e => setSearch(e.target.value)} /></label>}
+      </div>
+      <details className="catalog-details-v2"><summary>Horários, entrega e retirada</summary><div className="catalog-details-content-v2"><div>{store.hours?.map((h:any,n:number) => <p key={n}><strong>{h.day}</strong><span>{h.closed ? "Fechado" : `${h.open} – ${h.close}`}</span></p>)}</div>{store.accepts_pickup && store.pickup_address && <p><strong>Endereço de retirada</strong><span>{store.pickup_address}</span></p>}{data.props.delivery_zones?.map((z:any,n:number) => <p key={n}><strong>{z.city} — {z.neighborhood}</strong><span>{money(z.fee)}</span></p>)}</div></details>
+      {data.props.deep_link_unavailable && <p role="alert" className="catalog-alert-v2">Este produto não está disponível no momento.</p>}
+      {categories.map((category:any) => {
+        const filtered = category.products.filter((p:any) => visibleProducts.some((current:any) => current.id === p.id));
+        if (!filtered.length) return null;
+        return <section key={category.id} id={`category-${category.id}`} className="catalog-category-section-v2">
+          <div className="catalog-category-title-v2"><small>Cardápio</small><h2>{category.name}</h2></div>
+          <div className="catalog-product-grid-v2">{filtered.map((p:any) => <article key={p.id} className={`catalog-product-card-v2 ${p.is_featured ? "is-featured" : ""}`} data-product-slug={p.slug} data-product-price={p.price}>
+            <div className="catalog-product-info-v2">
+              <div>{p.is_featured && <span className="catalog-featured-v2">★ Destaque</span>}
+                <h3><a href={`/produto/${p.slug}/`} onClick={e => { e.preventDefault(); setSelected(p); }}>{p.name}</a></h3>
+                {brand.show_product_description !== false && p.description && <p className="catalog-product-description-v2">{p.description}</p>}
+                <div className="catalog-product-tags-v2">{p.is_vegan && <span>Vegano</span>}{p.is_spicy && <span>Picante</span>}{p.prep_time && <span>~{p.prep_time} min</span>}{p.weight && <span>{Number(p.weight)} g</span>}{p.calories && <span>{p.calories} kcal</span>}</div>
+              </div>
+              <div className="catalog-product-bottom-v2"><div>{p.sale_price !== null && <span className="catalog-offer-v2">OFERTA</span>}{p.sale_price !== null && <del>{money(p.original_price)}</del>}<strong>{money(p.price)}</strong></div><button type="button" disabled={!p.available} aria-label={p.available ? `Escolher ${p.name}` : `${p.name} esgotado`} onClick={() => setSelected(p)}>{p.available ? "+" : "×"}</button></div>
+            </div>
+            {brand.show_product_image !== false && (p.image ? <img className="catalog-product-photo-v2" src={p.image} alt={p.name} loading="lazy" /> : <div className="catalog-product-placeholder-v2" aria-hidden="true">▧</div>)}
+          </article>)}</div>
+        </section>;
+      })}
+      {visibleProducts.length === 0 && <div className="catalog-empty-v2"><h3>Nenhum produto encontrado</h3><p>Experimente buscar por outro nome.</p>{search && <button type="button" onClick={() => setSearch("")}>Limpar busca</button>}</div>}
+    </div>
+    <a className="catalog-cart-sticky-v2" href="/checkout/cart/">🛒 Ver carrinho ({store.cart_count || 0}) <span>→</span></a>
+    {selected && <ProductDialog key={selected.id} product={selected} products={products} data={data} close={() => setSelected(null)}/>}
+  </div>;
 }
 function CartItem({item,data,onUpdate}:any){
   const [qty,setQty]=useState(item.quantity),[notes,setNotes]=useState(item.notes),[error,setError]=useState(""),[busy,setBusy]=useState(false);

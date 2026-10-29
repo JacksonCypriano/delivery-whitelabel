@@ -13,7 +13,7 @@ def store_payload(request):
     if not tenant: return None
     from apps.checkout.views import get_pickup_address
     brand = getattr(tenant, 'brand_config', None)
-    fields = ('primary_color', 'secondary_color', 'accent_color', 'background_color', 'card_background_color', 'text_color', 'muted_text_color', 'border_color', 'button_text_color', 'font_family', 'border_radius', 'button_radius', 'base_font_size', 'show_search_bar', 'show_category_icons', 'show_product_description', 'show_product_image', 'compact_product_cards', 'card_shadow', 'hover_effect', 'header_style', 'dark_mode_enabled', 'dark_mode_primary', 'dark_mode_background', 'dark_mode_card_background', 'dark_mode_text', 'dark_mode_muted_text', 'dark_mode_border_color')
+    fields = ('primary_color', 'secondary_color', 'accent_color', 'background_color', 'card_background_color', 'text_color', 'muted_text_color', 'border_color', 'button_text_color', 'success_color', 'warning_color', 'danger_color', 'font_family', 'border_radius', 'button_radius', 'base_font_size', 'show_search_bar', 'show_category_icons', 'show_product_description', 'show_product_image', 'compact_product_cards', 'card_shadow', 'hover_effect', 'header_style', 'dark_mode_enabled', 'dark_mode_primary', 'dark_mode_background', 'dark_mode_card_background', 'dark_mode_text', 'dark_mode_muted_text', 'dark_mode_border_color')
     def image(name):
         file = getattr(brand, name, None)
         return file.url if file else ''

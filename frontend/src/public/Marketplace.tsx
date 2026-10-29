@@ -1,127 +1,136 @@
-import { useState } from "react";
-import { CSRF, PostButton } from "./PublicApp";
+import { useEffect, useRef, useState } from "react";
+import { CSRF } from "./PublicApp";
 import { AddressFields } from "./Commerce";
 
-/** Marketplace visual baseado na vitrine pública anterior, mantendo os contratos do React. */
+/** Apresentação pública reproduzida do template de produção marketplace/home.html.
+ * A origem dos dados e as ações continuam controladas pelo backend Django.
+ */
 export function Marketplace({ data }: any) {
   const p = data.props;
   const [geoError, setGeoError] = useState("");
   const [editAddress, setEditAddress] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [stuck, setStuck] = useState(false);
+  const headerRef = useRef<HTMLElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const location = p.global_delivery_location;
+  const title = p.favorites_only ? "Suas lojas favoritas" : p.location_active ? "Perto de você" : p.selected_city ? `Lojas em ${p.selected_city}` : "Descubra seu próximo favorito";
+
+  useEffect(() => {
+    const header = headerRef.current;
+    const sentinel = sentinelRef.current;
+    if (!header || !sentinel) return;
+    let observer: IntersectionObserver | undefined;
+    const setup = () => {
+      const height = Math.ceil(header.getBoundingClientRect().height);
+      document.documentElement.style.setProperty("--header-height", `${height}px`);
+      observer?.disconnect();
+      if (!("IntersectionObserver" in window)) return;
+      observer = new IntersectionObserver(([entry]) => {
+        setStuck(!entry.isIntersecting && entry.boundingClientRect.top < height);
+      }, { rootMargin: `-${height}px 0px 0px 0px`, threshold: 0 });
+      observer.observe(sentinel);
+    };
+    setup();
+    window.addEventListener("resize", setup);
+    return () => {observer?.disconnect();window.removeEventListener("resize", setup);document.documentElement.style.removeProperty("--header-height");};
+  }, []);
+
+  function urlWith(changes: Record<string, string | null>, anchor = "#lojas") {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries({
+      q: p.search, cidade: p.selected_city, uf: p.selected_state,
+      categoria: p.selected_category, abertas: p.open_only ? "1" : "",
+      favoritas: p.favorites_only ? "1" : "",
+      lat: p.location_active ? p.user_latitude : "",
+      lng: p.location_active ? p.user_longitude : "",
+      accuracy: p.location_active ? p.user_accuracy : "",
+    })) if (value !== null && value !== undefined && value !== "") query.set(key, String(value));
+    for (const [key, value] of Object.entries(changes)) {
+      if (value === null || value === "") query.delete(key); else query.set(key, value);
+    }
+    return (query.size ? `?${query}` : "/") + anchor;
+  }
 
   function locate() {
-    if (!navigator.geolocation) {
-      setGeoError("Localização indisponível neste navegador.");
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        const query = new URLSearchParams(window.location.search);
-        query.set("lat", String(coords.latitude));
-        query.set("lng", String(coords.longitude));
-        query.set("accuracy", String(coords.accuracy));
-        query.delete("page");
-        window.location.assign("?" + query);
-      },
-      () => setGeoError("Não foi possível obter sua localização. Informe seu endereço."),
-    );
+    if (!navigator.geolocation) { setGeoError("Localização indisponível neste navegador."); return; }
+    navigator.geolocation.getCurrentPosition(({ coords }) => {
+      window.location.assign(urlWith({ lat: String(coords.latitude), lng: String(coords.longitude), accuracy: String(coords.accuracy) }));
+    }, () => setGeoError("Não foi possível obter sua localização. Informe seu endereço."));
   }
 
-  function categoryUrl(slug: string) {
-    const query = new URLSearchParams();
-    if (p.search) query.set("q", p.search);
-    if (p.selected_city) query.set("cidade", p.selected_city);
-    if (p.selected_state) query.set("uf", p.selected_state);
-    if (p.open_only) query.set("abertas", "1");
-    if (p.favorites_only) query.set("favoritas", "1");
-    if (p.location_active && p.user_latitude != null && p.user_longitude != null) {
-      query.set("lat", String(p.user_latitude));
-      query.set("lng", String(p.user_longitude));
-      if (p.user_accuracy != null) query.set("accuracy", String(p.user_accuracy));
-    }
-    if (slug) query.set("categoria", slug);
-    const result = query.toString();
-    return (result ? `?${result}` : "/") + "#lojas";
-  }
-
-  function favoritesUrl(enable: boolean) {
-    const url = categoryUrl(p.selected_category || "");
-    const [path, anchor] = url.split("#");
-    const query = new URLSearchParams(path.startsWith("?") ? path.slice(1) : "");
-    if (enable) query.set("favoritas", "1"); else query.delete("favoritas");
-    return (query.toString() ? "?" + query : "/") + (anchor ? "#" + anchor : "");
-  }
-
-  const address = p.global_delivery_location;
-  const storeLabel = p.favorites_only ? "Suas lojas favoritas" : p.location_active ? "Perto de você" : p.selected_city ? `Lojas em ${p.selected_city}` : "Descubra seu próximo favorito";
-
-  return <div className="mp-page">
-    <section className="mp-hero" aria-labelledby="mp-hero-title">
-      <div className="mp-hero-panel">
-        <div className="mp-eyebrow">Seu bairro tem o que você procura</div>
-        <h1 id="mp-hero-title">Deu vontade?<br /><em>Vem de delivery.</em></h1>
-        <p>Descubra as lojas da sua região e encontre o lugar certo para o seu próximo pedido.</p>
-        <div className="mp-hero-tags"><span>Lojas da sua região</span><span>Entrega ou retirada</span></div>
-      </div>
-      <div className="mp-delivery-bar" id="endereco-entrega">
-        <span className="mp-pin" aria-hidden="true">⌖</span>
-        <div className="mp-delivery-copy">
-          <small>Onde vai ser o pedido?</small>
-          <p>{address ? `${address.label ? address.label + " · " : ""}${address.neighborhood || address.street || ""}, ${address.city || ""}${address.state ? "/" + address.state : ""}` : "Encontre sua região. Você confirma o endereço e a taxa no checkout."}</p>
-        </div>
-        {data.user.authenticated && <a className="mp-btn mp-btn-light" href="/conta/enderecos/">{address ? "Alterar endereço" : "Meus endereços"} ↗</a>}
-      </div>
-    </section>
-
-    <section className="mp-search" aria-label="Buscar e filtrar lojas">
-      <div className="mp-search-head"><span>Explore sua região</span><button className="mp-filter-toggle" type="button" onClick={() => setShowFilters(v => !v)} aria-expanded={showFilters} aria-controls="mp-filters">{showFilters ? "Ocultar filtros" : "Mostrar filtros"}</button></div>
-      <form className="mp-search-form" method="get" id="mp-filters">
-        {p.location_active && p.user_latitude != null && p.user_longitude != null && <>
-          <input type="hidden" name="lat" value={p.user_latitude} />
-          <input type="hidden" name="lng" value={p.user_longitude} />
-          {p.user_accuracy != null && <input type="hidden" name="accuracy" value={p.user_accuracy} />}
-        </>}
-        <div className="mp-search-grid">
-          <label className="mp-field mp-query"><span className="mp-sr-only">Buscar loja ou produto</span><span className="mp-search-icon" aria-hidden="true">⌕</span><input name="q" type="search" defaultValue={p.search} placeholder="O que você quer pedir hoje?" /></label>
-          <label className="mp-field mp-filter-field"><span className="mp-sr-only">Cidade</span><input name="cidade" list="mp-cities" defaultValue={p.selected_city} placeholder="Cidade" /></label>
-          <datalist id="mp-cities">{(p.cities || []).map((city: string) => <option key={city} value={city} />)}</datalist>
-          <label className="mp-field mp-filter-field"><span className="mp-sr-only">UF</span><input name="uf" defaultValue={p.selected_state} maxLength={2} placeholder="UF" /></label>
-          <button type="submit" className="mp-btn mp-btn-primary">Buscar lojas</button>
-        </div>
-        <div className={`mp-filters ${showFilters ? "mp-filters-open" : ""}`}>
-          <label><input type="checkbox" name="abertas" value="1" defaultChecked={p.open_only} /> Abertas agora</label>
-          <label><input type="checkbox" name="favoritas" value="1" defaultChecked={p.favorites_only} /> Somente favoritas</label>
-          <button type="button" onClick={locate}>⌖ Usar minha localização</button>
-          <button type="button" onClick={() => setEditAddress(v => !v)}>{editAddress ? "Fechar endereço" : "Informar endereço"}</button>
-          <a href="/">Limpar filtros</a>
-        </div>
-      </form>
-      {geoError && <p className="mp-notice" role="alert">{geoError}</p>}
-      {editAddress && <div className="mp-address-forms">
-        <form method="post" action="/localizacao-entrega/" className="mp-address-form"><CSRF data={data} /><h3>Onde você quer receber?</h3><input type="hidden" name="mode" value="manual" /><AddressFields initial={address || {}} />{data.user.authenticated && <label><input type="checkbox" name="save_address" value="1" /> Salvar nos meus endereços</label>}<button type="submit">Confirmar endereço</button></form>
-        {(p.customer_addresses || []).length > 0 && <form method="post" action="/localizacao-entrega/" className="mp-address-form"><CSRF data={data} /><input type="hidden" name="mode" value="saved" /><label className="public-field">Endereços salvos<select name="customer_address_id">{p.customer_addresses.map((a: any) => <option key={a.id} value={a.id}>{a.label} — {a.street}, {a.number}</option>)}</select></label><button type="submit">Usar endereço salvo</button></form>}
-        {address && <PostButton data={data} action="/localizacao-entrega/remover/">Remover localização</PostButton>}
-      </div>}
-      <nav className="mp-categories" aria-label="Categorias de lojas">
-        <a className={!p.selected_category ? "active" : ""} href={categoryUrl("")}>Todas as lojas</a>
-        {(p.categories || []).map((category: any) => <a key={category.slug} className={p.selected_category === category.slug ? "active" : ""} href={categoryUrl(category.slug)}>{category.icon && <span aria-hidden="true">{category.icon}</span>}{category.name}</a>)}
+  return <div className="mp-production">
+    <a className="skip" href="#lojas">Ir para as lojas</a>
+    <header className="site-header" ref={headerRef}><div className="wrap header-inner">
+      <a className="brand" href="/" aria-label="VemDeDelivery, início"><img className="brand-logo" src="/static/images/brand/logo-vemdedelivery.svg" alt="VemDeDelivery" width="365" height="72" /></a>
+      <nav className="navigation" aria-label="Navegação principal">
+        <a className="nav-explore desktop-only" href="#lojas">Explorar lojas</a>
+        {data.user.authenticated ? <a className="btn btn-dark" href="/conta/">Minha conta ↗</a> : <><a className="btn" href="/conta/entrar/">Entrar</a><a className="btn btn-dark desktop-only" href="/conta/criar-conta/">Criar conta ↗</a></>}
       </nav>
+    </div></header>
+    {(data.messages || []).length > 0 && <div className="wrap" aria-live="polite">{data.messages.map((message:any, i:number) => <div key={i} className={`notice ${message.level}`}>{message.text}</div>)}</div>}
+    <section className="hero wrap" aria-labelledby="hero-title"><div className="hero-panel mp-hero-panel"><div className="hero-copy">
+      <div className="eyebrow">Seu bairro tem o que você procura</div>
+      <h1 id="hero-title">Deu vontade? <br/><em>Vem de delivery.</em></h1>
+      <p>Descubra as lojas da sua região e encontre o lugar certo para o seu próximo pedido.</p>
+      <div className="hero-tags"><span>Lojas da sua região</span><span>Entrega ou retirada</span></div>
+    </div></div>
+      <div id="endereco-entrega" className="delivery-bar"><span className="pin" aria-hidden="true">⌖</span><div className="delivery-copy"><span className="micro">Onde vai ser o pedido?</span>
+        <p>{location ? `${location.label ? location.label + " · " : ""}${location.neighborhood || location.street || ""}, ${location.city || ""}${location.state ? "/" + location.state : ""}` : "Encontre sua região. Você confirma o endereço e a taxa no checkout."}</p>
+      </div><a className="btn" href={data.user.authenticated ? "/conta/enderecos/" : "/conta/entrar/"}>{data.user.authenticated ? (location ? "Alterar endereço ↗" : "Meus endereços ↗") : "Entrar para salvar endereço ↗"}</a></div>
     </section>
-
-    <section className="mp-results" id="lojas">
-      <div className="mp-results-head"><div><h2>{storeLabel}</h2><p>{p.result_count} {p.result_count === 1 ? "loja encontrada" : "lojas encontradas"}{p.search ? ` para “${p.search}”` : ""}</p></div>{data.user.authenticated && <div className="mp-account-links"><a className="mp-btn mp-btn-light" href="/meus-pedidos/">Meus pedidos</a><a className="mp-btn mp-btn-light" href={favoritesUrl(!p.favorites_only)}>♥ Favoritas {p.favorite_count ? `· ${p.favorite_count}` : ""}</a></div>}</div>
-      {p.stores.length > 0 ? <div className="mp-stores">
-        {p.stores.map((store: any) => <article key={store.id} className="mp-store-card">
-          <div className="mp-store-top"><div className="mp-store-logo">{store.logo_url ? <img src={store.logo_url} alt="" loading="lazy" /> : <span>{store.name.slice(0, 1)}</span>}</div><div className="mp-store-name"><h3><a href={store.url}>{store.name}</a></h3><small>{[store.city, store.state].filter(Boolean).join("/")}{store.distance_km != null ? ` · ${Number(store.distance_km).toFixed(1)} km` : ""}</small></div><div className="mp-store-favorite"><PostButton data={data} action={`/favoritos/loja/${store.id}/`}>{store.is_favorite ? "♥" : "♡"}</PostButton></div></div>
-          {store.description && <p className="mp-store-description">{store.description}</p>}
-          {store.categories?.length > 0 && <div className="mp-store-categories">{store.categories.map((cat: any, index: number) => <span key={index}>{cat.icon} {cat.name}</span>)}</div>}
-          {store.matched_products?.length > 0 && <div className="mp-matched"><strong>Produtos encontrados</strong>{store.matched_products.map((product: any) => <span key={product.id}>{product.name}</span>)}</div>}
-          <div className="mp-store-bottom"><span className={store.is_open ? "mp-open" : "mp-closed"}>{store.is_open ? "Aberta agora" : "Fechada agora"}</span><span>{store.delivery?.message || store.delivery?.fee_display || (store.delivery?.status === "pickup_only" ? "Somente retirada" : "Taxa de entrega no checkout")}</span></div>
-          <a className="mp-store-action" href={store.url}>Ver cardápio <span aria-hidden="true">↗</span></a>
-        </article>)}
-      </div> : <div className="mp-empty"><div aria-hidden="true">⌕</div><h3>Nenhuma loja encontrada</h3><p>Tente alterar a cidade, os filtros ou o termo pesquisado.</p><a className="mp-btn mp-btn-primary" href="/">Ver todas as lojas</a></div>}
-      {(p.pagination.previous || p.pagination.next) && <nav className="mp-pagination" aria-label="Paginação">{p.pagination.previous && <a href={p.pagination.previous}>← Anterior</a>}<span>Página {p.pagination.page}</span>{p.pagination.next && <a href={p.pagination.next}>Próxima →</a>}</nav>}
+    <div id="search-sentinel" aria-hidden="true" ref={sentinelRef}/>
+    <section id="sticky-search" className={`wrap search-section ${stuck ? "is-stuck" : ""} ${expanded ? "filters-expanded" : ""}`} aria-label="Buscar e filtrar lojas">
+      <button type="button" className="compact-filter-toggle" aria-expanded={expanded} aria-controls="marketplace-search-form category-navigation" onClick={() => setExpanded(!expanded)}>{expanded ? "Ocultar filtros" : "Mostrar filtros"}</button>
+      <form method="get" id="marketplace-search-form" className="search-box">
+        {p.location_active && <><input type="hidden" name="lat" value={p.user_latitude} /><input type="hidden" name="lng" value={p.user_longitude} />{p.user_accuracy != null && <input type="hidden" name="accuracy" value={p.user_accuracy}/>}</>}
+        {p.favorites_only && <input type="hidden" name="favoritas" value="1" />}
+        <div className="search-grid">
+          <label className="field"><span className="sr-only">Buscar produto ou loja</span><span aria-hidden="true">⌕</span><input type="search" name="q" defaultValue={p.search} placeholder="O que você quer pedir hoje?"/></label>
+          <select name="cidade" aria-label="Cidade" defaultValue={p.location_active ? "" : p.selected_city || ""} disabled={p.location_active}>
+            <option value="">{p.location_active ? "Usando localização atual" : "Todas as cidades"}</option>
+            {!p.location_active && (p.cities || []).map((city:string) => <option key={city} value={city}>{city}</option>)}
+          </select>
+          <select name="categoria" aria-label="Categoria" defaultValue={p.selected_category || ""}><option value="">Todas as categorias</option>{(p.categories || []).map((c:any) => <option key={c.slug} value={c.slug}>{c.name}</option>)}</select>
+          <button className="btn btn-orange" type="submit">Buscar lojas ↗</button>
+        </div>
+        <div className="filter-row">
+          <button type="button" onClick={locate}>{p.location_active ? "Atualizar localização" : "⌖ Usar minha localização"}</button>
+          {p.location_active && <a href={urlWith({lat:null,lng:null,accuracy:null})}>Remover localização</a>}
+          <label><input type="checkbox" name="abertas" value="1" defaultChecked={p.open_only}/> Abertas agora</label>
+          <button type="button" onClick={() => setEditAddress(!editAddress)}>{editAddress ? "Fechar endereço" : "Informar endereço"}</button>
+          {(p.search || p.selected_city || p.selected_category || p.open_only || p.location_active || p.favorites_only) && <a className="clear" href="/">Limpar filtros ×</a>}
+        </div>
+        {geoError && <p className="location-message" role="status" aria-live="polite">{geoError}</p>}
+        {p.location_active && p.geocoded_location && <p className="gps-note">Região aproximada pelo GPS: {[p.geocoded_location.neighborhood, p.geocoded_location.city, p.geocoded_location.state].filter(Boolean).join(", ")}. Confirme o endereço antes do pedido.</p>}
+      </form>
+      {editAddress && <div className="mp-production-address">
+        <form method="post" action="/localizacao-entrega/"><CSRF data={data}/><input type="hidden" name="mode" value="manual"/><AddressFields initial={location || {}}/>{data.user.authenticated && <label><input type="checkbox" name="save_address" value="1"/> Salvar endereço</label>}<button className="btn btn-dark" type="submit">Usar endereço</button></form>
+        {(p.customer_addresses || []).length > 0 && <form method="post" action="/localizacao-entrega/"><CSRF data={data}/><input type="hidden" name="mode" value="saved"/><select name="customer_address_id">{p.customer_addresses.map((a:any)=><option key={a.id} value={a.id}>{a.label} — {a.street}, {a.number}</option>)}</select><button className="btn btn-dark" type="submit">Usar endereço salvo</button></form>}
+      </div>}
+      {(p.categories || []).length > 0 && <nav id="category-navigation" className="category-row" aria-label="Categorias de lojas">
+        <a className={`category-chip ${!p.selected_category ? "active" : ""}`} href={urlWith({categoria:null})}>Todas as lojas</a>
+        {p.categories.map((cat:any) => <a key={cat.slug} className={`category-chip ${p.selected_category === cat.slug ? "active" : ""}`} href={urlWith({categoria:cat.slug})}>{cat.icon && <span className="category-icon" aria-hidden="true">{cat.icon}</span>}{cat.name}</a>)}
+      </nav>}
     </section>
-    <section className="mp-steps"><h2>Como funciona?</h2><div><span><b>01</b><strong>Encontre sua loja</strong><small>Explore lojas e produtos perto de você</small></span><span><b>02</b><strong>Monte seu pedido</strong><small>Escolha itens e personalize do seu jeito</small></span><span><b>03</b><strong>Receba ou retire</strong><small>Você escolhe como prefere comprar</small></span></div></section>
+    <main id="lojas" className="wrap results">
+      <div className="results-heading"><div><h2>{title}</h2><p>{p.result_count} {p.result_count === 1 ? "loja encontrada" : "lojas encontradas"}{p.search ? ` para “${p.search}”` : ""}{location ? " · entrega no endereço selecionado primeiro" : p.location_active ? " · por distância aproximada" : ""}</p></div>
+        {data.user.authenticated && <nav className="account-links" aria-label="Seus atalhos"><a className="btn" href="/meus-pedidos/">Meus pedidos</a><a className={`btn ${p.favorites_only ? "active" : ""}`} href={urlWith({favoritas:p.favorites_only?null:"1"})}>{p.favorites_only ? "♥" : "♡"} Favoritas{p.favorite_count ? ` · ${p.favorite_count}` : ""}</a></nav>}
+      </div>
+      {(p.stores || []).length > 0 ? <div className="store-grid">{p.stores.map((store:any) => <article className="store-card mp-store-card" key={store.id}>
+        <a className="store-link" href={store.url} aria-label={`Ver produtos de ${store.name}`}/>
+        {data.user.authenticated && <form method="post" action={`/favoritos/loja/${store.id}/`} className="favorite-store-form"><CSRF data={data}/><input type="hidden" name="next" value="/"/><button type="submit" className="favorite-store-button" aria-pressed={Boolean(store.is_favorite)} title={store.is_favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"} aria-label={`Favoritar ${store.name}`}><span className={store.is_favorite ? "text-rose-500" : "text-slate-300"} aria-hidden="true">♥</span></button></form>}
+        <div className="store-top"><div className="logo">{store.logo_url ? <img src={store.logo_url} alt={`Logo ${store.name}`} width="66" height="66" loading="lazy"/> : <span aria-hidden="true">{store.name?.slice(0,1)?.toUpperCase()}</span>}</div><div className="store-identity"><h3>{store.name}</h3><p className="store-location">{store.distance_km != null ? `${Number(store.distance_km).toLocaleString("pt-BR",{maximumFractionDigits:1})} km de você` : [store.city,store.state].filter(Boolean).join("/")}</p>{store.is_featured && <p className="featured">✦ Em destaque</p>}</div></div>
+        {store.description && <p className="store-description">{store.description}</p>}
+        {!!store.categories?.length && <div className="store-categories">{store.categories.slice(0,3).map((cat:any,i:number)=><span key={i}>{cat.name}</span>)}</div>}
+        {!!store.matched_products?.length && <div className="matched"><strong>Encontrado nesta loja</strong>{store.matched_products.map((product:any) => <span key={product.id}>{product.name} · {Number(product.price).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}</span>)}</div>}
+        <div className="store-status"><span className={`status ${store.is_open ? "open" : "closed"}`}>{store.is_open ? "Aberto agora" : "Fechado"}</span>{store.accepts_delivery && <span>Entrega</span>}{store.accepts_pickup && <span>Retirada</span>}</div>
+        {store.delivery?.status === "pickup_only" ? <p className="delivery-state">Somente retirada</p> : store.delivery?.status === "available" ? <p className="delivery-state available">Entrega no seu endereço · {store.delivery.fee_display}</p> : store.delivery?.status === "unavailable" ? <p className="delivery-state unavailable">Não entrega neste endereço</p> : store.accepts_delivery && <p className="delivery-state">Confirme o endereço para entrega</p>}
+        <div className="card-bottom" aria-hidden="true"><span>Explorar loja</span><span className="card-arrow">↗</span></div>
+      </article>)}</div> : <div className="empty"><div className="empty-icon" aria-hidden="true">⌕</div><h3>Vamos encontrar outra opção?</h3><p>Nenhuma loja encontrada com esses filtros. Busque outro produto ou amplie sua região.</p><a className="btn btn-dark" href="/">Ver todas as lojas ↗</a></div>}
+      {(p.pagination?.previous || p.pagination?.next) && <nav className="pagination" aria-label="Paginação">{p.pagination.previous && <a className="btn" href={p.pagination.previous + "#lojas"}>← Anterior</a>}<span>Página {p.pagination.page}</span>{p.pagination.next && <a className="btn" href={p.pagination.next + "#lojas"}>Próxima →</a>}</nav>}
+    </main>
+    <section className="wrap how-it-works" aria-label="Como pedir"><p className="how-title">Da vontade<br/>ao seu próximo pedido.</p><div className="step"><span className="step-number">01</span><div><strong>Encontre sua loja</strong><p>Explore as lojas da região.</p></div></div><div className="step"><span className="step-number">02</span><div><strong>Escolha os produtos</strong><p>Monte o pedido do seu jeito.</p></div></div><div className="step"><span className="step-number">03</span><div><strong>Combine com a loja</strong><p>Envie seu pedido pelo WhatsApp.</p></div></div></section>
+    <footer className="footer"><div className="wrap footer-inner"><a className="footer-brand" href="/" aria-label="VemDeDelivery, início"><img src="/static/images/brand/logo-vemdedelivery-clara.svg" alt="VemDeDelivery" width="365" height="72"/></a><p className="footer-tagline">Seu bairro. Suas lojas. Seu próximo pedido.</p><div className="footer-company"><strong>COBRADEV SOLUTIONS</strong><p>CNPJ 59.198.345/0001-44</p></div><div className="footer-legal"><a href="/termos/">Termos de Serviço</a> · <a href="/privacidade/">Política de Privacidade</a></div><a className="btn btn-orange" href="/para-lojistas/">Sou lojista · Conheça o VemDeDelivery</a><div className="footer-meta"><p>© {data.year} VemDeDelivery</p><p>Dados de localização: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a></p></div></div></footer>
   </div>;
 }

@@ -36,6 +36,8 @@ function Accounts({ data }: any) {
 export function PublicApp({ data }: { data: PageData }) {
   if (data.page === "landing") return <Landing data={data}/>;
   if (data.page === "seo") return <SEOPage data={data}/>;
+  // A raiz utiliza a estrutura do template de produção; checkout e painel mantêm o shell React atual.
+  if (data.page === "marketplace") return <Marketplace data={data}/>;
   if (data.page === "feedback") return <main className="public-main"><h1>Sua opinião e preferências</h1>{data.props.done?<p>Obrigado! Sua preferência foi registrada.</p>:<>{data.props.kind === "feedback"&&<form method="post"><CSRF data={data}/><label>Nota<select name="rating" required>{[1,2,3,4,5].map(n=><option key={n}>{n}</option>)}</select></label><label>Comentário<textarea name="comment" maxLength={1000}/></label><button>Enviar avaliação</button></form>}<form method="post"><CSRF data={data}/><button name="action" value="unsubscribe">Deixar de receber mensagens de marketing desta loja</button></form></>}</main>;
   const commerce = data.page === "marketplace" ? <Marketplace data={data}/> : data.page === "catalog" ? <Catalog data={data}/> : data.page === "cart" ? <Cart data={data}/> : data.page === "checkout" ? <Checkout data={data}/> : ["review","payment"].includes(data.page) ? <Review data={data}/> : null;
   const b=data.store?.brand||{};

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { CSRF, OrderSummary, PostButton } from "./PublicApp";
 export const money = (value: any) => Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }).replace(/\u00a0/g, " ");
 export async function requestJSON(url: string, data: any, body?: any) {
@@ -12,8 +12,8 @@ export function Choices({product, bucket, allowed, selections, onChange}: any) {
   useEffect(() => { let active = true; setGroups([]); setError(""); requestJSON(`/api/product/${product.id}/customizations/`, {}).then(r => { if(active) setGroups(r.groups); }).catch(e => {if(active) setError(e.message);}); return () => {active=false;}; }, [product.id]);
   return <>{error && <p role="alert">{error}</p>}{groups.filter(g => !allowed || allowed.includes(g.apply_to)).map(group => <fieldset key={group.id}><legend>{group.name} · escolha {group.min_options} a {group.max_options || "várias"}</legend>{group.options.map((option:any) => <label className="choice" key={option.id}><input type="checkbox" checked={selections.some((s:any) => s.group_id === group.id && s.option_id === option.id)} onChange={e => onChange(bucket, e.target.checked ? [...selections, {group_id:group.id,option_id:option.id}] : selections.filter((s:any) => s.option_id !== option.id))}/>{option.name} {Number(option.price) > 0 && `+ ${money(option.price)}`}{option.description && <small>{option.description}</small>}</label>)}</fieldset>)}</>;
 }
-export function ProductDialog({data, product, products, close}: any) {
-  const [half, setHalf] = useState(false), [secondId,setSecondId] = useState(String(product.id));
+export function ProductDialog({data, product, products, close, startHalf=false}: any) {
+  const [half, setHalf] = useState(Boolean(startHalf)), [secondId,setSecondId] = useState(String(product.id));
   const [qty,setQty]=useState(product.min_qty), [notes,setNotes]=useState(""), [notes1,setNotes1]=useState(""), [notes2,setNotes2]=useState("");
   const [selections,setSelections]=useState<any>({}), [error,setError]=useState(""), [busy,setBusy]=useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -32,6 +32,7 @@ export function ProductDialog({data, product, products, close}: any) {
 export function Catalog({data}:any) {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<any>(null);
+  const [startHalf, setStartHalf] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const brand = data.store?.brand || {};
@@ -65,6 +66,8 @@ export function Catalog({data}:any) {
   } : {};
   const fontClass = brand.font_family === "Poppins" ? "font-poppins" : brand.font_family === "Roboto" ? "font-roboto" : "font-inter";
   const layoutClasses = ["catalog-v2", fontClass, brand.compact_product_cards ? "catalog-compact" : "", brand.card_shadow ? "catalog-shadow" : "", brand.hover_effect ? "catalog-hover" : "", darkMode ? "catalog-dark" : "", brand.show_category_icons ? "catalog-category-icons" : ""].filter(Boolean).join(" ");
+  const isPizzaCategory = (name:string) => ["pizza", "pizzas"].includes(name.trim().toLocaleLowerCase("pt-BR"));
+  function openProduct(product:any, half=false) {setStartHalf(half);setSelected(product);}
   const fulfillment = store.accepts_delivery && store.accepts_pickup ? "Entrega e retirada" : store.accepts_pickup ? "Apenas retirada" : "Apenas entrega";
 
   return <div className={layoutClasses} data-open-product-slug={data.props.open_product_slug || ""} data-header-style={brand.header_style || ""} style={darkVars}>
@@ -85,10 +88,10 @@ export function Catalog({data}:any) {
     <div className="catalog-toolbar-v2">
       <div className="catalog-toolbar-inner-v2">
         <button type="button" aria-label="Ver todas as categorias" aria-expanded={categoriesOpen} onClick={() => setCategoriesOpen(value => !value)} className="catalog-categories-toggle-v2">☰</button>
-        <nav className="catalog-categories-v2" aria-label="Categorias do cardápio">{categories.map((cat:any) => <a key={cat.id} href={`#category-${cat.id}`}>{cat.name}</a>)}</nav>
+        <nav className="catalog-categories-v2" aria-label="Categorias do cardápio">{categories.map((cat:any) => <Fragment key={cat.id}><a href={`#category-${cat.id}`}>{isPizzaCategory(cat.name) ? "Pizzas inteiras" : cat.name}</a>{isPizzaCategory(cat.name) && cat.products.some((p:any)=>p.half_enabled) && <a href={`#pizzas-meio-a-meio-${cat.id}`}>Pizza meio a meio</a>}</Fragment>)}</nav>
         <a className="catalog-cart-top-v2" href="/checkout/cart/">🛒 Carrinho ({store.cart_count || 0})</a>
       </div>
-      {categoriesOpen && <nav className="catalog-categories-drawer-v2" aria-label="Todas as categorias">{categories.map((cat:any) => <a key={cat.id} onClick={() => setCategoriesOpen(false)} href={`#category-${cat.id}`}>{cat.name} <span>›</span></a>)}</nav>}
+      {categoriesOpen && <nav className="catalog-categories-drawer-v2" aria-label="Todas as categorias">{categories.map((cat:any) => <Fragment key={cat.id}><a onClick={() => setCategoriesOpen(false)} href={`#category-${cat.id}`}>{isPizzaCategory(cat.name) ? "Pizzas inteiras" : cat.name} <span>›</span></a>{isPizzaCategory(cat.name) && cat.products.some((p:any)=>p.half_enabled) && <a onClick={() => setCategoriesOpen(false)} href={`#pizzas-meio-a-meio-${cat.id}`}>Pizza meio a meio <span>›</span></a>}</Fragment>)}</nav>}
     </div>
     <div className="catalog-content-v2">
       <div className="catalog-search-row-v2">
@@ -100,25 +103,36 @@ export function Catalog({data}:any) {
       {categories.map((category:any) => {
         const filtered = category.products.filter((p:any) => visibleProducts.some((current:any) => current.id === p.id));
         if (!filtered.length) return null;
-        return <section key={category.id} id={`category-${category.id}`} className="catalog-category-section-v2">
-          <div className="catalog-category-title-v2"><small>Cardápio</small><h2>{category.name}</h2></div>
+        return <Fragment key={category.id}><section id={`category-${category.id}`} className="catalog-category-section-v2">
+          <div className="catalog-category-title-v2"><small>Cardápio</small><h2>{isPizzaCategory(category.name) ? "Pizzas inteiras" : category.name}</h2></div>
           <div className="catalog-product-grid-v2">{filtered.map((p:any) => <article key={p.id} className={`catalog-product-card-v2 ${p.is_featured ? "product-card-featured is-featured" : ""}`} data-product-slug={p.slug} data-product-price={p.price}>
             <div className="catalog-product-info-v2">
               <div className={p.is_featured ? "catalog-featured-content-v2" : undefined}>{p.is_featured && <span className="catalog-featured-v2 product-featured absolute top-3 right-3">★ Destaque</span>}
-                <h3><a href={`/produto/${p.slug}/`} onClick={e => { e.preventDefault(); setSelected(p); }}>{p.name}</a></h3>
+                <h3><a href={`/produto/${p.slug}/`} onClick={e => { e.preventDefault(); openProduct(p); }}>{p.name}</a></h3>
                 {brand.show_product_description !== false && p.description && <p className="catalog-product-description-v2">{p.description}</p>}
                 <div className="catalog-product-tags-v2">{p.is_vegan && <span>Vegano</span>}{p.is_spicy && <span>Picante</span>}{p.prep_time && <span>{`~${p.prep_time} min`}</span>}{p.weight && <span>{`${Number(p.weight)} g`}</span>}{p.calories && <span>{`${p.calories} kcal`}</span>}</div>
               </div>
-              <div className="catalog-product-bottom-v2"><div>{p.sale_price !== null && <span className="catalog-offer-v2">OFERTA</span>}{p.sale_price !== null && <del>{money(p.original_price)}</del>}<strong>{money(p.price)}</strong></div><button type="button" disabled={!p.available} aria-label={p.available ? `Escolher ${p.name}` : `${p.name} esgotado`} onClick={() => setSelected(p)}>{p.available ? "+" : "×"}</button></div>
+              <div className="catalog-product-bottom-v2"><div>{p.sale_price !== null && <span className="catalog-offer-v2">OFERTA</span>}{p.sale_price !== null && <del>{money(p.original_price)}</del>}<strong>{money(p.price)}</strong></div><button type="button" disabled={!p.available} aria-label={p.available ? `Escolher ${p.name}` : `${p.name} esgotado`} onClick={() => openProduct(p)}>{p.available ? "+" : "×"}</button></div>
             </div>
             {brand.show_product_image !== false && (p.image ? <img className="catalog-product-photo-v2" src={p.image} alt={p.name} loading="lazy" /> : <div className="catalog-product-placeholder-v2" aria-hidden="true">▧</div>)}
           </article>)}</div>
-        </section>;
+        </section>
+        {isPizzaCategory(category.name) && filtered.some((p:any) => p.half_enabled) && <section id={`pizzas-meio-a-meio-${category.id}`} className="catalog-category-section-v2 catalog-half-section-v2">
+          <div className="catalog-category-title-v2"><small>Monte do seu jeito</small><h2>Pizza meio a meio</h2><p>Escolha dois sabores e monte uma pizza do jeito que você quiser.</p></div>
+          <div className="catalog-product-grid-v2">{filtered.filter((p:any) => p.half_enabled).map((p:any) => <article key={`half-${p.id}`} className="catalog-product-card-v2 catalog-half-card-v2" data-product-slug={p.slug} data-product-price={p.price}>
+            <div className="catalog-product-info-v2"><div><span className="catalog-half-badge-v2">½ + ½</span><h3>{p.name}</h3>{brand.show_product_description !== false && p.description && <p className="catalog-product-description-v2">{p.description}</p>}
+              <div className="catalog-product-tags-v2">{p.prep_time && <span>{`~${p.prep_time} min`}</span>}{p.weight && <span>{`${Number(p.weight)} g`}</span>}</div></div>
+              <div className="catalog-product-bottom-v2"><strong>{money(p.price)}</strong><button className="catalog-half-button-v2" type="button" disabled={!p.available} onClick={() => openProduct(p,true)} aria-label={`Montar pizza meio a meio com ${p.name}`}>{p.available ? "Montar" : "Esgotado"}</button></div>
+            </div>
+            {brand.show_product_image !== false && (p.image ? <img className="catalog-product-photo-v2" src={p.image} alt={p.name} loading="lazy"/> : <div className="catalog-product-placeholder-v2" aria-hidden="true">½</div>)}
+          </article>)}</div>
+        </section>}
+        </Fragment>;
       })}
       {visibleProducts.length === 0 && <div className="catalog-empty-v2"><h3>Nenhum produto encontrado</h3><p>Experimente buscar por outro nome.</p>{search && <button type="button" onClick={() => setSearch("")}>Limpar busca</button>}</div>}
     </div>
     <a className="catalog-cart-sticky-v2" href="/checkout/cart/">🛒 Ver carrinho ({store.cart_count || 0}) <span>→</span></a>
-    {selected && <ProductDialog key={selected.id} product={selected} products={products} data={data} close={() => setSelected(null)}/>}
+    {selected && <ProductDialog key={`${selected.id}-${startHalf}`} product={selected} products={products} data={data} startHalf={startHalf} close={() => setSelected(null)}/>}
   </div>;
 }
 function CartItem({item,data,onUpdate}:any){

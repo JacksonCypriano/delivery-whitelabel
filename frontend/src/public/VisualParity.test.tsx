@@ -28,7 +28,9 @@ describe("paridade visual do frontend público React", () => {
     expect(html).toContain("mp-hero-panel");
     expect(html).toContain("mp-store-card");
     expect(html).toContain("Bella Massa");
-    expect(html).toContain("Ver cardápio");
+    expect(html).toContain("Explorar loja");
+    expect(html).toContain("site-header");
+    expect(html).toContain("search-section");
   });
 
   it("restaura banner, identidade, categorias e cartões sem perder a seleção React", () => {
@@ -37,13 +39,16 @@ describe("paridade visual do frontend público React", () => {
       props: { categories: [{ id: 1, name: "Pizzas", products: [{ id: 20,
         slug: "margherita", name: "Pizza Margherita", description: "Massa artesanal",
         price: "49.90", original_price: "49.90", sale_price: null, is_featured: false,
-        is_vegan: false, is_spicy: false, available: true, prep_time: 30,
+        is_vegan: false, is_spicy: false, available: true, half_enabled: true, prep_time: 30,
         weight: "", calories: null, image: "/media/pizza.jpg", images: [], min_qty: 1, max_qty: 5,
       }] }], delivery_zones: [], open_product_slug: "", deep_link_unavailable: false },
     }} />);
     expect(html).toContain("catalog-banner-v2");
     expect(html).toContain("catalog-identity-v2");
     expect(html).toContain("catalog-product-card-v2");
+    expect(html).toContain("Pizzas inteiras");
+    expect(html).toContain("Pizza meio a meio");
+    expect(html).toContain("Montar");
     expect(html).toContain("Pizza Margherita");
     expect(html).toContain("Buscar no cardápio");
     expect(html).toContain("/checkout/cart/");

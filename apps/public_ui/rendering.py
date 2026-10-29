@@ -145,6 +145,8 @@ def present(request, template, context):
         data['heading'] = data['store']['name'] if data['store'] else 'Cardápio'
         data['meta'].update(title=data['heading'], robots='noindex,follow' if settings.DEBUG else 'index,follow', canonical=request.build_absolute_uri(request.path))
     if page == 'marketplace':
+        # O CSS da home é o mesmo do template da VPS; as demais telas não o carregam.
+        data['assets']['css'].append('/static/css/marketplace-production.css')
         from .marketplace import marketplace_props
         data['props'] = marketplace_props(request, c)
         data['meta'].update(title='VemDeDelivery — Lojas perto de você', robots='noindex,follow' if settings.DEBUG else 'index,follow', canonical=request.build_absolute_uri('/'))

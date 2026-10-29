@@ -178,3 +178,10 @@
 @media(prefers-reduced-motion:reduce){.mp-store-card,.catalog-product-card-v2{transition:none!important}}
 
 .vdd-footer-brand{width:240px;max-width:90%;height:auto;display:block;margin:0 auto 10px}.vdd-merchant-cta{display:inline-flex;border-radius:11px;padding:12px 17px;background:#bd441d;color:#fff!important;font-weight:800;text-decoration:none;font-size:12px}
+
+/* Paridade da secao de pizzas recuperada do catalogo de producao. */
+.catalog-half-section-v2 .catalog-category-title-v2>small{color:#b86b08}
+.catalog-half-section-v2 .catalog-category-title-v2>p{font-size:13px;color:var(--catalog-muted);margin:10px 0 0}
+.catalog-half-card-v2{border-color:color-mix(in srgb,var(--catalog-primary) 25%,var(--catalog-border))}
+.catalog-half-badge-v2{display:inline-flex;background:#f9ead0;color:#8f5807;border-radius:25px;font-size:12px;font-weight:800;padding:5px 10px;margin-bottom:10px}
+.catalog-v2 .catalog-product-bottom-v2 .catalog-half-button-v2{width:auto;height:auto;min-height:41px;padding:10px 14px;border-radius:var(--catalog-button-radius);font-size:13px;font-weight:800;line-height:1.2}

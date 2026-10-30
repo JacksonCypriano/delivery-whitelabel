@@ -46,12 +46,18 @@ export function Catalog({data}:any) {
     if (q) setSearch(q);
     const product = products.find((p:any) => p.slug === data.props.open_product_slug);
     if (product) setSelected(product);
-    try { if (brand.dark_mode_enabled) setDarkMode(window.localStorage.getItem("vdd_catalog_dark") === "true"); } catch { /* Storage can be blocked. */ }
+    try {
+      if (brand.dark_mode_enabled) {
+        const saved = window.localStorage.getItem("theme");
+        const legacy = window.localStorage.getItem("vdd_catalog_dark");
+        setDarkMode(saved === "dark" || (saved === null && (legacy === "true" || (legacy === null && window.matchMedia("(prefers-color-scheme: dark)").matches))));
+      }
+    } catch { /* Storage can be blocked. */ }
   }, []);
 
   function toggleDarkMode() {
     setDarkMode((old:boolean) => {
-      try { window.localStorage.setItem("vdd_catalog_dark", String(!old)); } catch { /* Optional preference */ }
+      try { window.localStorage.setItem("theme", !old ? "dark" : "light"); window.localStorage.setItem("vdd_catalog_dark", String(!old)); } catch { /* Optional preference */ }
       return !old;
     });
   }
@@ -82,14 +88,22 @@ export function Catalog({data}:any) {
           <div className="catalog-status-line-v2"><span className={store.is_open ? "catalog-open-v2" : "catalog-closed-v2"}>{store.is_open ? "● Aberto agora" : "● Fechado agora"}</span><span aria-hidden="true">•</span><span>{fulfillment}</span></div>
           {store.accepts_pickup && store.pickup_address && <p className="catalog-pickup-v2">⌖ Retirada: {store.pickup_address}</p>}
         </div>
-        {brand.dark_mode_enabled && <button type="button" className="catalog-theme-v2" onClick={toggleDarkMode} aria-label={darkMode ? "Usar tema claro" : "Usar tema escuro"}>{darkMode ? "☀ Tema claro" : "☾ Tema escuro"}</button>}
+        
       </div>
     </section>
     <div className="catalog-toolbar-v2">
       <div className="catalog-toolbar-inner-v2">
         <button type="button" aria-label="Ver todas as categorias" aria-expanded={categoriesOpen} onClick={() => setCategoriesOpen(value => !value)} className="catalog-categories-toggle-v2">☰</button>
         <nav className="catalog-categories-v2" aria-label="Categorias do cardápio">{categories.map((cat:any) => <Fragment key={cat.id}><a href={`#category-${cat.id}`}>{isPizzaCategory(cat.name) ? "Pizzas inteiras" : cat.name}</a>{isPizzaCategory(cat.name) && cat.products.some((p:any)=>p.half_enabled) && <a href={`#pizzas-meio-a-meio-${cat.id}`}>Pizza meio a meio</a>}</Fragment>)}</nav>
-        <a className="catalog-cart-top-v2" href="/checkout/cart/">🛒 Carrinho ({store.cart_count || 0})</a>
+        <div className="catalog-header-actions-v2">
+          {brand.dark_mode_enabled && <button type="button" className="catalog-theme-v2 catalog-icon-button-v2" onClick={toggleDarkMode} title="Alternar tema" aria-label={darkMode ? "Usar tema claro" : "Usar tema escuro"} aria-pressed={darkMode}>
+            {darkMode ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/></svg> : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 0 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>}
+          </button>}
+          <a className="catalog-cart-top-v2 catalog-icon-button-v2" href="/checkout/cart/" aria-label={`Carrinho, ${store.cart_count || 0} itens`} title="Carrinho">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M16 11V7a4 4 0 0 0-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+            {Number(store.cart_count || 0) > 0 && <span className="catalog-cart-count-v2">{store.cart_count}</span>}
+          </a>
+        </div>
       </div>
       {categoriesOpen && <nav className="catalog-categories-drawer-v2" aria-label="Todas as categorias">{categories.map((cat:any) => <Fragment key={cat.id}><a onClick={() => setCategoriesOpen(false)} href={`#category-${cat.id}`}>{isPizzaCategory(cat.name) ? "Pizzas inteiras" : cat.name} <span>›</span></a>{isPizzaCategory(cat.name) && cat.products.some((p:any)=>p.half_enabled) && <a onClick={() => setCategoriesOpen(false)} href={`#pizzas-meio-a-meio-${cat.id}`}>Pizza meio a meio <span>›</span></a>}</Fragment>)}</nav>}
     </div>

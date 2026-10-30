@@ -210,3 +210,18 @@
  .catalog-v2.catalog-compact .catalog-product-card-v2{min-height:104px}
  .catalog-v2.catalog-compact .catalog-product-photo-v2,.catalog-v2.catalog-compact .catalog-product-placeholder-v2{width:98px;min-width:98px;height:104px;min-height:104px}
 }
+
+/* Paridade com os controles de navegacao da vitrine Django de producao. */
+.catalog-v2 .catalog-header-actions-v2{display:flex;align-items:center;gap:4px;flex:none}
+.catalog-v2 .catalog-icon-button-v2,
+.catalog-v2 .catalog-theme-v2,
+.catalog-v2 .catalog-cart-top-v2{position:relative;display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;min-width:40px;margin:0;padding:8px;border:0;border-radius:999px;background:transparent;color:var(--catalog-muted);font-size:initial;font-weight:normal;text-decoration:none;line-height:1;cursor:pointer;transition:background-color .15s,color .15s;white-space:normal}
+.catalog-v2 .catalog-icon-button-v2:hover{background:var(--catalog-bg);color:var(--catalog-ink)}
+.catalog-v2 .catalog-icon-button-v2:focus-visible{outline:2px solid var(--catalog-primary);outline-offset:2px}
+.catalog-v2 .catalog-cart-count-v2{position:absolute;top:-3px;right:-5px;display:grid;place-items:center;min-width:19px;height:19px;padding:0 4px;border:2px solid var(--catalog-card);border-radius:999px;background:var(--catalog-primary);color:#fff;font-size:10px;font-weight:700;line-height:1}
+.catalog-v2.catalog-dark .catalog-icon-button-v2{color:var(--catalog-ink)}
+.catalog-v2.catalog-dark .catalog-icon-button-v2:hover{background:var(--catalog-bg)}
+@media(max-width:680px){
+ .catalog-v2 .catalog-theme-v2,.catalog-v2 .catalog-cart-top-v2{font-size:initial!important;padding:8px}
+ .catalog-v2 .catalog-header-actions-v2{gap:0}
+}

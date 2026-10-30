@@ -15,6 +15,8 @@ export function renderDocument(data) {
     ...(data.assets.css||[]).map(href=>h('link',{key:href,rel:'stylesheet',href})),h('link',{rel:'icon',href:data.store?.favicon||'/static/images/brand/icone-vemdedelivery.svg'}),
     meta.schema&&h('script',{type:'application/ld+json',dangerouslySetInnerHTML:{__html:safeJSON(meta.schema)}})
   ));
+  // Apply preference before the first paint; React markup remains hydration-stable.
+  const themeBoot = data.store ? `<script>try{var t=localStorage.getItem('theme'),l=localStorage.getItem('vdd_catalog_dark');document.documentElement.dataset.storeTheme=${Boolean(data.store.brand?.dark_mode_enabled)}&&(t?t==='dark':l!==null?l==='true':window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}catch(e){}</script>` : '';
   const app=renderToString(h(PublicApp,{data}));
   const consent=p.marketing_consent_enabled?renderToStaticMarkup(h(React.Fragment,null,
     h('div',{id:'vdd-consent-banner',className:'vdd-consent',role:'region','aria-label':'Preferências de privacidade',hidden:true},
@@ -23,5 +25,5 @@ export function renderDocument(data) {
     h('div',{id:'vdd-marketing-data',hidden:true,'data-token':p.marketing_contact_token,'data-csrf':data.csrf,'data-click-url':'/marketing/registrar-clique/'}),h('script',{src:'/static/js/vdd-marketing.js',defer:true})
   )):'';
   const gtm=/^GTM-[A-Z0-9]+$/.test(p.google_tag_manager_id||'')?`<script>window.vddMarketingAnalyticsGranted=false;try{window.vddMarketingAnalyticsGranted=localStorage.getItem('vdd_analytics_permission')==='yes';if (window.vddMarketingAnalyticsGranted){window.dataLayer=window.dataLayer||[];window.dataLayer.push({'gtm.start':Date.now(),event:'gtm.js'});var s=document.createElement('script');s.async=true;s.src='https://www.googletagmanager.com/gtm.js?id=${p.google_tag_manager_id.replace(/-/g,'\\u002D')}';document.head.appendChild(s);}}catch(e){}</script>`:'';
-  return `<!doctype html><html lang="pt-br"><head>${head}${gtm}</head><body><div id="public-root">${app}</div>${consent}<script id="public-data" type="application/json">${safeJSON(data)}</script><script type="module" src="${data.assets.js}"></script></body></html>`;
+  return `<!doctype html><html lang="pt-br"><head>${head}${themeBoot}${gtm}</head><body><div id="public-root">${app}</div>${consent}<script id="public-data" type="application/json">${safeJSON(data)}</script><script type="module" src="${data.assets.js}"></script></body></html>`;
 }

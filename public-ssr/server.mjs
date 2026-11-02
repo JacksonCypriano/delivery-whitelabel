@@ -29200,64 +29200,265 @@ function requireJsxRuntime() {
   return jsxRuntime.exports;
 }
 var jsxRuntimeExports = requireJsxRuntime();
+const StoreContext = reactExports.createContext(null);
+const useStorefront = () => reactExports.useContext(StoreContext);
+function StoreIcon({ name, size = 20 }) {
+  const paths = {
+    bag: "M16 11V7a4 4 0 0 0-8 0v4M5 9h14l1 12H4L5 9z",
+    moon: "M21 12.79A9 9 0 0 1 11.21 3 7 7 0 0 0 21 12.79z",
+    sun: "M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z",
+    search: "m21 21-4.35-4.35M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0",
+    menu: "M4 6h16M4 12h16M4 18h16",
+    close: "m6 6 12 12M6 18 18 6",
+    user: "M20 21a8 8 0 0 0-16 0M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0",
+    arrow: "M5 12h14m-6-6 6 6-6 6",
+    plus: "M12 5v14M5 12h14"
+  };
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: paths[name] || paths.bag }) });
+}
+function Storefront({ data, theme, children }) {
+  const store = data.store, brand = store.brand || {};
+  const [dark, setDark] = reactExports.useState(false), [search, setSearch] = reactExports.useState("");
+  const [count, setCount] = reactExports.useState(Number(store.cart_count || 0));
+  const header = reactExports.useRef(null), shell = reactExports.useRef(null);
+  reactExports.useEffect(() => {
+    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+    const sync = () => {
+      let saved = null;
+      try {
+        saved = localStorage.getItem("theme");
+        if (!saved) {
+          const legacy = localStorage.getItem("vdd_catalog_dark");
+          if (legacy !== null) saved = legacy === "true" ? "dark" : "light";
+        }
+      } catch {
+      }
+      const next = Boolean(brand.dark_mode_enabled && (saved ? saved === "dark" : media?.matches));
+      setDark(next);
+      document.documentElement.dataset.storeTheme = next ? "dark" : "light";
+    };
+    sync();
+    media?.addEventListener("change", sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      media?.removeEventListener("change", sync);
+      window.removeEventListener("storage", sync);
+      delete document.documentElement.dataset.storeTheme;
+    };
+  }, [brand.dark_mode_enabled]);
+  reactExports.useEffect(() => {
+    const update = () => shell.current?.style.setProperty("--store-header-height", `${header.current?.offsetHeight || 64}px`);
+    update();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    if (header.current) observer?.observe(header.current);
+    return () => observer?.disconnect();
+  }, []);
+  function toggleTheme() {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.dataset.storeTheme = next ? "dark" : "light";
+    try {
+      localStorage.setItem("theme", next ? "dark" : "light");
+      localStorage.setItem("vdd_catalog_dark", String(next));
+    } catch {
+    }
+  }
+  const initials = store.name.split(/\s+/).slice(0, 2).map((s) => s[0]).join("");
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(StoreContext.Provider, { value: { search, setSearch, dark, count, setCount }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { ref: shell, className: `public-shell storefront shell-${data.page} font-${(brand.font_family || "Inter").toLowerCase()}`, style: theme, "data-dark-enabled": Boolean(brand.dark_mode_enabled), children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "vdd-skip", href: "#vdd-content", children: "Ir para o conteúdo" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("header", { className: "store-header", ref: header, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { className: "store-container store-header-inner", "aria-label": "Navegação da loja", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("a", { className: "store-brand", href: "/", "aria-label": `Voltar ao cardápio ${store.name}`, children: [
+        store.logo ? /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: store.logo, alt: "", width: "40", height: "40" }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "store-monogram", children: initials }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: store.name })
+      ] }),
+      data.page === "catalog" && brand.show_search_bar !== false && /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "store-search", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "store-sr-only", children: "Buscar no cardápio" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(StoreIcon, { name: "search" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("input", { type: "search", placeholder: "Buscar no cardápio...", value: search, onChange: (e) => setSearch(e.target.value) })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "store-header-actions", children: [
+        brand.dark_mode_enabled && /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: "store-icon", "aria-label": dark ? "Usar tema claro" : "Usar tema escuro", "aria-pressed": dark, onClick: toggleTheme, children: /* @__PURE__ */ jsxRuntimeExports.jsx(StoreIcon, { name: dark ? "sun" : "moon" }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("a", { className: "store-icon store-cart", href: "/checkout/cart/", "aria-label": `Carrinho, ${count} itens`, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(StoreIcon, { name: "bag", size: 24 }),
+          count > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "store-count", children: count }, count)
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("details", { className: "store-account", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("summary", { className: "store-icon", "aria-label": "Minha conta", children: /* @__PURE__ */ jsxRuntimeExports.jsx(StoreIcon, { name: "user" }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: data.user?.authenticated ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "/conta/", children: "Minha conta" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "/meus-pedidos/", children: "Meus pedidos" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("form", { method: "post", action: "/conta/sair/", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("input", { type: "hidden", name: "csrfmiddlewaretoken", value: data.csrf }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("button", { children: "Sair" })
+            ] })
+          ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "/conta/entrar/", children: "Entrar" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "/conta/criar-conta/", children: "Criar conta" })
+          ] }) })
+        ] })
+      ] })
+    ] }) }),
+    children,
+    /* @__PURE__ */ jsxRuntimeExports.jsx("footer", { className: "store-footer", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "store-container", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: store.name }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Feito com VemDeDelivery" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { "aria-label": "Informações", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "/", children: "Cardápio" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "/conta/", children: "Minha conta" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "/termos/", children: "Termos de Serviço" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "/privacidade/", children: "Política de Privacidade" })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("small", { children: [
+        "© ",
+        data.year,
+        " VemDeDelivery · COBRADEV SOLUTIONS · CNPJ 59.198.345/0001-44"
+      ] })
+    ] }) }),
+    /^\d{10,15}$/.test(String(store.whatsapp || "").replace(/\D/g, "")) && /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "store-contact", href: `https://wa.me/${String(store.whatsapp).replace(/\D/g, "")}`, "aria-label": "Falar com a loja no WhatsApp", children: "WhatsApp ↗" })
+  ] }) });
+}
 const money$1 = (value) => Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }).replace(/\u00a0/g, " ");
 async function requestJSON(url, data, body) {
-  const response = await fetch(url, { credentials: "same-origin", headers: { Accept: "application/json", ...body !== void 0 ? { "Content-Type": "application/json", "X-CSRFToken": data.csrf } : {} }, ...body !== void 0 ? { method: "POST", body: JSON.stringify(body) } : {} });
+  const response = await fetch(url, { credentials: "same-origin", headers: { Accept: "application/json", ...body !== void 0 ? { "Content-Type": body instanceof URLSearchParams ? "application/x-www-form-urlencoded;charset=UTF-8" : "application/json", "X-CSRFToken": data.csrf } : {} }, ...body !== void 0 ? { method: "POST", body: body instanceof URLSearchParams ? body.toString() : JSON.stringify(body) } : {} });
   const result = await response.json().catch(() => ({ error: "Não foi possível concluir. Atualize a página e tente novamente." }));
   if (!response.ok || result.success === false) throw new Error(result.error || result.message || "Não foi possível concluir.");
   return result;
 }
-function Choices({ product, bucket, allowed, selections, onChange }) {
-  const [groups, setGroups] = reactExports.useState([]), [error, setError] = reactExports.useState("");
+const optionKey = (value) => String(value);
+const numericPrice = (value) => {
+  const n = Number(String(value ?? 0).replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+};
+function useChoiceGroups(productId) {
+  const [groups, setGroups] = reactExports.useState([]);
+  const [loading, setLoading] = reactExports.useState(true);
+  const [error, setError] = reactExports.useState("");
+  const [attempt, setAttempt] = reactExports.useState(0);
   reactExports.useEffect(() => {
     let active = true;
     setGroups([]);
+    setLoading(true);
     setError("");
-    requestJSON(`/api/product/${product.id}/customizations/`, {}).then((r) => {
-      if (active) setGroups(r.groups);
-    }).catch((e) => {
-      if (active) setError(e.message);
+    requestJSON(`/api/product/${productId}/customizations/`, {}).then((result) => {
+      if (active) {
+        setGroups(Array.isArray(result.groups) ? result.groups : []);
+        setLoading(false);
+      }
+    }).catch((err) => {
+      if (active) {
+        setError(err.message);
+        setLoading(false);
+      }
     });
     return () => {
       active = false;
     };
-  }, [product.id]);
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-    error && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { role: "alert", children: error }),
-    groups.filter((g) => !allowed || allowed.includes(g.apply_to)).map((group) => /* @__PURE__ */ jsxRuntimeExports.jsxs("fieldset", { children: [
+  }, [productId, attempt]);
+  return { groups, loading, error, retry: () => setAttempt((n) => n + 1) };
+}
+function ChoiceGroups({ groups, bucket, allowed, selections, onChange }) {
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: groups.filter((g) => !allowed || allowed.includes(String(g.apply_to).toLowerCase())).map((group) => {
+    const selected = selections.filter((s) => optionKey(s.group_id) === optionKey(group.id));
+    const max = Number(group.max_options || 0);
+    const single = max === 1;
+    const min = Number(group.min_options || 0);
+    return /* @__PURE__ */ jsxRuntimeExports.jsxs("fieldset", { className: "store-customization-group", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsxs("legend", { children: [
         group.name,
-        " · escolha ",
-        group.min_options,
-        " a ",
-        group.max_options || "várias"
-      ] }),
-      group.options.map((option) => /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "choice", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("input", { type: "checkbox", checked: selections.some((s) => s.group_id === group.id && s.option_id === option.id), onChange: (e) => onChange(bucket, e.target.checked ? [...selections, { group_id: group.id, option_id: option.id }] : selections.filter((s) => s.option_id !== option.id)) }),
-        option.name,
         " ",
-        Number(option.price) > 0 && `+ ${money$1(option.price)}`,
-        option.description && /* @__PURE__ */ jsxRuntimeExports.jsx("small", { children: option.description })
-      ] }, option.id))
-    ] }, group.id))
-  ] });
+        /* @__PURE__ */ jsxRuntimeExports.jsx("small", { children: min > 0 ? `Obrigatório · escolha ${min}${max ? ` a ${max}` : " ou mais"}` : `Opcional${max ? ` · até ${max}` : ""}` })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "store-customization-options", children: (group.options || []).map((option) => {
+        const checked = selected.some((s) => optionKey(s.option_id) === optionKey(option.id));
+        const isMaxed = !single && max > 0 && selected.length >= max && !checked;
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: `choice store-customization-option${checked ? " is-selected" : ""}`, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "input",
+            {
+              type: single ? "radio" : "checkbox",
+              name: `${bucket}-group-${group.id}`,
+              checked,
+              disabled: isMaxed,
+              onChange: (e) => {
+                const otherGroups = selections.filter((s) => optionKey(s.group_id) !== optionKey(group.id));
+                const next = single ? e.target.checked ? [{ group_id: group.id, option_id: option.id }] : [] : e.target.checked ? [...selected, { group_id: group.id, option_id: option.id }] : selected.filter((s) => optionKey(s.option_id) !== optionKey(option.id));
+                onChange(bucket, [...otherGroups, ...next]);
+              }
+            }
+          ),
+          option.image && /* @__PURE__ */ jsxRuntimeExports.jsx("img", { className: "store-customization-image", src: option.image, alt: "", loading: "lazy" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "store-customization-copy", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: option.name }),
+            option.description && /* @__PURE__ */ jsxRuntimeExports.jsx("small", { children: option.description })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "store-customization-price", children: numericPrice(option.price) > 0 ? `+ ${money$1(option.price)}` : "Grátis" })
+        ] }, option.id);
+      }) })
+    ] }, group.id);
+  }) });
 }
-function ProductDialog({ data, product, products, close }) {
-  const [half, setHalf] = reactExports.useState(false), [secondId, setSecondId] = reactExports.useState(String(product.id));
-  const [qty, setQty] = reactExports.useState(product.min_qty), [notes, setNotes] = reactExports.useState(""), [notes1, setNotes1] = reactExports.useState(""), [notes2, setNotes2] = reactExports.useState("");
-  const [selections, setSelections] = reactExports.useState({}), [error, setError] = reactExports.useState(""), [busy, setBusy] = reactExports.useState(false);
+function selectionError(groups, selections, allowed) {
+  for (const group of groups.filter((g) => !allowed || allowed.includes(String(g.apply_to).toLowerCase()))) {
+    const count = selections.filter((s) => optionKey(s.group_id) === optionKey(group.id)).length;
+    if (count < Number(group.min_options || 0)) return `Selecione as opções obrigatórias de ${group.name}.`;
+    if (Number(group.max_options || 0) > 0 && count > Number(group.max_options)) return `Limite de opções excedido em ${group.name}.`;
+  }
+  return "";
+}
+function ProductDialog({ data, product, products, close, startHalf = false }) {
+  const [half, setHalf] = reactExports.useState(Boolean(startHalf));
+  const [secondId, setSecondId] = reactExports.useState("");
+  const [filter, setFilter] = reactExports.useState("");
+  const [flavorOpen, setFlavorOpen] = reactExports.useState(false);
+  const [qty, setQty] = reactExports.useState(Number(product.min_qty || 1));
+  const [notes, setNotes] = reactExports.useState(""), [notes1, setNotes1] = reactExports.useState(""), [notes2, setNotes2] = reactExports.useState("");
+  const [selections, setSelections] = reactExports.useState({});
+  const [error, setError] = reactExports.useState(""), [busy, setBusy] = reactExports.useState(false);
   const dialog = reactExports.useRef(null);
-  reactExports.useEffect(() => {
-    dialog.current?.showModal();
-    try {
-      if (localStorage.getItem("vdd_analytics_permission") === "yes") void requestJSON("/eventos/loja/", data, { stage: "product", consent: true }).catch(() => {
-      });
-    } catch {
-    }
-  }, []);
-  const second = products.find((p) => String(p.id) === secondId) || product;
+  const firstGroups = useChoiceGroups(product.id);
+  const candidates = products.filter((p) => p.half_enabled && p.available && optionKey(p.category_id) === optionKey(product.category_id) && optionKey(p.id) !== optionKey(product.id));
+  const second = candidates.find((p) => optionKey(p.id) === secondId);
+  const secondGroups = useChoiceGroups(second?.id || product.id);
   const change = (key, list) => setSelections((old) => ({ ...old, [key]: list }));
+  const basePrice = half && second ? Math.max(numericPrice(product.price), numericPrice(second.price)) : numericPrice(product.price);
+  const selectedTotal = (groups, bucket, allowed) => groups.filter((g) => !allowed || allowed.includes(String(g.apply_to).toLowerCase())).reduce((acc, g) => acc + (g.options || []).reduce((sum, o) => sum + ((selections[bucket] || []).some((s) => optionKey(s.group_id) === optionKey(g.id) && optionKey(s.option_id) === optionKey(o.id)) ? numericPrice(o.price) : 0), 0), 0);
+  const extras = selectedTotal(firstGroups.groups, "whole", half ? ["whole", "both"] : void 0) + (half ? selectedTotal(firstGroups.groups, "half1", ["half"]) + selectedTotal(secondGroups.groups, "half2", ["half"]) : 0);
+  const quantityValid = Number.isInteger(qty) && qty >= Number(product.min_qty || 1) && qty <= Number(product.max_qty || 99);
+  const preview = (basePrice + extras) * qty;
+  reactExports.useEffect(() => {
+    const element = dialog.current;
+    const previous = document.activeElement;
+    element?.showModal();
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      element?.close();
+      document.body.style.overflow = overflow;
+      previous?.focus();
+    };
+  }, []);
   async function add() {
+    if (half && !second) {
+      setError("Escolha o segundo sabor da pizza.");
+      return;
+    }
+    if (!quantityValid) {
+      setError("Informe uma quantidade válida.");
+      return;
+    }
+    if (firstGroups.loading || half && secondGroups.loading) {
+      setError("Aguarde o carregamento dos adicionais.");
+      return;
+    }
+    if (firstGroups.error || half && secondGroups.error) {
+      setError("Não foi possível carregar os adicionais. Tente novamente.");
+      return;
+    }
+    const validation = selectionError(firstGroups.groups, selections.whole || [], half ? ["whole", "both"] : void 0) || (half ? selectionError(firstGroups.groups, selections.half1 || [], ["half"]) || selectionError(secondGroups.groups, selections.half2 || [], ["half"]) : "");
+    if (validation) {
+      setError(validation);
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -29268,141 +29469,418 @@ function ProductDialog({ data, product, products, close }) {
       setBusy(false);
     }
   }
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("dialog", { ref: dialog, onCancel: close, className: "product-dialog", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: close, "aria-label": "Fechar produto", children: "Fechar ×" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { children: product.name }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "product-gallery", children: (product.images.length ? product.images : [product.image]).filter(Boolean).map((src) => /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src, alt: product.name }, src)) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: product.description }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: money$1(product.price) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
-      product.is_vegan && "Vegano · ",
-      product.is_spicy && "Picante · ",
-      product.allergens && `Alérgenos: ${product.allergens}`
-    ] }),
-    product.prep_time && /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
-      "Preparo: ",
-      product.prep_time,
-      " min"
-    ] }),
-    product.half_enabled && /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "choice", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("input", { type: "checkbox", checked: half, onChange: (e) => {
-        setHalf(e.target.checked);
-        setSelections({});
-      } }),
-      "Montar meio a meio"
-    ] }),
-    half && /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "public-field", children: [
-      "Segundo sabor",
-      /* @__PURE__ */ jsxRuntimeExports.jsx("select", { value: secondId, onChange: (e) => {
-        setSecondId(e.target.value);
-        change("half2", []);
-      }, children: products.filter((p) => p.half_enabled && p.category_id === product.category_id && p.available).map((p) => /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: p.id, children: p.name }, p.id)) })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Choices, { product, bucket: "whole", allowed: half ? ["whole", "both"] : void 0, selections: selections.whole || [], onChange: change }),
-    half && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("h3", { children: [
-        "Primeira metade: ",
-        product.name
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("dialog", { ref: dialog, onCancel: close, className: `product-dialog legacy-product-dialog ${half ? "legacy-half-dialog" : "legacy-add-dialog"}`, "aria-labelledby": "product-title", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "legacy-modal-header", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "legacy-modal-title", children: [
+        half && /* @__PURE__ */ jsxRuntimeExports.jsx("small", { children: "Personalização" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { id: "product-title", children: half ? "Pizza meio a meio" : product.name }),
+        !half && /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: money$1(product.price) })
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Choices, { product, bucket: "half1", allowed: ["half"], selections: selections.half1 || [], onChange: change }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("button", { className: "store-dialog-close", type: "button", onClick: close, "aria-label": "Fechar modal", children: /* @__PURE__ */ jsxRuntimeExports.jsx(StoreIcon, { name: "close" }) })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "legacy-modal-scroll", children: [
+      !half && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        product.description && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "legacy-product-description", children: product.description }),
+        product.half_enabled && /* @__PURE__ */ jsxRuntimeExports.jsx("button", { className: "legacy-switch-half", type: "button", onClick: () => {
+          setHalf(true);
+          setSecondId("");
+          setSelections({});
+          setError("");
+        }, children: "Montar pizza meio a meio" })
+      ] }),
+      half && /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "legacy-half-builder", "aria-label": "Montar pizza meio a meio", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "legacy-flavor-field", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Escolha o segundo sabor" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "legacy-flavor-dropdown", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { type: "button", className: "legacy-dropdown-trigger", "aria-haspopup": "listbox", "aria-expanded": flavorOpen, onClick: () => setFlavorOpen((value) => !value), children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: second ? second.name : "Selecione o segundo sabor" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { "aria-hidden": "true", children: "⌄" })
+            ] }),
+            flavorOpen && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "legacy-flavor-list", role: "listbox", "aria-label": "Sabores disponíveis", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("input", { "aria-label": "Buscar sabor", type: "search", value: filter, onChange: (e) => setFilter(e.target.value), placeholder: "Buscar sabor...", autoFocus: true }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "legacy-flavor-options", children: [
+                candidates.filter((p) => p.name.toLocaleLowerCase("pt-BR").includes(filter.toLocaleLowerCase("pt-BR"))).map((p) => /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { type: "button", role: "option", "aria-selected": secondId === optionKey(p.id), onClick: () => {
+                  setSecondId(optionKey(p.id));
+                  change("half2", []);
+                  setFlavorOpen(false);
+                  setFilter("");
+                }, children: [
+                  p.image && /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: p.image, alt: "" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: p.name }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: money$1(p.price) })
+                ] }, p.id)),
+                !candidates.some((p) => p.name.toLocaleLowerCase("pt-BR").includes(filter.toLocaleLowerCase("pt-BR"))) && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Nenhum sabor encontrado." })
+              ] })
+            ] })
+          ] })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "legacy-pizza-card", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "legacy-pizza-intro", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { children: "Sua pizza" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Escolha um sabor para cada metade." })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "legacy-pizza-circle", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "legacy-pizza-side", children: [
+              product.image && /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: product.image, alt: "" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("small", { children: "Metade 1" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: product.name })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "legacy-pizza-side", children: [
+              second?.image && /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: second.image, alt: "" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("small", { children: "Metade 2" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: second?.name || "Selecione..." })
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "legacy-pizza-total", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: second ? money$1(preview) : "R$ 0,00" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("small", { children: "Valor total da pizza + adicionais" })
+          ] })
+        ] })
+      ] }),
+      firstGroups.loading && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { role: "status", children: "Carregando opções…" }),
+      firstGroups.error && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { role: "alert", children: [
+        firstGroups.error,
+        " ",
+        /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", onClick: firstGroups.retry, children: "Tentar novamente" })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(ChoiceGroups, { groups: firstGroups.groups, bucket: "whole", allowed: half ? ["whole", "both"] : void 0, selections: selections.whole || [], onChange: change }),
+      half && second && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("h3", { className: "legacy-half-label", children: [
+          "Primeira metade: ",
+          product.name
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(ChoiceGroups, { groups: firstGroups.groups, bucket: "half1", allowed: ["half"], selections: selections.half1 || [], onChange: change }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("h3", { className: "legacy-half-label", children: [
+          "Segunda metade: ",
+          second.name
+        ] }),
+        secondGroups.loading && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { role: "status", children: "Carregando opções…" }),
+        secondGroups.error && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { role: "alert", children: [
+          secondGroups.error,
+          " ",
+          /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", onClick: secondGroups.retry, children: "Tentar novamente" })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(ChoiceGroups, { groups: secondGroups.groups, bucket: "half2", allowed: ["half"], selections: selections.half2 || [], onChange: change }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "legacy-half-observations", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { children: "Observações" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "public-field", children: [
+            "Metade 1: ",
+            product.name,
+            /* @__PURE__ */ jsxRuntimeExports.jsx("textarea", { rows: 2, placeholder: "Ex: sem cebola...", value: notes1, onChange: (e) => setNotes1(e.target.value) })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "public-field", children: [
+            "Metade 2: ",
+            second.name,
+            /* @__PURE__ */ jsxRuntimeExports.jsx("textarea", { rows: 2, placeholder: "Ex: sem cebola...", value: notes2, onChange: (e) => setNotes2(e.target.value) })
+          ] })
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "public-field legacy-quantity-field", children: [
+        "Quantidade",
+        /* @__PURE__ */ jsxRuntimeExports.jsx("input", { type: "number", min: product.min_qty || 1, max: product.max_qty || 99, value: qty, onChange: (e) => setQty(Number(e.target.value)) })
+      ] }),
+      !half && /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "public-field legacy-note-field", children: [
+        "Observação ",
+        /* @__PURE__ */ jsxRuntimeExports.jsx("small", { children: "(opcional)" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("textarea", { rows: 3, placeholder: "Ex: sem cebola, molho à parte...", maxLength: 1e3, value: notes, onChange: (e) => setNotes(e.target.value) })
+      ] }),
+      !half && /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "legacy-price-subtotal", children: [
+        "Total: ",
+        /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: money$1(preview) })
+      ] }),
+      error && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { role: "alert", children: error })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "legacy-modal-footer", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: "legacy-cancel", onClick: close, children: "Cancelar" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("button", { className: "store-dialog-submit", type: "button", onClick: add, disabled: busy || !product.available || !quantityValid || half && !second, "aria-busy": busy, children: busy ? "Adicionando…" : "Adicionar ao carrinho" })
+    ] })
+  ] });
+}
+function DeliveryEstimate({ data }) {
+  const [city, setCity] = reactExports.useState(""), [neighborhood, setNeighborhood] = reactExports.useState(""), [result, setResult] = reactExports.useState(null), [error, setError] = reactExports.useState(""), [busy, setBusy] = reactExports.useState(false);
+  async function check(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    setResult(null);
+    try {
+      setResult(await requestJSON(`/api/delivery-fee/?${new URLSearchParams({ city, neighborhood })}`, data));
+    } catch (e2) {
+      setError(e2.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("details", { className: "catalog-details-v2", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("summary", { children: "Consultar entrega" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("form", { onSubmit: check, className: "store-delivery-estimate", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "public-field", children: [
-        "Observação da primeira metade",
-        /* @__PURE__ */ jsxRuntimeExports.jsx("textarea", { value: notes1, onChange: (e) => setNotes1(e.target.value) })
+        "Cidade",
+        /* @__PURE__ */ jsxRuntimeExports.jsx("input", { value: city, onChange: (e) => {
+          setCity(e.target.value);
+          setResult(null);
+        }, required: true, list: "store-cities" })
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("h3", { children: [
-        "Segunda metade: ",
-        second.name
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Choices, { product: second, bucket: "half2", allowed: ["half"], selections: selections.half2 || [], onChange: change }),
       /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "public-field", children: [
-        "Observação da segunda metade",
-        /* @__PURE__ */ jsxRuntimeExports.jsx("textarea", { value: notes2, onChange: (e) => setNotes2(e.target.value) })
-      ] })
-    ] }),
+        "Bairro",
+        /* @__PURE__ */ jsxRuntimeExports.jsx("input", { value: neighborhood, onChange: (e) => {
+          setNeighborhood(e.target.value);
+          setResult(null);
+        }, required: true, list: "store-neighborhoods" })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("datalist", { id: "store-cities", children: [...new Set((data.props.delivery_zones || []).map((z) => z.city))].map((c) => /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: c }, c)) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("datalist", { id: "store-neighborhoods", children: (data.props.delivery_zones || []).map((z, i) => /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: z.neighborhood, children: z.city }, i)) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("button", { disabled: busy, "aria-busy": busy, children: busy ? "Consultando…" : "Consultar taxa" }),
+      error && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { role: "alert", children: error }),
+      result && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { role: "status", children: result.available ? `Entrega disponível · ${result.fee_display}` : result.message || "Entrega indisponível neste endereço." })
+    ] })
+  ] });
+}
+function CouponPreview({ data, fee }) {
+  const [code, setCode] = reactExports.useState(""), [result, setResult] = reactExports.useState(null), [error, setError] = reactExports.useState(""), [busy, setBusy] = reactExports.useState(false);
+  const generation = reactExports.useRef(0);
+  reactExports.useEffect(() => {
+    generation.current++;
+    setResult(null);
+    setError("");
+    setBusy(false);
+  }, [fee?.fee, data.props.subtotal]);
+  async function check() {
+    const id = ++generation.current;
+    setBusy(true);
+    setError("");
+    setResult(null);
+    try {
+      const response = await requestJSON("/api/cupons/validar/", data, { code, subtotal: data.props.subtotal, delivery_fee: fee?.fee || 0 });
+      if (id !== generation.current) return;
+      if (!response.valid) throw new Error(response.message || "Cupom inválido.");
+      setResult(response);
+    } catch (e) {
+      if (id === generation.current) setError(e.message);
+    } finally {
+      if (id === generation.current) setBusy(false);
+    }
+  }
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "store-coupon", children: [
     /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "public-field", children: [
-      "Quantidade",
-      /* @__PURE__ */ jsxRuntimeExports.jsx("input", { type: "number", min: product.min_qty, max: product.max_qty, value: qty, onChange: (e) => setQty(Number(e.target.value)) })
+      "Cupom",
+      /* @__PURE__ */ jsxRuntimeExports.jsx("input", { name: "coupon_code", maxLength: 50, value: code, onChange: (e) => {
+        generation.current++;
+        setCode(e.target.value.toUpperCase());
+        setResult(null);
+        setError("");
+        setBusy(false);
+      } })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "public-field", children: [
-      "Observações",
-      /* @__PURE__ */ jsxRuntimeExports.jsx("textarea", { maxLength: 1e3, value: notes, onChange: (e) => setNotes(e.target.value) })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Os valores finais e as opções serão conferidos pela loja ao adicionar." }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", onClick: check, disabled: !code.trim() || busy, "aria-busy": busy, children: busy ? "Validando…" : "Aplicar cupom" }),
+    code && /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", onClick: () => {
+      generation.current++;
+      setCode("");
+      setResult(null);
+      setError("");
+      setBusy(false);
+    }, children: "Remover cupom" }),
     error && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { role: "alert", children: error }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: add, disabled: busy || !product.available, children: busy ? "Adicionando…" : "Adicionar ao carrinho" })
+    result && /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { role: "status", children: [
+      result.message,
+      " Desconto: ",
+      money$1(result.discount),
+      " · Prévia do total: ",
+      money$1(result.final_total),
+      ". O valor definitivo será confirmado na revisão."
+    ] })
+  ] });
+}
+function ProductPrice({ product: p }) {
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+    p.sale_price != null && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("del", { children: money$1(p.original_price) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "catalog-offer-v2", children: "OFERTA" })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: money$1(p.price) })
+  ] });
+}
+function ProductMeta({ product: p }) {
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "catalog-product-tags-v2", children: [
+    p.is_vegan && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Vegano" }),
+    p.is_spicy && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Picante" }),
+    p.prep_time && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: `~${p.prep_time} min` }),
+    p.weight && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: `${Number(p.weight)} g` }),
+    p.calories && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: `${p.calories} kcal` })
   ] });
 }
 function Catalog({ data }) {
-  const [search, setSearch] = reactExports.useState(""), [selected, setSelected] = reactExports.useState(null);
+  const storefront = useStorefront();
+  const [localSearch, setLocalSearch] = reactExports.useState("");
+  const search = storefront?.search ?? localSearch, setSearch = storefront?.setSearch ?? setLocalSearch;
+  const [selected, setSelected] = reactExports.useState(null);
+  const [startHalf, setStartHalf] = reactExports.useState(false);
+  const [categoriesOpen, setCategoriesOpen] = reactExports.useState(false);
+  const [activeCategory, setActiveCategory] = reactExports.useState("");
   const brand = data.store?.brand || {};
-  const products = data.props.categories.flatMap((c) => c.products);
+  const store = data.store || {};
+  const categories = data.props.categories || [];
+  const products = categories.flatMap((category) => category.products);
+  const visibleProducts = products.filter((p) => `${p.name} ${p.description}`.toLocaleLowerCase().includes(search.toLocaleLowerCase()));
   reactExports.useEffect(() => {
     const q = new URLSearchParams(window.location.search).get("q");
     if (q) setSearch(q);
-    const p = products.find((p2) => p2.slug === data.props.open_product_slug);
-    if (p) setSelected(p);
+    const product = products.find((p) => p.slug === data.props.open_product_slug);
+    if (product) setSelected(product);
   }, []);
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-open-product-slug": data.props.open_product_slug, children: [
-    data.store?.banner && /* @__PURE__ */ jsxRuntimeExports.jsx("img", { className: "store-banner", src: data.store.banner, alt: "" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: data.store?.is_open ? "Aberto agora" : "Fechado agora" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("details", { children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("summary", { children: "Horários e entrega" }),
-      data.store?.hours?.map((h2, n) => /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
-        h2.day,
-        ": ",
-        h2.closed ? "Fechado" : `${h2.open} — ${h2.close}`
-      ] }, n)),
-      data.store?.pickup_address && /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
-        "Retirada: ",
-        data.store.pickup_address
+  const fontClass = brand.font_family === "Poppins" ? "font-poppins" : brand.font_family === "Roboto" ? "font-roboto" : "font-inter";
+  const layoutClasses = ["catalog-v2", fontClass, brand.compact_product_cards ? "catalog-compact" : "", brand.card_shadow ? "catalog-shadow" : "", brand.hover_effect ? "catalog-hover" : "", brand.show_category_icons ? "catalog-category-icons" : ""].filter(Boolean).join(" ");
+  const isPizzaCategory = (name) => ["pizza", "pizzas"].includes(name.trim().toLocaleLowerCase("pt-BR"));
+  function openProduct(product, half = false) {
+    setStartHalf(half);
+    setSelected(product);
+  }
+  const fulfillment = store.accepts_delivery && store.accepts_pickup ? "Entrega e retirada" : store.accepts_pickup ? "Apenas retirada" : "Apenas entrega";
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: layoutClasses, "data-open-product-slug": data.props.open_product_slug || "", "data-header-style": brand.header_style || "", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "catalog-banner-v2", "aria-label": `Banner da ${store.name || "loja"}`, children: [
+      store.banner && /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: store.banner, alt: "" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "catalog-banner-overlay-v2" })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("section", { className: "catalog-identity-v2", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "catalog-identity-inner-v2", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "catalog-logo-v2", children: store.logo ? /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: store.logo, alt: `Logo ${store.name}` }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: (store.name || "L").slice(0, 1) }) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "catalog-store-info-v2", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("h1", { children: store.name || "Cardápio" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "catalog-status-line-v2", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: store.is_open ? "catalog-open-v2" : "catalog-closed-v2", children: store.is_open ? "● Aberto agora" : "● Fechado agora" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { "aria-hidden": "true", children: "•" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: fulfillment })
+        ] }),
+        store.accepts_pickup && store.pickup_address && /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "catalog-pickup-v2", children: [
+          "Retirada: ",
+          store.pickup_address
+        ] })
+      ] })
+    ] }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "catalog-toolbar-v2", onKeyDown: (e) => {
+      if (e.key === "Escape") setCategoriesOpen(false);
+    }, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "catalog-toolbar-inner-v2", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", "aria-label": "Ver todas as categorias", "aria-expanded": categoriesOpen, onClick: () => setCategoriesOpen((value) => !value), className: "catalog-categories-toggle-v2", children: /* @__PURE__ */ jsxRuntimeExports.jsx(StoreIcon, { name: "menu" }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("nav", { className: "catalog-categories-v2", "aria-label": "Categorias do cardápio", children: categories.map((cat) => /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: `#category-${cat.id}`, "aria-current": activeCategory === `category-${cat.id}` ? "location" : void 0, onClick: () => setActiveCategory(`category-${cat.id}`), children: isPizzaCategory(cat.name) ? "Pizzas inteiras" : cat.name }),
+          isPizzaCategory(cat.name) && cat.products.some((p) => p.half_enabled) && /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: `#pizzas-meio-a-meio-${cat.id}`, "aria-current": activeCategory === `pizzas-meio-a-meio-${cat.id}` ? "location" : void 0, onClick: () => setActiveCategory(`pizzas-meio-a-meio-${cat.id}`), children: "Pizza meio a meio" })
+        ] }, cat.id)) })
       ] }),
-      data.props.delivery_zones.map((z, n) => /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
-        z.city,
-        " — ",
-        z.neighborhood,
-        ": ",
-        money$1(z.fee)
-      ] }, n))
-    ] }),
-    data.props.deep_link_unavailable && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { role: "alert", children: "Este produto não está disponível no momento." }),
-    brand.show_search_bar !== false && /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "public-field", children: [
-      "Buscar no cardápio",
-      /* @__PURE__ */ jsxRuntimeExports.jsx("input", { type: "search", value: search, onChange: (e) => setSearch(e.target.value) })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("nav", { className: "category-nav", children: data.props.categories.map((c) => /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: `#category-${c.id}`, children: c.name }, c.id)) }),
-    data.props.categories.map((category) => /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { id: `category-${category.id}`, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { children: category.name }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "public-grid", children: category.products.filter((p) => `${p.name} ${p.description}`.toLocaleLowerCase().includes(search.toLocaleLowerCase())).map((p) => /* @__PURE__ */ jsxRuntimeExports.jsxs("article", { className: `public-card product-card ${p.is_featured ? "product-card-featured" : ""}`, "data-product-price": p.price, "data-product-slug": p.slug, children: [
-        brand.show_product_image !== false && p.image && /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: p.image, alt: p.name, loading: "lazy" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: `/produto/${p.slug}/`, onClick: (e) => {
-          e.preventDefault();
-          setSelected(p);
-        }, children: p.name }) }),
-        brand.show_product_description !== false && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: p.description }),
-        p.is_featured && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "product-featured absolute top-3 right-3", children: "Destaque" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
-          p.is_vegan && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Vegano " }),
-          p.is_spicy && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Picante " }),
-          p.prep_time && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: `~${p.prep_time} min ` }),
-          p.weight && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: `${Number(p.weight)} g ` }),
-          p.calories && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: `${p.calories} kcal` })
+      categoriesOpen && /* @__PURE__ */ jsxRuntimeExports.jsx("nav", { className: "catalog-categories-drawer-v2", "aria-label": "Todas as categorias", children: categories.map((cat) => /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("a", { onClick: () => setCategoriesOpen(false), href: `#category-${cat.id}`, children: [
+          isPizzaCategory(cat.name) ? "Pizzas inteiras" : cat.name,
+          " ",
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "›" })
         ] }),
-        p.sale_price !== null && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "OFERTA " }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("del", { children: money$1(p.original_price) })
-        ] }),
-        " ",
-        /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: money$1(p.price) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("button", { disabled: !p.available, onClick: () => setSelected(p), children: p.available ? "Escolher" : "Esgotado" })
-      ] }, p.id)) })
-    ] }, category.id)),
-    !products.length && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Nenhum produto disponível no momento." }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("a", { className: "cart-link", href: "/checkout/cart/", children: [
-      "Ver carrinho (",
-      data.store?.cart_count || 0,
-      ")"
+        isPizzaCategory(cat.name) && cat.products.some((p) => p.half_enabled) && /* @__PURE__ */ jsxRuntimeExports.jsxs("a", { onClick: () => setCategoriesOpen(false), href: `#pizzas-meio-a-meio-${cat.id}`, children: [
+          "Pizza meio a meio ",
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "›" })
+        ] })
+      ] }, cat.id)) })
     ] }),
-    selected && /* @__PURE__ */ jsxRuntimeExports.jsx(ProductDialog, { product: selected, products, data, close: () => setSelected(null) }, selected.id)
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "catalog-content-v2", children: [
+      !storefront && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "catalog-search-row-v2", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("small", { children: "Cardápio" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { children: "Escolha seus favoritos" })
+        ] }),
+        brand.show_search_bar !== false && /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "catalog-search-v2", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "catalog-sr-only-v2", children: "Buscar no cardápio" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { "aria-hidden": "true", children: "⌕" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("input", { type: "search", placeholder: "Buscar no cardápio...", value: search, onChange: (e) => setSearch(e.target.value) })
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("details", { className: "catalog-details-v2", id: "store-details", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("summary", { children: "Horários, entrega e retirada" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "catalog-details-content-v2", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: store.hours?.map((h2, n) => /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: h2.day }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: h2.closed ? "Fechado" : `${h2.open} – ${h2.close}` })
+          ] }, n)) }),
+          store.accepts_pickup && store.pickup_address && /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "Endereço de retirada" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: store.pickup_address })
+          ] }),
+          data.props.delivery_zones?.map((z, n) => /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("strong", { children: [
+              z.city,
+              " — ",
+              z.neighborhood
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: money$1(z.fee) })
+          ] }, n))
+        ] })
+      ] }),
+      store.accepts_delivery && /* @__PURE__ */ jsxRuntimeExports.jsx(DeliveryEstimate, { data }),
+      data.props.deep_link_unavailable && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { role: "alert", className: "catalog-alert-v2", children: "Este produto não está disponível no momento." }),
+      categories.map((category) => {
+        const filtered = category.products.filter((p) => visibleProducts.some((current) => current.id === p.id));
+        if (!filtered.length) return null;
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { id: `category-${category.id}`, className: "catalog-category-section-v2", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "catalog-category-title-v2", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("small", { children: "Cardápio" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { children: isPizzaCategory(category.name) ? "Pizzas inteiras" : category.name })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "catalog-product-grid-v2", children: filtered.map((p) => /* @__PURE__ */ jsxRuntimeExports.jsxs("article", { className: `catalog-product-card-v2 ${p.is_featured ? "product-card-featured is-featured" : ""}`, "data-product-slug": p.slug, "data-product-price": p.price, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "catalog-product-info-v2", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: p.is_featured ? "catalog-featured-content-v2" : void 0, children: [
+                  p.is_featured && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "catalog-featured-v2", children: "★ Destaque" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: `/produto/${p.slug}/`, onClick: (e) => {
+                    e.preventDefault();
+                    openProduct(p);
+                  }, children: p.name }) }),
+                  brand.show_product_description !== false && p.description && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "catalog-product-description-v2", children: p.description }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(ProductMeta, { product: p })
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "catalog-product-bottom-v2", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(ProductPrice, { product: p }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", disabled: !p.available, "aria-label": p.available ? `Escolher ${p.name}` : `${p.name} esgotado`, onClick: () => openProduct(p), children: p.available ? /* @__PURE__ */ jsxRuntimeExports.jsx(StoreIcon, { name: "plus" }) : "×" })
+                ] })
+              ] }),
+              brand.show_product_image !== false && (p.image ? /* @__PURE__ */ jsxRuntimeExports.jsx("img", { className: "catalog-product-photo-v2", src: p.image, alt: p.name, loading: "lazy" }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "catalog-product-placeholder-v2", "aria-hidden": "true", children: "▧" }))
+            ] }, p.id)) })
+          ] }),
+          isPizzaCategory(category.name) && filtered.some((p) => p.half_enabled) && /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { id: `pizzas-meio-a-meio-${category.id}`, className: "catalog-category-section-v2 catalog-half-section-v2", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "catalog-category-title-v2", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("small", { children: "Monte do seu jeito" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { children: "Pizza meio a meio" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Escolha dois sabores e monte uma pizza do jeito que você quiser." })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "catalog-product-grid-v2", children: filtered.filter((p) => p.half_enabled).map((p) => /* @__PURE__ */ jsxRuntimeExports.jsxs("article", { className: "catalog-product-card-v2 catalog-half-card-v2", "data-product-slug": p.slug, "data-product-price": p.price, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "catalog-product-info-v2", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "catalog-half-badge-v2", children: "½ + ½" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { children: p.name }),
+                  brand.show_product_description !== false && p.description && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "catalog-product-description-v2", children: p.description }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(ProductMeta, { product: p })
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "catalog-product-bottom-v2", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(ProductPrice, { product: p }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("button", { className: "catalog-half-button-v2", type: "button", disabled: !p.available, onClick: () => openProduct(p, true), "aria-label": `Montar pizza meio a meio com ${p.name}`, children: p.available ? "Montar" : "Esgotado" })
+                ] })
+              ] }),
+              brand.show_product_image !== false && (p.image ? /* @__PURE__ */ jsxRuntimeExports.jsx("img", { className: "catalog-product-photo-v2", src: p.image, alt: p.name, loading: "lazy" }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "catalog-product-placeholder-v2", "aria-hidden": "true", children: "½" }))
+            ] }, `half-${p.id}`)) })
+          ] })
+        ] }, category.id);
+      }),
+      visibleProducts.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "catalog-empty-v2", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { children: "Nenhum produto encontrado" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Experimente buscar por outro nome." }),
+        search && /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", onClick: () => setSearch(""), children: "Limpar busca" })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("a", { className: "catalog-cart-sticky-v2", href: "/checkout/cart/", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(StoreIcon, { name: "bag", size: 24 }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+        "Ver carrinho (",
+        storefront?.count ?? store.cart_count ?? 0,
+        ")"
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(StoreIcon, { name: "arrow" })
+    ] }),
+    selected && /* @__PURE__ */ jsxRuntimeExports.jsx(ProductDialog, { product: selected, products, data, startHalf, close: () => setSelected(null) }, `${selected.id}-${startHalf}`)
   ] });
 }
 function CartItem({ item, data, onUpdate }) {
@@ -29419,8 +29897,9 @@ function CartItem({ item, data, onUpdate }) {
       setBusy(false);
     }
   }
-  const combo = item.combination_details;
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("article", { className: "public-card", children: [
+  const combo = item.combination_details || {};
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("article", { className: "public-card store-cart-item", "aria-busy": busy, children: [
+    item.image && /* @__PURE__ */ jsxRuntimeExports.jsx("img", { className: "store-cart-image", src: item.image, alt: "" }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { children: item.name }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
       money$1(item.price),
@@ -29453,43 +29932,57 @@ function CartItem({ item, data, onUpdate }) {
       "Observações",
       /* @__PURE__ */ jsxRuntimeExports.jsx("textarea", { value: notes, maxLength: 1e3, onChange: (e) => setNotes(e.target.value) })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("button", { disabled: busy, onClick: () => mutate(`/checkout/update_notes/${item.id}/`, { notes }), children: "Salvar observações" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("button", { disabled: busy, onClick: () => mutate(`/checkout/update_notes/${item.id}/`, new URLSearchParams({ notes })), children: "Salvar observações" }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("button", { disabled: busy, onClick: () => mutate(`/checkout/remove/${item.id}/`, {}), children: "Remover item" }),
     error && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { role: "alert", children: error })
   ] });
 }
 function Cart({ data }) {
+  const storefront = useStorefront();
   const [current, setCurrent] = reactExports.useState(data);
   async function refresh() {
-    setCurrent(await requestJSON("/checkout/cart/", data));
+    const next = await requestJSON("/checkout/cart/", data);
+    setCurrent(next);
+    storefront?.setCount(Number(next.store?.cart_count ?? next.props.items.reduce((n, i) => n + i.quantity, 0)));
   }
   const p = current.props;
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "/", children: "Continuar comprando" }),
-    data.user?.authenticated && /* @__PURE__ */ jsxRuntimeExports.jsxs("form", { method: "post", action: "/preferencias/mensagens/", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "/", children: "← Continuar comprando" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "store-cart-layout", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: p.items.map((item) => /* @__PURE__ */ jsxRuntimeExports.jsx(CartItem, { item, data, onUpdate: refresh }, `${item.id}-${item.price}-${item.quantity}`)) }),
+      !p.items.length ? /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "public-card store-empty", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(StoreIcon, { name: "bag", size: 48 }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { children: "Seu carrinho está vazio." }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Escolha algo no cardápio para começar seu pedido." }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "store-button", href: "/", children: "Explorar cardápio" })
+      ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs("aside", { className: "public-card store-cart-summary", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { children: "Resumo do pedido" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
+          "Subtotal: ",
+          /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: money$1(p.subtotal) })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
+          "Entrega: ",
+          /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: p.delivery_fee_display })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "store-total", children: [
+          "Total: ",
+          /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: money$1(p.total) })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: p.checkout_mode_hint }),
+        p.can_checkout === false ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { role: "alert", children: "Confira a disponibilidade de entrega ou retirada antes de continuar." }) : /* @__PURE__ */ jsxRuntimeExports.jsxs("a", { className: "store-button", href: "/checkout/checkout/", children: [
+          "Escolher endereço e finalizar ",
+          /* @__PURE__ */ jsxRuntimeExports.jsx(StoreIcon, { name: "arrow" })
+        ] })
+      ] })
+    ] }),
+    data.user?.authenticated && /* @__PURE__ */ jsxRuntimeExports.jsxs("form", { className: "public-card", method: "post", action: "/preferencias/mensagens/", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(CSRF, { data }),
       /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "choice", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("input", { type: "checkbox", name: "allowed" }),
         "Autorizo lembretes de carrinho, pesquisa de satisfação e novidades desta loja pelo WhatsApp."
       ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("button", { children: "Salvar preferência de mensagens" })
-    ] }),
-    p.items.map((item) => /* @__PURE__ */ jsxRuntimeExports.jsx(CartItem, { item, data, onUpdate: refresh }, `${item.id}-${item.price}-${item.quantity}`)),
-    !p.items.length ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Seu carrinho está vazio." }) : /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "public-card", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
-        "Subtotal: ",
-        money$1(p.subtotal)
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
-        "Entrega: ",
-        p.delivery_fee_display
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("strong", { children: [
-        "Total: ",
-        money$1(p.total)
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: p.checkout_mode_hint }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "/checkout/checkout/", children: "Escolher endereço e finalizar" })
     ] })
   ] });
 }
@@ -29526,6 +30019,11 @@ function Checkout({ data }) {
   const [mode, setMode] = reactExports.useState(data.store.accepts_delivery ? "delivery" : "pickup"), [flow, setFlow] = reactExports.useState("in_person"), [payment, setPayment] = reactExports.useState("pix"), [saved, setSaved] = reactExports.useState(p.default_address ? String(p.default_address.id) : ""), [address, setAddress] = reactExports.useState(p.global_delivery_location || {}), [fee, setFee] = reactExports.useState(null);
   reactExports.useEffect(() => {
     let active = true;
+    if (mode === "pickup") {
+      setFee({ fee: 0, fee_display: "Retirada sem taxa de entrega", available: true });
+      return;
+    }
+    setFee(null);
     const a = p.customer_addresses.find((a2) => String(a2.id) === saved) || address;
     requestJSON(`/api/delivery-fee/?${new URLSearchParams({ delivery_type: mode, city: a.city || "", neighborhood: a.neighborhood || "" })}`, data).then((r) => {
       if (active) setFee(r);
@@ -29536,10 +30034,10 @@ function Checkout({ data }) {
       active = false;
     };
   }, [mode, saved, address.city, address.neighborhood]);
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("form", { method: "post", children: [
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("form", { className: "store-checkout", method: "post", children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx(CSRF, { data }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("input", { type: "hidden", name: "checkout_token", value: p.checkout_token }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "public-card", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "public-card store-order-preview", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { children: "Seu pedido" }),
       p.cart_items.map((i, n) => /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
         i.quantity,
@@ -29625,10 +30123,7 @@ function Checkout({ data }) {
         "Troco para",
         /* @__PURE__ */ jsxRuntimeExports.jsx("input", { type: "number", name: "change_for", min: 0, step: "0.01" })
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "public-field", children: [
-        "Cupom",
-        /* @__PURE__ */ jsxRuntimeExports.jsx("input", { name: "coupon_code", maxLength: 50 })
-      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(CouponPreview, { data, fee }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "O desconto, a taxa e o total definitivo aparecem na revisão." }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("button", { children: "Revisar pedido" })
     ] })
@@ -29687,7 +30182,7 @@ function Analytics({ data }) {
     window.dataLayer.push({ event: `store_${stage}` });
   }, [choice, data.page]);
   if (choice !== null || !data.store) return null;
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("aside", { className: "public-card", children: [
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("aside", { className: "public-card store-consent", "aria-label": "Preferências de privacidade", children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Permitir análise de navegação para melhorar esta loja?" }),
     [["yes", "Permitir"], ["no", "Agora não"]].map(([v, label]) => /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => {
       try {
@@ -29700,128 +30195,303 @@ function Analytics({ data }) {
 }
 function Marketplace({ data }) {
   const p = data.props;
-  const [geoError, setGeoError] = reactExports.useState(""), [edit, setEdit] = reactExports.useState(false);
+  const [geoError, setGeoError] = reactExports.useState("");
+  const [editAddress, setEditAddress] = reactExports.useState(false);
+  const [expanded, setExpanded] = reactExports.useState(false);
+  const [stuck, setStuck] = reactExports.useState(false);
+  const headerRef = reactExports.useRef(null);
+  const sentinelRef = reactExports.useRef(null);
+  const location = p.global_delivery_location;
+  const title = p.favorites_only ? "Suas lojas favoritas" : p.location_active ? "Perto de você" : p.selected_city ? `Lojas em ${p.selected_city}` : "Descubra seu próximo favorito";
+  reactExports.useEffect(() => {
+    const header = headerRef.current;
+    const sentinel = sentinelRef.current;
+    if (!header || !sentinel) return;
+    let observer;
+    const setup = () => {
+      const height = Math.ceil(header.getBoundingClientRect().height);
+      document.documentElement.style.setProperty("--header-height", `${height}px`);
+      observer?.disconnect();
+      if (!("IntersectionObserver" in window)) return;
+      observer = new IntersectionObserver(([entry]) => {
+        setStuck(!entry.isIntersecting && entry.boundingClientRect.top < height);
+      }, { rootMargin: `-${height}px 0px 0px 0px`, threshold: 0 });
+      observer.observe(sentinel);
+    };
+    setup();
+    window.addEventListener("resize", setup);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", setup);
+      document.documentElement.style.removeProperty("--header-height");
+    };
+  }, []);
+  function urlWith(changes, anchor = "#lojas") {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries({
+      q: p.search,
+      cidade: p.selected_city,
+      uf: p.selected_state,
+      categoria: p.selected_category,
+      abertas: p.open_only ? "1" : "",
+      favoritas: p.favorites_only ? "1" : "",
+      lat: p.location_active ? p.user_latitude : "",
+      lng: p.location_active ? p.user_longitude : "",
+      accuracy: p.location_active ? p.user_accuracy : ""
+    })) if (value !== null && value !== void 0 && value !== "") query.set(key, String(value));
+    for (const [key, value] of Object.entries(changes)) {
+      if (value === null || value === "") query.delete(key);
+      else query.set(key, value);
+    }
+    return (query.size ? `?${query}` : "/") + anchor;
+  }
   function locate() {
     if (!navigator.geolocation) {
       setGeoError("Localização indisponível neste navegador.");
       return;
     }
-    navigator.geolocation.getCurrentPosition((pos) => {
-      const query = new URLSearchParams(window.location.search);
-      query.set("lat", String(pos.coords.latitude));
-      query.set("lng", String(pos.coords.longitude));
-      query.set("accuracy", String(pos.coords.accuracy));
-      query.delete("page");
-      window.location.assign("?" + query);
+    navigator.geolocation.getCurrentPosition(({ coords }) => {
+      window.location.assign(urlWith({ lat: String(coords.latitude), lng: String(coords.longitude), accuracy: String(coords.accuracy) }));
     }, () => setGeoError("Não foi possível obter sua localização. Informe seu endereço."));
   }
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Encontre lojas e produtos perto de você." }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "/para-lojistas/", children: "Tenho uma loja" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "public-card", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { children: "Onde você quer receber?" }),
-      p.global_delivery_location && /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
-        p.global_delivery_location.street,
-        ", ",
-        p.global_delivery_location.number,
-        " · ",
-        p.global_delivery_location.neighborhood,
-        " · ",
-        p.global_delivery_location.city
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mp-production", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "skip", href: "#lojas", children: "Ir para as lojas" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("header", { className: "site-header", ref: headerRef, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "wrap header-inner", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "brand", href: "/", "aria-label": "VemDeDelivery, início", children: /* @__PURE__ */ jsxRuntimeExports.jsx("img", { className: "brand-logo", src: "/static/images/brand/logo-vemdedelivery.svg", alt: "VemDeDelivery", width: "365", height: "72" }) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { className: "navigation", "aria-label": "Navegação principal", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "nav-explore desktop-only", href: "#lojas", children: "Explorar lojas" }),
+        data.user.authenticated ? /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "btn btn-dark", href: "/conta/", children: "Minha conta ↗" }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "btn", href: "/conta/entrar/", children: "Entrar" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "btn btn-dark desktop-only", href: "/conta/criar-conta/", children: "Criar conta ↗" })
+        ] })
+      ] })
+    ] }) }),
+    (data.messages || []).length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "wrap", "aria-live": "polite", children: data.messages.map((message, i) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `notice ${message.level}`, children: message.text }, i)) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "hero wrap", "aria-labelledby": "hero-title", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "hero-panel mp-hero-panel", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "hero-copy", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "eyebrow", children: "Seu bairro tem o que você procura" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("h1", { id: "hero-title", children: [
+          "Deu vontade? ",
+          /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("em", { children: "Vem de delivery." })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Descubra as lojas da sua região e encontre o lugar certo para o seu próximo pedido." }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "hero-tags", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Lojas da sua região" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Entrega ou retirada" })
+        ] })
+      ] }) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id: "endereco-entrega", className: "delivery-bar", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "pin", "aria-hidden": "true", children: "⌖" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "delivery-copy", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "micro", children: "Onde vai ser o pedido?" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: location ? `${location.label ? location.label + " · " : ""}${location.neighborhood || location.street || ""}, ${location.city || ""}${location.state ? "/" + location.state : ""}` : "Encontre sua região. Você confirma o endereço e a taxa no checkout." })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "btn", href: data.user.authenticated ? "/conta/enderecos/" : "/conta/entrar/", children: data.user.authenticated ? location ? "Alterar endereço ↗" : "Meus endereços ↗" : "Entrar para salvar endereço ↗" })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id: "search-sentinel", "aria-hidden": "true", ref: sentinelRef }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { id: "sticky-search", className: `wrap search-section ${stuck ? "is-stuck" : ""} ${expanded ? "filters-expanded" : ""}`, "aria-label": "Buscar e filtrar lojas", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: "compact-filter-toggle", "aria-expanded": expanded, "aria-controls": "marketplace-search-form category-navigation", onClick: () => setExpanded(!expanded), children: expanded ? "Ocultar filtros" : "Mostrar filtros" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("form", { method: "get", id: "marketplace-search-form", className: "search-box", children: [
+        p.location_active && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("input", { type: "hidden", name: "lat", value: p.user_latitude }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("input", { type: "hidden", name: "lng", value: p.user_longitude }),
+          p.user_accuracy != null && /* @__PURE__ */ jsxRuntimeExports.jsx("input", { type: "hidden", name: "accuracy", value: p.user_accuracy })
+        ] }),
+        p.favorites_only && /* @__PURE__ */ jsxRuntimeExports.jsx("input", { type: "hidden", name: "favoritas", value: "1" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "search-grid", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "field", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "sr-only", children: "Buscar produto ou loja" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { "aria-hidden": "true", children: "⌕" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("input", { type: "search", name: "q", defaultValue: p.search, placeholder: "O que você quer pedir hoje?" })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("select", { name: "cidade", "aria-label": "Cidade", defaultValue: p.location_active ? "" : p.selected_city || "", disabled: p.location_active, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: "", children: p.location_active ? "Usando localização atual" : "Todas as cidades" }),
+            !p.location_active && (p.cities || []).map((city) => /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: city, children: city }, city))
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("select", { name: "categoria", "aria-label": "Categoria", defaultValue: p.selected_category || "", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: "", children: "Todas as categorias" }),
+            (p.categories || []).map((c) => /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: c.slug, children: c.name }, c.slug))
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("button", { className: "btn btn-orange", type: "submit", children: "Buscar lojas ↗" })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "filter-row", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", onClick: locate, children: p.location_active ? "Atualizar localização" : "⌖ Usar minha localização" }),
+          p.location_active && /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: urlWith({ lat: null, lng: null, accuracy: null }), children: "Remover localização" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("input", { type: "checkbox", name: "abertas", value: "1", defaultChecked: p.open_only }),
+            " Abertas agora"
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", onClick: () => setEditAddress(!editAddress), children: editAddress ? "Fechar endereço" : "Informar endereço" }),
+          (p.search || p.selected_city || p.selected_category || p.open_only || p.location_active || p.favorites_only) && /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "clear", href: "/", children: "Limpar filtros ×" })
+        ] }),
+        geoError && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "location-message", role: "status", "aria-live": "polite", children: geoError }),
+        p.location_active && p.geocoded_location && /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "gps-note", children: [
+          "Região aproximada pelo GPS: ",
+          [p.geocoded_location.neighborhood, p.geocoded_location.city, p.geocoded_location.state].filter(Boolean).join(", "),
+          ". Confirme o endereço antes do pedido."
+        ] })
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => setEdit(!edit), children: "Informar endereço" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: locate, children: "Usar minha localização" }),
-      geoError && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { role: "alert", children: geoError }),
-      edit && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+      editAddress && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mp-production-address", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("form", { method: "post", action: "/localizacao-entrega/", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(CSRF, { data }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("input", { type: "hidden", name: "mode", value: "manual" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(AddressFields, { initial: p.global_delivery_location || {} }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(AddressFields, { initial: location || {} }),
           data.user.authenticated && /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("input", { type: "checkbox", name: "save_address", value: "1" }),
-            " Salvar nos meus endereços"
+            " Salvar endereço"
           ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("button", { children: "Usar este endereço" })
+          /* @__PURE__ */ jsxRuntimeExports.jsx("button", { className: "btn btn-dark", type: "submit", children: "Usar endereço" })
         ] }),
-        p.customer_addresses.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("form", { method: "post", action: "/localizacao-entrega/", children: [
+        (p.customer_addresses || []).length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("form", { method: "post", action: "/localizacao-entrega/", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(CSRF, { data }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("input", { type: "hidden", name: "mode", value: "saved" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "public-field", children: [
-            "Endereços salvos",
-            /* @__PURE__ */ jsxRuntimeExports.jsx("select", { name: "customer_address_id", children: p.customer_addresses.map((a) => /* @__PURE__ */ jsxRuntimeExports.jsxs("option", { value: a.id, children: [
-              a.label,
-              " — ",
-              a.street,
-              ", ",
-              a.number
-            ] }, a.id)) })
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("button", { children: "Usar endereço salvo" })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(PostButton, { data, action: "/localizacao-entrega/remover/", children: "Remover localização" })
-      ] })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("form", { method: "get", className: "public-card", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "public-field", children: [
-        "Buscar loja ou produto",
-        /* @__PURE__ */ jsxRuntimeExports.jsx("input", { name: "q", type: "search", defaultValue: p.search })
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "public-field", children: [
-        "Cidade",
-        /* @__PURE__ */ jsxRuntimeExports.jsx("input", { name: "cidade", defaultValue: p.selected_city })
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "public-field", children: [
-        "UF",
-        /* @__PURE__ */ jsxRuntimeExports.jsx("input", { name: "uf", defaultValue: p.selected_state, maxLength: 2 })
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "public-field", children: [
-        "Categoria",
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("select", { name: "categoria", defaultValue: p.selected_category, children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: "", children: "Todas" }),
-          p.categories.map((c) => /* @__PURE__ */ jsxRuntimeExports.jsxs("option", { value: c.slug, children: [
-            c.icon,
-            " ",
-            c.name
-          ] }, c.slug))
+          /* @__PURE__ */ jsxRuntimeExports.jsx("select", { name: "customer_address_id", children: p.customer_addresses.map((a) => /* @__PURE__ */ jsxRuntimeExports.jsxs("option", { value: a.id, children: [
+            a.label,
+            " — ",
+            a.street,
+            ", ",
+            a.number
+          ] }, a.id)) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("button", { className: "btn btn-dark", type: "submit", children: "Usar endereço salvo" })
         ] })
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "choice", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("input", { name: "abertas", type: "checkbox", value: "1", defaultChecked: p.open_only }),
-        "Abertas agora"
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "choice", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("input", { name: "favoritas", type: "checkbox", value: "1", defaultChecked: p.favorites_only }),
-        "Somente favoritas"
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("button", { children: "Buscar" })
+      (p.categories || []).length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { id: "category-navigation", className: "category-row", "aria-label": "Categorias de lojas", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: `category-chip ${!p.selected_category ? "active" : ""}`, href: urlWith({ categoria: null }), children: "Todas as lojas" }),
+        p.categories.map((cat) => /* @__PURE__ */ jsxRuntimeExports.jsxs("a", { className: `category-chip ${p.selected_category === cat.slug ? "active" : ""}`, href: urlWith({ categoria: cat.slug }), children: [
+          cat.icon && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "category-icon", "aria-hidden": "true", children: cat.icon }),
+          cat.name
+        ] }, cat.slug))
+      ] })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
-      p.result_count,
-      " lojas encontradas"
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "public-grid", children: p.stores.map((s) => /* @__PURE__ */ jsxRuntimeExports.jsxs("article", { className: "public-card", children: [
-      s.logo_url && /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: s.logo_url, width: "80", height: "80", alt: "" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: s.url, children: s.name }) }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: s.description }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: s.is_open ? "Aberta agora" : "Fechada agora" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
-        s.city,
-        "/",
-        s.state,
-        s.distance_km !== null && ` · ${Number(s.distance_km).toFixed(1)} km`
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("main", { id: "lojas", className: "wrap results", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "results-heading", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { children: title }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
+            p.result_count,
+            " ",
+            p.result_count === 1 ? "loja encontrada" : "lojas encontradas",
+            p.search ? ` para “${p.search}”` : "",
+            location ? " · entrega no endereço selecionado primeiro" : p.location_active ? " · por distância aproximada" : ""
+          ] })
+        ] }),
+        data.user.authenticated && /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { className: "account-links", "aria-label": "Seus atalhos", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "btn", href: "/meus-pedidos/", children: "Meus pedidos" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("a", { className: `btn ${p.favorites_only ? "active" : ""}`, href: urlWith({ favoritas: p.favorites_only ? null : "1" }), children: [
+            p.favorites_only ? "♥" : "♡",
+            " Favoritas",
+            p.favorite_count ? ` · ${p.favorite_count}` : ""
+          ] })
+        ] })
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: s.delivery.message || s.delivery.fee_display }),
-      s.matched_products.map((product, n) => /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: product.name }, n)),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: s.url, children: "Ver cardápio" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(PostButton, { data, action: `/favoritos/loja/${s.id}/`, children: s.is_favorite ? "Remover dos favoritos" : "Favoritar loja" })
-    ] }, s.id)) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { children: [
-      p.pagination.previous && /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: p.pagination.previous, children: "Anterior" }),
-      " Página ",
-      p.pagination.page,
-      " ",
-      p.pagination.next && /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: p.pagination.next, children: "Próxima" })
-    ] })
+      (p.stores || []).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "store-grid", children: p.stores.map((store) => /* @__PURE__ */ jsxRuntimeExports.jsxs("article", { className: "store-card mp-store-card", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "store-link", href: store.url, "aria-label": `Ver produtos de ${store.name}` }),
+        data.user.authenticated && /* @__PURE__ */ jsxRuntimeExports.jsxs("form", { method: "post", action: `/favoritos/loja/${store.id}/`, className: "favorite-store-form", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(CSRF, { data }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("input", { type: "hidden", name: "next", value: "/" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "submit", className: "favorite-store-button", "aria-pressed": Boolean(store.is_favorite), title: store.is_favorite ? "Remover dos favoritos" : "Adicionar aos favoritos", "aria-label": `Favoritar ${store.name}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: store.is_favorite ? "text-rose-500" : "text-slate-300", "aria-hidden": "true", children: "♥" }) })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "store-top", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "logo", children: store.logo_url ? /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: store.logo_url, alt: `Logo ${store.name}`, width: "66", height: "66", loading: "lazy" }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { "aria-hidden": "true", children: store.name?.slice(0, 1)?.toUpperCase() }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "store-identity", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { children: store.name }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "store-location", children: store.distance_km != null ? `${Number(store.distance_km).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km de você` : [store.city, store.state].filter(Boolean).join("/") }),
+            store.is_featured && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "featured", children: "✦ Em destaque" })
+          ] })
+        ] }),
+        store.description && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "store-description", children: store.description }),
+        !!store.categories?.length && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "store-categories", children: store.categories.slice(0, 3).map((cat, i) => /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: cat.name }, i)) }),
+        !!store.matched_products?.length && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "matched", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "Encontrado nesta loja" }),
+          store.matched_products.map((product) => /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+            product.name,
+            " · ",
+            Number(product.price).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+          ] }, product.id))
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "store-status", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `status ${store.is_open ? "open" : "closed"}`, children: store.is_open ? "Aberto agora" : "Fechado" }),
+          store.accepts_delivery && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Entrega" }),
+          store.accepts_pickup && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Retirada" })
+        ] }),
+        store.delivery?.status === "pickup_only" ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "delivery-state", children: "Somente retirada" }) : store.delivery?.status === "available" ? /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "delivery-state available", children: [
+          "Entrega no seu endereço · ",
+          store.delivery.fee_display
+        ] }) : store.delivery?.status === "unavailable" ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "delivery-state unavailable", children: "Não entrega neste endereço" }) : store.accepts_delivery && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "delivery-state", children: "Confirme o endereço para entrega" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "card-bottom", "aria-hidden": "true", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Explorar loja" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "card-arrow", children: "↗" })
+        ] })
+      ] }, store.id)) }) : /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "empty", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "empty-icon", "aria-hidden": "true", children: "⌕" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { children: "Vamos encontrar outra opção?" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Nenhuma loja encontrada com esses filtros. Busque outro produto ou amplie sua região." }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "btn btn-dark", href: "/", children: "Ver todas as lojas ↗" })
+      ] }),
+      (p.pagination?.previous || p.pagination?.next) && /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { className: "pagination", "aria-label": "Paginação", children: [
+        p.pagination.previous && /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "btn", href: p.pagination.previous + "#lojas", children: "← Anterior" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+          "Página ",
+          p.pagination.page
+        ] }),
+        p.pagination.next && /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "btn", href: p.pagination.next + "#lojas", children: "Próxima →" })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "wrap how-it-works", "aria-label": "Como pedir", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "how-title", children: [
+        "Da vontade",
+        /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
+        "ao seu próximo pedido."
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "step", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "step-number", children: "01" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "Encontre sua loja" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Explore as lojas da região." })
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "step", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "step-number", children: "02" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "Escolha os produtos" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Monte o pedido do seu jeito." })
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "step", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "step-number", children: "03" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "Combine com a loja" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Envie seu pedido pelo WhatsApp." })
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("footer", { className: "footer", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "wrap footer-inner", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "footer-brand", href: "/", "aria-label": "VemDeDelivery, início", children: /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: "/static/images/brand/logo-vemdedelivery-clara.svg", alt: "VemDeDelivery", width: "365", height: "72" }) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "footer-tagline", children: "Seu bairro. Suas lojas. Seu próximo pedido." }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "footer-company", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "COBRADEV SOLUTIONS" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "CNPJ 59.198.345/0001-44" })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "footer-legal", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "/termos/", children: "Termos de Serviço" }),
+        " · ",
+        /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "/privacidade/", children: "Política de Privacidade" })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "btn btn-orange", href: "/para-lojistas/", children: "Sou lojista · Conheça o VemDeDelivery" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "footer-meta", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
+          "© ",
+          data.year,
+          " VemDeDelivery"
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
+          "Dados de localização: ",
+          /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "https://www.openstreetmap.org/copyright", target: "_blank", rel: "noopener noreferrer", children: "© OpenStreetMap contributors" })
+        ] })
+      ] })
+    ] }) })
   ] });
 }
 function Landing({ data }) {
@@ -30907,34 +31577,46 @@ function Accounts({ data }) {
 function PublicApp({ data }) {
   if (data.page === "landing") return /* @__PURE__ */ jsxRuntimeExports.jsx(Landing, { data });
   if (data.page === "seo") return /* @__PURE__ */ jsxRuntimeExports.jsx(SEOPage, { data });
-  if (data.page === "feedback") return /* @__PURE__ */ jsxRuntimeExports.jsxs("main", { className: "public-main", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("h1", { children: "Sua opinião e preferências" }),
-    data.props.done ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Obrigado! Sua preferência foi registrada." }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-      data.props.kind === "feedback" && /* @__PURE__ */ jsxRuntimeExports.jsxs("form", { method: "post", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(CSRF, { data }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { children: [
-          "Nota",
-          /* @__PURE__ */ jsxRuntimeExports.jsx("select", { name: "rating", required: true, children: [1, 2, 3, 4, 5].map((n) => /* @__PURE__ */ jsxRuntimeExports.jsx("option", { children: n }, n)) })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { children: [
-          "Comentário",
-          /* @__PURE__ */ jsxRuntimeExports.jsx("textarea", { name: "comment", maxLength: 1e3 })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("button", { children: "Enviar avaliação" })
+  if (data.page === "marketplace") return /* @__PURE__ */ jsxRuntimeExports.jsx(Marketplace, { data });
+  const feedback = data.page === "feedback" ? /* @__PURE__ */ jsxRuntimeExports.jsx("section", { className: "public-card", children: data.props.done ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Obrigado! Sua preferência foi registrada." }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+    data.props.kind === "feedback" && /* @__PURE__ */ jsxRuntimeExports.jsxs("form", { method: "post", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(CSRF, { data }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { children: [
+        "Nota",
+        /* @__PURE__ */ jsxRuntimeExports.jsx("select", { name: "rating", required: true, children: [1, 2, 3, 4, 5].map((n) => /* @__PURE__ */ jsxRuntimeExports.jsx("option", { children: n }, n)) })
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("form", { method: "post", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(CSRF, { data }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("button", { name: "action", value: "unsubscribe", children: "Deixar de receber mensagens de marketing desta loja" })
-      ] })
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { children: [
+        "Comentário",
+        /* @__PURE__ */ jsxRuntimeExports.jsx("textarea", { name: "comment", maxLength: 1e3 })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("button", { children: "Enviar avaliação" })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("form", { method: "post", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(CSRF, { data }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("button", { name: "action", value: "unsubscribe", children: "Deixar de receber mensagens de marketing desta loja" })
     ] })
-  ] });
+  ] }) }) : null;
   const commerce = data.page === "marketplace" ? /* @__PURE__ */ jsxRuntimeExports.jsx(Marketplace, { data }) : data.page === "catalog" ? /* @__PURE__ */ jsxRuntimeExports.jsx(Catalog, { data }) : data.page === "cart" ? /* @__PURE__ */ jsxRuntimeExports.jsx(Cart, { data }) : data.page === "checkout" ? /* @__PURE__ */ jsxRuntimeExports.jsx(Checkout, { data }) : ["review", "payment"].includes(data.page) ? /* @__PURE__ */ jsxRuntimeExports.jsx(Review, { data }) : null;
   const b = data.store?.brand || {};
   const theme = {};
-  for (const key of ["primary_color", "secondary_color", "accent_color", "background_color", "card_background_color", "text_color", "muted_text_color", "border_color", "button_text_color"]) if (/^#[0-9a-f]{6}$/i.test(b[key] || "")) theme[`--${key.replaceAll("_", "-")}`] = b[key];
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "public-shell", style: theme, children: [
+  for (const key of ["primary_color", "secondary_color", "accent_color", "background_color", "card_background_color", "text_color", "muted_text_color", "border_color", "button_text_color", "success_color", "warning_color", "danger_color", "dark_mode_primary", "dark_mode_background", "dark_mode_card_background", "dark_mode_text", "dark_mode_muted_text", "dark_mode_border_color"]) if (/^#[0-9a-f]{6}$/i.test(b[key] || "")) theme[`--${key.replaceAll("_", "-")}`] = b[key];
+  if (Number.isInteger(b.border_radius) && b.border_radius >= 0 && b.border_radius <= 40) theme["--card-radius"] = `${b.border_radius}px`;
+  if (Number.isInteger(b.button_radius) && b.button_radius >= 0 && b.button_radius <= 40) theme["--button-radius"] = `${b.button_radius}px`;
+  if (Number.isInteger(b.base_font_size) && b.base_font_size >= 12 && b.base_font_size <= 24) theme["--store-font-size"] = `${b.base_font_size}px`;
+  const specialPage = data.page === "marketplace" || data.page === "catalog";
+  if (data.store) return /* @__PURE__ */ jsxRuntimeExports.jsx(Storefront, { data, theme, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("main", { id: "vdd-content", className: `public-main page-${data.page}`, children: [
+    !specialPage && /* @__PURE__ */ jsxRuntimeExports.jsx("h1", { children: data.heading }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Analytics, { data }),
+    data.messages.map((m, n) => /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: `public-notice ${m.level}`, role: "status", children: m.text }, n)),
+    data.page === "success" ? /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "public-card store-empty", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { children: "Pedido registrado" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: data.props.message }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "store-button", href: "/", children: "Voltar ao cardápio" })
+    ] }) : feedback || commerce || /* @__PURE__ */ jsxRuntimeExports.jsx(Accounts, { data })
+  ] }) });
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: `public-shell shell-${data.page}`, style: theme, children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "vdd-skip", href: "#vdd-content", children: "Ir para o conteúdo" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("header", { className: "vdd-header", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "vdd-container vdd-header-inner", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("header", { className: `vdd-header ${specialPage ? "vdd-header-rich" : ""}`, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "vdd-container vdd-header-inner", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "vdd-logo", href: data.home_url, children: /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: data.store?.logo || "/static/images/brand/logo-vemdedelivery.svg", alt: data.store?.name || "VemDeDelivery", width: "365", height: "72" }) }),
       /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { className: "vdd-nav", children: [
         data.store && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
@@ -30952,17 +31634,22 @@ function PublicApp({ data }) {
       ] })
     ] }) }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("main", { id: "vdd-content", className: `public-main page-${data.page}`, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("h1", { children: data.heading }),
+      !specialPage && /* @__PURE__ */ jsxRuntimeExports.jsx("h1", { children: data.heading }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(Analytics, { data }),
       data.messages.map((m, n) => /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: `public-notice ${m.level}`, role: "status", children: m.text }, n)),
-      data.page === "terms" || data.page === "privacy" ? /* @__PURE__ */ jsxRuntimeExports.jsx(LegalPage, { page: data.page }) : commerce || /* @__PURE__ */ jsxRuntimeExports.jsx(Accounts, { data })
+      data.page === "terms" || data.page === "privacy" ? /* @__PURE__ */ jsxRuntimeExports.jsx(LegalPage, { page: data.page }) : feedback || commerce || /* @__PURE__ */ jsxRuntimeExports.jsx(Accounts, { data })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("footer", { className: "vdd-footer", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "vdd-container", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("footer", { className: `vdd-footer ${data.page === "marketplace" ? "vdd-footer-marketplace" : ""}`, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "vdd-container", children: [
+      data.page === "marketplace" && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "/", "aria-label": "VemDeDelivery, início", children: /* @__PURE__ */ jsxRuntimeExports.jsx("img", { className: "vdd-footer-brand", src: "/static/images/brand/logo-vemdedelivery-clara.svg", alt: "VemDeDelivery" }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Seu bairro. Suas lojas. Seu próximo pedido." })
+      ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "COBRADEV SOLUTIONS" }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "CNPJ 59.198.345/0001-44" }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "/termos/", children: "Termos de Serviço" }),
       " · ",
       /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: "/privacidade/", children: "Política de Privacidade" }),
+      data.page === "marketplace" && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "vdd-merchant-cta", href: "/para-lojistas/", children: "Sou lojista · Conheça o VemDeDelivery" }) }),
       /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
         "© ",
         data.year,
@@ -30991,6 +31678,7 @@ function renderDocument(data) {
     h("link", { rel: "icon", href: data.store?.favicon || "/static/images/brand/icone-vemdedelivery.svg" }),
     meta.schema && h("script", { type: "application/ld+json", dangerouslySetInnerHTML: { __html: safeJSON(meta.schema) } })
   ));
+  const themeBoot = data.store ? `<script>try{var t=localStorage.getItem('theme'),l=localStorage.getItem('vdd_catalog_dark');document.documentElement.dataset.storeTheme=${Boolean(data.store.brand?.dark_mode_enabled)}&&(t?t==='dark':l!==null?l==='true':window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}catch(e){}<\/script>` : "";
   const app = server_nodeExports.renderToString(h(PublicApp, { data }));
   const consent = p.marketing_consent_enabled ? server_nodeExports.renderToStaticMarkup(h(
     React.Fragment,
@@ -31005,7 +31693,7 @@ function renderDocument(data) {
     h("script", { src: "/static/js/vdd-marketing.js", defer: true })
   )) : "";
   const gtm = /^GTM-[A-Z0-9]+$/.test(p.google_tag_manager_id || "") ? `<script>window.vddMarketingAnalyticsGranted=false;try{window.vddMarketingAnalyticsGranted=localStorage.getItem('vdd_analytics_permission')==='yes';if (window.vddMarketingAnalyticsGranted){window.dataLayer=window.dataLayer||[];window.dataLayer.push({'gtm.start':Date.now(),event:'gtm.js'});var s=document.createElement('script');s.async=true;s.src='https://www.googletagmanager.com/gtm.js?id=${p.google_tag_manager_id.replace(/-/g, "\\u002D")}';document.head.appendChild(s);}}catch(e){}<\/script>` : "";
-  return `<!doctype html><html lang="pt-br"><head>${head}${gtm}</head><body><div id="public-root">${app}</div>${consent}<script id="public-data" type="application/json">${safeJSON(data)}<\/script><script type="module" src="${data.assets.js}"><\/script></body></html>`;
+  return `<!doctype html><html lang="pt-br"><head>${head}${themeBoot}${gtm}</head><body><div id="public-root">${app}</div>${consent}<script id="public-data" type="application/json">${safeJSON(data)}<\/script><script type="module" src="${data.assets.js}"><\/script></body></html>`;
 }
 const server = http.createServer((req, res) => {
   if (req.method === "GET" && req.url === "/health") {

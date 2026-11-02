@@ -8,27 +8,177 @@ export async function requestJSON(url: string, data: any, body?: any) {
   if (!response.ok || result.success === false) throw new Error(result.error || result.message || "Não foi possível concluir.");
   return result;
 }
-export function Choices({product, bucket, allowed, selections, onChange}: any) {
-  const [groups, setGroups] = useState<any[]>([]), [error, setError] = useState(""), [loading,setLoading]=useState(true), [attempt,setAttempt]=useState(0);
-  useEffect(() => { let active = true; setGroups([]); setError(""); setLoading(true); requestJSON(`/api/product/${product.id}/customizations/`, {}).then(r => { if(active) {setGroups(r.groups);setLoading(false);} }).catch(e => {if(active) {setError(e.message);setLoading(false);}}); return () => {active=false;}; }, [product.id,attempt]);
-  return <>{loading && <p role="status">Carregando opções…</p>}{error && <div role="alert">{error} <button type="button" onClick={()=>setAttempt(n=>n+1)}>Tentar novamente</button></div>}{groups.filter(g => !allowed || allowed.includes(g.apply_to)).map(group => <fieldset key={group.id}><legend>{group.name} · escolha {group.min_options} a {group.max_options || "várias"}</legend>{group.options.map((option:any) => <label className="choice" key={option.id}><input type="checkbox" checked={selections.some((s:any) => s.group_id === group.id && s.option_id === option.id)} onChange={e => onChange(bucket, e.target.checked ? [...selections, {group_id:group.id,option_id:option.id}] : selections.filter((s:any) => s.option_id !== option.id))}/>{option.name} {Number(option.price) > 0 && `+ ${money(option.price)}`}{option.description && <small>{option.description}</small>}</label>)}</fieldset>)}</>;
+type ChoiceSelection = {group_id: number | string; option_id: number | string};
+const optionKey = (value: unknown) => String(value);
+const numericPrice = (value: any) => {
+  const n = Number(String(value ?? 0).replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+};
+function useChoiceGroups(productId: number | string) {
+  const [groups, setGroups] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setGroups([]); setLoading(true); setError('');
+    requestJSON(`/api/product/${productId}/customizations/`, {}).then(result => {
+      if (active) { setGroups(Array.isArray(result.groups) ? result.groups : []); setLoading(false); }
+    }).catch(err => { if (active) { setError(err.message); setLoading(false); } });
+    return () => { active = false; };
+  }, [productId, attempt]);
+  return { groups, loading, error, retry: () => setAttempt(n => n + 1) };
 }
-export function ProductDialog({data, product, products, close, startHalf=false}: any) {
-  const [half, setHalf] = useState(Boolean(startHalf)), [secondId,setSecondId] = useState(String(product.id));
-  const [qty,setQty]=useState(product.min_qty), [notes,setNotes]=useState(""), [notes1,setNotes1]=useState(""), [notes2,setNotes2]=useState("");
-  const [selections,setSelections]=useState<any>({}), [error,setError]=useState(""), [busy,setBusy]=useState(false);
+function ChoiceGroups({groups, bucket, allowed, selections, onChange}: any) {
+  return <>{groups.filter((g:any) => !allowed || allowed.includes(String(g.apply_to).toLowerCase())).map((group:any) => {
+    const selected = selections.filter((s:ChoiceSelection) => optionKey(s.group_id) === optionKey(group.id));
+    const max = Number(group.max_options || 0);
+    const single = max === 1;
+    const min = Number(group.min_options || 0);
+    return <fieldset className="store-customization-group" key={group.id}>
+      <legend>{group.name} <small>{min > 0 ? `Obrigatório · escolha ${min}${max ? ` a ${max}` : ' ou mais'}` : `Opcional${max ? ` · até ${max}` : ''}`}</small></legend>
+      <div className="store-customization-options">{(group.options || []).map((option:any) => {
+        const checked = selected.some((s:ChoiceSelection) => optionKey(s.option_id) === optionKey(option.id));
+        const isMaxed = !single && max > 0 && selected.length >= max && !checked;
+        return <label className={`choice store-customization-option${checked ? ' is-selected' : ''}`} key={option.id}>
+          <input type={single ? 'radio' : 'checkbox'} name={`${bucket}-group-${group.id}`} checked={checked} disabled={isMaxed}
+            onChange={e => {
+              const otherGroups = selections.filter((s:ChoiceSelection) => optionKey(s.group_id) !== optionKey(group.id));
+              const next = single ? (e.target.checked ? [{group_id:group.id,option_id:option.id}] : []) : e.target.checked
+                ? [...selected, {group_id:group.id,option_id:option.id}]
+                : selected.filter((s:ChoiceSelection) => optionKey(s.option_id) !== optionKey(option.id));
+              onChange(bucket, [...otherGroups, ...next]);
+            }}/>
+          {option.image && <img className="store-customization-image" src={option.image} alt="" loading="lazy"/>}
+          <span className="store-customization-copy"><strong>{option.name}</strong>{option.description && <small>{option.description}</small>}</span>
+          <span className="store-customization-price">{numericPrice(option.price) > 0 ? `+ ${money(option.price)}` : 'Grátis'}</span>
+        </label>;
+      })}</div>
+    </fieldset>;
+  })}</>;
+}
+export function Choices({product, bucket, allowed, selections, onChange}: any) {
+  const {groups,loading,error,retry} = useChoiceGroups(product.id);
+  return <>{loading && <p role="status">Carregando opções…</p>}{error && <div role="alert">{error} <button type="button" onClick={retry}>Tentar novamente</button></div>}
+    <ChoiceGroups groups={groups} bucket={bucket} allowed={allowed} selections={selections} onChange={onChange}/></>;
+}
+function selectionError(groups:any[], selections:ChoiceSelection[], allowed?:string[]) {
+  for (const group of groups.filter(g => !allowed || allowed.includes(String(g.apply_to).toLowerCase()))) {
+    const count = selections.filter(s => optionKey(s.group_id) === optionKey(group.id)).length;
+    if (count < Number(group.min_options || 0)) return `Selecione as opções obrigatórias de ${group.name}.`;
+    if (Number(group.max_options || 0) > 0 && count > Number(group.max_options)) return `Limite de opções excedido em ${group.name}.`;
+  }
+  return '';
+}
+export function ProductDialog({data, product, products, close, onAdded, startHalf=false}: any) {
+  const [half,setHalf] = useState(Boolean(startHalf));
+  const [secondId,setSecondId] = useState('');
+  const [filter,setFilter] = useState('');
+  const [flavorOpen,setFlavorOpen] = useState(false);
+  const [qty,setQty] = useState(Number(product.min_qty || 1));
+  const [notes,setNotes] = useState(''), [notes1,setNotes1] = useState(''), [notes2,setNotes2] = useState('');
+  const [selections,setSelections] = useState<Record<string,ChoiceSelection[]>>({});
+  const [error,setError] = useState(''), [busy,setBusy] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {const element=dialog.current; const previous=document.activeElement as HTMLElement; element?.showModal(); const overflow=document.body.style.overflow;document.body.style.overflow="hidden";try{if(localStorage.getItem("vdd_analytics_permission")==="yes")void requestJSON("/eventos/loja/",data,{stage:"product",consent:true}).catch(()=>{});}catch{}return()=>{element?.close();document.body.style.overflow=overflow;previous?.focus();};}, []);
-  const second = products.find((p:any) => String(p.id) === secondId) || product;
-  const change = (key:string, list:any[]) => setSelections((old:any) => ({...old,[key]:list}));
-  async function add() {setBusy(true);setError("");try {
-    await requestJSON(half ? "/checkout/checkout/add-half-half/" : "/checkout/add/", data, {product_id:product.id,quantity:qty,notes,is_half:half,...(half ? {product_ids:[product.id,second.id],customizations_whole:selections.whole||[],customizations_half1:selections.half1||[],customizations_half2:selections.half2||[],notes_half1:notes1,notes_half2:notes2} : {customizations:selections.whole||[]})});
-    window.location.assign("/checkout/cart/");
-  } catch(e:any){setError(e.message);setBusy(false);}}
-  return <dialog ref={dialog} onCancel={close} className="product-dialog" aria-labelledby="product-title"><button className="store-dialog-close" type="button" onClick={close} aria-label="Fechar produto"><StoreIcon name="close"/></button><h2 id="product-title">{product.name}</h2><div className="product-gallery">{(product.images.length ? product.images : [product.image]).filter(Boolean).map((src:string) => <img key={src} src={src} alt={product.name}/>)}</div><p>{product.description}</p><strong>{money(product.price)}</strong><p>{product.is_vegan && "Vegano · "}{product.is_spicy && "Picante · "}{product.allergens && `Alérgenos: ${product.allergens}`}</p>{product.prep_time && <p>Preparo: {product.prep_time} min</p>}{product.half_enabled && <label className="choice"><input type="checkbox" checked={half} onChange={e=>{setHalf(e.target.checked);setSelections({});}}/>Montar meio a meio</label>}{half && <label className="public-field">Segundo sabor<select value={secondId} onChange={e=>{setSecondId(e.target.value);change("half2",[]);}}>{products.filter((p:any)=>p.half_enabled&&p.category_id===product.category_id&&p.available).map((p:any)=><option value={p.id} key={p.id}>{p.name}</option>)}</select></label>}
-    <Choices product={product} bucket="whole" allowed={half ? ["whole","both"] : undefined} selections={selections.whole||[]} onChange={change}/>
-    {half && <><h3>Primeira metade: {product.name}</h3><Choices product={product} bucket="half1" allowed={["half"]} selections={selections.half1||[]} onChange={change}/><label className="public-field">Observação da primeira metade<textarea value={notes1} onChange={e=>setNotes1(e.target.value)}/></label><h3>Segunda metade: {second.name}</h3><Choices product={second} bucket="half2" allowed={["half"]} selections={selections.half2||[]} onChange={change}/><label className="public-field">Observação da segunda metade<textarea value={notes2} onChange={e=>setNotes2(e.target.value)}/></label></>}
-    <label className="public-field">Quantidade<input type="number" min={product.min_qty} max={product.max_qty} value={qty} aria-invalid={!Number.isInteger(qty)||qty<product.min_qty||qty>product.max_qty} onChange={e=>setQty(Number(e.target.value))}/></label><label className="public-field">Observações<textarea maxLength={1000} value={notes} onChange={e=>setNotes(e.target.value)}/></label><p>Os valores finais e as opções serão conferidos pela loja ao adicionar.</p>{error && <p role="alert">{error}</p>}<button className="store-dialog-submit" onClick={add} disabled={busy||!product.available||!Number.isInteger(qty)||qty<product.min_qty||qty>product.max_qty} aria-busy={busy}>{busy?"Adicionando…":"Adicionar ao carrinho"}</button></dialog>;
+  const firstGroups = useChoiceGroups(product.id);
+  const candidates = products.filter((p:any) => p.half_enabled && p.available && optionKey(p.category_id) === optionKey(product.category_id) && optionKey(p.id) !== optionKey(product.id));
+  const second = candidates.find((p:any) => optionKey(p.id) === secondId);
+  const secondGroups = useChoiceGroups(second?.id || product.id);
+  const change = (key:string, list:ChoiceSelection[]) => setSelections(old => ({...old,[key]:list}));
+  const basePrice = half && second ? Math.max(numericPrice(product.price),numericPrice(second.price)) : numericPrice(product.price);
+  const selectedTotal = (groups:any[], bucket:string, allowed?:string[]) => groups.filter(g => !allowed || allowed.includes(String(g.apply_to).toLowerCase())).reduce((acc:number,g:any) => acc + (g.options || []).reduce((sum:number,o:any) => sum + ((selections[bucket] || []).some(s => optionKey(s.group_id) === optionKey(g.id) && optionKey(s.option_id) === optionKey(o.id)) ? numericPrice(o.price) : 0),0),0);
+  const extras = selectedTotal(firstGroups.groups,'whole',half ? ['whole','both'] : undefined) + (half ? selectedTotal(firstGroups.groups,'half1',['half']) + selectedTotal(secondGroups.groups,'half2',['half']) : 0);
+  const quantityValid = Number.isInteger(qty) && qty >= Number(product.min_qty || 1) && qty <= Number(product.max_qty || 99);
+  const preview = (basePrice + extras) * qty;
+  useEffect(() => { const element=dialog.current; const previous=document.activeElement as HTMLElement; element?.showModal(); const overflow=document.body.style.overflow; document.body.style.overflow='hidden'; return () => {element?.close();document.body.style.overflow=overflow;previous?.focus();}; }, []);
+  async function add() {
+    if (half && !second) {setError('Escolha o segundo sabor da pizza.');return;}
+    if (!quantityValid) {setError('Informe uma quantidade válida.');return;}
+    if (firstGroups.loading || (half && secondGroups.loading)) {setError('Aguarde o carregamento dos adicionais.');return;}
+    if (firstGroups.error || (half && secondGroups.error)) {setError('Não foi possível carregar os adicionais. Tente novamente.');return;}
+    const validation = selectionError(firstGroups.groups,selections.whole || [],half ? ['whole','both'] : undefined) || (half ? selectionError(firstGroups.groups,selections.half1 || [],['half']) || selectionError(secondGroups.groups,selections.half2 || [],['half']) : '');
+    if (validation) {setError(validation);return;}
+    setBusy(true);setError('');
+    try {
+      const result = await requestJSON(half ? '/checkout/checkout/add-half-half/' : '/checkout/add/',data,{product_id:product.id,quantity:qty,notes,is_half:half,...(half ? {product_ids:[product.id,second.id],customizations_whole:selections.whole || [],customizations_half1:selections.half1 || [],customizations_half2:selections.half2 || [],notes_half1:notes1,notes_half2:notes2} : {customizations:selections.whole || []})});
+      // Em produção, adicionar apenas fecha o modal e atualiza o carrinho; não redireciona.
+      onAdded?.(result);
+      close();
+    } catch(e:any) {setError(e.message);setBusy(false);}
+  }
+  return <dialog ref={dialog} onCancel={close} className={`product-dialog legacy-product-dialog ${half ? "legacy-half-dialog" : "legacy-add-dialog"}`} aria-labelledby="product-title">
+    <div className="legacy-modal-header">
+      <div className="legacy-modal-title">
+        {half && <small>Personalização</small>}
+        <h2 id="product-title">{half ? 'Pizza meio a meio' : product.name}</h2>
+        {!half && <strong>{money(product.price)}</strong>}
+      </div>
+      <button className="store-dialog-close" type="button" onClick={close} aria-label="Fechar modal"><StoreIcon name="close"/></button>
+    </div>
+    <div className="legacy-modal-scroll">
+      {!half && <>
+        {product.description && <p className="legacy-product-description">{product.description}</p>}
+        {product.half_enabled && <button className="legacy-switch-half" type="button" onClick={()=>{setHalf(true);setSecondId('');setSelections({});setError('');}}>Montar pizza meio a meio</button>}
+      </>}
+      {half && <section className="legacy-half-builder" aria-label="Montar pizza meio a meio">
+        <div className="legacy-flavor-field">
+          <p>Escolha o segundo sabor</p>
+          <div className="legacy-flavor-dropdown">
+            <button type="button" className="legacy-dropdown-trigger" aria-haspopup="listbox" aria-expanded={flavorOpen} onClick={()=>setFlavorOpen(value=>!value)}>
+              <span>{second ? second.name : 'Selecione o segundo sabor'}</span><span aria-hidden="true">⌄</span>
+            </button>
+            {flavorOpen && <div className="legacy-flavor-list" role="listbox" aria-label="Sabores disponíveis">
+              <input aria-label="Buscar sabor" type="search" value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Buscar sabor..." autoFocus/>
+              <div className="legacy-flavor-options">
+                {candidates.filter((p:any)=>p.name.toLocaleLowerCase('pt-BR').includes(filter.toLocaleLowerCase('pt-BR'))).map((p:any)=><button key={p.id} type="button" role="option" aria-selected={secondId===optionKey(p.id)} onClick={()=>{setSecondId(optionKey(p.id));change('half2',[]);setFlavorOpen(false);setFilter('');}}>
+                  {p.image && <img src={p.image} alt=""/>}<span>{p.name}</span><strong>{money(p.price)}</strong>
+                </button>)}
+                {!candidates.some((p:any)=>p.name.toLocaleLowerCase('pt-BR').includes(filter.toLocaleLowerCase('pt-BR'))) && <p>Nenhum sabor encontrado.</p>}
+              </div>
+            </div>}
+          </div>
+        </div>
+        <div className="legacy-pizza-card">
+          <div className="legacy-pizza-intro"><h3>Sua pizza</h3><p>Escolha um sabor para cada metade.</p></div>
+          <div className="legacy-pizza-circle">
+            <div className="legacy-pizza-side">
+              {product.image && <img src={product.image} alt=""/>}
+              <small>Metade 1</small><strong>{product.name}</strong>
+            </div>
+            <div className="legacy-pizza-side">
+              {second?.image && <img src={second.image} alt=""/>}
+              <small>Metade 2</small><strong>{second?.name || 'Selecione...'}</strong>
+            </div>
+          </div>
+          <div className="legacy-pizza-total"><strong>{second ? money(preview) : 'R$ 0,00'}</strong><small>Valor total da pizza + adicionais</small></div>
+        </div>
+      </section>}
+      {firstGroups.loading && <p role="status">Carregando opções…</p>}
+      {firstGroups.error && <div role="alert">{firstGroups.error} <button type="button" onClick={firstGroups.retry}>Tentar novamente</button></div>}
+      <ChoiceGroups groups={firstGroups.groups} bucket="whole" allowed={half ? ['whole','both'] : undefined} selections={selections.whole || []} onChange={change}/>
+      {half && second && <>
+        <h3 className="legacy-half-label">Primeira metade: {product.name}</h3>
+        <ChoiceGroups groups={firstGroups.groups} bucket="half1" allowed={['half']} selections={selections.half1 || []} onChange={change}/>
+        <h3 className="legacy-half-label">Segunda metade: {second.name}</h3>
+        {secondGroups.loading && <p role="status">Carregando opções…</p>}
+        {secondGroups.error && <div role="alert">{secondGroups.error} <button type="button" onClick={secondGroups.retry}>Tentar novamente</button></div>}
+        <ChoiceGroups groups={secondGroups.groups} bucket="half2" allowed={['half']} selections={selections.half2 || []} onChange={change}/>
+        <div className="legacy-half-observations">
+          <h3>Observações</h3>
+          <label className="public-field">Metade 1: {product.name}<textarea rows={2} placeholder="Ex: sem cebola..." value={notes1} onChange={e=>setNotes1(e.target.value)}/></label>
+          <label className="public-field">Metade 2: {second.name}<textarea rows={2} placeholder="Ex: sem cebola..." value={notes2} onChange={e=>setNotes2(e.target.value)}/></label>
+        </div>
+      </>}
+      <label className="public-field legacy-quantity-field">Quantidade<input type="number" min={product.min_qty || 1} max={product.max_qty || 99} value={qty} onChange={e=>setQty(Number(e.target.value))}/></label>
+      {!half && <label className="public-field legacy-note-field">Observação <small>(opcional)</small><textarea rows={3} placeholder="Ex: sem cebola, molho à parte..." maxLength={1000} value={notes} onChange={e=>setNotes(e.target.value)}/></label>}
+      {!half && <p className="legacy-price-subtotal">Total: <strong>{money(preview)}</strong></p>}
+      {error && <p role="alert">{error}</p>}
+    </div>
+    <div className="legacy-modal-footer">
+      <button type="button" className="legacy-cancel" onClick={close}>Cancelar</button>
+      <button className="store-dialog-submit" type="button" onClick={add} disabled={busy || !product.available || !quantityValid || (half && !second)} aria-busy={busy}>{busy ? 'Adicionando…' : 'Adicionar ao carrinho'}</button>
+    </div>
+  </dialog>;
 }
 export function DeliveryEstimate({data}:any){
  const [city,setCity]=useState(""),[neighborhood,setNeighborhood]=useState(""),[result,setResult]=useState<any>(null),[error,setError]=useState(""),[busy,setBusy]=useState(false);
@@ -50,6 +200,7 @@ export function Catalog({data}:any) {
   const search = storefront?.search ?? localSearch, setSearch = storefront?.setSearch ?? setLocalSearch;
   const [selected, setSelected] = useState<any>(null);
   const [startHalf, setStartHalf] = useState(false);
+  const [cartNotice, setCartNotice] = useState('');
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [activeCategory,setActiveCategory]=useState("");
   const brand = data.store?.brand || {};
@@ -68,7 +219,20 @@ export function Catalog({data}:any) {
   const fontClass = brand.font_family === "Poppins" ? "font-poppins" : brand.font_family === "Roboto" ? "font-roboto" : "font-inter";
   const layoutClasses = ["catalog-v2", fontClass, brand.compact_product_cards ? "catalog-compact" : "", brand.card_shadow ? "catalog-shadow" : "", brand.hover_effect ? "catalog-hover" : "", brand.show_category_icons ? "catalog-category-icons" : ""].filter(Boolean).join(" ");
   const isPizzaCategory = (name:string) => ["pizza", "pizzas"].includes(name.trim().toLocaleLowerCase("pt-BR"));
-  function openProduct(product:any, half=false) {setStartHalf(half);setSelected(product);}
+  function openProduct(product:any, half=false) {setCartNotice('');setStartHalf(half);setSelected(product);}
+  async function onProductAdded(result:any) {
+    setCartNotice(result?.message || 'Produto adicionado ao carrinho!');
+    const count = result?.cart_count ?? result?.data?.cart_count;
+    if (count !== undefined && count !== null) {
+      storefront?.setCount(Number(count));
+    } else {
+      try {
+        const cart = await requestJSON('/checkout/cart/', data);
+        const cartCount = cart?.store?.cart_count ?? cart?.props?.items?.reduce((n:number, item:any) => n + Number(item.quantity || 0), 0);
+        if (cartCount !== undefined) storefront?.setCount(Number(cartCount));
+      } catch { /* O item já foi adicionado; eventual falha no contador não impede a compra. */ }
+    }
+  }
   const fulfillment = store.accepts_delivery && store.accepts_pickup ? "Entrega e retirada" : store.accepts_pickup ? "Apenas retirada" : "Apenas entrega";
 
   return <div className={layoutClasses} data-open-product-slug={data.props.open_product_slug || ""} data-header-style={brand.header_style || ""}>
@@ -133,8 +297,9 @@ export function Catalog({data}:any) {
       })}
       {visibleProducts.length === 0 && <div className="catalog-empty-v2"><h3>Nenhum produto encontrado</h3><p>Experimente buscar por outro nome.</p>{search && <button type="button" onClick={() => setSearch("")}>Limpar busca</button>}</div>}
     </div>
+    {cartNotice && <div className="store-cart-success-notice" role="status">{cartNotice}<button type="button" onClick={() => setCartNotice('')} aria-label="Fechar aviso">×</button></div>}
     <a className="catalog-cart-sticky-v2" href="/checkout/cart/"><StoreIcon name="bag" size={24}/><span>Ver carrinho ({storefront?.count ?? store.cart_count ?? 0})</span><StoreIcon name="arrow"/></a>
-    {selected && <ProductDialog key={`${selected.id}-${startHalf}`} product={selected} products={products} data={data} startHalf={startHalf} close={() => setSelected(null)}/>}
+    {selected && <ProductDialog key={`${selected.id}-${startHalf}`} product={selected} products={products} data={data} startHalf={startHalf} close={() => setSelected(null)} onAdded={onProductAdded}/>}
   </div>;
 }
 function CartItem({item,data,onUpdate}:any){

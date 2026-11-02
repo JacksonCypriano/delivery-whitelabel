@@ -52,8 +52,16 @@ def preview(detail, *, app_shop_id, shop_id, order_id):
     real=minor(p['real_pay_price'])
     delivery_fee=minor(p.get('delivery_price',0))
     discount=minor(p.get('items_discount',0))+minor(p.get('delivery_discount',0))
-    if total-delivery_fee+discount < 0:
+    # Until the provider's field semantics are signed off, reject sums that
+    # would produce a negative merchant subtotal or impossible charges.
+    subtotal = total - delivery_fee + discount
+    if subtotal < 0 or real > Decimal('99999999.99'):
         raise ProviderError('Composição financeira da 99Food inválida.')
+    if p.get('real_price') is not None:
+        minor(p['real_price'])
+    if p.get('sku_price') is not None:
+        minor(p['sku_price'])
+
     rows=[]
     for item in detail['order_items']:
         if not isinstance(item,dict) or not isinstance(item.get('name'),str) or not item['name'].strip():
@@ -62,13 +70,22 @@ def preview(detail, *, app_shop_id, shop_id, order_id):
         if type(qty) is not int or not 1 <= qty <= 1000:
             raise ProviderError('Quantidade 99Food inválida.')
         line=minor(item['total_price'])
+        # The API may return a line whose division by quantity has subcent
+        # precision. Persist line_total explicitly and never silently round
+        # the unit price up or down as though it were exact.
         unit=(line/qty).quantize(Decimal('.01'))
+        if item.get('sku_price') is not None:
+            minor(item['sku_price'])
         rows.append({'name':item['name'][:255], 'quantity':qty, 'price':unit,
                      'line_total':line, 'code':str(item.get('app_item_id') or '')[:100],
                      'notes':str(item.get('remark') or '')[:2000],
                      'options':_options(item.get('sub_item_list') or [])})
     if not rows or len(rows)>200:
         raise ProviderError('Número de itens 99Food inválido.')
+    # The provider can include fees/discounts and nested item pricing, so
+    # line totals are informative; do not force an unverified equality.
+    if sum((row['line_total'] for row in rows), Decimal('0')) > Decimal('99999999.99'):
+        raise ProviderError('Total dos itens 99Food excede limite seguro.')
     created=detail.get('create_time')
     if type(created) is not int or not 1000000000 <= created <= 9999999999:
         raise ProviderError('Data de criação 99Food inválida.')
@@ -93,7 +110,9 @@ def import_reviewed(detail, *, tenant_id, app_shop_id, shop_id, order_id, curren
         raise ProviderError('Importação requer revisão explícita da moeda BRL e estado provisório.')
     data=preview(detail,app_shop_id=app_shop_id,shop_id=shop_id,order_id=order_id)
     from apps.tenants.models import Tenant
-    tenant=Tenant.objects.get(pk=tenant_id)
+    tenant=Tenant.objects.filter(pk=tenant_id).first()
+    if tenant is None:
+        raise ProviderError('Tenant de destino não encontrado.')
     conn=Connection.objects.select_for_update().filter(provider='99food',mode='test',merchant_id=str(shop_id)).first()
     if conn and conn.tenant_id!=tenant.pk:
         raise ProviderError('Estabelecimento 99Food associado a outro tenant.')
@@ -101,6 +120,8 @@ def import_reviewed(detail, *, tenant_id, app_shop_id, shop_id, order_id, curren
         conn=Connection.objects.create(tenant=tenant,provider='99food',mode='test',merchant_id=str(shop_id),merchant_name='99Food Sandbox',enabled=False,status='awaiting_review')
     existing=ExternalOrder.objects.select_for_update().filter(connection=conn,external_id=str(order_id)).first()
     if existing:
+        if existing.order.tenant_id != tenant.pk:
+            raise ProviderError('Pedido externo associado a outro tenant.')
         return existing.order_id,False
     order=Order.objects.create(tenant=tenant,source='99food',status='pending',
        customer_name='Cliente 99Food',total=data['total'],subtotal=data['total']-data['delivery_fee']+data['discount'],

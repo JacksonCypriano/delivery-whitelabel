@@ -45,3 +45,23 @@ class Food99ImportTests(SimpleTestCase):
     def test_invalid_delivery_rejected(self):
         x=self.sample();x['delivery_type']=999
         with self.assertRaises(ProviderError):self.parse(x)
+
+    def test_no_missing_money_fields_or_floats(self):
+        x=self.sample(); x['price']['real_pay_price']=None
+        with self.assertRaises(ProviderError): self.parse(x)
+        x=self.sample(); x['order_items'][0]['total_price']=2000.0
+        with self.assertRaises(ProviderError): self.parse(x)
+
+    def test_money_composition_below_zero_rejected(self):
+        x=self.sample(); x['price']['order_price']=0; x['price']['delivery_price']=100
+        with self.assertRaises(ProviderError): self.parse(x)
+
+    def test_malformed_additional_rejected(self):
+        x=self.sample(); x['order_items'][0]['sub_item_list']=[{'name':'Cheese','amount':0}]
+        with self.assertRaises(ProviderError): self.parse(x)
+
+    def test_status_is_preserved_not_guessed(self):
+        x=self.sample(); x['status']=922
+        result=self.parse(x)
+        self.assertEqual(result['status_code'],922)
+        self.assertFalse(result['currency_confirmed'])

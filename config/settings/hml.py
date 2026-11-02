@@ -51,6 +51,6 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 CELERY_BEAT_SCHEDULE = {}
 
 # 99Food — Sandbox
-FOOD99_SANDBOX_ENABLED = (
-    os.getenv("FOOD99_SANDBOX_ENABLED", "0") == "1"
-)
+FOOD99_SANDBOX_ENABLED = (os.getenv("FOOD99_SANDBOX_ENABLED", "0") == "1")
+FOOD99_TEST_APP_ID = os.getenv("FOOD99_TEST_APP_ID", "")
+FOOD99_TEST_APP_SECRET = os.getenv("FOOD99_TEST_APP_SECRET", "")

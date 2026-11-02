@@ -80,10 +80,11 @@ def get_shop_token(app_shop_id, *, force_refresh=False):
     row = AppToken.objects.select_for_update().get(key=key)
     if not force_refresh and row.encrypted_token and row.expires_at and row.expires_at > timezone.now() + timedelta(minutes=5):
         return decrypt_secret(row.encrypted_token)
-    if force_refresh:
-        result = _call("/v1/auth/authtoken/refresh", app_id, secret, app_shop_id)
-        if result is not True:
-            raise ProviderError("99Food não confirmou renovação do token.")
+    # Token ausente/expirado: renovar PRIMEIRO, inclusive sem --refresh.
+    # Uma consulta /get isolada pode devolver uma autorização vencida.
+    result = _call("/v1/auth/authtoken/refresh", app_id, secret, app_shop_id)
+    if result is not True:
+        raise ProviderError("99Food não confirmou renovação do token.")
     payload = _call("/v1/auth/authtoken/get", app_id, secret, app_shop_id)
     if not isinstance(payload, dict):
         raise ProviderError("Token 99Food ausente.")

@@ -130,6 +130,13 @@ def import_reviewed(detail, *, tenant_id, app_shop_id, shop_id, order_id, curren
     tenant=Tenant.objects.filter(pk=tenant_id).first()
     if tenant is None:
         raise ProviderError('Tenant de destino não encontrado.')
+    # Sandbox AppShopID must be bound to the intended tenant, never accepted
+    # solely on the basis of a user-provided tenant primary key.
+    expected_app_shop_id = 'vdd-' + tenant.slug
+    if app_shop_id != expected_app_shop_id:
+        raise ProviderError('AppShopID 99Food não corresponde ao tenant selecionado.')
+    if getattr(settings, 'FOOD99_SANDBOX_IMPORT_TO_ORDERS', False) is not True:
+        raise ProviderError('Importação em Order desabilitada: revisão operacional pendente.')
     conn=Connection.objects.select_for_update().filter(provider='99food',mode='test',merchant_id=str(shop_id)).first()
     if conn and conn.tenant_id!=tenant.pk:
         raise ProviderError('Estabelecimento 99Food associado a outro tenant.')

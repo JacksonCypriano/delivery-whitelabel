@@ -49,3 +49,8 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 # Os workers e o scheduler nao sobem na etapa inicial.
 # Deixamos as tarefas agendadas inertes mesmo se alguem iniciar Beat sem querer.
 CELERY_BEAT_SCHEDULE = {}
+
+# 99Food — Sandbox
+FOOD99_SANDBOX_ENABLED = (
+    os.getenv("FOOD99_SANDBOX_ENABLED", "0") == "1"
+)

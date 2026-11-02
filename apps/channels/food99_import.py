@@ -37,6 +37,23 @@ def _options(rows, depth=0):
     return options
 
 
+def fingerprint_preview(data):
+    """Non-PII stable financial/item signature for reviewing repeat imports."""
+    import hashlib
+    signature = {
+        'shop_id': data['shop_id'], 'order_id': data['order_id'],
+        'status_code': data['status_code'], 'total': str(data['total']),
+        'real_pay': str(data['real_pay']), 'delivery_fee': str(data['delivery_fee']),
+        'discount': str(data['discount']),
+        'items': [
+            {'code': item['code'], 'quantity': item['quantity'],
+             'line_total': str(item['line_total']), 'options': item['options']}
+            for item in data['items']
+        ],
+    }
+    return hashlib.sha256(json.dumps(signature, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+
+
 def preview(detail, *, app_shop_id, shop_id, order_id):
     info=inspect_order(detail,app_shop_id=app_shop_id,shop_id=shop_id,order_id=order_id)
     if info['fields_missing']:
@@ -122,6 +139,10 @@ def import_reviewed(detail, *, tenant_id, app_shop_id, shop_id, order_id, curren
     if existing:
         if existing.order.tenant_id != tenant.pk:
             raise ProviderError('Pedido externo associado a outro tenant.')
+        if existing.order.source != '99food' or existing.order.tenant_id != tenant.pk:
+            raise ProviderError('Pedido previamente importado não corresponde à loja 99Food.')
+        # A repeated import must never overwrite the original or apply a stale
+        # provider status. Differences are left for explicit reconciliation.
         return existing.order_id,False
     order=Order.objects.create(tenant=tenant,source='99food',status='pending',
        customer_name='Cliente 99Food',total=data['total'],subtotal=data['total']-data['delivery_fee']+data['discount'],
@@ -136,7 +157,7 @@ def import_reviewed(detail, *, tenant_id, app_shop_id, shop_id, order_id, curren
     x=ExternalOrder.objects.create(connection=conn,order=order,external_id=str(order_id),
        delivery_by=data['delivery_by'],paid=data['paid'],payment_summary=data['payment_method'],
        financials={'currency':'BRL','total':str(data['total']),'real_pay':str(data['real_pay']),
-                   'status_code':data['status_code']},
+                   'status_code':data['status_code'], 'snapshot_fingerprint':fingerprint_preview(data)},
        encrypted_snapshot=encrypt_secret(json.dumps({'provider':detail},default=str)),
        warning='SANDBOX: status 99Food não homologado; não executar transições ou expedir pedido.')
     return x.order_id,True

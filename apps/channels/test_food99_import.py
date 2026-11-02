@@ -2,7 +2,7 @@ from copy import deepcopy
 from decimal import Decimal
 from django.test import SimpleTestCase
 from .connectors import ProviderError
-from .food99_import import preview, minor
+from .food99_import import preview, minor, fingerprint_preview
 
 
 class Food99ImportTests(SimpleTestCase):
@@ -65,3 +65,23 @@ class Food99ImportTests(SimpleTestCase):
         result=self.parse(x)
         self.assertEqual(result['status_code'],922)
         self.assertFalse(result['currency_confirmed'])
+
+    def test_fingerprint_is_stable_and_sensitive_to_financial_changes(self):
+        sample = self.sample()
+        a = fingerprint_preview(self.parse(sample))
+        self.assertEqual(a, fingerprint_preview(self.parse(deepcopy(sample))))
+        sample['price']['order_price'] += 1
+        self.assertNotEqual(a, fingerprint_preview(self.parse(sample)))
+
+    def test_fingerprint_excludes_customer_pii(self):
+        sample = self.sample()
+        a = fingerprint_preview(self.parse(sample))
+        sample['receive_address']['phone'] = 'OUTRO_NUMERO'
+        sample['receive_address']['name'] = 'OUTRO_NOME'
+        self.assertEqual(a, fingerprint_preview(self.parse(sample)))
+
+    def test_fingerprint_detects_modified_options(self):
+        sample = self.sample()
+        a = fingerprint_preview(self.parse(sample))
+        sample['order_items'][0]['sub_item_list'][0]['total_price'] += 100
+        self.assertNotEqual(a, fingerprint_preview(self.parse(sample)))

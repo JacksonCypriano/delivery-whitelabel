@@ -19,6 +19,8 @@ export function Storefront({ data, theme, children }: { data: any; theme: CSSPro
   const store = data.store, brand = store.brand || {};
   const [dark, setDark] = useState(false), [search, setSearch] = useState('');
   const [count, setCount] = useState(Number(store.cart_count || 0));
+  const [total, setTotal] = useState<string | number | null>(store.cart_total ?? null);
+  const hasWhatsApp = /^\d{10,15}$/.test(String(store.whatsapp || '').replace(/\D/g, ''));
   const header = useRef<HTMLElement>(null), shell = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const media = window.matchMedia?.('(prefers-color-scheme: dark)');
@@ -42,7 +44,7 @@ export function Storefront({ data, theme, children }: { data: any; theme: CSSPro
     try { localStorage.setItem('theme', next ? 'dark' : 'light'); localStorage.setItem('vdd_catalog_dark', String(next)); } catch {}
   }
   const initials = store.name.split(/\s+/).slice(0, 2).map((s: string) => s[0]).join('');
-  return <StoreContext.Provider value={{ search, setSearch, dark, count, setCount }}><div ref={shell} className={`public-shell storefront shell-${data.page} font-${(brand.font_family || 'Inter').toLowerCase()}`} style={theme} data-dark-enabled={Boolean(brand.dark_mode_enabled)}>
+  return <StoreContext.Provider value={{ search, setSearch, dark, count, setCount, total, setTotal }}><div ref={shell} className={`public-shell storefront shell-${data.page} font-${(brand.font_family || 'Inter').toLowerCase()}`} style={theme} data-has-whatsapp={hasWhatsApp} data-dark-enabled={Boolean(brand.dark_mode_enabled)}>
     <a className="vdd-skip" href="#vdd-content">Ir para o conteúdo</a>
     <header className="store-header" ref={header}><nav className="store-container store-header-inner" aria-label="Navegação da loja">
       <a className="store-brand" href="/" aria-label={`Voltar ao cardápio ${store.name}`}>{store.logo ? <img src={store.logo} alt="" width="40" height="40"/> : <span className="store-monogram">{initials}</span>}<strong>{store.name}</strong></a>
@@ -54,6 +56,6 @@ export function Storefront({ data, theme, children }: { data: any; theme: CSSPro
     </nav></header>
     {children}
     <footer className="store-footer"><div className="store-container"><strong>{store.name}</strong><p>Feito com VemDeDelivery</p><nav aria-label="Informações"><a href="/">Cardápio</a><a href="/conta/">Minha conta</a><a href="/termos/">Termos de Serviço</a><a href="/privacidade/">Política de Privacidade</a></nav><small>© {data.year} VemDeDelivery · COBRADEV SOLUTIONS · CNPJ 59.198.345/0001-44</small></div></footer>
-    {/^\d{10,15}$/.test(String(store.whatsapp || '').replace(/\D/g, '')) && <a className="store-contact" href={`https://wa.me/${String(store.whatsapp).replace(/\D/g, '')}`} aria-label="Falar com a loja no WhatsApp">WhatsApp ↗</a>}
+    {hasWhatsApp && <a className="store-contact" href={`https://wa.me/${String(store.whatsapp).replace(/\D/g, '')}`} aria-label="Falar com a loja no WhatsApp">WhatsApp ↗</a>}
   </div></StoreContext.Provider>;
 }

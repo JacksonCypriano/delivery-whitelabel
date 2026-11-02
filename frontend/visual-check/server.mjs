@@ -13,7 +13,7 @@ base.csrf='visual-fixture-csrf';base.store.whatsapp='';base.store.cart_count=2;
 const product=base.props.categories[0].products[0];
 let cart={...structuredClone(base),page:'cart',heading:'Seu carrinho',props:{items:[{id:1,name:product.name,quantity:2,price:product.price,total:String(Number(product.price)*2),image:product.image,notes:'Sem cebola',combination_details:{},min_qty:1,max_qty:9}],subtotal:String(Number(product.price)*2),total:String(Number(product.price)*2),delivery_fee_display:'A confirmar',can_checkout:true,checkout_mode_hint:'Escolha entrega ou retirada na próxima etapa.'}};
 function dataFor(url){
- const d=structuredClone(base);const pathname=new URL(url,'http://localhost').pathname;
+ const d=structuredClone(base);const parsed=new URL(url,'http://localhost');const pathname=parsed.pathname;d.store.whatsapp=parsed.searchParams.get('contact')==='1'?'5511999999999':'';
  if(pathname==='/checkout/cart/')return structuredClone(cart);
  if(pathname==='/empty-cart/'){d.page='cart';d.heading='Seu carrinho';d.store.cart_count=0;d.props={...cart.props,items:[]};}
  else if(pathname==='/checkout/checkout/'){d.page='checkout';d.heading='Finalizar pedido';d.props={cart_items:[{name:product.name,quantity:cart.store.cart_count,line_total:cart.props.total}],subtotal:cart.props.total,customer_addresses:[],global_delivery_location:{},default_address:null,initial_full_name:'',initial_phone:'',checkout_token:'fixture-checkout',online_payment_available:true,store_address:'Rua de Teste, 123',scheduling_enabled:true};}

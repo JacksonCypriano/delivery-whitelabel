@@ -14,6 +14,39 @@ for(const width of [1440,768,390]){
  async function snap(name){await page.screenshot({path:path.join(output,`${width}-${name}.png`),fullPage:/checkout|review|payment|coupon/.test(name)});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`Horizontal overflow: ${width} ${name}`);}
  await page.goto(base);await page.getByRole('searchbox').waitFor();await snap('catalog-light');
  const cartColors=await page.locator('.catalog-cart-sticky-v2').evaluate(e=>({color:getComputedStyle(e).color,bg:getComputedStyle(e).backgroundColor}));assert.notEqual(cartColors.color,cartColors.bg,'Cart text must contrast with its background');
+ // Validate the compiled browser bundle, not only the React source.
+ for(const contact of [true,false]){
+  await page.goto(`${base}/?contact=${contact ? '1' : '0'}`);
+  const cartBox=await page.locator('.catalog-cart-sticky-v2').boundingBox();
+  assert(Math.abs(width-cartBox.x-cartBox.width-16)<2,'Cart right gutter');
+  if(contact){const wa=await page.locator('.store-contact').boundingBox();assert(cartBox.y+cartBox.height<wa.y,'Cart above WhatsApp');}
+  else assert.equal(await page.locator('.store-contact').count(),0);
+  await snap(`floating-${contact?'with':'without'}-whatsapp`);
+ }
+ for(const mode of ['water','extras','half']){
+  const url=page.url();let payload;
+  await page.route('**/checkout/**',async route=>{
+   if(route.request().method()!=='POST')return route.continue();
+   payload=route.request().postDataJSON();
+   await route.fulfill({contentType:'application/json',body:JSON.stringify({success:true,cart_count:3,cart_total:'99.90'})});
+  });
+  if(mode==='half'){
+   await page.getByRole('button',{name:/Montar pizza meio a meio com/}).first().click();
+   await page.getByRole('button',{name:'Selecione o segundo sabor'}).click();
+   await page.getByRole('option').first().click();
+  }else await page.getByRole('button',{name:mode==='water'?'Escolher Água Mineral 500 ml':'Escolher Pizza Bella Massa',exact:true}).click();
+  await page.getByRole('dialog').getByText('Catupiry',{exact:false}).waitFor();
+  if(mode==='water')assert.equal(await page.getByRole('dialog').getByText('Montar pizza meio a meio',{exact:true}).count(),0);
+  if(mode==='extras')await page.getByRole('radio',{name:/Catupiry/}).check();
+  await page.getByRole('button',{name:'Adicionar ao carrinho',exact:true}).click();
+  await page.getByRole('dialog').waitFor({state:'detached'});
+  assert.equal(page.url(),url,'Adding must stay on catalog');assert(payload);
+  assert.equal(payload.is_half,mode==='half');
+  await page.getByRole('link',{name:'Carrinho, 3 itens'}).waitFor();await page.locator('.store-cart-total').getByText('R$ 99,90',{exact:true}).waitFor();
+  await snap(`added-${mode}`);await page.unroute('**/checkout/**');
+ }
+ await page.locator('.catalog-cart-sticky-v2').click();await page.waitForURL('**/checkout/cart/');
+ await page.goto(base);
  await page.getByRole('searchbox').focus();await snap('focus');
  await page.getByRole('button',{name:/^Escolher /}).first().hover();await snap('hover');
  await page.getByText('Consultar entrega',{exact:true}).click();await page.getByLabel('Cidade',{exact:true}).fill('Itapevi');await page.getByLabel('Bairro',{exact:true}).fill('Centro');await page.getByRole('button',{name:'Consultar taxa'}).click();await page.getByText('Entrega disponível · R$ 5,00').waitFor();await snap('delivery-estimate');await page.getByText('Consultar entrega',{exact:true}).click();
@@ -25,7 +58,7 @@ for(const width of [1440,768,390]){
  await page.getByRole('button',{name:/^Escolher /}).first().click();await page.getByRole('dialog').waitFor();await page.getByRole('dialog').getByText('Catupiry',{exact:false}).waitFor();await snap('product');await page.getByRole('dialog').getByLabel('Quantidade').fill('0');await snap('product-disabled');
  await page.getByRole('dialog').getByLabel('Quantidade').fill('0');assert.equal(await page.getByRole('button',{name:'Adicionar ao carrinho'}).isEnabled(),false);
  await page.keyboard.press('Escape');assert.equal(await page.getByRole('dialog').count(),0);
- await page.getByRole('button',{name:/Montar pizza meio a meio com/}).first().click();await page.getByLabel('Segundo sabor').waitFor();await snap('half');await page.keyboard.press('Escape');
+ await page.getByRole('button',{name:/Montar pizza meio a meio com/}).first().click();await page.getByRole('button',{name:'Selecione o segundo sabor'}).waitFor();await snap('half');await page.keyboard.press('Escape');
  let pendingOptions;
  await page.route('**/api/product/*/customizations/',route=>{pendingOptions=route;});
  await page.getByRole('button',{name:/^Escolher /}).first().click();await page.getByRole('status').filter({hasText:'Carregando opções'}).waitFor();await snap('product-loading');

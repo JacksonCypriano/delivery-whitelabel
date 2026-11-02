@@ -70,8 +70,14 @@ function selectionError(groups:any[], selections:ChoiceSelection[], allowed?:str
   }
   return '';
 }
-export function ProductDialog({data, product, products, close, onAdded, startHalf=false}: any) {
-  const [half,setHalf] = useState(Boolean(startHalf));
+const halfEligible = (product:any) => product.half_enabled === true;
+export function ProductDialog(props:any) {
+  // A different product/mode always receives fresh quantities, notes and choices.
+  return <ProductDialogContent key={`${props.product.id}-${Boolean(props.startHalf)}`} {...props}/>;
+}
+function ProductDialogContent({data, product, products, close, onAdded, startHalf=false}: any) {
+  const [halfRequested,setHalf] = useState(startHalf === true);
+  const half = halfEligible(product) && halfRequested;
   const [secondId,setSecondId] = useState('');
   const [filter,setFilter] = useState('');
   const [flavorOpen,setFlavorOpen] = useState(false);
@@ -81,7 +87,7 @@ export function ProductDialog({data, product, products, close, onAdded, startHal
   const [error,setError] = useState(''), [busy,setBusy] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const firstGroups = useChoiceGroups(product.id);
-  const candidates = products.filter((p:any) => p.half_enabled && p.available && optionKey(p.category_id) === optionKey(product.category_id) && optionKey(p.id) !== optionKey(product.id));
+  const candidates = products.filter((p:any) => halfEligible(p) && p.available && optionKey(p.category_id) === optionKey(product.category_id) && optionKey(p.id) !== optionKey(product.id));
   const second = candidates.find((p:any) => optionKey(p.id) === secondId);
   const secondGroups = useChoiceGroups(second?.id || product.id);
   const change = (key:string, list:ChoiceSelection[]) => setSelections(old => ({...old,[key]:list}));
@@ -92,6 +98,7 @@ export function ProductDialog({data, product, products, close, onAdded, startHal
   const preview = (basePrice + extras) * qty;
   useEffect(() => { const element=dialog.current; const previous=document.activeElement as HTMLElement; element?.showModal(); const overflow=document.body.style.overflow; document.body.style.overflow='hidden'; return () => {element?.close();document.body.style.overflow=overflow;previous?.focus();}; }, []);
   async function add() {
+    if (busy) return;
     if (half && !second) {setError('Escolha o segundo sabor da pizza.');return;}
     if (!quantityValid) {setError('Informe uma quantidade válida.');return;}
     if (firstGroups.loading || (half && secondGroups.loading)) {setError('Aguarde o carregamento dos adicionais.');return;}
@@ -118,7 +125,7 @@ export function ProductDialog({data, product, products, close, onAdded, startHal
     <div className="legacy-modal-scroll">
       {!half && <>
         {product.description && <p className="legacy-product-description">{product.description}</p>}
-        {product.half_enabled && <button className="legacy-switch-half" type="button" onClick={()=>{setHalf(true);setSecondId('');setSelections({});setError('');}}>Montar pizza meio a meio</button>}
+        {halfEligible(product) && <button className="legacy-switch-half" type="button" onClick={()=>{setHalf(true);setSecondId('');setSelections({});setError('');}}>Montar pizza meio a meio</button>}
       </>}
       {half && <section className="legacy-half-builder" aria-label="Montar pizza meio a meio">
         <div className="legacy-flavor-field">
@@ -130,7 +137,7 @@ export function ProductDialog({data, product, products, close, onAdded, startHal
             {flavorOpen && <div className="legacy-flavor-list" role="listbox" aria-label="Sabores disponíveis">
               <input aria-label="Buscar sabor" type="search" value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Buscar sabor..." autoFocus/>
               <div className="legacy-flavor-options">
-                {candidates.filter((p:any)=>p.name.toLocaleLowerCase('pt-BR').includes(filter.toLocaleLowerCase('pt-BR'))).map((p:any)=><button key={p.id} type="button" role="option" aria-selected={secondId===optionKey(p.id)} onClick={()=>{setSecondId(optionKey(p.id));change('half2',[]);setFlavorOpen(false);setFilter('');}}>
+                {candidates.filter((p:any)=>p.name.toLocaleLowerCase('pt-BR').includes(filter.toLocaleLowerCase('pt-BR'))).map((p:any)=><button key={p.id} type="button" role="option" aria-selected={secondId===optionKey(p.id)} onClick={()=>{setSecondId(optionKey(p.id));change('half2',[]);setNotes2('');setFlavorOpen(false);setFilter('');}}>
                   {p.image && <img src={p.image} alt=""/>}<span>{p.name}</span><strong>{money(p.price)}</strong>
                 </button>)}
                 {!candidates.some((p:any)=>p.name.toLocaleLowerCase('pt-BR').includes(filter.toLocaleLowerCase('pt-BR'))) && <p>Nenhum sabor encontrado.</p>}
@@ -219,17 +226,21 @@ export function Catalog({data}:any) {
   const fontClass = brand.font_family === "Poppins" ? "font-poppins" : brand.font_family === "Roboto" ? "font-roboto" : "font-inter";
   const layoutClasses = ["catalog-v2", fontClass, brand.compact_product_cards ? "catalog-compact" : "", brand.card_shadow ? "catalog-shadow" : "", brand.hover_effect ? "catalog-hover" : "", brand.show_category_icons ? "catalog-category-icons" : ""].filter(Boolean).join(" ");
   const isPizzaCategory = (name:string) => ["pizza", "pizzas"].includes(name.trim().toLocaleLowerCase("pt-BR"));
-  function openProduct(product:any, half=false) {setCartNotice('');setStartHalf(half);setSelected(product);}
+  function openProduct(product:any, half=false) {setCartNotice('');setStartHalf(half === true && halfEligible(product));setSelected(product);}
   async function onProductAdded(result:any) {
     setCartNotice(result?.message || 'Produto adicionado ao carrinho!');
     const count = result?.cart_count ?? result?.data?.cart_count;
+    const total = result?.cart_total ?? result?.data?.cart_total;
+    if (total !== undefined && total !== null) storefront?.setTotal(total);
     if (count !== undefined && count !== null) {
       storefront?.setCount(Number(count));
-    } else {
+    }
+    if (count == null || total == null) {
       try {
         const cart = await requestJSON('/checkout/cart/', data);
         const cartCount = cart?.store?.cart_count ?? cart?.props?.items?.reduce((n:number, item:any) => n + Number(item.quantity || 0), 0);
         if (cartCount !== undefined) storefront?.setCount(Number(cartCount));
+        if (cart?.props?.total != null) storefront?.setTotal(cart.props.total);
       } catch { /* O item já foi adicionado; eventual falha no contador não impede a compra. */ }
     }
   }
@@ -253,10 +264,10 @@ export function Catalog({data}:any) {
     <div className="catalog-toolbar-v2" onKeyDown={e=>{if(e.key==="Escape")setCategoriesOpen(false);}}>
       <div className="catalog-toolbar-inner-v2">
         <button type="button" aria-label="Ver todas as categorias" aria-expanded={categoriesOpen} onClick={() => setCategoriesOpen(value => !value)} className="catalog-categories-toggle-v2"><StoreIcon name="menu"/></button>
-        <nav className="catalog-categories-v2" aria-label="Categorias do cardápio">{categories.map((cat:any) => <Fragment key={cat.id}><a href={`#category-${cat.id}`} aria-current={activeCategory===`category-${cat.id}` ? "location" : undefined} onClick={()=>setActiveCategory(`category-${cat.id}`)}>{isPizzaCategory(cat.name) ? "Pizzas inteiras" : cat.name}</a>{isPizzaCategory(cat.name) && cat.products.some((p:any)=>p.half_enabled) && <a href={`#pizzas-meio-a-meio-${cat.id}`} aria-current={activeCategory===`pizzas-meio-a-meio-${cat.id}` ? "location" : undefined} onClick={()=>setActiveCategory(`pizzas-meio-a-meio-${cat.id}`)}>Pizza meio a meio</a>}</Fragment>)}</nav>
+        <nav className="catalog-categories-v2" aria-label="Categorias do cardápio">{categories.map((cat:any) => <Fragment key={cat.id}><a href={`#category-${cat.id}`} aria-current={activeCategory===`category-${cat.id}` ? "location" : undefined} onClick={()=>setActiveCategory(`category-${cat.id}`)}>{isPizzaCategory(cat.name) ? "Pizzas inteiras" : cat.name}</a>{cat.products.some((p:any)=>halfEligible(p)) && <a href={`#pizzas-meio-a-meio-${cat.id}`} aria-current={activeCategory===`pizzas-meio-a-meio-${cat.id}` ? "location" : undefined} onClick={()=>setActiveCategory(`pizzas-meio-a-meio-${cat.id}`)}>Pizza meio a meio</a>}</Fragment>)}</nav>
 
       </div>
-      {categoriesOpen && <nav className="catalog-categories-drawer-v2" aria-label="Todas as categorias">{categories.map((cat:any) => <Fragment key={cat.id}><a onClick={() => setCategoriesOpen(false)} href={`#category-${cat.id}`}>{isPizzaCategory(cat.name) ? "Pizzas inteiras" : cat.name} <span>›</span></a>{isPizzaCategory(cat.name) && cat.products.some((p:any)=>p.half_enabled) && <a onClick={() => setCategoriesOpen(false)} href={`#pizzas-meio-a-meio-${cat.id}`}>Pizza meio a meio <span>›</span></a>}</Fragment>)}</nav>}
+      {categoriesOpen && <nav className="catalog-categories-drawer-v2" aria-label="Todas as categorias">{categories.map((cat:any) => <Fragment key={cat.id}><a onClick={() => setCategoriesOpen(false)} href={`#category-${cat.id}`}>{isPizzaCategory(cat.name) ? "Pizzas inteiras" : cat.name} <span>›</span></a>{cat.products.some((p:any)=>halfEligible(p)) && <a onClick={() => setCategoriesOpen(false)} href={`#pizzas-meio-a-meio-${cat.id}`}>Pizza meio a meio <span>›</span></a>}</Fragment>)}</nav>}
     </div>
     <div className="catalog-content-v2">
       {!storefront && <div className="catalog-search-row-v2">
@@ -283,9 +294,9 @@ export function Catalog({data}:any) {
             {brand.show_product_image !== false && (p.image ? <img className="catalog-product-photo-v2" src={p.image} alt={p.name} loading="lazy" /> : <div className="catalog-product-placeholder-v2" aria-hidden="true">▧</div>)}
           </article>)}</div>
         </section>
-        {isPizzaCategory(category.name) && filtered.some((p:any) => p.half_enabled) && <section id={`pizzas-meio-a-meio-${category.id}`} className="catalog-category-section-v2 catalog-half-section-v2">
+        {filtered.some((p:any) => halfEligible(p)) && <section id={`pizzas-meio-a-meio-${category.id}`} className="catalog-category-section-v2 catalog-half-section-v2">
           <div className="catalog-category-title-v2"><small>Monte do seu jeito</small><h2>Pizza meio a meio</h2><p>Escolha dois sabores e monte uma pizza do jeito que você quiser.</p></div>
-          <div className="catalog-product-grid-v2">{filtered.filter((p:any) => p.half_enabled).map((p:any) => <article key={`half-${p.id}`} className="catalog-product-card-v2 catalog-half-card-v2" data-product-slug={p.slug} data-product-price={p.price}>
+          <div className="catalog-product-grid-v2">{filtered.filter((p:any) => halfEligible(p)).map((p:any) => <article key={`half-${p.id}`} className="catalog-product-card-v2 catalog-half-card-v2" data-product-slug={p.slug} data-product-price={p.price}>
             <div className="catalog-product-info-v2"><div><span className="catalog-half-badge-v2">½ + ½</span><h3>{p.name}</h3>{brand.show_product_description !== false && p.description && <p className="catalog-product-description-v2">{p.description}</p>}
               <ProductMeta product={p}/></div>
               <div className="catalog-product-bottom-v2"><ProductPrice product={p}/><button className="catalog-half-button-v2" type="button" disabled={!p.available} onClick={() => openProduct(p,true)} aria-label={`Montar pizza meio a meio com ${p.name}`}>{p.available ? "Montar" : "Esgotado"}</button></div>
@@ -298,7 +309,7 @@ export function Catalog({data}:any) {
       {visibleProducts.length === 0 && <div className="catalog-empty-v2"><h3>Nenhum produto encontrado</h3><p>Experimente buscar por outro nome.</p>{search && <button type="button" onClick={() => setSearch("")}>Limpar busca</button>}</div>}
     </div>
     {cartNotice && <div className="store-cart-success-notice" role="status">{cartNotice}<button type="button" onClick={() => setCartNotice('')} aria-label="Fechar aviso">×</button></div>}
-    <a className="catalog-cart-sticky-v2" href="/checkout/cart/"><StoreIcon name="bag" size={24}/><span>Ver carrinho ({storefront?.count ?? store.cart_count ?? 0})</span><StoreIcon name="arrow"/></a>
+    <a className="catalog-cart-sticky-v2" href="/checkout/cart/"><StoreIcon name="bag" size={24}/><span>Ver carrinho ({storefront?.count ?? store.cart_count ?? 0}){storefront?.total != null && <small className="store-cart-total">{money(storefront.total)}</small>}</span><StoreIcon name="arrow"/></a>
     {selected && <ProductDialog key={`${selected.id}-${startHalf}`} product={selected} products={products} data={data} startHalf={startHalf} close={() => setSelected(null)} onAdded={onProductAdded}/>}
   </div>;
 }

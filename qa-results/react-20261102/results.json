@@ -1,0 +1,17 @@
+[
+  {
+    "width": 1440,
+    "status": "passed",
+    "checks": "responsive, themes, persistence, search, dialog, half, cart, checkout, review, payment, account, empty/error/success"
+  },
+  {
+    "width": 768,
+    "status": "passed",
+    "checks": "responsive, themes, persistence, search, dialog, half, cart, checkout, review, payment, account, empty/error/success"
+  },
+  {
+    "width": 390,
+    "status": "passed",
+    "checks": "responsive, themes, persistence, search, dialog, half, cart, checkout, review, payment, account, empty/error/success"
+  }
+]

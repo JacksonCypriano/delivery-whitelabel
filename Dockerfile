@@ -3,7 +3,10 @@ WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
-RUN npm run test && npm run build
+# Por padrão, builds diretos e builds de produção continuam executando o Vitest.
+# Apenas o fluxo local dc-homolog.sh passa 0 após validar cada teste isoladamente.
+ARG VDD_RUN_FRONTEND_TESTS=1
+RUN if [ "$VDD_RUN_FRONTEND_TESTS" = "1" ]; then npm run test; fi && npm run build
 
 FROM python:3.11-slim
 

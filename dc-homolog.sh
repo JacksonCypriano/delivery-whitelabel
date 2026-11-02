@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 DC=(docker compose -f docker/dev/docker-compose.yml)
 
 COMMAND=${1:-deploy}
@@ -17,12 +20,25 @@ success() {
     echo "✅ $1"
 }
 
+test_frontend() {
+    info "Validando frontend em processos isolados (sem mascarar falhas)"
+    "$SCRIPT_DIR/scripts/test-frontend-isolated.sh"
+}
+
+build_homolog() {
+    # A validação completa acontece ANTES de qualquer build ou alteração nos containers.
+    test_frontend
+    info "Construindo imagens de homologação (testes React já aprovados)"
+    "${DC[@]}" build --build-arg VDD_RUN_FRONTEND_TESTS=0
+    "${DC[@]}" up -d --no-build
+}
+
 case "$COMMAND" in
 
     deploy)
         info "Deploy da homologação"
 
-        "${DC[@]}" up -d --build
+        build_homolog
 
         info "Aguardando PostgreSQL"
         until "${DC[@]}" exec -T db pg_isready >/dev/null 2>&1; do
@@ -51,10 +67,14 @@ case "$COMMAND" in
 
     rebuild)
         info "Rebuild da homologação"
-        "${DC[@]}" up -d --build
+        build_homolog
 
         info "Recriando Nginx"
         "${DC[@]}" up -d --force-recreate nginx
+        ;;
+
+    frontend-tests)
+        test_frontend
         ;;
 
     restart)
@@ -87,6 +107,7 @@ case "$COMMAND" in
         echo ""
         echo "  ./dc-homolog.sh deploy"
         echo "  ./dc-homolog.sh rebuild"
+        echo "  ./dc-homolog.sh frontend-tests"
         echo "  ./dc-homolog.sh restart"
         echo "  ./dc-homolog.sh migrate"
         echo "  ./dc-homolog.sh collectstatic"

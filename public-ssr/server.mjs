@@ -29220,6 +29220,8 @@ function Storefront({ data, theme, children }) {
   const store = data.store, brand = store.brand || {};
   const [dark, setDark] = reactExports.useState(false), [search, setSearch] = reactExports.useState("");
   const [count, setCount] = reactExports.useState(Number(store.cart_count || 0));
+  const [total, setTotal] = reactExports.useState(store.cart_total ?? null);
+  const hasWhatsApp = /^\d{10,15}$/.test(String(store.whatsapp || "").replace(/\D/g, ""));
   const header = reactExports.useRef(null), shell = reactExports.useRef(null);
   reactExports.useEffect(() => {
     const media = window.matchMedia?.("(prefers-color-scheme: dark)");
@@ -29264,7 +29266,7 @@ function Storefront({ data, theme, children }) {
     }
   }
   const initials = store.name.split(/\s+/).slice(0, 2).map((s) => s[0]).join("");
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(StoreContext.Provider, { value: { search, setSearch, dark, count, setCount }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { ref: shell, className: `public-shell storefront shell-${data.page} font-${(brand.font_family || "Inter").toLowerCase()}`, style: theme, "data-dark-enabled": Boolean(brand.dark_mode_enabled), children: [
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(StoreContext.Provider, { value: { search, setSearch, dark, count, setCount, total, setTotal }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { ref: shell, className: `public-shell storefront shell-${data.page} font-${(brand.font_family || "Inter").toLowerCase()}`, style: theme, "data-has-whatsapp": hasWhatsApp, "data-dark-enabled": Boolean(brand.dark_mode_enabled), children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "vdd-skip", href: "#vdd-content", children: "Ir para o conteúdo" }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("header", { className: "store-header", ref: header, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { className: "store-container store-header-inner", "aria-label": "Navegação da loja", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsxs("a", { className: "store-brand", href: "/", "aria-label": `Voltar ao cardápio ${store.name}`, children: [
@@ -29314,7 +29316,7 @@ function Storefront({ data, theme, children }) {
         " VemDeDelivery · COBRADEV SOLUTIONS · CNPJ 59.198.345/0001-44"
       ] })
     ] }) }),
-    /^\d{10,15}$/.test(String(store.whatsapp || "").replace(/\D/g, "")) && /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "store-contact", href: `https://wa.me/${String(store.whatsapp).replace(/\D/g, "")}`, "aria-label": "Falar com a loja no WhatsApp", children: "WhatsApp ↗" })
+    hasWhatsApp && /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "store-contact", href: `https://wa.me/${String(store.whatsapp).replace(/\D/g, "")}`, "aria-label": "Falar com a loja no WhatsApp", children: "WhatsApp ↗" })
   ] }) });
 }
 const money$1 = (value) => Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }).replace(/\u00a0/g, " ");
@@ -29405,8 +29407,13 @@ function selectionError(groups, selections, allowed) {
   }
   return "";
 }
-function ProductDialog({ data, product, products, close, startHalf = false }) {
-  const [half, setHalf] = reactExports.useState(Boolean(startHalf));
+const halfEligible = (product) => product.half_enabled === true;
+function ProductDialog(props) {
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(ProductDialogContent, { ...props }, `${props.product.id}-${Boolean(props.startHalf)}`);
+}
+function ProductDialogContent({ data, product, products, close, onAdded, startHalf = false }) {
+  const [halfRequested, setHalf] = reactExports.useState(startHalf === true);
+  const half = halfEligible(product) && halfRequested;
   const [secondId, setSecondId] = reactExports.useState("");
   const [filter, setFilter] = reactExports.useState("");
   const [flavorOpen, setFlavorOpen] = reactExports.useState(false);
@@ -29416,7 +29423,7 @@ function ProductDialog({ data, product, products, close, startHalf = false }) {
   const [error, setError] = reactExports.useState(""), [busy, setBusy] = reactExports.useState(false);
   const dialog = reactExports.useRef(null);
   const firstGroups = useChoiceGroups(product.id);
-  const candidates = products.filter((p) => p.half_enabled && p.available && optionKey(p.category_id) === optionKey(product.category_id) && optionKey(p.id) !== optionKey(product.id));
+  const candidates = products.filter((p) => halfEligible(p) && p.available && optionKey(p.category_id) === optionKey(product.category_id) && optionKey(p.id) !== optionKey(product.id));
   const second = candidates.find((p) => optionKey(p.id) === secondId);
   const secondGroups = useChoiceGroups(second?.id || product.id);
   const change = (key, list) => setSelections((old) => ({ ...old, [key]: list }));
@@ -29438,6 +29445,7 @@ function ProductDialog({ data, product, products, close, startHalf = false }) {
     };
   }, []);
   async function add() {
+    if (busy) return;
     if (half && !second) {
       setError("Escolha o segundo sabor da pizza.");
       return;
@@ -29462,8 +29470,9 @@ function ProductDialog({ data, product, products, close, startHalf = false }) {
     setBusy(true);
     setError("");
     try {
-      await requestJSON(half ? "/checkout/checkout/add-half-half/" : "/checkout/add/", data, { product_id: product.id, quantity: qty, notes, is_half: half, ...half ? { product_ids: [product.id, second.id], customizations_whole: selections.whole || [], customizations_half1: selections.half1 || [], customizations_half2: selections.half2 || [], notes_half1: notes1, notes_half2: notes2 } : { customizations: selections.whole || [] } });
-      window.location.assign("/checkout/cart/");
+      const result = await requestJSON(half ? "/checkout/checkout/add-half-half/" : "/checkout/add/", data, { product_id: product.id, quantity: qty, notes, is_half: half, ...half ? { product_ids: [product.id, second.id], customizations_whole: selections.whole || [], customizations_half1: selections.half1 || [], customizations_half2: selections.half2 || [], notes_half1: notes1, notes_half2: notes2 } : { customizations: selections.whole || [] } });
+      onAdded?.(result);
+      close();
     } catch (e) {
       setError(e.message);
       setBusy(false);
@@ -29481,7 +29490,7 @@ function ProductDialog({ data, product, products, close, startHalf = false }) {
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "legacy-modal-scroll", children: [
       !half && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
         product.description && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "legacy-product-description", children: product.description }),
-        product.half_enabled && /* @__PURE__ */ jsxRuntimeExports.jsx("button", { className: "legacy-switch-half", type: "button", onClick: () => {
+        halfEligible(product) && /* @__PURE__ */ jsxRuntimeExports.jsx("button", { className: "legacy-switch-half", type: "button", onClick: () => {
           setHalf(true);
           setSecondId("");
           setSelections({});
@@ -29502,6 +29511,7 @@ function ProductDialog({ data, product, products, close, startHalf = false }) {
                 candidates.filter((p) => p.name.toLocaleLowerCase("pt-BR").includes(filter.toLocaleLowerCase("pt-BR"))).map((p) => /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { type: "button", role: "option", "aria-selected": secondId === optionKey(p.id), onClick: () => {
                   setSecondId(optionKey(p.id));
                   change("half2", []);
+                  setNotes2("");
                   setFlavorOpen(false);
                   setFilter("");
                 }, children: [
@@ -29715,6 +29725,7 @@ function Catalog({ data }) {
   const search = storefront?.search ?? localSearch, setSearch = storefront?.setSearch ?? setLocalSearch;
   const [selected, setSelected] = reactExports.useState(null);
   const [startHalf, setStartHalf] = reactExports.useState(false);
+  const [cartNotice, setCartNotice] = reactExports.useState("");
   const [categoriesOpen, setCategoriesOpen] = reactExports.useState(false);
   const [activeCategory, setActiveCategory] = reactExports.useState("");
   const brand = data.store?.brand || {};
@@ -29732,8 +29743,27 @@ function Catalog({ data }) {
   const layoutClasses = ["catalog-v2", fontClass, brand.compact_product_cards ? "catalog-compact" : "", brand.card_shadow ? "catalog-shadow" : "", brand.hover_effect ? "catalog-hover" : "", brand.show_category_icons ? "catalog-category-icons" : ""].filter(Boolean).join(" ");
   const isPizzaCategory = (name) => ["pizza", "pizzas"].includes(name.trim().toLocaleLowerCase("pt-BR"));
   function openProduct(product, half = false) {
-    setStartHalf(half);
+    setCartNotice("");
+    setStartHalf(half === true && halfEligible(product));
     setSelected(product);
+  }
+  async function onProductAdded(result) {
+    setCartNotice(result?.message || "Produto adicionado ao carrinho!");
+    const count = result?.cart_count ?? result?.data?.cart_count;
+    const total = result?.cart_total ?? result?.data?.cart_total;
+    if (total !== void 0 && total !== null) storefront?.setTotal(total);
+    if (count !== void 0 && count !== null) {
+      storefront?.setCount(Number(count));
+    }
+    if (count == null || total == null) {
+      try {
+        const cart = await requestJSON("/checkout/cart/", data);
+        const cartCount = cart?.store?.cart_count ?? cart?.props?.items?.reduce((n, item) => n + Number(item.quantity || 0), 0);
+        if (cartCount !== void 0) storefront?.setCount(Number(cartCount));
+        if (cart?.props?.total != null) storefront?.setTotal(cart.props.total);
+      } catch {
+      }
+    }
   }
   const fulfillment = store.accepts_delivery && store.accepts_pickup ? "Entrega e retirada" : store.accepts_pickup ? "Apenas retirada" : "Apenas entrega";
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: layoutClasses, "data-open-product-slug": data.props.open_product_slug || "", "data-header-style": brand.header_style || "", children: [
@@ -29763,7 +29793,7 @@ function Catalog({ data }) {
         /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", "aria-label": "Ver todas as categorias", "aria-expanded": categoriesOpen, onClick: () => setCategoriesOpen((value) => !value), className: "catalog-categories-toggle-v2", children: /* @__PURE__ */ jsxRuntimeExports.jsx(StoreIcon, { name: "menu" }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("nav", { className: "catalog-categories-v2", "aria-label": "Categorias do cardápio", children: categories.map((cat) => /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: `#category-${cat.id}`, "aria-current": activeCategory === `category-${cat.id}` ? "location" : void 0, onClick: () => setActiveCategory(`category-${cat.id}`), children: isPizzaCategory(cat.name) ? "Pizzas inteiras" : cat.name }),
-          isPizzaCategory(cat.name) && cat.products.some((p) => p.half_enabled) && /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: `#pizzas-meio-a-meio-${cat.id}`, "aria-current": activeCategory === `pizzas-meio-a-meio-${cat.id}` ? "location" : void 0, onClick: () => setActiveCategory(`pizzas-meio-a-meio-${cat.id}`), children: "Pizza meio a meio" })
+          cat.products.some((p) => halfEligible(p)) && /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: `#pizzas-meio-a-meio-${cat.id}`, "aria-current": activeCategory === `pizzas-meio-a-meio-${cat.id}` ? "location" : void 0, onClick: () => setActiveCategory(`pizzas-meio-a-meio-${cat.id}`), children: "Pizza meio a meio" })
         ] }, cat.id)) })
       ] }),
       categoriesOpen && /* @__PURE__ */ jsxRuntimeExports.jsx("nav", { className: "catalog-categories-drawer-v2", "aria-label": "Todas as categorias", children: categories.map((cat) => /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
@@ -29772,7 +29802,7 @@ function Catalog({ data }) {
           " ",
           /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "›" })
         ] }),
-        isPizzaCategory(cat.name) && cat.products.some((p) => p.half_enabled) && /* @__PURE__ */ jsxRuntimeExports.jsxs("a", { onClick: () => setCategoriesOpen(false), href: `#pizzas-meio-a-meio-${cat.id}`, children: [
+        cat.products.some((p) => halfEligible(p)) && /* @__PURE__ */ jsxRuntimeExports.jsxs("a", { onClick: () => setCategoriesOpen(false), href: `#pizzas-meio-a-meio-${cat.id}`, children: [
           "Pizza meio a meio ",
           /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "›" })
         ] })
@@ -29841,13 +29871,13 @@ function Catalog({ data }) {
               brand.show_product_image !== false && (p.image ? /* @__PURE__ */ jsxRuntimeExports.jsx("img", { className: "catalog-product-photo-v2", src: p.image, alt: p.name, loading: "lazy" }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "catalog-product-placeholder-v2", "aria-hidden": "true", children: "▧" }))
             ] }, p.id)) })
           ] }),
-          isPizzaCategory(category.name) && filtered.some((p) => p.half_enabled) && /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { id: `pizzas-meio-a-meio-${category.id}`, className: "catalog-category-section-v2 catalog-half-section-v2", children: [
+          filtered.some((p) => halfEligible(p)) && /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { id: `pizzas-meio-a-meio-${category.id}`, className: "catalog-category-section-v2 catalog-half-section-v2", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "catalog-category-title-v2", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("small", { children: "Monte do seu jeito" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { children: "Pizza meio a meio" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Escolha dois sabores e monte uma pizza do jeito que você quiser." })
             ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "catalog-product-grid-v2", children: filtered.filter((p) => p.half_enabled).map((p) => /* @__PURE__ */ jsxRuntimeExports.jsxs("article", { className: "catalog-product-card-v2 catalog-half-card-v2", "data-product-slug": p.slug, "data-product-price": p.price, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "catalog-product-grid-v2", children: filtered.filter((p) => halfEligible(p)).map((p) => /* @__PURE__ */ jsxRuntimeExports.jsxs("article", { className: "catalog-product-card-v2 catalog-half-card-v2", "data-product-slug": p.slug, "data-product-price": p.price, children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "catalog-product-info-v2", children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "catalog-half-badge-v2", children: "½ + ½" }),
@@ -29871,16 +29901,21 @@ function Catalog({ data }) {
         search && /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", onClick: () => setSearch(""), children: "Limpar busca" })
       ] })
     ] }),
+    cartNotice && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "store-cart-success-notice", role: "status", children: [
+      cartNotice,
+      /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", onClick: () => setCartNotice(""), "aria-label": "Fechar aviso", children: "×" })
+    ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("a", { className: "catalog-cart-sticky-v2", href: "/checkout/cart/", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(StoreIcon, { name: "bag", size: 24 }),
       /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
         "Ver carrinho (",
         storefront?.count ?? store.cart_count ?? 0,
-        ")"
+        ")",
+        storefront?.total != null && /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: "store-cart-total", children: money$1(storefront.total) })
       ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(StoreIcon, { name: "arrow" })
     ] }),
-    selected && /* @__PURE__ */ jsxRuntimeExports.jsx(ProductDialog, { product: selected, products, data, startHalf, close: () => setSelected(null) }, `${selected.id}-${startHalf}`)
+    selected && /* @__PURE__ */ jsxRuntimeExports.jsx(ProductDialog, { product: selected, products, data, startHalf, close: () => setSelected(null), onAdded: onProductAdded }, `${selected.id}-${startHalf}`)
   ] });
 }
 function CartItem({ item, data, onUpdate }) {

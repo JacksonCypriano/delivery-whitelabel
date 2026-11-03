@@ -26,9 +26,9 @@ test_frontend() {
 }
 
 build_homolog() {
-    # A validação completa acontece ANTES de qualquer build ou alteração nos containers.
-    test_frontend
-    info "Construindo imagens de homologação (testes React já aprovados)"
+    # Testes críticos devem ser executados pelo usuário antes do push/deploy.
+    # Build não deve reexecutar Vitest.
+    info "Construindo imagens locais de homologação (sem reexecutar testes)"
     "${DC[@]}" build --build-arg VDD_RUN_FRONTEND_TESTS=0
     "${DC[@]}" up -d --no-build
 }

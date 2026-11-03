@@ -69,3 +69,34 @@ class Food99ReviewTests(SimpleTestCase):
     def test_invalid_page_rejected(self, _allowed):
         response = Food99ReviewList.as_view()(self._request('/review/?page=abc'))
         self.assertEqual(response.status_code, 400)
+
+    @patch('apps.merchant.food99_review.Food99StagedRevision.objects')
+    @patch('apps.merchant.food99_review.preview')
+    @patch('apps.merchant.food99_review.decrypt_secret')
+    @patch('apps.merchant.food99_review.Food99StagedOrder.objects')
+    @patch('apps.merchant.api.tenant_admin_allowed', return_value=True)
+    def test_detail_allowlist_excludes_customer_data(self, _allowed, objects, decrypt, get_preview, revisions):
+        order = SimpleNamespace(pk=17, external_id='order17', state='review',
+            last_seen_status=922, item_count=1, amount_minor=1000, change_count=0,
+            revision_count=1, app_shop_id='vdd-vitrine-demo',
+            updated_at=datetime.now(timezone.utc),
+            connection=SimpleNamespace(merchant_id='shop17'),
+            encrypted_snapshot='encrypted', latest_encrypted_snapshot='encrypted')
+        queryset = MagicMock()
+        objects.filter.return_value = queryset
+        queryset.select_related.return_value = queryset
+        queryset.annotate.return_value = queryset
+        queryset.first.return_value = order
+        revisions.filter.return_value.order_by.return_value.__getitem__.return_value = []
+        decrypt.return_value = '{"customer_name":"SECRET CUSTOMER","address":"SECRET ADDRESS"}'
+        from decimal import Decimal
+        get_preview.return_value = {'items':[{'name':'Pizza','quantity':1,
+            'line_total':Decimal('10'), 'notes':'sem cebola', 'options':[]}],
+            'total':Decimal('10'), 'real_pay':Decimal('10'),
+            'delivery_fee':Decimal('0'), 'discount':Decimal('0')}
+        response = Food99ReviewDetail.as_view()(self._request('/review/17/'), pk=17)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['items'][0]['name'], 'Pizza')
+        self.assertNotIn('SECRET CUSTOMER', str(response.data))
+        self.assertNotIn('SECRET ADDRESS', str(response.data))
+        self.assertNotIn('encrypted', str(response.data))

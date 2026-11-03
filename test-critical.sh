@@ -101,5 +101,11 @@ echo "▶ A consulta externa de WhatsApp fica desativada neste processo de teste
     --verbosity=2 \
     --noinput
 
+# Frontend e backend são validados no mesmo comando.
+# A execução isolada mantém a detecção de falhas intermitentes (sem retries ocultos).
 echo ""
-echo "✅ Suíte crítica concluída sem falhas em $ENVIRONMENT."
+echo "▶ Executando testes React/Vitest por arquivo..."
+"$SCRIPT_DIR/scripts/test-frontend-isolated.sh"
+
+echo ""
+echo "✅ Suíte crítica (Python/Django + React/Vitest) concluída sem falhas em $ENVIRONMENT."

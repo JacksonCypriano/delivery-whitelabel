@@ -38,6 +38,8 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
+          build-args: |
+            VDD_RUN_FRONTEND_TESTS=0
           tags: |
             ${{ steps.images.outputs.backend }}:homolog
             ${{ steps.images.outputs.backend }}:${{ github.sha }}
@@ -87,9 +89,19 @@ jobs:
             export HML_IMAGE_TAG="$DEPLOY_SHA"
             docker compose -f "$COMPOSE_FILE" config --quiet
             docker compose -f "$COMPOSE_FILE" pull backend public-ssr
+            # Migrations versionadas: um container efemero usando EXATAMENTE a nova imagem.
+            # --entrypoint ignora o dispatcher de roles do entrypoint.sh.
+            # Nunca recria o banco, nem remove volumes.
+            echo "Aplicando migrations versionadas..."
+            docker compose -f "$COMPOSE_FILE" run --rm --no-deps \
+              --entrypoint python backend manage.py migrate --noinput
+            echo "Migrations aplicadas. Atualizando containers de aplicacao..."
+            # IMPORTANTE: nao recriar DB/Redis. Recriar apenas os servicos de aplicativo
+            # evita indisponibilidade de banco e perda de estado em memoria.
             if ! docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate public-ssr backend; then
-              echo "Falha na recriacao da homologacao; restaurando imagens anteriores."
+              echo "Falha ao subir nova imagem. Tentando restaurar containers anteriores."
               HML_IMAGE_TAG="$previous_tag" docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate public-ssr backend || true
+              echo "ATENCAO: migrations ja executadas nao sao revertidas pelo rollback da imagem."
               exit 1
             fi
             healthy=0
@@ -100,11 +112,11 @@ jobs:
               sleep 3
             done
             if [ "$healthy" != 1 ] || ! curl --fail --silent --show-error --max-time 15 -H 'Host: hml.vemdedelivery.com.br' http://127.0.0.1:18080/health/live/ >/dev/null; then
-              echo "Health check falhou; restaurando versao anterior."
+              echo "Health check falhou; restaurando containers anteriores."
               HML_IMAGE_TAG="$previous_tag" docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate public-ssr backend || true
+              echo "ATENCAO: migracoes do banco nao sao revertidas automaticamente."
               exit 1
             fi
-            # Mantem a tag aplicada registrada sem alterar segredos da aplicacao.
             mkdir -p /opt/vemdedelivery/hml/config
             printf 'HML_IMAGE_TAG=%s\n' "$DEPLOY_SHA" > /opt/vemdedelivery/hml/config/images.env
-            echo "Homologacao atualizada para $DEPLOY_SHA"
+            echo "Homologacao atualizada para $DEPLOY_SHA (migrations + recriacao + health)."

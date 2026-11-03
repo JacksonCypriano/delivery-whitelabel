@@ -9,13 +9,14 @@ type ReviewOrder = {
   revision_count: number; updated_at: string; app_shop_id: string;
 };
 type ReviewList = {results: ReviewOrder[]; page: number; pages: number; total: number; operational_enabled: boolean};
+type ReviewDetail = { order: ReviewOrder; revisions: Revision[]; items?: Array<{name:string;quantity:number;line_total_minor:number;notes:string;options:Array<{option_name:string;price:string}>}>; financials?: {total_minor:number;real_pay_minor:number;delivery_fee_minor:number;discount_minor:number;currency_confirmed:boolean}|null; detail_error?: string|null };
 type Revision = {version: number; status_code: number; created_at: string};
 
 export function Food99Review() {
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<number | null>(null);
   const listing = useQuery<ReviewList>(() => request(`integrations/99food/review/?page=${page}`), [page]);
-  const detail = useQuery<{ order: ReviewOrder; revisions: Revision[] }>(
+  const detail = useQuery<ReviewDetail>(
     () => selected === null ? Promise.resolve({order: {} as ReviewOrder, revisions: []}) : request(`integrations/99food/review/${selected}/`),
     [selected],
   );
@@ -51,6 +52,9 @@ export function Food99Review() {
       <Feedback loading={detail.loading} error={detail.error}>
         {detail.data && detail.data.order?.id === selected && <>
           <p>Pedido {detail.data.order.external_id} · última observação {date(detail.data.order.updated_at)}</p>
+          {detail.data.detail_error && <p role="status">{detail.data.detail_error}</p>}
+          {!!detail.data.items?.length && <div style={{overflowX:'auto'}}><h4>Itens e adicionais</h4><table><thead><tr><th>Produto</th><th>Qtd.</th><th>Total da linha*</th><th>Observações e adicionais</th></tr></thead><tbody>{detail.data.items.map((item,i)=><tr key={i}><td>{item.name}</td><td>{item.quantity}</td><td>{brl(item.line_total_minor)}</td><td>{item.notes || '—'}{item.options?.length > 0 && <ul>{item.options.map((option,j)=><li key={j}>{option.option_name} · {option.price}</li>)}</ul>}</td></tr>)}</tbody></table></div>}
+          {detail.data.financials && <div><h4>Resumo financeiro do provedor*</h4><p>Valor total: {brl(detail.data.financials.total_minor)} · Pago informado: {brl(detail.data.financials.real_pay_minor)} · Entrega: {brl(detail.data.financials.delivery_fee_minor)} · Descontos: {brl(detail.data.financials.discount_minor)}</p><p><small>*Valores formatados em BRL para inspeção. Regras financeiras e moeda ainda não homologadas.</small></p></div>}
           {!detail.data.revisions.length && <p>Sem versões registradas.</p>}
           <ul>{detail.data.revisions.map(rev => <li key={rev.version}>
             Versão {rev.version} · status {rev.status_code} · {date(rev.created_at)}

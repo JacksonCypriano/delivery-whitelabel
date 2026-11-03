@@ -698,6 +698,23 @@ UNFOLD_SUPER = {
                 ],
             },
             {
+                "title": _("99Food — Revisão"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Pedidos em revisão"),
+                        "icon": "inventory_2",
+                        "link": reverse_lazy("super_admin:channels_food99stagedorder_changelist"),
+                    },
+                    {
+                        "title": _("Histórico de revisões"),
+                        "icon": "history",
+                        "link": reverse_lazy("super_admin:channels_food99stagedrevision_changelist"),
+                    },
+                ],
+            },
+            {
                 "title": _("Marketplace"),
                 "separator": True,
                 "collapsible": True,

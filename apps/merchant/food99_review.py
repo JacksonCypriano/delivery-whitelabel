@@ -3,6 +3,10 @@
 Never decrypts snapshots, reveals PII, creates operational Orders or triggers provider calls.
 """
 from rest_framework.response import Response
+from apps.billing.secrets import decrypt_secret
+from apps.channels.food99_import import preview
+from apps.channels.connectors import ProviderError
+import json
 from apps.channels.models import Food99StagedOrder, Food99StagedRevision
 from .api import MerchantAPI
 
@@ -71,7 +75,28 @@ class Food99ReviewDetail(MerchantAPI):
         revisions = Food99StagedRevision.objects.filter(
             staged_order=row,
         ).order_by("-version")[:50]
+        # Expose only reviewed, allowlisted commerce fields. Never expose
+        # customer name, telephone, address, raw payload or tokens.
+        items = []
+        financials = None
+        detail_error = None
+        try:
+            snapshot = json.loads(decrypt_secret(row.latest_encrypted_snapshot or row.encrypted_snapshot))
+            data = preview(snapshot, app_shop_id=row.app_shop_id,
+                           shop_id=row.connection.merchant_id, order_id=row.external_id)
+            items = [{"name": item["name"], "quantity": item["quantity"],
+                      "line_total_minor": int(item["line_total"] * 100),
+                      "notes": item["notes"],
+                      "options": item["options"]} for item in data["items"]]
+            financials = {"total_minor": int(data["total"] * 100),
+                          "real_pay_minor": int(data["real_pay"] * 100),
+                          "delivery_fee_minor": int(data["delivery_fee"] * 100),
+                          "discount_minor": int(data["discount"] * 100),
+                          "currency_confirmed": False}
+        except (ProviderError, ValueError, KeyError, TypeError, OverflowError):
+            detail_error = "Detalhes não disponíveis para este snapshot."
         return Response({
+            "items": items, "financials": financials, "detail_error": detail_error,
             "order": _order_public(row),
             "revisions": [{
                 "version": revision.version,

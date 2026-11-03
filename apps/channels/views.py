@@ -64,5 +64,11 @@ class CancellationReasons(MerchantAPI):
 class IntegrationEvents(MerchantAPI):
     def get(self, request):
         from apps.merchant.pagination import paginate, metadata
-        page=paginate(Inbox.objects.filter(connection__tenant=request.tenant).select_related('connection').order_by('-received_at','-pk'),request)
+        provider = request.query_params.get('provider', '')
+        if provider and provider not in ('ifood', '99food'):
+            return Response({'detail': 'Plataforma inválida.'}, status=400)
+        queryset = Inbox.objects.filter(connection__tenant=request.tenant)
+        if provider:
+            queryset = queryset.filter(connection__provider=provider)
+        page=paginate(queryset.select_related('connection').order_by('-received_at','-pk'),request)
         return Response({'events':[{'id':e.pk,'provider':e.connection.provider,'order_id':e.order_id,'code':e.code,'state':e.state,'attempts':e.attempts,'error':e.error,'received_at':e.received_at} for e in page], 'pagination':metadata(page)})

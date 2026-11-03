@@ -39,6 +39,7 @@ export function Food99OperationalSafety(){
   const state=useQuery<Readiness>(()=>request('integrations/99food/operational-readiness/'));
   const simulation = useQuery<{available:boolean;provider_synced:boolean}>(()=>request('integrations/99food/simulation-availability/'));
   const [simulatedOrder,setSimulatedOrder]=useState<number|null>(null);
+  const [simulationOrderInput,setSimulationOrderInput]=useState('');
   const [orderId,setOrderId]=useState('');
   const [selectedId,setSelectedId]=useState('');
   const [preview,setPreview]=useState<Projection|null>(null);
@@ -75,14 +76,17 @@ export function Food99OperationalSafety(){
         method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({staged_id:pk}),
       });
       setSimulatedOrder(result.order_id);
+      setSimulationOrderInput(String(result.order_id));
       setMessage(result.created?'Pedido SIMULADO criado na operação.':'Pedido SIMULADO já existente; nenhum duplicado criado.');
     });
   }
   async function advanceSimulation(){
-    if (simulatedOrder === null) return;
+    const orderPk = Number(simulationOrderInput.trim());
+    if (!Number.isSafeInteger(orderPk) || orderPk < 1) {setError('Informe o ID operacional do pedido simulado (ex.: 2).');return;}
+    if (!window.confirm(`Avançar um estado do pedido SIMULADO #${orderPk}, somente no VemDeDelivery?`)) return;
     await run(async()=>{
       const result = await request<{status:string;advanced:boolean}>('integrations/99food/simulated-event/',{
-        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({order_id:simulatedOrder}),
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({order_id:orderPk}),
       });
       setMessage(result.advanced?`Evento AUTOMÁTICO SIMULADO: ${result.status}. Confira Pedidos ativos e KDS.`:'Simulação já chegou ao último estado.');
     });
@@ -190,9 +194,16 @@ export function Food99OperationalSafety(){
     </div>
     {simulation.data?.available&&<p className="food99-simulation-note"><strong>Modo de simulação local ativo.</strong> Os pedidos criados nesta área aparecem em Pedidos ativos e KDS, mas não são enviados à 99Food nem representam pagamentos confirmados. Os status são alterados somente no VemDeDelivery.</p>}
     {message&&<p role="status">{message}</p>}
-    {simulatedOrder!==null&&<div className="food99-simulation-note">
-      <p><strong>Pedido simulado #{simulatedOrder}.</strong> Abra <a href="/painel/operacao">Pedidos ativos</a> ou <a href="/painel/cozinha">KDS</a> para acompanhar.</p>
+    {simulation.data?.available&&<div className="food99-simulation-note" aria-label="Simulador de eventos automáticos 99Food">
+      <h3>Simular evento automático do pedido</h3>
+      <p>Informe o <strong>ID operacional do pedido</strong> mostrado em Pedidos ativos (por exemplo, 2). Não é o ID interno da revisão nem o ID externo da 99Food.</p>
+      <div className="food99-field">
+        <label htmlFor="food99-simulated-order">ID do pedido operacional simulado</label>
+        <input id="food99-simulated-order" inputMode="numeric" placeholder="Ex.: 2" value={simulationOrderInput} onChange={e=>setSimulationOrderInput(e.target.value)} />
+      </div>
+      {simulatedOrder!==null&&<p><strong>Pedido simulado #{simulatedOrder}.</strong> Abra <a href="/painel/operacao">Pedidos ativos</a> ou <a href="/painel/cozinha">KDS</a> para acompanhar.</p>}
       <button type="button" className="secondary" disabled={busy} onClick={advanceSimulation}>Simular próximo evento automático (somente local)</button>
+      <p><small>Não consulta nem envia eventos à 99Food, não altera estoque, pagamento ou WhatsApp. Só funciona em pedidos locais de simulação.</small></p>
     </div>}
     {error&&<p role="alert">{error}</p>}
     {results&&<div><h3>Resultados do lote</h3><ul>{results.results.map(item=><li key={item.id}>Revisão #{item.id}: {item.result}</li>)}</ul></div>}

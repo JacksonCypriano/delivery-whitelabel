@@ -50,5 +50,9 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 # Deixamos as tarefas agendadas inertes mesmo se alguem iniciar Beat sem querer.
 CELERY_BEAT_SCHEDULE = {}
 
+# Read-only 99Food sandbox consultation, explicitly limited to homologacao.
+# This is separate from real webhook/status processing (still disabled).
+FOOD99_SANDBOX_ENABLED = True
+
 # Controlled, local-only simulated 99Food Orders/KDS; no provider network.
 FOOD99_OPERATIONAL_SIMULATION_ENABLED = True

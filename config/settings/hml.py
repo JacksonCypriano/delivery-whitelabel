@@ -55,4 +55,6 @@ FOOD99_SANDBOX_ENABLED = (os.getenv("FOOD99_SANDBOX_ENABLED", "0") == "1")
 FOOD99_TEST_APP_ID = os.getenv("FOOD99_TEST_APP_ID", "")
 FOOD99_TEST_APP_SECRET = os.getenv("FOOD99_TEST_APP_SECRET", "")
 FOOD99_SANDBOX_IMPORT_TO_ORDERS = (os.getenv("FOOD99_SANDBOX_IMPORT_TO_ORDERS", "0") == "1")
-FOOD99_OPERATIONAL_SIMULATION_ENABLED = os.getenv("FOOD99_OPERATIONAL_SIMULATION_ENABLED", "false").strip().lower() in ("true", "1", "yes", "on")
+FOOD99_OPERATIONAL_SIMULATION_ENABLED = True
+# Explicit opt-in for inbound metadata capture only. Still returns 503, never ACK.
+FOOD99_WEBHOOK_CAPTURE_ENABLED = (os.getenv("FOOD99_WEBHOOK_CAPTURE_ENABLED", "0") == "1")

@@ -1,21 +1,23 @@
-"""99Food callback gate: validate the documented signature without acknowledging
-unpersisted events. No order import, commands, payment, inventory, or notifications.
+"""99Food signed sandbox callback quarantine.
 
-The legacy callback contract specifies MD5(raw POST body + app secret) in
-'didi-header-sign'. Never print the body, headers, app secret, or exceptions.
+The official legacy signature is MD5(raw bytes + app secret). This endpoint never
+ACKs an event until the operational consumer is implemented. When enabled in
+HML it persists only non-PII identifiers in the existing durable Inbox, while
+leaving the sandbox connection disabled and real orders untouched.
 """
-
 import hashlib
 import hmac
 import json
 import re
+from datetime import datetime, timezone as datetime_timezone
 
 from django.conf import settings
+from django.db import DatabaseError, transaction
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from apps.channels.models import Connection
+from apps.channels.models import Connection, Inbox
 
 MAX_BODY_BYTES = 131072
 SIGNATURE_PATTERN = re.compile(r"^[0-9a-fA-F]{32}$")
@@ -25,6 +27,13 @@ KNOWN_EVENTS = frozenset({
     "orderRefundApply", "deliveryStatus", "shopBindStatus", "shopStatus",
     "imageAuditStatus", "autoOnlineResult", "uploadMenuTaskStatus",
 })
+# Only these event types have a documented, order-scoped identifier.
+ORDER_EVENTS = frozenset({
+    "orderNew", "orderConfirm", "orderReady", "orderCancel",
+    "orderPartialCancel", "orderFinish", "orderCancelApply",
+    "orderRefundApply", "deliveryStatus",
+})
+ORDER_ID = re.compile(r"^[0-9]{1,30}$")
 
 
 def verify_signature(raw_body: bytes, header: str, app_secret: str) -> bool:
@@ -45,6 +54,66 @@ def _rejected(http_status: int, message: str):
     return response
 
 
+def _order_id_from_event(event):
+    """Parse JSON numbers using Python's lossless ints, store IDs as strings."""
+    data = event.get("data")
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except (TypeError, ValueError):
+            return None
+    if not isinstance(data, dict):
+        return None
+    value = data.get("order_id")
+    if type(value) is int:
+        value = str(value)
+    if not isinstance(value, str) or not ORDER_ID.fullmatch(value):
+        return None
+    nested = data.get("order_info")
+    if isinstance(nested, dict) and "order_id" in nested:
+        nested_id = nested["order_id"]
+        if type(nested_id) is int:
+            nested_id = str(nested_id)
+        if nested_id != value:
+            return None
+    return value
+
+
+def _store_order_event(connection, event, raw_body):
+    """Durably quarantine only safe identifiers, not customer data or raw body.
+
+    Identical retries produce the same sha256 key. Changing even one raw byte
+    creates a separate observation; both remain visible for later reconciliation.
+    """
+    order_id = _order_id_from_event(event)
+    if order_id is None:
+        return False
+    sha = hashlib.sha256(raw_body).hexdigest()
+    external_id = "99food-" + sha  # 71 chars, fits Inbox.external_id
+    with transaction.atomic():
+        Inbox.objects.get_or_create(
+            connection=connection,
+            external_id=external_id,
+            defaults={
+                "order_id": order_id,
+                "code": event["type"],
+                "occurred_at": datetime.fromtimestamp(
+                    event["timestamp"], tz=datetime_timezone.utc
+                ),
+                "payload": {
+                    "food99_quarantined": True,
+                    "raw_sha256": sha,
+                    "app_shop_id": event["app_shop_id"],
+                    "event_type": event["type"],
+                    "operational_enabled": False,
+                },
+                "state": "blocked",
+                "error": "Aguardando homologação do processamento 99Food.",
+            },
+        )
+    return True
+
+
 @csrf_exempt
 @require_http_methods(["GET", "HEAD", "POST"])
 def food99_webhook(request, mode):
@@ -61,7 +130,6 @@ def food99_webhook(request, mode):
             response.content = b""
         return response
 
-    # The gate remains unavailable outside HML, even with matching credentials.
     if (getattr(settings, "SETTINGS_MODULE", "") != "config.settings.hml"
             or not getattr(settings, "FOOD99_SANDBOX_ENABLED", False)
             or getattr(settings, "CHANNELS_LIVE_ENABLED", False)):
@@ -92,28 +160,38 @@ def food99_webhook(request, mode):
     if not isinstance(event_type, str) or not event_type or len(event_type) > 100:
         return _rejected(400, "Tipo de evento inválido.")
     if (type(event.get("timestamp")) is not int
+            or not 0 < event["timestamp"] < 253402300800
             or not isinstance(event.get("data"), (dict, str, list))):
         return _rejected(400, "Estrutura do evento inválida.")
 
     app_shop_id = event.get("app_shop_id")
     if (not isinstance(app_shop_id, str) or not app_shop_id
             or len(app_shop_id) > 255):
-        # Certain global callbacks may omit the store. Do not acknowledge them
-        # until a separate app-level durable event pipeline is implemented.
         return _rejected(503, "Evento aguardando integração.")
 
-    # Do not trust a provider-supplied shop ID as tenant identity. Require an
-    # existing, disabled test connection belonging to the internal tenant slug.
     tenant_slug = app_shop_id.removeprefix("vdd-") if app_shop_id.startswith("vdd-") else ""
-    if not tenant_slug or not Connection.objects.filter(
+    if not tenant_slug:
+        return _rejected(403, "Estabelecimento não autorizado.")
+    connections = list(Connection.objects.filter(
         provider="99food", mode="test", enabled=False,
         tenant__slug=tenant_slug,
-    ).exclude(merchant_id__startswith="request-").exists():
+    ).exclude(merchant_id__startswith="request-").order_by("pk")[:2])
+    if len(connections) != 1:
         return _rejected(403, "Estabelecimento não autorizado.")
 
     if event_type not in KNOWN_EVENTS:
         return _rejected(503, "Tipo aguardando integração.")
 
-    # No storage adapter is installed yet. A successful ACK here would tell
-    # 99Food to stop retrying and could silently drop an order.
+    # Configuration is opt-in and must remain false in normal HML deployment.
+    if (getattr(settings, "FOOD99_WEBHOOK_CAPTURE_ENABLED", False)
+            and event_type in ORDER_EVENTS):
+        try:
+            if not _store_order_event(connections[0], event, request.body):
+                return _rejected(400, "Identificador de pedido inválido.")
+        except (DatabaseError, OverflowError, ValueError):
+            # No success ACK after a failed commit; avoid leaking DB details.
+            return _rejected(503, "Armazenamento temporariamente indisponível.")
+
+    # Do not tell 99Food an event has been consumed until the safe operational
+    # consumer is live. A 2xx + errno=0 here could lose orders permanently.
     return _rejected(503, "Evento aguardando processamento seguro.")

@@ -46,8 +46,9 @@ class ChannelTests(TestCase):
         self.raw=json.loads((Path(__file__).parent/'fixtures/ifood_food.json').read_text())
         self.dto=normalize_ifood(self.raw)
         self.t=timezone.now()
-        self.addCleanup(patch.stopall)
-        patch('apps.orders.realtime.publish_order_event').start()
+        realtime_patcher = patch('apps.orders.realtime.publish_order_event')
+        realtime_patcher.start()
+        self.addCleanup(realtime_patcher.stop)
     def event(self,code='PLACED',key=None,offset=0,conn=None,dto=None):
         c=conn or self.conn;d=dto or self.dto
         e=receive(c,{'id':key or code,'orderId':d['external_id'],'merchantId':c.merchant_id,'code':code,'createdAt':(self.t+timedelta(seconds=offset)).isoformat()})
@@ -119,7 +120,19 @@ class ChannelTests(TestCase):
         o.refresh_from_db();self.assertEqual(o.status,'pending')
         self.assertEqual(allowed_transitions(o),[])
         cmd=Outbox.objects.get();process_command(cmd.pk)
-        o.refresh_from_db();cmd.refresh_from_db();self.assertEqual(o.status,'confirmed');self.assertEqual(cmd.state,'confirmed')
+        o.refresh_from_db()
+        cmd.refresh_from_db()
+        self.assertEqual(
+            o.status,
+            'confirmed',
+            (
+                f'Order.status={o.status!r}; '
+                f'Outbox.state={cmd.state!r}; '
+                f'Outbox.error={cmd.error!r}; '
+                f'Simulator={settings.CHANNELS_SIMULATOR_ENABLED!r}'
+            ),
+        )
+        self.assertEqual(cmd.state, 'confirmed')
     def test_invalid_transition_and_foreign_tenant(self):
         o=self.event().order
         with self.assertRaises(OrderOperationError):transition_order(order_id=o.pk,tenant=self.a,target_status='delivered')

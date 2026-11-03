@@ -88,3 +88,21 @@ class Outbox(models.Model):
     sent_at = models.DateTimeField(null=True)
     class Meta:
         constraints = [models.UniqueConstraint(fields=['external_order','target'], name='channel_command_unique')]
+
+class Food99StagedOrder(models.Model):
+    """Quarantine for a sandbox order while status/financial contract is unverified."""
+    connection = models.ForeignKey('channels.Connection', on_delete=models.PROTECT, related_name='staged_99food')
+    external_id = models.CharField(max_length=128)
+    app_shop_id = models.CharField(max_length=128)
+    fingerprint = models.CharField(max_length=64)
+    last_seen_status = models.IntegerField()
+    item_count = models.PositiveIntegerField()
+    amount_minor = models.BigIntegerField()
+    encrypted_snapshot = models.TextField()
+    state = models.CharField(max_length=24, default='review')
+    change_count = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['connection', 'external_id'], name='food99_staged_unique')]

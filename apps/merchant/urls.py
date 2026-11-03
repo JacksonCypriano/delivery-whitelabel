@@ -1,40 +1,25 @@
 from django.urls import path
 from .api import (
-    Session,
-    Password,
-    Dashboard,
-    ResourceList,
-    ResourceDetail,
-    ResourceAction,
-    History,
+    Session, Password, Dashboard, ResourceList, ResourceDetail, ResourceAction, History,
 )
 from .integrations import Finance, Whatsapp
 from .api import ListEdit
 from .orders import (
-    OrdersBoard,
-    OrderOperationsDetail,
-    OrderTransition,
-    OrderEstimate,
-    OrderSettings,
-    ManualOrderCatalog,
-    ManualOrderQuote,
-    ManualOrderCreate,
+    OrdersBoard, OrderOperationsDetail, OrderTransition, OrderEstimate, OrderSettings,
+    ManualOrderCatalog, ManualOrderQuote, ManualOrderCreate,
 )
-
 from .kitchen import Kitchen, KitchenAction
-
 from .sales import Sales
-
 from .conversations import Conversations
-
 from .crm import CRM
-
 from .logistics import Logistics, DeliveryPhoto
-
 from apps.channels.views import Integrations, CancellationReasons, IntegrationEvents
-
 from .api import Selection, Relationships, Activity
 from .food99_review import Food99ReviewList, Food99ReviewDetail
+from .food99_workflow_api import (
+    Food99ReviewSummary, Food99ReviewAcknowledge,
+    Food99ReviewRefresh, Food99ReviewCompare,
+)
 
 urlpatterns = [
     path("activity/", Activity.as_view()),
@@ -43,7 +28,11 @@ urlpatterns = [
     path("integrations/", Integrations.as_view()),
     path("integrations/events/", IntegrationEvents.as_view()),
     path("integrations/99food/review/", Food99ReviewList.as_view()),
+    path("integrations/99food/review/summary/", Food99ReviewSummary.as_view()),
     path("integrations/99food/review/<int:pk>/", Food99ReviewDetail.as_view()),
+    path("integrations/99food/review/<int:pk>/acknowledge/", Food99ReviewAcknowledge.as_view()),
+    path("integrations/99food/review/<int:pk>/refresh/", Food99ReviewRefresh.as_view()),
+    path("integrations/99food/review/<int:pk>/compare/", Food99ReviewCompare.as_view()),
     path("orders/<int:pk>/cancellation-reasons/", CancellationReasons.as_view()),
     path("logistics/", Logistics.as_view()),
     path("logistics/<int:pk>/photo/", DeliveryPhoto.as_view()),
@@ -73,18 +62,8 @@ urlpatterns = [
     path("finance/purchase/", Finance.as_view(), {"action": "purchase"}),
     path("finance/notes/", Finance.as_view(), {"action": "notes"}),
     path("finance/fees/", Finance.as_view(), {"action": "fees"}),
-    path(
-        "finance/invoices/<uuid:invoice_id>/", Finance.as_view(), {"action": "invoice"}
-    ),
-    path(
-        "finance/invoices/<uuid:invoice_id>/refresh/",
-        Finance.as_view(),
-        {"action": "refresh"},
-    ),
-    path(
-        "finance/invoices/<uuid:invoice_id>/notes/<str:kind>/",
-        Finance.as_view(),
-        {"action": "download"},
-    ),
+    path("finance/invoices/<uuid:invoice_id>/", Finance.as_view(), {"action": "invoice"}),
+    path("finance/invoices/<uuid:invoice_id>/refresh/", Finance.as_view(), {"action": "refresh"}),
+    path("finance/invoices/<uuid:invoice_id>/notes/<str:kind>/", Finance.as_view(), {"action": "download"}),
     path("whatsapp/", Whatsapp.as_view()),
 ]

@@ -34,6 +34,7 @@ from .logistics import Logistics, DeliveryPhoto
 from apps.channels.views import Integrations, CancellationReasons, IntegrationEvents
 
 from .api import Selection, Relationships, Activity
+from .food99_review import Food99ReviewList, Food99ReviewDetail
 
 urlpatterns = [
     path("activity/", Activity.as_view()),
@@ -41,6 +42,8 @@ urlpatterns = [
     path("resources/<slug:resource>/<str:pk>/relationships/", Relationships.as_view()),
     path("integrations/", Integrations.as_view()),
     path("integrations/events/", IntegrationEvents.as_view()),
+    path("integrations/99food/review/", Food99ReviewList.as_view()),
+    path("integrations/99food/review/<int:pk>/", Food99ReviewDetail.as_view()),
     path("orders/<int:pk>/cancellation-reasons/", CancellationReasons.as_view()),
     path("logistics/", Logistics.as_view()),
     path("logistics/<int:pk>/photo/", DeliveryPhoto.as_view()),

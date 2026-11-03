@@ -95,6 +95,8 @@ class Food99StagedOrder(models.Model):
     external_id = models.CharField(max_length=128)
     app_shop_id = models.CharField(max_length=128)
     fingerprint = models.CharField(max_length=64)
+    latest_fingerprint = models.CharField(max_length=64, blank=True, default="")
+    latest_encrypted_snapshot = models.TextField(blank=True, default="")
     last_seen_status = models.IntegerField()
     item_count = models.PositiveIntegerField()
     amount_minor = models.BigIntegerField()
@@ -106,3 +108,21 @@ class Food99StagedOrder(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['connection', 'external_id'], name='food99_staged_unique')]
+
+
+class Food99StagedRevision(models.Model):
+    """Append-only revisions of quarantined sandbox orders."""
+    staged_order = models.ForeignKey(
+        'channels.Food99StagedOrder', on_delete=models.PROTECT, related_name='revisions',
+    )
+    version = models.PositiveIntegerField()
+    fingerprint = models.CharField(max_length=64)
+    status_code = models.IntegerField()
+    encrypted_snapshot = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(
+            fields=['staged_order', 'version'], name='food99_staged_revision_unique',
+        )]
+        ordering = ['-version']

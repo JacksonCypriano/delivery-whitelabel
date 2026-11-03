@@ -7,9 +7,10 @@ import json
 from django.conf import settings
 from django.db import transaction
 
-from apps.billing.secrets import encrypt_secret
+from apps.billing.secrets import encrypt_secret, decrypt_secret
 from apps.channels.connectors import ProviderError
-from apps.channels.food99_import import fingerprint_preview, preview
+from apps.channels.food99_import import preview
+from apps.channels.food99_semantics import semantic_fingerprint
 from apps.channels.models import Connection, Food99StagedOrder, Food99StagedRevision
 
 
@@ -45,7 +46,7 @@ def stage_order(detail, *, tenant, app_shop_id, shop_id, order_id):
         raise ProviderError('Conexão sandbox não vinculada ou habilitada indevidamente.')
 
     data = preview(detail, app_shop_id=app_shop_id, shop_id=shop_id, order_id=order_id)
-    signature = fingerprint_preview(data)
+    signature = semantic_fingerprint(data)
     current = Food99StagedOrder.objects.select_for_update().filter(
         connection=conn, external_id=str(order_id),
     ).first()
@@ -75,6 +76,30 @@ def stage_order(detail, *, tenant, app_shop_id, shop_id, order_id):
 
     if classify_fingerprint(current.fingerprint, current.latest_fingerprint, signature) == 'UNCHANGED':
         return current, 'UNCHANGED'
+
+    # Existing rows may have fingerprints produced by the former, order-sensitive
+    # algorithm. Compare the *contents* before creating a revision. This also
+    # protects previously stored "reviewed" acknowledgements from a false change.
+    # A malformed/undecryptable historical snapshot is NOT silently treated as
+    # equivalent; in that case a new observation is kept for manual review.
+    try:
+        prior = json.loads(decrypt_secret(
+            current.latest_encrypted_snapshot or current.encrypted_snapshot
+        ))
+        prior_data = preview(
+            prior, app_shop_id=current.app_shop_id,
+            shop_id=conn.merchant_id, order_id=current.external_id,
+        )
+        equivalent = semantic_fingerprint(prior_data) == signature
+    except (ValueError, KeyError, TypeError, OverflowError, ProviderError):
+        equivalent = False
+    if equivalent:
+        # Upgrade the comparison watermark in place, leaving the original
+        # immutable revision hashes/snapshots and change counter untouched.
+        current.latest_fingerprint = signature
+        current.save(update_fields=['latest_fingerprint'])
+        return current, 'UNCHANGED'
+
 
     # A previously seen fingerprint can reappear (e.g. status reversal). Preserve
     # it as a new observation because it differs from the most recent revision.

@@ -25,6 +25,8 @@ type Diff = {
   from_version: number; to_version: number; status: {before: number; after: number}; status_changed: boolean;
   money_changes: Array<{field: string; before_minor: number; after_minor: number}>;
   item_changes: Array<{position: number; before: DiffItem|null; after: DiffItem|null}>;
+  semantic_changes: boolean; ordering_only: boolean;
+  fulfillment_changed: boolean; payment_changed: boolean; notes_changed: boolean;
   currency_confirmed: boolean; operational_enabled: boolean;
 };
 
@@ -131,7 +133,10 @@ export function Food99Review() {
           {comparison && <div className="card" aria-label="Comparação de versões">
             <h4>Comparação das versões {comparison.from_version} → {comparison.to_version}</h4>
             <p>Status externo: {comparison.status.before} → {comparison.status.after}</p>
-            {!comparison.money_changes.length && !comparison.item_changes.length && !comparison.status_changed && <p>Nenhuma diferença relevante identificada.</p>}
+            {comparison.ordering_only && <p role="status">As versões não apresentam alterações comerciais relevantes. A diferença pode ter sido apenas a ordem dos produtos ou adicionais retornados pela 99Food.</p>}
+            {comparison.fulfillment_changed && <p>Modalidade de entrega alterada (revisar no provedor).</p>}
+            {comparison.payment_changed && <p>Modalidade ou indicação de pagamento alterada (não homologada).</p>}
+            {comparison.notes_changed && <p>Observações de itens alteradas. Consulte os detalhes do pedido para revisar.</p>}
             {!!comparison.money_changes.length && <ul>{comparison.money_changes.map(m=><li key={m.field}>{moneyNames[m.field] || m.field}: {brl(m.before_minor)} → {brl(m.after_minor)}</li>)}</ul>}
             {!!comparison.item_changes.length && <ul>{comparison.item_changes.map(item=><li key={item.position}>Item {item.position}: {item.before?.name || 'não existia'} → {item.after?.name || 'removido'} (quantidade {item.before?.quantity ?? 0} → {item.after?.quantity ?? 0}; adicionais e valores também comparados)</li>)}</ul>}
           </div>}

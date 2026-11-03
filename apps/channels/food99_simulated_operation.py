@@ -109,7 +109,7 @@ def simulation_transitions(order):
 @transaction.atomic
 def transition_simulated(*, order_id, tenant, target, actor=None, source="panel"):
     require_simulation()
-    order = (Order.objects.select_for_update().select_related('external_order__connection')
+    order = (Order.objects.select_for_update(of=('self',)).select_related('external_order__connection')
              .filter(pk=order_id, tenant=tenant, source='99food').first())
     if not order:
         raise OrderOperationError('Pedido simulado não encontrado.')
@@ -143,7 +143,7 @@ def advance_simulated_event(*, tenant, order_id):
     signature interpretation. Event keys remain unique across repeated clicks.
     """
     require_simulation()
-    order = (Order.objects.select_for_update().select_related('external_order__connection')
+    order = (Order.objects.select_for_update(of=('self',)).select_related('external_order__connection')
              .filter(pk=order_id, tenant=tenant, source='99food').first())
     if order is None or not order.attribution.get('food99_local_simulation'):
         raise ProviderError('Pedido de simulação não encontrado.')

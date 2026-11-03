@@ -206,16 +206,34 @@ def apply_event(event_id, normalized=None, raw=None):
     from apps.orders.realtime import publish_order_event
     transaction.on_commit(lambda: publish_order_event(order.pk, conn.tenant_id))
 
+def queue_transition(order_id, tenant, target, actor=None, payload=None):
+    """Route local 99Food simulation before taking provider/outbox locks.
+
+    The simulation service owns its short transaction and must never touch the
+    external provider command queue. Real channels retain their existing
+    transaction and lock ordering in _queue_external_transition().
+    """
+    channel = ExternalOrder.objects.filter(
+        order_id=order_id, order__tenant=tenant,
+    ).values_list('connection__provider', 'connection__mode').first()
+    if channel == ('99food', 'simulation'):
+        from apps.channels.food99_simulated_operation import transition_simulated
+        return transition_simulated(order_id=order_id, tenant=tenant,
+                                    target=target, actor=actor)
+    return _queue_external_transition(order_id, tenant, target, actor, payload)
+
+
 @transaction.atomic
-def queue_transition(order_id,tenant,target,actor=None,payload=None):
+def _queue_external_transition(order_id, tenant, target, actor=None, payload=None):
     # Same lock order as incoming events: connection -> external order -> order.
     x=ExternalOrder.objects.select_related('connection').get(order_id=order_id,order__tenant=tenant)
     conn=Connection.objects.select_for_update().get(pk=x.connection_id)
     x=ExternalOrder.objects.select_for_update().select_related('connection').get(pk=x.pk)
     order=Order.objects.select_for_update().get(pk=order_id,tenant=tenant)
+    # Fail closed if the connection mode changed between the routing lookup
+    # and these locks. Never create an outbox entry for a simulation order.
     if conn.provider == '99food' and conn.mode == 'simulation':
-        from apps.channels.food99_simulated_operation import transition_simulated
-        return transition_simulated(order_id=order_id, tenant=tenant, target=target, actor=actor)
+        raise OrderOperationError('Conexão de simulação mudou durante a transição; tente novamente.')
     if target==order.status:return order,None
     if target not in permitted(order):raise OrderOperationError('Ação não permitida ou aguardando confirmação da plataforma.')
     if not conn.enabled:raise OrderOperationError('Integração desconectada.')

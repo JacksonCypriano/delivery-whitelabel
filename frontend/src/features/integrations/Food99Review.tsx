@@ -1,3 +1,4 @@
+import './Food99OperationalSafety.css';
 import { useState } from 'react';
 import { request } from '../../api/client';
 import { useQuery } from '../../hooks/useQuery';
@@ -91,7 +92,7 @@ export function Food99Review() {
     <Feedback loading={listing.loading} error={listing.error}>
       {listing.data && <>
         {!listing.data.results.length && <p>Nenhum pedido 99Food aguardando revisão nesta loja.</p>}
-        {!!listing.data.results.length && <div style={{overflowX: 'auto'}}><table><thead><tr>
+        {!!listing.data.results.length && <div className="food99-review-table" style={{overflowX: 'auto'}}><table><thead><tr>
           <th>Pedido</th><th>Status externo</th><th>Itens</th><th>Total informado*</th><th>Histórico</th><th>Revisão</th><th>Ações</th>
         </tr></thead><tbody>{listing.data.results.map(row => <tr key={row.id}>
           <td>{row.external_id}<div><small>ID interno: {row.id}</small></div></td><td>{row.status_code} (não homologado)</td><td>{row.item_count}</td>

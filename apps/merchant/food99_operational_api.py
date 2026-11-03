@@ -90,3 +90,48 @@ class Food99IntegrityAudit(MerchantAPI):
         total = queryset.count()
         rows = list(queryset[:limit])
         return Response(audit_summary(rows, total=total, limit=limit))
+
+
+class Food99OperationalDryRun(MerchantAPI):
+    """Tenant-scoped, read-only scenario; no Order, stock, KDS or provider calls."""
+    def get(self, request, pk):
+        from apps.channels.food99_operational_dryrun import dry_run_staged
+        row = _review_row(request.tenant, pk)
+        if row is None:
+            return Response({'detail': 'Pedido não encontrado.'}, status=404)
+        try:
+            return Response(dry_run_staged(row))
+        except ProviderError:
+            return Response({'detail': 'Simulação indisponível para este pedido.'}, status=422)
+
+
+class Food99OperationalBatchDryRun(MerchantAPI):
+    """At most five tenant-owned rows, read only and without outbound requests."""
+    def post(self, request):
+        from apps.channels.food99_operational_dryrun import dry_run_staged
+        ids = request.data.get('ids')
+        if (not isinstance(ids, list) or not 1 <= len(ids) <= 5 or
+                any(type(pk) is not int or pk < 1 for pk in ids) or
+                len(ids) != len(set(ids))):
+            return Response({'detail': 'Informe de 1 a 5 IDs internos distintos.'}, status=400)
+        rows = Food99StagedOrder.objects.select_related('connection').filter(
+            pk__in=ids, connection__tenant=request.tenant,
+            connection__provider='99food', connection__mode='test',
+            connection__enabled=False,
+        )
+        mapping = {row.pk: row for row in rows}
+        if len(mapping) != len(ids):
+            return Response({'detail': 'Um ou mais pedidos não foram encontrados.'}, status=404)
+        results = []
+        for pk in ids:
+            try:
+                report = dry_run_staged(mapping[pk])
+                results.append({'id': pk, 'status_code': report['status_code'],
+                                'items_count': report['items_count'],
+                                'diagnostics': report['diagnostics'],
+                                'operational_enabled': False})
+            except ProviderError:
+                results.append({'id': pk, 'error': 'SNAPSHOT_UNAVAILABLE',
+                                'operational_enabled': False})
+        return Response({'results': results, 'orders_created': 0,
+                         'operational_enabled': False, 'kds_visible': False})

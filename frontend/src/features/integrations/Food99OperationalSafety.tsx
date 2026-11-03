@@ -37,6 +37,8 @@ const brl = (cents:number) => (cents/100).toLocaleString('pt-BR',{style:'currenc
 
 export function Food99OperationalSafety(){
   const state=useQuery<Readiness>(()=>request('integrations/99food/operational-readiness/'));
+  const simulation = useQuery<{available:boolean;provider_synced:boolean}>(()=>request('integrations/99food/simulation-availability/'));
+  const [simulatedOrder,setSimulatedOrder]=useState<number|null>(null);
   const [orderId,setOrderId]=useState('');
   const [selectedId,setSelectedId]=useState('');
   const [preview,setPreview]=useState<Projection|null>(null);
@@ -62,6 +64,27 @@ export function Food99OperationalSafety(){
         method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({order_id:orderId}),
       });
       setMessage(`Consulta do pedido ${result.external_id}: ${result.result}. Apenas sandbox.`);
+    });
+  }
+  async function importSimulation(){
+    const pk = Number(selectedId);
+    if (!Number.isSafeInteger(pk) || pk < 1) {setError('Informe um ID interno válido.');return;}
+    if (!window.confirm('Criar um pedido EXCLUSIVAMENTE SIMULADO em Pedidos ativos e KDS? Nenhuma ação será enviada à 99Food.')) return;
+    await run(async()=>{
+      const result = await request<{order_id:number;created:boolean}>('integrations/99food/simulated-import/',{
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({staged_id:pk}),
+      });
+      setSimulatedOrder(result.order_id);
+      setMessage(result.created?'Pedido SIMULADO criado na operação.':'Pedido SIMULADO já existente; nenhum duplicado criado.');
+    });
+  }
+  async function advanceSimulation(){
+    if (simulatedOrder === null) return;
+    await run(async()=>{
+      const result = await request<{status:string;advanced:boolean}>('integrations/99food/simulated-event/',{
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({order_id:simulatedOrder}),
+      });
+      setMessage(result.advanced?`Evento AUTOMÁTICO SIMULADO: ${result.status}. Confira Pedidos ativos e KDS.`:'Simulação já chegou ao último estado.');
     });
   }
   async function inspect(){
@@ -111,7 +134,7 @@ export function Food99OperationalSafety(){
   return <section className="card" aria-label="99Food prontidão operacional">
     <div className="page-heading"><div>
       <h2>99Food · Preparação operacional</h2>
-      <p>Consulta, validação e prévia de pedidos. Nenhuma ação libera pedidos no KDS.</p>
+      <p>Consulta, validação e prévia. Apenas pedidos explicitamente simulados em homologação podem aparecer no KDS; pedidos reais continuam bloqueados.</p>
     </div><button type="button" className="secondary" onClick={()=>state.reload()} disabled={busy}>Atualizar diagnósticos</button></div>
     <Feedback loading={state.loading} error={state.error}>{state.data&&<>
       <p role="status"><strong>{state.data.operational_enabled?'Operação habilitada':'Operação bloqueada com segurança'}</strong> ·
@@ -151,6 +174,7 @@ export function Food99OperationalSafety(){
         <div className="food99-form-card__actions food99-form-card__actions--stack">
           <button type="button" className="secondary" disabled={busy} onClick={inspect}>Visualizar prévia isolada</button>
           <button type="button" className="secondary" disabled={busy} onClick={simulate}>Ver diagnóstico operacional</button>
+          {simulation.data?.available&&<button type="button" disabled={busy} onClick={importSimulation}>Criar pedido SIMULADO em Pedidos/KDS</button>}
         </div>
       </div>
       <div className="food99-form-card">
@@ -164,7 +188,12 @@ export function Food99OperationalSafety(){
         </div>
       </div>
     </div>
+    {simulation.data?.available&&<p className="food99-simulation-note"><strong>Modo de simulação local ativo.</strong> Os pedidos criados nesta área aparecem em Pedidos ativos e KDS, mas não são enviados à 99Food nem representam pagamentos confirmados. Os status são alterados somente no VemDeDelivery.</p>}
     {message&&<p role="status">{message}</p>}
+    {simulatedOrder!==null&&<div className="food99-simulation-note">
+      <p><strong>Pedido simulado #{simulatedOrder}.</strong> Abra <a href="/painel/operacao">Pedidos ativos</a> ou <a href="/painel/cozinha">KDS</a> para acompanhar.</p>
+      <button type="button" className="secondary" disabled={busy} onClick={advanceSimulation}>Simular próximo evento automático (somente local)</button>
+    </div>}
     {error&&<p role="alert">{error}</p>}
     {results&&<div><h3>Resultados do lote</h3><ul>{results.results.map(item=><li key={item.id}>Revisão #{item.id}: {item.result}</li>)}</ul></div>}
     {batchDryRun && <div className="food99-dryrun" aria-label="Diagnóstico em lote">

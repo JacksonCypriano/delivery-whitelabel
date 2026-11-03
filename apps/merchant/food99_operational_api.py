@@ -135,3 +135,46 @@ class Food99OperationalBatchDryRun(MerchantAPI):
                                 'operational_enabled': False})
         return Response({'results': results, 'orders_created': 0,
                          'operational_enabled': False, 'kds_visible': False})
+
+
+class Food99SimulatedImport(MerchantAPI):
+    """Only explicitly permitted HML/test exercise; never acknowledges provider."""
+    def post(self, request):
+        from apps.channels.food99_simulated_operation import import_simulated, simulation_enabled
+        if not simulation_enabled():
+            return Response({'detail':'Simulação indisponível.'}, status=404)
+        pk = request.data.get('staged_id')
+        if type(pk) is not int or pk <= 0:
+            return Response({'detail':'ID interno inválido.'}, status=400)
+        try:
+            order, created = import_simulated(tenant=request.tenant, staged_id=pk, actor=request.user)
+        except ProviderError:
+            return Response({'detail':'Revisão não disponível para simulação.'}, status=422)
+        return Response({'order_id':order.pk, 'created':created,
+                         'simulation':True, 'provider_synced':False,
+                         'message':'Pedido de simulação criado nas telas de operação.'})
+
+
+class Food99SimulationAvailability(MerchantAPI):
+    def get(self, request):
+        from apps.channels.food99_simulated_operation import simulation_enabled
+        return Response({'available':simulation_enabled(), 'provider_synced':False,
+                         'webhooks_enabled':False})
+
+
+class Food99SimulatedEvent(MerchantAPI):
+    """Advance a deterministic local-only synthetic event, never a provider webhook."""
+    def post(self, request):
+        from apps.channels.food99_simulated_operation import advance_simulated_event, simulation_enabled
+        if not simulation_enabled():
+            return Response({'detail':'Simulação indisponível.'}, status=404)
+        pk = request.data.get('order_id')
+        if type(pk) is not int or pk <= 0:
+            return Response({'detail':'ID de pedido inválido.'}, status=400)
+        try:
+            order, advanced = advance_simulated_event(tenant=request.tenant, order_id=pk)
+        except ProviderError:
+            return Response({'detail':'Evento sintético não pôde ser processado.'}, status=422)
+        return Response({'order_id':order.pk, 'status':order.status,
+                         'advanced':advanced, 'provider_synced':False,
+                         'simulated_event':True})

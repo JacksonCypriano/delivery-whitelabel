@@ -23,6 +23,9 @@ def external(order):
 
 def permitted(order, ignore_pending=False):
     x=external(order)
+    if x and x.connection.provider == '99food' and x.connection.mode == 'simulation':
+        from apps.channels.food99_simulated_operation import simulation_transitions
+        return simulation_transitions(order)
     if not x or not x.connection.enabled:return []
     if x.connection.provider=='99food' and x.connection.mode!='simulation':return []
     if not ignore_pending and (x.cancellation_state == 'requested' or any(c.state in WAITING for c in x.commands.all())):return []
@@ -210,6 +213,9 @@ def queue_transition(order_id,tenant,target,actor=None,payload=None):
     conn=Connection.objects.select_for_update().get(pk=x.connection_id)
     x=ExternalOrder.objects.select_for_update().select_related('connection').get(pk=x.pk)
     order=Order.objects.select_for_update().get(pk=order_id,tenant=tenant)
+    if conn.provider == '99food' and conn.mode == 'simulation':
+        from apps.channels.food99_simulated_operation import transition_simulated
+        return transition_simulated(order_id=order_id, tenant=tenant, target=target, actor=actor)
     if target==order.status:return order,None
     if target not in permitted(order):raise OrderOperationError('Ação não permitida ou aguardando confirmação da plataforma.')
     if not conn.enabled:raise OrderOperationError('Integração desconectada.')

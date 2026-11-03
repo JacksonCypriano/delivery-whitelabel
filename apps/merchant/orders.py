@@ -271,7 +271,7 @@ class OrderTransition(MerchantAPI):
             return Response({"detail": str(exc)}, status=400)
         return Response(
             {
-                "detail": ("Solicitação registrada; aguardando confirmação da plataforma." if order.source in ("ifood", "99food") else "Status atualizado.") if event else "O pedido já estava neste status.",
+                "detail": ("Status alterado somente na simulação local." if getattr(getattr(order, "external_order", None), "connection", None) and order.external_order.connection.mode == "simulation" else "Solicitação registrada; aguardando confirmação da plataforma." if order.source in ("ifood", "99food") else "Status atualizado.") if event else "O pedido já estava neste status.",
                 "order": _order_card(order),
             }
         )

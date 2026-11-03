@@ -918,3 +918,6 @@ CELERY_BEAT_SCHEDULE.update({
     "marketplace-ifood-live": {"task": "apps.channels.tasks.poll_ifood", "schedule": 30.0, "args": ["live"]},
     "marketplace-durable-queues": {"task": "apps.channels.tasks.drain", "schedule": 5.0},
 })
+
+# HML-only 99Food operational simulation; never permit in production.
+FOOD99_OPERATIONAL_SIMULATION_ENABLED = False

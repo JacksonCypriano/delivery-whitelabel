@@ -26,3 +26,5 @@
 .food99-review-table td:first-child small {display:block;margin-top:4px;font-size:12px}
 .food99-review-table th,.food99-review-table td {vertical-align:top}
 .food99-review-table td:last-child button {white-space:nowrap}
+
+.food99-simulation-note {padding:14px 16px;margin:20px 0;border:1px solid #e6c889;border-radius:12px;background:#fff9e9;color:#553b12;line-height:1.5;}

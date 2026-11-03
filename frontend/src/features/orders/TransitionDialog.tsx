@@ -9,7 +9,8 @@ export function TransitionDialog({ order, status, settings, busy, error, onConfi
   onConfirm: (options: Options) => void; onClose: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
-  const external = ['ifood','99food'].includes(order.channel || order.source);
+  const simulated = Boolean(order.channel_simulated && (order.channel || order.source) === '99food');
+  const external = !simulated && ['ifood','99food'].includes(order.channel || order.source);
   const [reasons,setReasons] = useState<any[]>([]), [code,setCode] = useState(''), [reason,setReason] = useState(''), [reasonError,setReasonError] = useState('');
   useEffect(()=>{let active=true;if(external&&status==='cancelled') request<{reasons:any[]}>(`orders/${order.id}/cancellation-reasons/`).then(d=>{if(active)setReasons(d.reasons);}).catch(e=>{if(active)setReasonError(e.message);});return()=>{active=false;};},[external,status,order.id]);
   const action = order.allowed_transitions.find((item: any) => item.value === status);
@@ -37,9 +38,10 @@ export function TransitionDialog({ order, status, settings, busy, error, onConfi
     }}>
       <h2 id="transition-title">{actionLabel[status] || action?.label} · #{order.id}</h2>
       <p>{order.customer_name} · {order.delivery_label}</p>
+      {simulated&&<p><strong>SIMULAÇÃO LOCAL:</strong> o status mudará somente no VemDeDelivery. Nenhuma ação será enviada à 99Food, ao estoque ou ao WhatsApp.</p>}
       {external&&<p>A solicitação será enviada à plataforma. O status mudará após a confirmação.</p>}
       {external&&status==='cancelled'&&<><label className="field">Motivo exigido pela plataforma<select required value={code} onChange={e=>setCode(e.target.value)} disabled={busy}><option value="">Selecione um motivo</option>{reasons.map(r=><option key={r.code} value={r.code}>{r.description}</option>)}</select></label><label className="field">Justificativa<textarea required maxLength={500} value={reason} onChange={e=>setReason(e.target.value)} disabled={busy}/></label>{reasonError&&<p role="alert">{reasonError}</p>}</>}
-      {!external && (prep || fulfillment) && <>
+      {!external && !simulated && (prep || fulfillment) && <>
         <label className="toggle-row"><input type="checkbox" checked={manual} onChange={(e) => setManual(e.target.checked)} disabled={busy} />Informar prazo manual</label>
         {manual ? <label className="field">Prazo de {fulfillment ? order.delivery_type === "pickup" ? "retirada" : "entrega" : "preparo"} (minutos)
           <input type="number" min={5} max={240} step={1} required value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} disabled={busy} />
@@ -53,7 +55,7 @@ export function TransitionDialog({ order, status, settings, busy, error, onConfi
           <label className="field">Complemento opcional<textarea maxLength={500} value={complement} onChange={(e) => setComplement(e.target.value)} disabled={busy} /></label>
           <p className="muted">A previsão calculada será acrescentada ao aviso quando aplicável.</p>
         </>}
-      </> : <p className="muted">{external ? "Este pedido não envia mensagens automáticas pelo WhatsApp da loja." : "Sem aviso por WhatsApp para esta alteração: confira as preferências e o telefone do cliente."}</p>}
+      </> : <p className="muted">{simulated ? "Avisos externos desativados durante a simulação." : external ? "Este pedido não envia mensagens automáticas pelo WhatsApp da loja." : "Sem aviso por WhatsApp para esta alteração: confira as preferências e o telefone do cliente."}</p>}
       {error && <p role="alert" className="danger-text">{error.message}</p>}
       <div className="actions"><button type="button" className="secondary" onClick={onClose} disabled={busy}>Voltar</button><button disabled={busy || (external && status==='cancelled' && (!code || !reason.trim()))}>{busy ? "Salvando…" : "Confirmar alteração"}</button></div>
     </form>

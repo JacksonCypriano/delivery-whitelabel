@@ -50,8 +50,5 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 # Deixamos as tarefas agendadas inertes mesmo se alguem iniciar Beat sem querer.
 CELERY_BEAT_SCHEDULE = {}
 
-# 99Food — Ambiente Sandbox
-FOOD99_SANDBOX_ENABLED = (os.getenv("FOOD99_SANDBOX_ENABLED", "0") == "1")
-FOOD99_TEST_APP_ID = os.getenv("FOOD99_TEST_APP_ID", "")
-FOOD99_TEST_APP_SECRET = os.getenv("FOOD99_TEST_APP_SECRET", "")
-FOOD99_SANDBOX_IMPORT_TO_ORDERS = (os.getenv("FOOD99_SANDBOX_IMPORT_TO_ORDERS", "0") == "1")
+# Controlled, local-only simulated 99Food Orders/KDS; no provider network.
+FOOD99_OPERATIONAL_SIMULATION_ENABLED = True

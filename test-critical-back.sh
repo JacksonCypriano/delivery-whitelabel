@@ -62,7 +62,7 @@ fi
 trap 'result=$?; echo "❌ Testes interrompidos ou reprovados (código $result). Confira a saída acima." >&2; exit "$result"' ERR
 
 echo "============================================================"
-echo "▶ VemDeDelivery — testes críticos"
+echo "▶ VemDeDelivery — testes críticos BACKEND (sem Vitest)"
 echo "▶ Ambiente: $ENVIRONMENT"
 echo "▶ Compose: $COMPOSE_FILE"
 echo "▶ Suítes: ${TEST_SUITES[*]}"
@@ -101,11 +101,6 @@ echo "▶ A consulta externa de WhatsApp fica desativada neste processo de teste
     --verbosity=2 \
     --noinput
 
-# Frontend e backend são validados no mesmo comando.
-# A execução isolada mantém a detecção de falhas intermitentes (sem retries ocultos).
 echo ""
-echo "▶ Executando testes React/Vitest por arquivo..."
-"$SCRIPT_DIR/scripts/test-frontend-isolated.sh"
-
-echo ""
-echo "✅ Suíte crítica (Python/Django + React/Vitest) concluída sem falhas em $ENVIRONMENT."
+echo "✅ Suíte crítica Python/Django concluída sem falhas em $ENVIRONMENT."
+echo "▶ Para testar o React separadamente: ./test-critical-front.sh"

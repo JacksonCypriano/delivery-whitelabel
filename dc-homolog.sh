@@ -21,8 +21,8 @@ success() {
 }
 
 test_frontend() {
-    info "Validando frontend em processos isolados (sem mascarar falhas)"
-    "$SCRIPT_DIR/scripts/test-frontend-isolated.sh"
+    info "Executando suite exclusiva de frontend"
+    "$SCRIPT_DIR/test-critical-front.sh"
 }
 
 build_homolog() {
@@ -108,6 +108,7 @@ case "$COMMAND" in
         echo "  ./dc-homolog.sh deploy"
         echo "  ./dc-homolog.sh rebuild"
         echo "  ./dc-homolog.sh frontend-tests"
+        echo "  ./test-critical-front.sh"
         echo "  ./dc-homolog.sh restart"
         echo "  ./dc-homolog.sh migrate"
         echo "  ./dc-homolog.sh collectstatic"

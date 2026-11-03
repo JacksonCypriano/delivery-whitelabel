@@ -21,12 +21,22 @@ from .food99_workflow_api import (
     Food99ReviewRefresh, Food99ReviewCompare,
 )
 
+from .food99_operational_api import (
+    Food99OperationalReadiness, Food99OperationalPreview,
+    Food99SandboxStage, Food99SandboxBatchRefresh, Food99IntegrityAudit,
+)
+
 urlpatterns = [
     path("activity/", Activity.as_view()),
     path("resources/<slug:resource>/selection/", Selection.as_view()),
     path("resources/<slug:resource>/<str:pk>/relationships/", Relationships.as_view()),
     path("integrations/", Integrations.as_view()),
     path("integrations/events/", IntegrationEvents.as_view()),
+    path("integrations/99food/integrity-audit/", Food99IntegrityAudit.as_view()),
+    path("integrations/99food/operational-readiness/", Food99OperationalReadiness.as_view()),
+    path("integrations/99food/operational-preview/<int:pk>/", Food99OperationalPreview.as_view()),
+    path("integrations/99food/sandbox-stage/", Food99SandboxStage.as_view()),
+    path("integrations/99food/sandbox-refresh-batch/", Food99SandboxBatchRefresh.as_view()),
     path("integrations/99food/review/", Food99ReviewList.as_view()),
     path("integrations/99food/review/summary/", Food99ReviewSummary.as_view()),
     path("integrations/99food/review/<int:pk>/", Food99ReviewDetail.as_view()),

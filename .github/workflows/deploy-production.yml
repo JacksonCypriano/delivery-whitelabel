@@ -11,16 +11,20 @@ concurrency:
 
 jobs:
   deploy:
+    name: Publicar blue/green (testes exigidos no PR)
     runs-on: ubuntu-latest
     environment: production
     steps:
       - name: Executar deploy blue/green na VPS
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           port: ${{ secrets.VPS_PORT }}
+          envs: DEPLOY_SHA
           script: |
             set -e
             cd /opt/vemdedelivery/app
@@ -45,5 +49,7 @@ jobs:
               fi
               exit 1
             fi
-            # O script blue/green executa backup, verificacoes e rollback.
-            bash scripts/prod/blue_green_deploy.sh
+            # O workflow de PR protege o merge em main (regra obrigatória GitHub).
+            # Verifica que o checkout publicado é EXATAMENTE o push que disparou este workflow.
+            [ "$(git rev-parse HEAD)" = "$DEPLOY_SHA" ] || { echo "HEAD divergiu do push aprovado. Deploy cancelado."; exit 1; }
+            VDD_DEPLOY_SHA="$DEPLOY_SHA" bash scripts/prod/blue_green_deploy.sh

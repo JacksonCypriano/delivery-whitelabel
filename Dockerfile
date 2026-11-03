@@ -3,9 +3,9 @@ WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
-# Por padrão, builds diretos e builds de produção continuam executando o Vitest.
-# Apenas o fluxo local dc-homolog.sh passa 0 após validar cada teste isoladamente.
-ARG VDD_RUN_FRONTEND_TESTS=1
+# Vitest roda no job frontend-tests do GitHub Actions antes do deploy de produção.
+# O build conserva tsc e Vite; não duplica testes durante docker build.
+ARG VDD_RUN_FRONTEND_TESTS=0
 RUN if [ "$VDD_RUN_FRONTEND_TESTS" = "1" ]; then npm run test; fi && npm run build
 
 FROM python:3.11-slim

@@ -94,7 +94,7 @@ export function Food99Review() {
         {!!listing.data.results.length && <div style={{overflowX: 'auto'}}><table><thead><tr>
           <th>Pedido</th><th>Status externo</th><th>Itens</th><th>Total informado*</th><th>Histórico</th><th>Revisão</th><th>Ações</th>
         </tr></thead><tbody>{listing.data.results.map(row => <tr key={row.id}>
-          <td>{row.external_id}</td><td>{row.status_code} (não homologado)</td><td>{row.item_count}</td>
+          <td>{row.external_id}<div><small>ID interno: {row.id}</small></div></td><td>{row.status_code} (não homologado)</td><td>{row.item_count}</td>
           <td>{brl(row.amount_minor)}</td><td>{row.revision_count} versão(ões), {row.change_count} mudança(s)</td>
           <td>{stateLabel(row.state)}</td>
           <td><button type="button" className="secondary" onClick={() => select(row.id)}>Revisar pedido</button></td>

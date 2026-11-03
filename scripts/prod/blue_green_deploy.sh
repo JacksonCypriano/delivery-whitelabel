@@ -28,15 +28,19 @@ trap rollback ERR
 
 [[ "$(git branch --show-current)" == "main" ]] || { echo "Produção exige a branch main."; exit 1; }
 git diff --quiet && git diff --cached --quiet || { echo "Há alterações locais; deploy cancelado."; exit 1; }
-git pull --ff-only origin main
+# Nenhum pull aqui: a action já fez fetch/pull e verificou o SHA do push.
+# Exigir o SHA encaminhado pelo workflow evita avançar para outro commit
+# entre a validação do checkout e o corte do tráfego.
+if [[ -z "${VDD_DEPLOY_SHA:-}" || "$(git rev-parse HEAD)" != "$VDD_DEPLOY_SHA" ]]; then
+  echo 'Deploy bloqueado: SHA local não coincide com o push da action.' >&2
+  exit 1
+fi
 
 echo "▶ Criando e verificando backup antes da publicação..."
 bash backup-prod.sh
 bash test-restore-prod.sh
 
-# A suite critica ja foi executada em homologacao antes da publicacao.
-# O deploy mantem os health checks e nao repete os testes demorados.
-# SSR faz parte da vitrine publica e precisa acompanhar cada publicacao.
+# Suítes críticas executadas em CI/homolog; build compila o TypeScript.
 "${COMPOSE[@]}" up -d --build --wait public-ssr
 "${COMPOSE[@]}" up -d "backend-$NEXT"
 
@@ -74,7 +78,6 @@ fi
 if [[ "$ACTIVE" == backend-blue || "$ACTIVE" == backend-green ]]; then
   "${COMPOSE[@]}" stop "$ACTIVE" 2>/dev/null || true
 fi
-# Remove somente o container legado do compose anterior, sem tocar em volumes.
 legacy="$(docker ps -q --filter name='^prod-backend-1$' || true)"
 [[ -z "$legacy" ]] || docker stop "$legacy" >/dev/null
 echo "Deploy concluído: tráfego em backend-$NEXT."

@@ -56,3 +56,5 @@ FOOD99_SANDBOX_ENABLED = True
 
 # Controlled, local-only simulated 99Food Orders/KDS; no provider network.
 FOOD99_OPERATIONAL_SIMULATION_ENABLED = True
+FOOD99_TEST_APP_ID = os.getenv("FOOD99_TEST_APP_ID", "").strip()
+FOOD99_TEST_APP_SECRET = os.getenv("FOOD99_TEST_APP_SECRET", "").strip()

@@ -67,3 +67,7 @@ FOOD99_ASYNC_RECONCILE_ENABLED = (os.getenv("FOOD99_ASYNC_RECONCILE_ENABLED", "0
 FOOD99_LOCAL_EVENT_SYNC_ENABLED = (os.getenv("FOOD99_LOCAL_EVENT_SYNC_ENABLED", "0") == "1")
 # Irreversible single-shot confirmation is never enabled outside authorized pilot.
 FOOD99_REMOTE_CONFIRM_ENABLED = (os.getenv("FOOD99_REMOTE_CONFIRM_ENABLED", "0") == "1")
+
+# Pacote 18: ACK somente após gravação durável + tentativa de enfileiramento.
+# Exige CAPTURE=1 e ASYNC_RECONCILE=1; por padrão continua respondendo 503.
+FOOD99_WEBHOOK_ACK_ENABLED = (os.getenv("FOOD99_WEBHOOK_ACK_ENABLED", "0") == "1")

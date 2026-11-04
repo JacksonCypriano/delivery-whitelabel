@@ -1,9 +1,7 @@
-"""99Food signed sandbox callback quarantine.
+"""Signed 99Food sandbox webhook ingestion with fail-closed durable ACK.
 
-The official legacy signature is MD5(raw bytes + app secret). This endpoint never
-ACKs an event until the operational consumer is implemented. When enabled in
-HML it persists only non-PII identifiers in the existing durable Inbox, while
-leaving the sandbox connection disabled and real orders untouched.
+The default is legacy 503 quarantine. An explicit, isolated pilot can ACK only
+after an event has been durably committed; all payload storage is PII-free.
 """
 import hashlib
 import hmac
@@ -91,7 +89,7 @@ def _store_order_event(connection, event, raw_body):
     sha = hashlib.sha256(raw_body).hexdigest()
     external_id = "99food-" + sha  # 71 chars, fits Inbox.external_id
     with transaction.atomic():
-        Inbox.objects.get_or_create(
+        item, created = Inbox.objects.get_or_create(
             connection=connection,
             external_id=external_id,
             defaults={
@@ -111,7 +109,7 @@ def _store_order_event(connection, event, raw_body):
                 "error": "Aguardando homologação do processamento 99Food.",
             },
         )
-    return True
+    return item, created
 
 
 @csrf_exempt
@@ -182,16 +180,38 @@ def food99_webhook(request, mode):
     if event_type not in KNOWN_EVENTS:
         return _rejected(503, "Tipo aguardando integração.")
 
-    # Configuration is opt-in and must remain false in normal HML deployment.
+    # Explicit, independent opt-ins. Legacy deployments still get a retryable
+    # rejection; they never accidentally ACK an event because capture was enabled.
+    ack_enabled = getattr(settings, "FOOD99_WEBHOOK_ACK_ENABLED", False) is True
+    if ack_enabled and not (
+        getattr(settings, "FOOD99_WEBHOOK_CAPTURE_ENABLED", False) is True
+        and getattr(settings, "FOOD99_ASYNC_RECONCILE_ENABLED", False) is True
+        and getattr(settings, "CHANNELS_NETWORK_ENABLED", False) is False
+        and event_type in ORDER_EVENTS
+    ):
+        return _rejected(503, "Recebimento operacional não habilitado.")
+
     if (getattr(settings, "FOOD99_WEBHOOK_CAPTURE_ENABLED", False)
             and event_type in ORDER_EVENTS):
         try:
-            if not _store_order_event(connections[0], event, request.body):
+            stored = _store_order_event(connections[0], event, request.body)
+            if not stored:
                 return _rejected(400, "Identificador de pedido inválido.")
+            item, created = stored
         except (DatabaseError, OverflowError, ValueError):
-            # No success ACK after a failed commit; avoid leaking DB details.
             return _rejected(503, "Armazenamento temporariamente indisponível.")
 
-    # Do not tell 99Food an event has been consumed until the safe operational
-    # consumer is live. A 2xx + errno=0 here could lose orders permanently.
+        if ack_enabled:
+            # The Inbox is durable before response. A broker outage causes a
+            # retryable 503, and an exact retransmission reuses the Inbox row.
+            # The reconciliation command also recovers events not queued here.
+            try:
+                from .tasks import consume_99food_sandbox_event
+                consume_99food_sandbox_event.delay(item.pk)
+            except Exception:
+                return _rejected(503, "Fila temporariamente indisponível.")
+            response = JsonResponse({"errno": 0, "errmsg": "ok"}, status=200)
+            response["Cache-Control"] = "no-store"
+            return response
+
     return _rejected(503, "Evento aguardando processamento seguro.")

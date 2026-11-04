@@ -75,3 +75,20 @@ def sync_99food_sandbox_events(tenant_slug, limit=50):
     """
     from .food99_local_sync import sync_batch
     return sync_batch(tenant_slug=tenant_slug, limit=limit, apply=True)
+
+
+@shared_task(bind=True, soft_time_limit=85, time_limit=95, ignore_result=True,
+             acks_late=True, max_retries=3)
+def consume_99food_sandbox_event(self, event_id):
+    """Opt-in signed callback consumer, isolated from iFood and remote writes.
+
+    Celery retries transport failures; terminal provider state is NEVER guessed.
+    All operations are repeatable from the durable Inbox.
+    """
+    from .food99_sandbox_consumer import consume_event
+    try:
+        return consume_event(event_id)
+    except ProviderError as exc:
+        if exc.retryable:
+            raise self.retry(countdown=min(60 * (self.request.retries + 1), 180), exc=exc)
+        raise

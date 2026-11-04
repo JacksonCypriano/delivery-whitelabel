@@ -65,7 +65,19 @@ jobs:
       group: vdd-homolog-deploy
       cancel-in-progress: false
     steps:
-      - name: Atualizar imagens de homologacao na VPS
+      - name: Obter Compose versionado
+        uses: actions/checkout@v4
+      - name: Copiar Compose para area temporaria da VPS
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          source: docker/hml/compose.yml
+          target: /tmp/vdd-hml-${{ github.sha }}
+          strip_components: 2
+      - name: Atualizar homologacao (Compose, backend, SSR e Celery)
         uses: appleboy/ssh-action@v1.2.0
         env:
           DEPLOY_SHA: ${{ github.sha }}
@@ -75,48 +87,75 @@ jobs:
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           port: ${{ secrets.VPS_PORT }}
           envs: DEPLOY_SHA
+          command_timeout: 15m
           script: |
             set -eu
             COMPOSE_FILE=/opt/vemdedelivery/hml/app/docker/hml/compose.yml
-            [ -f "$COMPOSE_FILE" ] || { echo "Compose HML nao encontrado"; exit 1; }
+            CANDIDATE="/tmp/vdd-hml-${DEPLOY_SHA}/compose.yml"
+            [ -f "$COMPOSE_FILE" ] || { echo "Compose HML atual nao encontrado"; exit 1; }
+            [ -f "$CANDIDATE" ] || { echo "Compose HML novo nao foi transferido"; exit 1; }
             cd /opt/vemdedelivery/hml/app
             previous_backend="$(docker inspect --format '{{.Config.Image}}' hml-backend-1 2>/dev/null || true)"
+            [ -n "$previous_backend" ] || { echo "Primeiro deploy HML deve ser manual"; exit 1; }
             previous_tag="${previous_backend##*:}"
-            if [ -z "$previous_backend" ]; then
-              echo "HML nao esta inicializada; configure a primeira implantacao manualmente."
-              exit 1
-            fi
+            # Verificar o candidato SEM alterar o Compose ativo ou os containers.
+            HML_IMAGE_TAG="$DEPLOY_SHA" docker compose -f "$CANDIDATE" config --quiet
+            HML_IMAGE_TAG="$DEPLOY_SHA" docker compose -f "$CANDIDATE" config --services | grep -qx celery
+            backup="$(mktemp /tmp/vdd-hml-compose-backup.XXXXXX)"
+            cp "$COMPOSE_FILE" "$backup"
+            changed=0
+            deploy_started=0
+            recover() {
+              code=$?
+              trap - EXIT
+              if [ "$code" -ne 0 ]; then
+                echo "Deploy falhou. Restaurando o Compose anterior."
+                if [ "$changed" = 1 ]; then
+                  cp "$backup" "$COMPOSE_FILE" || true
+                fi
+                if [ "$deploy_started" = 1 ]; then
+                  echo "Restaurando imagens de aplicativo da tag $previous_tag."
+                  HML_IMAGE_TAG="$previous_tag" docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate public-ssr backend celery || true
+                  echo "ATENCAO: migrations aplicadas nao sao revertidas pelo rollback."
+                fi
+              fi
+              rm -f "$backup"
+              rm -rf "/tmp/vdd-hml-${DEPLOY_SHA}"
+              exit "$code"
+            }
+            trap recover EXIT
+            # A transferencia ja ocorreu; instalar o compose somente depois de validado.
+            cp "$CANDIDATE" "${COMPOSE_FILE}.new"
+            mv "${COMPOSE_FILE}.new" "$COMPOSE_FILE"
+            changed=1
             export HML_IMAGE_TAG="$DEPLOY_SHA"
-            docker compose -f "$COMPOSE_FILE" config --quiet
-            docker compose -f "$COMPOSE_FILE" pull backend public-ssr
-            # Migrations versionadas: um container efemero usando EXATAMENTE a nova imagem.
-            # --entrypoint ignora o dispatcher de roles do entrypoint.sh.
-            # Nunca recria o banco, nem remove volumes.
-            echo "Aplicando migrations versionadas..."
+            docker compose -f "$COMPOSE_FILE" pull backend public-ssr celery
+            echo "Aplicando migrations com a nova imagem..."
             docker compose -f "$COMPOSE_FILE" run --rm --no-deps \
               --entrypoint python backend manage.py migrate --noinput
-            echo "Migrations aplicadas. Atualizando containers de aplicacao..."
-            # IMPORTANTE: nao recriar DB/Redis. Recriar apenas os servicos de aplicativo
-            # evita indisponibilidade de banco e perda de estado em memoria.
-            if ! docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate public-ssr backend; then
-              echo "Falha ao subir nova imagem. Tentando restaurar containers anteriores."
-              HML_IMAGE_TAG="$previous_tag" docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate public-ssr backend || true
-              echo "ATENCAO: migrations ja executadas nao sao revertidas pelo rollback da imagem."
-              exit 1
-            fi
-            healthy=0
+            echo "Atualizando os tres servicos de aplicativo, sem recriar Redis/DB..."
+            deploy_started=1
+            docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate public-ssr backend celery
+            backend_ok=0
+            celery_ok=0
             for i in $(seq 1 40); do
-              status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' hml-backend-1 2>/dev/null || true)"
-              [ "$status" = healthy ] && { healthy=1; break; }
-              [ "$status" = unhealthy ] && break
+              b="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' hml-backend-1 2>/dev/null || true)"
+              c="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' hml-celery-1 2>/dev/null || true)"
+              [ "$b" = healthy ] && backend_ok=1
+              [ "$c" = healthy ] && celery_ok=1
+              [ "$backend_ok" = 1 ] && [ "$celery_ok" = 1 ] && break
+              [ "$b" = unhealthy ] && break
+              [ "$c" = unhealthy ] && break
               sleep 3
             done
-            if [ "$healthy" != 1 ] || ! curl --fail --silent --show-error --max-time 15 -H 'Host: hml.vemdedelivery.com.br' http://127.0.0.1:18080/health/live/ >/dev/null; then
-              echo "Health check falhou; restaurando containers anteriores."
-              HML_IMAGE_TAG="$previous_tag" docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate public-ssr backend || true
-              echo "ATENCAO: migracoes do banco nao sao revertidas automaticamente."
-              exit 1
-            fi
+            [ "$backend_ok" = 1 ] && [ "$celery_ok" = 1 ] || { echo "Backend ou Celery unhealthy"; exit 1; }
+            curl --fail --silent --show-error --max-time 15 \
+              -H 'Host: hml.vemdedelivery.com.br' \
+              http://127.0.0.1:18080/health/live/ >/dev/null
+            docker exec hml-backend-1 python -m celery -A config inspect ping --timeout=5 | grep -q pong
+            backend_id="$(docker inspect --format '{{.Image}}' hml-backend-1)"
+            celery_id="$(docker inspect --format '{{.Image}}' hml-celery-1)"
+            [ "$backend_id" = "$celery_id" ] || { echo "Backend e Celery com imagens diferentes"; exit 1; }
             mkdir -p /opt/vemdedelivery/hml/config
             printf 'HML_IMAGE_TAG=%s\n' "$DEPLOY_SHA" > /opt/vemdedelivery/hml/config/images.env
-            echo "Homologacao atualizada para $DEPLOY_SHA (migrations + recriacao + health)."
+            echo "Homologacao atualizada: $DEPLOY_SHA (Compose + backend + SSR + Celery)."

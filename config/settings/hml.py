@@ -76,3 +76,6 @@ FOOD99_WEBHOOK_ACK_ENABLED = (os.getenv("FOOD99_WEBHOOK_ACK_ENABLED", "0") == "1
 FOOD99_AUTO_PILOT_ENABLED = (os.getenv("FOOD99_AUTO_PILOT_ENABLED", "0") == "1")
 FOOD99_PILOT_BRL_CONFIRMED = (os.getenv("FOOD99_PILOT_BRL_CONFIRMED", "0") == "1")
 FOOD99_PILOT_TENANT_SLUG = os.getenv("FOOD99_PILOT_TENANT_SLUG", "")
+
+# Pacote 21: ações remotas 99Food somente para sandbox explicitamente autorizado.
+FOOD99_SANDBOX_ACTIONS_ENABLED = (os.getenv("FOOD99_SANDBOX_ACTIONS_ENABLED", "0") == "1")

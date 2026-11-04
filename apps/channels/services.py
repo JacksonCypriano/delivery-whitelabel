@@ -23,6 +23,9 @@ def external(order):
 
 def permitted(order, ignore_pending=False):
     x=external(order)
+    if x and x.connection.provider == '99food' and x.connection.mode == 'test':
+        from .food99_sandbox_actions import permitted_sandbox
+        return permitted_sandbox(order)
     if x and x.connection.provider == '99food' and x.connection.mode == 'simulation':
         from apps.channels.food99_simulated_operation import simulation_transitions
         return simulation_transitions(order)
@@ -207,6 +210,12 @@ def apply_event(event_id, normalized=None, raw=None):
     transaction.on_commit(lambda: publish_order_event(order.pk, conn.tenant_id))
 
 def queue_transition(order_id, tenant, target, actor=None, payload=None):
+    channel = ExternalOrder.objects.filter(
+        order_id=order_id, order__tenant=tenant,
+    ).values_list('connection__provider', 'connection__mode').first()
+    if channel == ('99food', 'test'):
+        from .food99_sandbox_actions import queue_sandbox_transition
+        return queue_sandbox_transition(order_id, tenant, target, actor=actor, payload=payload)
     """Route local 99Food simulation before taking provider/outbox locks.
 
     The simulation service owns its short transaction and must never touch the

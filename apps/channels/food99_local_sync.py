@@ -60,6 +60,8 @@ def sync_existing(event_id, *, apply=False):
     ).first()
     if linked is None:
         return {'event_id': event_id, 'result': 'NOT_IMPORTED', 'applied': False}
+    if target == 'ready' and linked.order.delivery_type == 'pickup':
+        target = 'ready_for_pickup'
     if not apply:
         return {'event_id': event_id, 'result': 'PREVIEW', 'target': target,
                 'order_id': linked.order_id, 'applied': False}

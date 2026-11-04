@@ -62,7 +62,7 @@ def preview(detail, *, app_shop_id, shop_id, order_id):
     if type(status) is not int:
         raise ProviderError('Status 99Food inválido.')
     delivery=detail['delivery_type']; pay=detail['pay_type']
-    if delivery not in (1,2) or pay not in (1,2,3,4):
+    if delivery not in (0,1,2) or pay not in (1,2,3,4):
         raise ProviderError('Entrega/pagamento 99Food sem mapeamento.')
     p=detail['price']
     total=minor(p['order_price'])
@@ -111,7 +111,7 @@ def preview(detail, *, app_shop_id, shop_id, order_id):
     except (ValueError,OverflowError,OSError):
         raise ProviderError('Data de criação 99Food inválida.') from None
     return {'order_id':str(order_id),'shop_id':str(shop_id),'status_code':status,
-            'delivery_by':'PLATFORM' if delivery==1 else 'MERCHANT',
+            'delivery_by':('CUSTOMER' if delivery==0 else 'PLATFORM' if delivery==1 else 'MERCHANT'),
             'payment_method':{1:'online',2:'cash',3:'pos',4:'wallet'}[pay],
             'paid':pay in (1,4), 'total':total,'real_pay':real,
             'delivery_fee':delivery_fee,'discount':discount,'items':rows,
@@ -154,7 +154,7 @@ def import_reviewed(detail, *, tenant_id, app_shop_id, shop_id, order_id, curren
     order=Order.objects.create(tenant=tenant,source='99food',status='pending',
        customer_name='Cliente 99Food',total=data['total'],subtotal=data['total']-data['delivery_fee']+data['discount'],
        delivery_fee=data['delivery_fee'],discount_amount=data['discount'],
-       delivery_type='delivery',payment_flow='marketplace' if data['paid'] else 'marketplace_due',
+       delivery_type='pickup' if detail.get('fulfillment_mode') == 1 or detail.get('delivery_type') == 0 else 'delivery',payment_flow='marketplace' if data['paid'] else 'marketplace_due',
        payment_method=data['payment_method'])
     Order.objects.filter(pk=order.pk).update(created_at=data['created_at'])
     for item in data['items']:

@@ -92,3 +92,9 @@ def consume_99food_sandbox_event(self, event_id):
         if exc.retryable:
             raise self.retry(countdown=min(60 * (self.request.retries + 1), 180), exc=exc)
         raise
+
+@shared_task(soft_time_limit=55, time_limit=65, ignore_result=True)
+def send_99food_sandbox_action(command_id):
+    """Exactly one remote attempt; no Celery retries for uncertain writes."""
+    from .food99_sandbox_actions import send_reserved_action
+    return send_reserved_action(command_id)

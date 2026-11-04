@@ -63,3 +63,15 @@ def reconcile_99food_quarantine_event(event_id):
     """
     from .food99_async_reconcile import reconcile_one
     return reconcile_one(event_id)
+
+
+@shared_task(soft_time_limit=65, time_limit=75, ignore_result=True)
+def sync_99food_sandbox_events(tenant_slug, limit=50):
+    """Manual-only sandbox projection; not registered in Beat or webhook.
+
+    The local sync module validates all opt-in switches, event ownership and
+    signed quarantine metadata before updating an already imported Order.
+    Never performs provider HTTP or auto-imports an Order.
+    """
+    from .food99_local_sync import sync_batch
+    return sync_batch(tenant_slug=tenant_slug, limit=limit, apply=True)

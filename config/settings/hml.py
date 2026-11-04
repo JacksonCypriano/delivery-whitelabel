@@ -61,3 +61,9 @@ FOOD99_WEBHOOK_CAPTURE_ENABLED = (os.getenv("FOOD99_WEBHOOK_CAPTURE_ENABLED", "0
 
 # Explicit opt-in, HML-only, manual Celery reconciliation. Disabled by default.
 FOOD99_ASYNC_RECONCILE_ENABLED = (os.getenv("FOOD99_ASYNC_RECONCILE_ENABLED", "0") == "1")
+
+# Package 17: isolated pilot switches. Both remain disabled by default.
+# Local sync touches ONLY existing imported sandbox Orders; no remote writes.
+FOOD99_LOCAL_EVENT_SYNC_ENABLED = (os.getenv("FOOD99_LOCAL_EVENT_SYNC_ENABLED", "0") == "1")
+# Irreversible single-shot confirmation is never enabled outside authorized pilot.
+FOOD99_REMOTE_CONFIRM_ENABLED = (os.getenv("FOOD99_REMOTE_CONFIRM_ENABLED", "0") == "1")

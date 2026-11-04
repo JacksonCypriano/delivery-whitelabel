@@ -1,3 +1,4 @@
+
 name: hml
 
 x-log: &log
@@ -103,6 +104,44 @@ services:
       timeout: 5s
       retries: 5
       start_period: 45s
+    logging: *log
+
+  celery:
+    # Worker exclusivo para a homologacao.
+    # Utiliza a mesma imagem e configuracoes do backend HML.
+    image: ghcr.io/jacksoncypriano/vdd-hml-backend:${HML_IMAGE_TAG:-homolog}
+    env_file:
+      - /opt/vemdedelivery/hml/config/.env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.hml
+      RUN_MIGRATIONS: "false"
+      COLLECTSTATIC: "false"
+    entrypoint: ["python", "-m", "celery"]
+    command:
+      - "-A"
+      - "config"
+      - "worker"
+      - "--loglevel=info"
+      - "--concurrency=1"
+      - "--queues=celery"
+      - "--hostname=hml-worker@%h"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [internal]
+    mem_limit: 384m
+    cpus: "0.35"
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A config inspect ping -d hml-worker@$$HOSTNAME --timeout=5 | grep -q pong"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     logging: *log
 
 networks:

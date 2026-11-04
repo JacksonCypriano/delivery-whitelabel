@@ -3,9 +3,11 @@ import hashlib
 import json
 from unittest.mock import patch
 
-from django.test import RequestFactory, SimpleTestCase, override_settings
+from django.test import RequestFactory, TestCase, override_settings
 
 from apps.channels.webhook_99food import food99_webhook, verify_signature
+from apps.channels.models import Connection
+from apps.tenants.models import Tenant
 
 URL = "/integracoes/99food/test/webhook/"
 SECRET = "only-a-test-secret"
@@ -18,10 +20,19 @@ APP_ID = "5764607646131290647"
     FOOD99_TEST_APP_SECRET=SECRET,
     FOOD99_TEST_APP_ID=APP_ID,
     CHANNELS_LIVE_ENABLED=False,
+    FOOD99_WEBHOOK_CAPTURE_ENABLED=False,
 )
-class Food99WebhookContractTests(SimpleTestCase):
+class Food99WebhookContractTests(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
+        tenant = Tenant.objects.create(
+            slug="vitrine-demo", name="Test Webhook Contract",
+            whatsapp_number="5511999990000",
+        )
+        Connection.objects.create(
+            tenant=tenant, provider="99food", mode="test",
+            enabled=False, merchant_id="5764619171284910575",
+        )
         self.payload = {
             "app_id": int(APP_ID), "app_shop_id": "vdd-vitrine-demo",
             "timestamp": 1793735606, "type": "orderNew",
@@ -52,9 +63,7 @@ class Food99WebhookContractTests(SimpleTestCase):
         query.assert_not_called()
 
     def test_signed_order_still_not_acknowledged_before_durable_storage(self):
-        with patch("apps.channels.webhook_99food.Connection.objects.filter") as query:
-            query.return_value.exclude.return_value.exists.return_value = True
-            response = self.post()
+        response = self.post()
         self.assertEqual(response.status_code, 503)
         self.assertEqual(json.loads(response.content)["errno"], 1)
         self.assertEqual(response["Retry-After"], "300")
@@ -64,15 +73,11 @@ class Food99WebhookContractTests(SimpleTestCase):
         self.assertEqual(self.post(data).status_code, 403)
 
     def test_signed_unknown_shop_is_rejected(self):
-        with patch("apps.channels.webhook_99food.Connection.objects.filter") as query:
-            query.return_value.exclude.return_value.exists.return_value = False
-            response = self.post()
+        response = self.post(dict(self.payload, app_shop_id="vdd-foreign"))
         self.assertEqual(response.status_code, 403)
 
     def test_unknown_event_is_not_acknowledged(self):
-        with patch("apps.channels.webhook_99food.Connection.objects.filter") as query:
-            query.return_value.exclude.return_value.exists.return_value = True
-            response = self.post(dict(self.payload, type="newEvent"))
+        response = self.post(dict(self.payload, type="newEvent"))
         self.assertEqual(response.status_code, 503)
 
     def test_live_mode_is_closed(self):

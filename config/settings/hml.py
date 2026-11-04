@@ -58,3 +58,6 @@ FOOD99_SANDBOX_IMPORT_TO_ORDERS = (os.getenv("FOOD99_SANDBOX_IMPORT_TO_ORDERS", 
 FOOD99_OPERATIONAL_SIMULATION_ENABLED = True
 # Explicit opt-in for inbound metadata capture only. Still returns 503, never ACK.
 FOOD99_WEBHOOK_CAPTURE_ENABLED = (os.getenv("FOOD99_WEBHOOK_CAPTURE_ENABLED", "0") == "1")
+
+# Explicit opt-in, HML-only, manual Celery reconciliation. Disabled by default.
+FOOD99_ASYNC_RECONCILE_ENABLED = (os.getenv("FOOD99_ASYNC_RECONCILE_ENABLED", "0") == "1")

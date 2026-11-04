@@ -52,3 +52,14 @@ def drain():
     for pk in Inbox.objects.filter(state__in=['pending','error'],connection__enabled=True).filter(due).order_by('received_at').values_list('pk',flat=True)[:50]:process_event(pk)
     Outbox.objects.filter(state='sending',sent_at__lt=timezone.now()-timedelta(minutes=3)).update(state='uncertain',error='Envio interrompido; aguarde evento ou confira no portal. Não reenviado automaticamente.')
     for pk in Outbox.objects.filter(state='pending',external_order__connection__enabled=True).filter(due).order_by('created_at').values_list('pk',flat=True)[:30]:process_command(pk)
+
+
+@shared_task(soft_time_limit=65, time_limit=75, ignore_result=True)
+def reconcile_99food_quarantine_event(event_id):
+    """Explicit, opt-in sandbox read-only reconciliation; never provider ACK.
+
+    This task is NOT registered in Beat, and the 99Food webhook does not enqueue
+    it. All guards are checked again inside the worker process.
+    """
+    from .food99_async_reconcile import reconcile_one
+    return reconcile_one(event_id)

@@ -27,6 +27,10 @@ def consume_event(event_id):
         return {'event_id': event_id, 'result': 'ALREADY_HANDLED'}
     # Always read the provider's current details, not the possibly stale body.
     result = reconcile(event_id, apply=True)
+    if (row.code == 'orderNew' and
+            getattr(settings, 'FOOD99_AUTO_PILOT_ENABLED', False) is True):
+        from .food99_auto_pilot import auto_pilot_order_new
+        return auto_pilot_order_new(event_id, staged_id=result['staged_id'])
     if (getattr(settings, 'FOOD99_LOCAL_EVENT_SYNC_ENABLED', False) is True
             and getattr(settings, 'FOOD99_SANDBOX_IMPORT_TO_ORDERS', False) is True):
         projection = sync_existing(event_id, apply=True)

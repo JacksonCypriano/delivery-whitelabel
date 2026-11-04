@@ -71,3 +71,8 @@ FOOD99_REMOTE_CONFIRM_ENABLED = (os.getenv("FOOD99_REMOTE_CONFIRM_ENABLED", "0")
 # Pacote 18: ACK somente após gravação durável + tentativa de enfileiramento.
 # Exige CAPTURE=1 e ASYNC_RECONCILE=1; por padrão continua respondendo 503.
 FOOD99_WEBHOOK_ACK_ENABLED = (os.getenv("FOOD99_WEBHOOK_ACK_ENABLED", "0") == "1")
+
+# Pacote 19: one-store, opt-in sandbox end-to-end pilot only. No production mode.
+FOOD99_AUTO_PILOT_ENABLED = (os.getenv("FOOD99_AUTO_PILOT_ENABLED", "0") == "1")
+FOOD99_PILOT_BRL_CONFIRMED = (os.getenv("FOOD99_PILOT_BRL_CONFIRMED", "0") == "1")
+FOOD99_PILOT_TENANT_SLUG = os.getenv("FOOD99_PILOT_TENANT_SLUG", "")

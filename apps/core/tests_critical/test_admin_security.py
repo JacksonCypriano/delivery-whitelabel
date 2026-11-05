@@ -5,8 +5,18 @@ from apps.core.rate_limit import get_client_ip
 from .base import CriticalTestCase
 
 
-@override_settings(ADMIN_LOGIN_ACCOUNT_LIMIT=2, ADMIN_LOGIN_IP_LIMIT=20, ADMIN_LOGIN_WINDOW=60,
-                   OTP_TRUST_PROXY_HEADERS=False)
+@override_settings(
+    CACHES={
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "admin-security-tests-isolated",
+        }
+    },
+    ADMIN_LOGIN_ACCOUNT_LIMIT=2,
+    ADMIN_LOGIN_IP_LIMIT=20,
+    ADMIN_LOGIN_WINDOW=60,
+    OTP_TRUST_PROXY_HEADERS=False,
+)
 class AdminSecurityTests(CriticalTestCase):
     def setUp(self):
         cache.clear()

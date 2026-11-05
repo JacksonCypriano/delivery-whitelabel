@@ -16,7 +16,7 @@ from .food99_remote_confirm import confirm_existing
 from .food99_sandbox_promotion import promote_reviewed
 from .food99_semantics import semantic_fingerprint
 from .food99_webhook_reconcile import _eligible, _guard
-from .models import Food99StagedOrder, Inbox
+from .models import ExternalOrder, Food99StagedOrder, Inbox
 
 
 def _pilot_guard(event):
@@ -58,6 +58,16 @@ def auto_pilot_order_new(event_id, *, staged_id):
                       app_shop_id=event.payload['app_shop_id']).first())
     if staged is None:
         raise ProviderError('Revisão não corresponde ao webhook assinado.')
+
+    # A duplicate delivery must not query the provider or re-enter confirmation
+    # after a command has already been reserved, regardless of its final state.
+    existing = ExternalOrder.objects.filter(
+        connection=event.connection, external_id=event.order_id,
+        order__tenant_id=event.connection.tenant_id, order__source='99food',
+    ).first()
+    if existing and existing.commands.filter(target='confirmed').exists():
+        return {'event_id': event_id, 'result': 'ALREADY_REQUESTED',
+                'imported': False, 'order_id': existing.order_id}
 
     # The first read happens before any local write. Reject old/cancelled orders.
     fresh = get_order_detail(staged.app_shop_id, staged.external_id)

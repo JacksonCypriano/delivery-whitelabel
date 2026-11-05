@@ -90,9 +90,12 @@ def confirm_existing(*, order_id, apply=False, confirm_remote=False):
                  connection__mode='test').first())
     if x is None:
         raise ProviderError('Pedido 99Food de teste não encontrado.')
-    _row, data = _eligible_order(x)
+    # Check the irreversible one-shot reservation BEFORE checking eligibility:
+    # after a signed orderConfirm the Order is no longer pending, and retrying
+    # this function must return an idempotent result rather than raising.
     if Outbox.objects.filter(external_order=x, target='confirmed').exists():
         return {'order_id': order_id, 'result': 'ALREADY_REQUESTED', 'sent': False}
+    _row, data = _eligible_order(x)
     if not apply:
         return {'order_id': order_id, 'result': 'PREVIEW', 'sent': False}
     if (not confirm_remote or

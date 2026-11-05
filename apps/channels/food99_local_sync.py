@@ -106,7 +106,13 @@ def sync_existing(event_id, *, apply=False):
                 x.commands.filter(target=target, state__in=['sending', 'awaiting', 'uncertain']).update(
                     state='confirmed', error='')
                 x.last_event_at = event.occurred_at
-                x.save(update_fields=['last_event_at'])
+                fields = ['last_event_at']
+                if target in TERMINAL:
+                    x.cancellation_state = ''
+                    x.cancellation_error = ''
+                    x.cancellation_requested_at = None
+                    fields.extend(['cancellation_state', 'cancellation_error', 'cancellation_requested_at'])
+                x.save(update_fields=fields)
                 event.state = 'processed'
                 event.error = ''
                 event.save(update_fields=['state', 'error'])
@@ -121,7 +127,13 @@ def sync_existing(event_id, *, apply=False):
         order.status_updated_at = event.occurred_at
         order.save(update_fields=['status', 'status_updated_at'])
         x.last_event_at = event.occurred_at
-        x.save(update_fields=['last_event_at'])
+        fields = ['last_event_at']
+        if target in TERMINAL:
+            x.cancellation_state = ''
+            x.cancellation_error = ''
+            x.cancellation_requested_at = None
+            fields.extend(['cancellation_state', 'cancellation_error', 'cancellation_requested_at'])
+        x.save(update_fields=fields)
         x.commands.filter(target=target, state__in=['sending', 'awaiting', 'uncertain']).update(
             state='confirmed', error='')
         if target in TERMINAL:

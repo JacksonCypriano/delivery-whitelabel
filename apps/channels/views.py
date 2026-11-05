@@ -56,6 +56,30 @@ class CancellationReasons(MerchantAPI):
     def get(self,request,pk):
         x=ExternalOrder.objects.select_related('connection').filter(order_id=pk,order__tenant=request.tenant).first()
         if x is None:return Response({'detail':'Pedido não encontrado.'},status=404)
+        if x.connection.provider == '99food' and x.connection.mode == 'test':
+            from .food99_sandbox_actions import _enabled, _owned, permitted_sandbox
+            if not _enabled() or not _owned(x) or 'cancelled' not in permitted_sandbox(x.order):
+                return Response({'detail':'Cancelamento 99Food indisponível para este pedido sandbox.'}, status=409)
+            reasons = [
+                (1010, 'Item esgotado'),
+                (1020, 'Loja fechada'),
+                (1030, 'Loja com excesso de pedidos'),
+                (1040, 'Acidente grave ou falta de serviços essenciais'),
+                (1050, 'Problema com o cliente'),
+                (1060, 'Sem entregador disponível'),
+                (1070, 'Cardápio precisa ser atualizado'),
+                (1071, 'Pedido fora da área de entrega'),
+                (1072, 'Endereço em área insegura'),
+                (1073, 'Suspeita de fraude ou trote'),
+                (1074, 'Dúvidas sobre taxas ou promoções'),
+                (1080, 'Outro motivo (descreva a justificativa)'),
+            ]
+            from .food99_sandbox_actions import SELF_ONLY
+            return Response({'reasons': [
+                {'code': str(code), 'description': f'{code} - {label}'}
+                for code, label in reasons
+                if code not in SELF_ONLY or x.delivery_by == 'MERCHANT'
+            ]})
         if not x.connection.enabled:return Response({'detail':'Integração desconectada.'},status=400)
         if x.connection.mode=='simulation':return Response({'reasons':[{'code':'SIM','description':'Cancelamento de teste local'}]})
         try:return Response({'reasons':connector(x.connection).reasons(x.external_id)})

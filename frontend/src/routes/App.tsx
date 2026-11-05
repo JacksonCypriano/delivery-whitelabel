@@ -13,6 +13,7 @@ import { Conversations } from "../features/whatsapp/Conversations";
 import { CRM } from "../features/orders/CRM";
 import { Logistics } from "../features/orders/Logistics";
 import { Sales } from "../features/orders/Sales";
+import { Food99Telemetry } from "../features/integrations/Food99Telemetry";
 import { MarketplaceIntegrations, MarketplaceProvider } from "../features/integrations/MarketplaceIntegrations";
 import { Kitchen } from "../features/orders/Kitchen";
 import { OrdersBoard } from "../features/orders/OrdersBoard";
@@ -49,6 +50,7 @@ export function App() {
             <Route path="integracoes" element={<MarketplaceIntegrations />} />
             <Route path="integracoes/ifood" element={<MarketplaceProvider provider="ifood" />} />
             <Route path="integracoes/99food" element={<MarketplaceProvider provider="99food" />} />
+            <Route path="integracoes/99food/diagnostico" element={<Food99Telemetry />} />
             <Route path="cozinha" element={<Kitchen />} />
             <Route path="whatsapp" element={<Whatsapp />} />
             <Route path="orders" element={<OrdersBoard />} />

@@ -103,6 +103,7 @@ export function MarketplaceProvider({provider}: {provider:Provider}) {
       <h1>Integração {provider === 'ifood' ? 'iFood' : '99Food'}</h1>
       <p>Gerencie a conexão da sua loja sem configurações técnicas.</p>
     </div><button type="button" className="secondary" onClick={query.reload}>Atualizar status</button></div>
+    {provider === '99food' && <p><Link to={panelUrl('integracoes/99food/diagnostico')}>Diagnóstico técnico do sandbox (somente homologação)</Link></p>}
     <Feedback loading={query.loading} error={query.error}>
       {channel && <div className="integration-grid"><ChannelCard key={channel.connections.map(c=>`${c.id}:${c.status}:${c.enabled}`).join('|')} channel={channel} onUpdated={query.reload}/></div>}
     </Feedback>

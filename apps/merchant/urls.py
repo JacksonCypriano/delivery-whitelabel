@@ -25,7 +25,7 @@ from .food99_operational_api import (
     Food99OperationalReadiness, Food99OperationalPreview,
     Food99SandboxStage, Food99SandboxBatchRefresh, Food99IntegrityAudit,
     Food99OperationalDryRun, Food99OperationalBatchDryRun,
-    Food99SimulatedImport, Food99SimulationAvailability, Food99SimulatedEvent,
+    Food99SimulatedImport, Food99SimulationAvailability, Food99SimulatedEvent, Food99Telemetry, Food99BacklogPreview,
 )
 
 urlpatterns = [
@@ -34,6 +34,8 @@ urlpatterns = [
     path("resources/<slug:resource>/<str:pk>/relationships/", Relationships.as_view()),
     path("integrations/", Integrations.as_view()),
     path("integrations/events/", IntegrationEvents.as_view()),
+    path("integrations/99food/telemetry/", Food99Telemetry.as_view()),
+    path("integrations/99food/backlog/", Food99BacklogPreview.as_view()),
     path("integrations/99food/simulation-availability/", Food99SimulationAvailability.as_view()),
     path("integrations/99food/simulated-import/", Food99SimulatedImport.as_view()),
     path("integrations/99food/simulated-event/", Food99SimulatedEvent.as_view()),

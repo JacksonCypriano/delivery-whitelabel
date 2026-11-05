@@ -152,22 +152,16 @@ def sync_existing(event_id, *, apply=False):
                 'target': target, 'applied': True}
 
 
-def sync_batch(*, tenant_slug, limit=50, apply=False):
-    _sync_guard()
-    if not isinstance(tenant_slug, str) or not tenant_slug or len(tenant_slug) > 100:
-        raise ProviderError('Tenant inválido.')
-    if type(limit) is not int or not 1 <= limit <= 100:
-        raise ProviderError('Limite deve estar entre 1 e 100.')
-    ids = list(Inbox.objects.filter(
-        state='blocked', connection__provider='99food', connection__mode='test',
-        connection__enabled=False, connection__tenant__slug=tenant_slug,
-        payload__food99_quarantined=True,
-    ).order_by('occurred_at', 'pk').values_list('pk', flat=True)[:limit])
-    results = []
-    for event_id in ids:
-        try:
-            results.append(sync_existing(event_id, apply=apply))
-        except ProviderError:
-            results.append({'event_id': event_id, 'result': 'REVIEW_REQUIRED', 'applied': False})
-    return {'selected': len(ids), 'updated': sum(r['applied'] for r in results),
-            'events': results, 'applied': bool(apply)}
+def sync_batch(*, tenant_slug, limit=50, apply=False, cursor=0):
+    """Backward-compatible bounded worker entrypoint, no starvation by orderNew.
+
+    The previous implementation repeatedly selected the earliest 50 quarantined
+    records, including orderNew and unimported orders which can never be applied
+    by sync_existing. Use the cursor-based selector for imported Orders instead.
+    """
+    from .food99_backlog import run_backlog
+    page = run_backlog(tenant_slug=tenant_slug, limit=limit, cursor=cursor, apply=apply)
+    return {'selected': page['selected'], 'updated': page['updated'],
+            'events': page['results'], 'applied': page['applied'],
+            'next_cursor': page['next_cursor'], 'has_more': page['has_more'],
+            'invalid_envelopes': page['invalid']}

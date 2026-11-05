@@ -178,3 +178,25 @@ class Food99SimulatedEvent(MerchantAPI):
         return Response({'order_id':order.pk, 'status':order.status,
                          'advanced':advanced, 'provider_synced':False,
                          'simulated_event':True})
+
+
+class Food99Telemetry(MerchantAPI):
+    """Read-only diagnostics; available to tenant admins only in the isolated HML sandbox."""
+    def get(self, request):
+        from apps.channels.food99_telemetry import build_snapshot, hml_only
+        if not hml_only():
+            return Response({'detail': 'Disponível apenas em homologação.'}, status=404)
+        return Response(build_snapshot(tenant=request.tenant))
+
+
+class Food99BacklogPreview(MerchantAPI):
+    """Read-only, cursor-paginated sandbox events for imported tenant orders."""
+    def get(self, request):
+        from apps.channels.food99_backlog import plan_backlog
+        try:
+            limit = int(request.query_params.get('limit', '25'))
+            cursor = int(request.query_params.get('cursor', '0'))
+            return Response(plan_backlog(tenant_slug=request.tenant.slug,
+                                         limit=limit, cursor=cursor))
+        except (ValueError, TypeError, ProviderError):
+            return Response({'detail': 'Diagnóstico indisponível ou parâmetros inválidos.'}, status=400)

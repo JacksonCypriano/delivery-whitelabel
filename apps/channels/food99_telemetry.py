@@ -59,6 +59,11 @@ def build_snapshot(*, tenant, limit=50, now=None):
                 'Não há comprovação do resultado do comando.',
                 'Conferir portal 99Food, webhook e estado remoto; nunca reenviar automaticamente.',
                 order_id=cmd.external_order.order_id, external_id=cmd.external_order.external_id, age_seconds=age)
+        elif cmd.state == 'awaiting' and cmd.target == 'delivered':
+            add('DELIVERY_CONFIRMATION_PENDING', 'warning', 'Entrega 99Food ainda não concluída',
+                'A solicitação de entrega aguarda retorno oficial. Código/localizador do sandbox não foi validado.',
+                'Verifique o pedido e o procedimento oficial no portal 99Food. Não invente códigos, não altere o pedido manualmente nem reenvie a operação.',
+                order_id=cmd.external_order.order_id, external_id=cmd.external_order.external_id, age_seconds=age)
         elif cmd.state == 'awaiting' and age >= 300:
             add('WEBHOOK_DELAYED', 'warning', 'Aguardando webhook',
                 'Comando remoto aguardando confirmação oficial.',

@@ -31,6 +31,23 @@ class Logistics(MerchantAPI):
             a = assignments.get(order.pk)
             card["courier_id"] = a.courier_id if a else None
             orders.append(card)
+        # Marketplace delivery coordination is READ-ONLY. The platform courier
+        # confirms in its app; a merchant courier confirms through the provider's
+        # official process. Never route external orders through local proof POST.
+        marketplace_orders = []
+        for order in (
+            _base_queryset(request.tenant).filter(source__in=["ifood", "99food"],
+                delivery_type="delivery", status__in=["ready", "out_for_delivery"])
+            .order_by("created_at", "pk")[:150]
+        ):
+            card = _order_card(order)
+            mode = card.get("delivery_by", "UNKNOWN")
+            card["delivery_responsibility"] = (
+                "merchant" if mode == "MERCHANT" else
+                "platform" if mode in ("PLATFORM", "IFOOD") else "unknown"
+            )
+            card["logistics_read_only"] = True
+            marketplace_orders.append(card)
         history = (
             DeliveryAssignment.objects.filter(
                 tenant=request.tenant, completed_at__isnull=False
@@ -53,6 +70,7 @@ class Logistics(MerchantAPI):
                     )
                 ),
                 "orders": orders,
+                "marketplace_orders": marketplace_orders,
                 **metadata(history),
                 "history": [
                     {

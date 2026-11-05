@@ -15,3 +15,25 @@ it('exibe a recusa de cancelamento na etapa original',()=>{
  render(<ChannelBand order={{source:'ifood',cancellation_pending:false,cancellation_error:'iFood recusou o cancelamento.'}}/>);
  expect(screen.getByRole('alert').textContent).toContain('Cancelamento não confirmado');
 });
+
+it('pedido 99Food pendente de entrega mostra orientação específica e não declara entrega',()=>{
+ render(<ChannelBand order={{source:'99food',status:'out_for_delivery',sync_state:'awaiting',sync_target:'delivered',food99_delivery_pending:true,delivery_by:'MERCHANT'}}/>);
+ const notice=screen.getByRole('status');expect(notice.textContent).toContain('Entrega pendente na 99Food');expect(notice.textContent).toContain('nem reenvie');expect(notice.textContent).not.toContain('entrega concluída');
+});
+it('iFood e outros comandos 99Food não recebem aviso de código de entrega',()=>{
+ const {rerender}=render(<ChannelBand order={{source:'ifood',sync_state:'awaiting',sync_target:'delivered'}}/>);
+ expect(screen.getByRole('status').textContent).toContain('Aguardando confirmação');
+ rerender(<ChannelBand order={{source:'99food',sync_state:'awaiting',sync_target:'ready'}}/>);
+ expect(screen.getByRole('status').textContent).toContain('Aguardando confirmação');
+});
+
+it('marketplace com motorista da plataforma não orienta operador a digitar código',()=>{
+ render(<ChannelBand order={{source:'99food',delivery_type:'delivery',delivery_by:'PLATFORM',sync_state:'awaiting',sync_target:'ready'}}/>);
+ expect(screen.getByText(/motorista confirma no aplicativo da plataforma/)).toBeTruthy();
+ expect(screen.queryByText(/motoboy deve obter/)).toBeNull();
+});
+it('entrega merchant orienta motoboy no fluxo oficial, não o operador',()=>{
+ render(<ChannelBand order={{source:'99food',delivery_type:'delivery',delivery_by:'MERCHANT',sync_state:'awaiting',sync_target:'delivered'}}/>);
+ expect(screen.getByRole('status').textContent).toContain('motoboy');
+ expect(screen.getByRole('status').textContent).toContain('Não invente códigos');
+});

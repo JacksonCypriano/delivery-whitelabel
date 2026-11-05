@@ -1087,3 +1087,6 @@ main:has(.monitor-screen) {max-width:none;width:100%}
 .channel-notice.cancellation-rejected {background:#ffebea;border-left:4px solid #bc493d;color:#782e26}
 
 @media (min-width:1100px) { .order-board {display:flex;gap:12px;overflow-x:auto} .order-column {flex:0 0 min(22vw,300px);min-width:245px} }
+/* Pacote 29: conclusão da entrega 99Food depende de confirmação oficial. */
+.channel-notice.food99-delivery-pending{background:#fff1d9;border-left:4px solid #b86b13;color:#65400c;line-height:1.45}
+.channel-notice.food99-delivery-pending strong{display:inline;font-weight:750}

@@ -67,6 +67,7 @@ export function Food99Telemetry() {
           {state.data.integrity.truncated && <p>Limite de resultados atingido. Execute a auditoria pelo backend.</p>}
           <small>{state.data.integrity.warning}</small>
         </section>}
+        <section className="card" aria-label="Protocolo de entrega 99Food"><h2>Confirmação de entrega · sandbox</h2><p>Um comando <code>delivered</code> em <code>awaiting</code> não significa entrega concluída. Mantenha o pedido em rota até a confirmação oficial, confira o pedido no portal da 99Food e não reenvie o POST.</p><p>Em entrega própria (MERCHANT), cabe ao motoboy obter a confirmação com o destinatário pelo fluxo oficial. Em entrega pela plataforma (PLATFORM), o entregador da 99Food faz a confirmação pelo próprio aplicativo. A logística administrativa apenas acompanha. O código retornado pela API pode não ser o identificador exigido pela página externa; não crie nem complete códigos manualmente.</p></section>
         <section className="card"><h2>Alertas que exigem atenção ({state.data.alerts.length})</h2>
           {!state.data.alerts.length && <p>Nenhum alerta identificado pelas regras locais.</p>}
           <div className="food99-telemetry-alerts">{state.data.alerts.map((alert,i)=><article className={`food99-telemetry-alert severity-${alert.severity}`} key={`${alert.code}-${alert.order_id||alert.external_id}-${i}`}>

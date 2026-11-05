@@ -110,3 +110,24 @@ class Food99OperationsP26Tests(TestCase):
         data = build_snapshot(tenant=self.tenant, now=self.now + timedelta(minutes=7))
         self.assertEqual(data['staging']['total'], 1)
         self.assertEqual(data['alerts'][0]['external_id'], 'a')
+
+    def test_delivery_awaiting_has_specific_sandbox_alert(self):
+        self.order.status = 'out_for_delivery'
+        self.order.save(update_fields=['status'])
+        Outbox.objects.create(external_order=self.external, target='delivered',
+            from_status='out_for_delivery', state='awaiting', attempts=1,
+            sent_at=self.now - timedelta(seconds=15))
+        report = build_snapshot(tenant=self.tenant, now=self.now)
+        self.assertEqual(report['alerts'][0]['code'], 'DELIVERY_CONFIRMATION_PENDING')
+        self.assertIn('não', report['alerts'][0]['action'].lower())
+        from apps.channels.services import presentation
+        data = presentation(self.order)
+        self.assertTrue(data['food99_delivery_pending'])
+        self.assertEqual(data['sync_target'], 'delivered')
+
+    def test_delivery_alert_isolated_from_other_tenant(self):
+        Outbox.objects.create(external_order=self.other_external, target='delivered',
+            from_status='out_for_delivery', state='awaiting', attempts=1, sent_at=self.now)
+        report = build_snapshot(tenant=self.tenant, now=self.now)
+        self.assertNotIn('222', str(report))
+        self.assertFalse(any(a['code'] == 'DELIVERY_CONFIRMATION_PENDING' for a in report['alerts']))

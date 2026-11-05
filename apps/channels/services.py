@@ -66,8 +66,17 @@ def presentation(order):
         'channel_test': x.connection.mode != 'live',
         'channel_simulated': x.connection.mode == 'simulation',
         'delivery_by': x.delivery_by,
+        'delivery_responsibility': ('merchant' if x.delivery_by == 'MERCHANT'
+                                    else 'platform' if x.delivery_by in ('PLATFORM', 'IFOOD')
+                                    else 'unknown'),
         'channel_warning': x.warning,
         'sync_state': command.state if command and active else '',
+        'sync_target': command.target if command and active else '',
+        'sync_command_id': command.pk if command and active else None,
+        'sync_sent_at': command.sent_at.isoformat() if command and active and command.sent_at else None,
+        'food99_delivery_pending': bool(x.connection.provider == '99food' and x.connection.mode == 'test'
+                                        and command and command.target == 'delivered'
+                                        and command.state in WAITING and active),
         'sync_error': command.error if command and active and command.state == 'failed' else '',
         'cancellation_pending': bool(cancel_pending),
         'cancellation_requested_at': x.cancellation_requested_at.isoformat() if x.cancellation_requested_at else None,

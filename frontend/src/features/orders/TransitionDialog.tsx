@@ -10,6 +10,7 @@ export function TransitionDialog({ order, status, settings, busy, error, onConfi
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const simulated = Boolean(order.channel_simulated && (order.channel || order.source) === '99food');
+  const ownCourier = order.delivery_responsibility==='merchant' || order.delivery_by==='MERCHANT';
   const external = !simulated && ['ifood','99food'].includes(order.channel || order.source);
   const [reasons,setReasons] = useState<any[]>([]), [code,setCode] = useState(''), [reason,setReason] = useState(''), [reasonError,setReasonError] = useState('');
   useEffect(()=>{let active=true;if(external&&status==='cancelled') request<{reasons:any[]}>(`orders/${order.id}/cancellation-reasons/`).then(d=>{if(active)setReasons(d.reasons);}).catch(e=>{if(active)setReasonError(e.message);});return()=>{active=false;};},[external,status,order.id]);
@@ -40,6 +41,7 @@ export function TransitionDialog({ order, status, settings, busy, error, onConfi
       <p>{order.customer_name} · {order.delivery_label}</p>
       {simulated&&<p><strong>SIMULAÇÃO LOCAL:</strong> o status mudará somente no VemDeDelivery. Nenhuma ação será enviada à 99Food, ao estoque ou ao WhatsApp.</p>}
       {external&&<p>A solicitação será enviada à plataforma. O status mudará após a confirmação.</p>}
+      {external&&!simulated&&status==='delivered'&&<p role="status"><strong>Conclusão de entrega pelo marketplace:</strong> {ownCourier?'O motoboy próprio deve realizar a confirmação com o cliente pelo procedimento oficial da plataforma; esta ação não substitui o código do entregador.':'Se a plataforma fornece o entregador, ele confirma pelo aplicativo da plataforma, e o VemDeDelivery apenas acompanha o retorno oficial.'} O pedido não será considerado entregue antes da confirmação oficial; não repita a ação se ficar pendente.</p>}
       {external&&status==='cancelled'&&<><label className="field">Motivo exigido pela plataforma<select required value={code} onChange={e=>setCode(e.target.value)} disabled={busy}><option value="">Selecione um motivo</option>{reasons.map(r=><option key={r.code} value={r.code}>{r.description}</option>)}</select></label><label className="field">Justificativa<textarea required maxLength={500} value={reason} onChange={e=>setReason(e.target.value)} disabled={busy}/></label>{reasonError&&<p role="alert">{reasonError}</p>}</>}
       {!external && !simulated && (prep || fulfillment) && <>
         <label className="toggle-row"><input type="checkbox" checked={manual} onChange={(e) => setManual(e.target.checked)} disabled={busy} />Informar prazo manual</label>

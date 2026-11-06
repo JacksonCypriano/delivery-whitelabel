@@ -1,0 +1,40 @@
+/* Administrative design tokens. Imported only by the authenticated panel. */
+:root{--panel-ink:#183d35;--panel-muted:#60716c;--panel-surface:#fff;--panel-canvas:#f2f5f4;--panel-border:#dce5e1;--panel-accent:#c44825;--panel-radius:14px;--panel-shadow:0 4px 20px #183d3507}
+.app-shell{background:var(--panel-canvas);color:var(--panel-ink)}
+.app-shell .sidebar{background:#123e35;color:#e3efea;border-right:0;width:248px}
+.app-shell .sidebar .brand,.app-shell .sidebar a{color:#edf6f2}.app-shell .sidebar .brand span{color:#ffb287}
+.app-shell .sidebar nav a{padding:9px 12px;border-radius:9px;font-size:.88rem;margin:2px 0}
+.app-shell .sidebar nav a.active{background:#ffffff19;color:#fff;box-shadow:inset 3px 0 #ffb287}
+.app-shell .sidebar .nav-label{color:#9fbeb3;font-size:.7rem;letter-spacing:.07em;text-transform:uppercase;padding:14px 12px 5px}
+.app-shell .store-label{color:#c5ded4;background:#ffffff0a;border:1px solid #ffffff12;border-radius:10px;padding:10px}
+.app-shell .main-column>header{background:var(--panel-surface);border-bottom:1px solid var(--panel-border);min-height:62px}
+.app-shell main{padding:24px;max-width:1920px;width:100%;margin:auto;min-width:0}
+.app-shell .card{background:var(--panel-surface);border:1px solid var(--panel-border);border-radius:var(--panel-radius);box-shadow:var(--panel-shadow)}
+.app-shell h1{font-size:clamp(1.5rem,2vw,2rem);letter-spacing:-.035em}.app-shell h2{letter-spacing:-.02em}
+.app-shell .muted{color:var(--panel-muted)}.app-shell .page-heading{margin-bottom:18px;gap:18px}
+.app-shell th{font-size:.73rem;text-transform:uppercase;letter-spacing:.04em;background:#f1f6f3;color:#4e665c}
+.app-shell td,.app-shell th{padding:11px 13px}.app-shell tbody tr:hover{background:#f5f9f7}
+.board-toolbar{display:flex;gap:12px;align-items:end;flex-wrap:wrap;padding:14px!important;margin-bottom:10px}
+.board-toolbar label{font-size:.75rem;font-weight:650;display:grid;gap:4px;min-width:130px;flex:1}
+.board-toolbar input,.board-toolbar select{font-size:.85rem;min-height:40px;padding:8px}
+.board-toolbar .toggle-row{display:flex;flex:0 0 auto;min-width:auto;align-self:center}
+.board-tabs{display:flex;gap:5px}.board-tabs button{min-height:40px;padding:8px 14px}
+.order-board{display:flex!important;gap:12px!important;overflow-x:auto;align-items:stretch;padding-bottom:16px;scroll-snap-type:x proximity}
+.order-column{--lane:#64748b;flex:0 0 274px;min-width:274px!important;background:#eaf0ed!important;border:1px solid var(--panel-border);border-radius:14px;scroll-snap-align:start}
+.status-pending{--lane:#2563eb}.status-confirmed{--lane:#078397}.status-preparing{--lane:#bd6410}.status-ready,.status-ready_for_pickup{--lane:#16814c}.status-out_for_delivery{--lane:#7c3eb0}.status-delivered{--lane:#527263}.status-cancelled,.status-awaiting_cancellation{--lane:#b73c3c}
+.order-column-head{border-top:4px solid var(--lane);border-radius:14px 14px 0 0;background:transparent!important;padding:12px!important;font-size:.85rem;color:var(--lane)}
+.order-column-head b{margin-left:auto;border-radius:7px;background:#fff;padding:2px 8px}
+.order-column-body{padding:8px!important;display:grid;gap:9px;align-content:start}
+.order-card{position:relative;border-radius:10px!important;padding:12px!important;gap:6px!important;border:1px solid #dce5e1!important;box-shadow:0 2px 5px #183d3508;border-left:3px solid var(--lane)!important;background:white}
+.order-card-head strong{font-size:1rem}.order-card-head small{font-size:.72rem}.order-card small{font-size:.74rem;line-height:1.4}.order-customer{font-weight:700;font-size:.9rem}
+.order-badges{display:flex;flex-wrap:wrap;gap:4px;font-size:.68rem}.order-badges span{padding:3px 6px;border-radius:5px;background:#edf2f0}.order-badges .paid{color:#12613a;background:#e2f4e9}.order-badges .unpaid{color:#805318;background:#fbf0dc}
+.order-items-mini{font-size:.8rem;margin:5px 0!important}.order-actions{display:flex;flex-wrap:wrap;gap:5px}.order-actions button{font-size:.75rem;min-height:34px;padding:6px 9px}.move-select{width:100%;font-size:.7rem;display:grid;gap:3px}.move-select select{min-height:34px;font-size:.75rem;padding:5px}
+.drag-handle{touch-action:none;font-size:.65rem;min-height:28px;padding:3px 7px;align-self:flex-start;cursor:grab}.order-column.drop-allowed{outline:2px dashed var(--lane);outline-offset:-3px}.order-card[draggable=true]:active{cursor:grabbing}
+.history-board .order-column{flex:1}.history-board .order-column-body{grid-template-columns:repeat(auto-fill,minmax(255px,1fr))}
+.kitchen-columns>section{border-top:4px solid var(--lane,#64748b);padding:12px;background:#eaf0ed;border-radius:14px}.kitchen-columns h2{font-size:1rem;color:var(--lane,#183d35)}.kitchen-card h3{font-size:1.12rem}.kitchen-card .operation-note{background:#fff2d8;color:#744c12;border-left:3px solid #d9912d;padding:8px}
+.order-summary-strip{gap:8px;flex-wrap:wrap}.order-summary-strip>span{background:white;border:1px solid var(--panel-border);border-radius:9px;padding:8px 12px;font-size:.75rem}
+@media(max-width:800px){.app-shell main{padding:14px}.order-column{flex-basis:86vw;min-width:260px!important;max-width:340px}.board-toolbar{gap:8px}.board-toolbar label{flex-basis:44%}.page-heading .heading-actions{flex-wrap:wrap}.app-shell .sidebar{width:248px}.history-board .order-column{max-width:none}}
+@media(prefers-reduced-motion:reduce){.app-shell *{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+.commercial-inbox{display:grid;grid-template-columns:minmax(220px,1fr) 2fr;gap:22px}.commercial-contact{display:flex;flex-direction:column;align-items:start;width:100%;margin-bottom:8px;text-align:left}.commercial-contact span{font-size:.75rem}.commercial-contact[aria-pressed=true]{border:2px solid #176247;background:#edf6f1}.commercial-messages{max-height:600px;overflow:auto}.commercial-messages article{border-bottom:1px solid var(--panel-border);padding:14px 0}.commercial-messages p{white-space:pre-wrap}.commercial-messages small{color:var(--panel-muted)}@media(max-width:800px){.commercial-inbox{grid-template-columns:1fr}}
+.platform-metrics{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}.platform-metrics .card{border-top:3px solid #176247}.platform-metrics .card small{font-size:.75rem;line-height:1.5;color:var(--panel-muted)}
+.app-shell{max-width:100%;overflow-x:clip}.monitor-screen{min-width:0;max-width:100%}

@@ -1,3 +1,4 @@
+from .printing import Printing
 from django.urls import path
 from .api import (
     Session, Password, Dashboard, ResourceList, ResourceDetail, ResourceAction, History,
@@ -29,6 +30,7 @@ from .food99_operational_api import (
 )
 
 urlpatterns = [
+    path("printing/", Printing.as_view()),
     path("activity/", Activity.as_view()),
     path("resources/<slug:resource>/selection/", Selection.as_view()),
     path("resources/<slug:resource>/<str:pk>/relationships/", Relationships.as_view()),

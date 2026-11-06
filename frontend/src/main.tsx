@@ -32,3 +32,5 @@ createRoot(document.getElementById("root")!).render(
     </ErrorBoundary>
   </React.StrictMode>,
 );
+
+import "./panel-design.css";

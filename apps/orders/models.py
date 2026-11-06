@@ -492,3 +492,5 @@ class StockReservation(models.Model):
 from .automation_models import SalesSettings, MarketingConsent, SalesMessage, OrderFeedback  # noqa: E402,F401
 from .crm_models import LoyaltySettings, LoyaltyEntry, CustomerProfile, CustomerCampaign, FunnelEvent  # noqa: E402,F401
 from .logistics_models import Courier, DeliveryAssignment, DeliveryAudit  # noqa: E402,F401
+
+from .printing_models import PrintDevice, PrintJob

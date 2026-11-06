@@ -58,6 +58,7 @@ export function OrderDetail() {
           <h1>#{id} {d && <span className={`status-pill status-${d.status}`}>{d.status_label}</span>}</h1>
         </div>
         <div className="heading-actions no-print">
+          <Link className="button" to={panelUrl(`impressao?order=${id}`)}>Impressão térmica</Link>
           <button className="secondary" onClick={() => window.print()}>🖨 Imprimir comanda</button>
         </div>
       </div>

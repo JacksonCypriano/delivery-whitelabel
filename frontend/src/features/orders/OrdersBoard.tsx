@@ -74,22 +74,32 @@ export function playAlert() {
   }
 }
 
+function dropTarget(order:any,status:string){
+  return status==='ready' && order.allowed_transitions.some((a:any)=>a.value==='ready_for_pickup') ? 'ready_for_pickup' : status;
+}
+
 function OrderCard({
   order,
   onTransition,
   busy,
   expanded = false,
   fresh = false,
+  onDrag,
 }: {
   order: any;
   onTransition: (order: any, status: string) => void;
   busy: boolean;
   expanded?: boolean;
   fresh?: boolean;
+  onDrag?: (order: any | null) => void;
 }) {
   return (
-    <article className={`order-card ${order.late ? "late" : ""} ${fresh ? "order-fresh" : ""}`}>
+    <article draggable={Boolean(onDrag && !busy && order.allowed_transitions.length)} onDragStart={(e) => { e.dataTransfer.setData("text/plain", String(order.id)); onDrag?.(order); }} onDragEnd={() => onDrag?.(null)} className={`order-card status-${order.status} ${order.late ? "late" : ""} ${fresh ? "order-fresh" : ""}`}>
       <ChannelBand order={order} />
+      {onDrag && order.allowed_transitions.length > 0 && <button className="drag-handle secondary" aria-label={`Arrastar pedido ${order.id}`} disabled={busy}
+        onPointerDown={e => { if(e.pointerType !== 'mouse'){e.currentTarget.setPointerCapture(e.pointerId);onDrag(order);} }}
+        onPointerUp={e => { if(e.pointerType !== 'mouse'){ const lane = document.elementFromPoint(e.clientX,e.clientY)?.closest<HTMLElement>('[data-drop-status]');const laneStatus=lane?.dataset.dropStatus;const target=laneStatus ? dropTarget(order,laneStatus) : '';if(target && order.allowed_transitions.some((a:any)=>a.value===target))onTransition(order,target);onDrag(null);} }}
+        onPointerCancel={()=>onDrag(null)}>⠿ Mover</button>}
       <div className="order-card-head">
         <div>
           <strong>#{order.id}</strong>
@@ -103,7 +113,8 @@ function OrderCard({
         {order.customer_name}
       </Link>
       {order.scheduled_for&&<p>Agendado: {new Date(order.scheduled_for).toLocaleString("pt-BR")}</p>}
-      <small>{order.delivery_label} · {order.payment.label}</small>
+      <div className="order-badges"><span>{order.delivery_label}</span><span className={order.payment.paid ? "paid" : "unpaid"}>{order.payment.label}</span></div>
+      <small>{order.item_count ?? order.items.reduce((n: number,i: any)=>n+i.quantity,0)} itens · há {Math.max(0,Math.floor((Date.now()-new Date(order.created_at).getTime())/60000))} min</small>
       {expanded && <>
         <small>{order.payment_label}</small>
         <small>Há {Math.max(0, Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60000))} min · {order.status_label}</small>
@@ -131,6 +142,11 @@ function OrderCard({
         )}
       </div>
       <div className="order-actions">
+        {onDrag && order.allowed_transitions.length > 0 && <label className="move-select">Mover para
+          <select aria-label={`Mover pedido ${order.id} para`} value="" disabled={busy} onChange={e=>{if(e.target.value)onTransition(order,e.target.value);}}>
+            <option value="">Escolher etapa…</option>{order.allowed_transitions.map((a:any)=><option value={a.value} key={a.value}>{a.label}</option>)}
+          </select>
+        </label>}
         {order.allowed_transitions
           .filter((a: any) => a.value !== "cancelled")
           .map((a: any) => (
@@ -235,7 +251,12 @@ function NotificationSettings({ data, onSaved }: { data: any; onSaved: () => voi
 
 export function OrdersBoard({ activeOnly = false }: { activeOnly?: boolean }) {
   const [page,setPage]=useState(1),[size,setSize]=useState(10);
-  const q = useQuery(() => orders.board(activeOnly,page,size), [activeOnly,page,size]);
+  const [filters,setFilters] = useState<Record<string,string>>({period:"today"});
+  const [dragged,setDragged] = useState<any>(null);
+  const [detailed,setDetailed] = useState(activeOnly);
+  const [historyMode,setHistoryMode] = useState<"board"|"all">("board");
+  const q = useQuery(() => orders.board(activeOnly,page,size,filters), [activeOnly,page,size,JSON.stringify(filters)]);
+  function filter(key:string,value:string){setFilters(f=>({...f,[key]:value,delivered_page:"1",all_page:"1"}));setPage(1);}
   const [selected, setSelected] = useState<{ order: any; status: string } | null>(null);
   const [freshIds, setFreshIds] = useState<number[]>([]);
   const [, tick] = useState(0);
@@ -297,18 +318,31 @@ export function OrdersBoard({ activeOnly = false }: { activeOnly?: boolean }) {
     setBusyId(order.id);
     setError(null);
     try {
-      const result = await orders.transition(order.id, status, options);
+      const result = await orders.transition(order.id, status, {...options, expected_status_updated_at: order.status_updated_at});
       setMessages([{ level: "success", text: result.detail }]);
       setSelected(null);
       q.reload();
     } catch (e) {
       setError(e as Error);
+      q.reload();
     } finally {
       setBusyId(null);
     }
   }
 
   const d = q.data;
+  function choose(order:any,status:string){setError(null);setSelected({order,status});}
+  const operationalColumns = d ? d.columns.filter((c:any)=>c.status!=='ready_for_pickup').map((c:any)=>c.status==='ready'?{...c,label:'Prontos',orders:[...c.orders,...(d.columns.find((r:any)=>r.status==='ready_for_pickup')?.orders||[])]}:c) : [];
+  if(d && !d.columns.some((c:any)=>c.status==='ready') && d.columns.some((c:any)=>c.status==='ready_for_pickup')) operationalColumns.push({...d.columns.find((c:any)=>c.status==='ready_for_pickup'),status:'ready',label:'Prontos'});
+  const columns = d ? [...operationalColumns, ...(!activeOnly && d.delivered ? [{status:"delivered",label:"Entregues",orders:d.delivered,pagination:d.delivered_pagination}] : [])] : [];
+  const visibleColumns = historyMode === "all" && !activeOnly ? [{status:"all",label:"Todos",orders:d?.all_orders || [],pagination:d?.all_pagination}] : columns;
+  function drop(status:string){
+    if(!dragged)return;
+    status=dropTarget(dragged,status);
+    if(dragged.allowed_transitions.some((a:any)=>a.value===status))choose(dragged,status);
+    else setError(new Error("Esta movimentação não é permitida para o pedido. Confira as ações disponíveis."));
+    setDragged(null);
+  }
   return (
     <Monitor>
       <div className="page-heading orders-heading">
@@ -337,9 +371,21 @@ export function OrdersBoard({ activeOnly = false }: { activeOnly?: boolean }) {
           </Link>
         </div>
       </div>
+      <div className="board-toolbar card">
+        {!activeOnly && <div className="board-tabs" role="group" aria-label="Visão de pedidos"><button className={historyMode==='board'?'':'secondary'} onClick={()=>setHistoryMode('board')}>Kanban</button><button className={historyMode==='all'?'':'secondary'} onClick={()=>setHistoryMode('all')}>Todos</button></div>}
+        <label>Buscar<input type="search" placeholder="Pedido ou cliente" value={filters.q||''} onChange={e=>filter('q',e.target.value)}/></label>
+        <label>Origem<select value={filters.source||''} onChange={e=>filter('source',e.target.value)}><option value="">Todas</option><option value="direct">VemDeDelivery</option><option value="ifood">Pedidos iFood</option><option value="99food">Pedidos 99Food</option></select></label>
+        <label>Modalidade<select value={filters.modality||''} onChange={e=>filter('modality',e.target.value)}><option value="">Todas</option><option value="delivery">Entrega</option><option value="pickup">Retirada</option></select></label>
+        {!activeOnly && <><label>Período do histórico<select value={filters.period} onChange={e=>filter('period',e.target.value)}><option value="today">Hoje</option><option value="yesterday">Ontem</option><option value="week">Últimos 7 dias</option><option value="custom">Personalizado</option></select></label>
+        {filters.period==='custom' && <><label>De<input type="date" value={filters.start||''} onChange={e=>filter('start',e.target.value)}/></label><label>Até<input type="date" value={filters.end||''} onChange={e=>filter('end',e.target.value)}/></label></>}
+        {historyMode==='all' && <label>Status<select value={filters.history_status||''} onChange={e=>filter('history_status',e.target.value)}><option value="">Todos</option>{[...d?.columns||[],{status:'delivered',label:'Entregues'},{status:'cancelled',label:'Cancelados'}].filter((c:any)=>c.status!=='awaiting_cancellation').map((c:any)=><option value={c.status} key={c.status}>{c.label}</option>)}</select></label>}</>}
+        <label className="toggle-row"><input type="checkbox" checked={detailed} onChange={e=>setDetailed(e.target.checked)}/>Detalhes nos cards</label>
+      </div>
+      {!activeOnly && <p className="muted">Pedidos em andamento permanecem visíveis. O período filtra Entregues pela conclusão e Todos pela criação. {d?.timezone && `Fuso: ${d.timezone}.`}</p>}
+      {dragged && <p role="status">Movendo #{dragged.id}. Solte em uma etapa permitida; a confirmação será solicitada.</p>}
       <Notice messages={messages} />
       <Feedback error={error}><></></Feedback>
-      <Feedback loading={q.loading} error={q.error}>
+      <Feedback loading={q.loading && !q.data} error={q.error}>
         {d && (
           <>
             <div className="order-summary-strip">
@@ -349,24 +395,26 @@ export function OrdersBoard({ activeOnly = false }: { activeOnly?: boolean }) {
                 </span>
               ))}
             </div>
-            <div className="order-board">
-              {d.columns.map((column: any) => (
-                <section className={`order-column status-${column.status}`} key={column.status}>
+            <div className={`order-board ${historyMode==='all'?'history-board':''}`}>
+              {visibleColumns.map((column: any) => (
+                <section data-drop-status={column.status} onDragOver={e=>{if(dragged){e.preventDefault();e.dataTransfer.dropEffect=dragged.allowed_transitions.some((a:any)=>a.value===dropTarget(dragged,column.status))?'move':'none';}}} onDrop={e=>{e.preventDefault();drop(column.status);}} className={`order-column status-${column.status} ${dragged?.allowed_transitions.some((a:any)=>a.value===dropTarget(dragged,column.status))?'drop-allowed':''}`} key={column.status}>
                   <header className="order-column-head">
                     <span>{statusIcon[column.status]}</span>
                     <strong>{column.label}</strong>
-                    <b>{column.orders.length}</b>
+                    <b>{column.pagination?.count ?? column.orders.length}</b>
                   </header>
+                  {column.pagination && <Pagination page={column.pagination.page} pages={column.pagination.pages} size={size} onPage={n=>setFilters(f=>({...f,[column.status==='all'?'all_page':'delivered_page']:String(n)}))} onSize={n=>{setSize(n);setFilters(f=>({...f,all_page:'1',delivered_page:'1'}));}}/>}
                   <div className="order-column-body">
                     {column.orders.length ? (
                       column.orders.map((order: any) => (
                         <OrderCard
                           key={order.id}
                           order={order}
-                          busy={busyId === order.id}
-                          expanded={activeOnly}
+                          busy={busyId !== null}
+                          expanded={detailed}
+                          onDrag={setDragged}
                           fresh={freshIds.includes(order.id)}
-                          onTransition={(order, status) => { setError(null); setSelected({ order, status }); }}
+                          onTransition={choose}
                         />
                       ))
                     ) : (

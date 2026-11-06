@@ -229,3 +229,15 @@ def send_next_prospecting_message():
         f"attempted={len(statuses)};sent={sent_count};unknown={unknown_count};"
         f"not_whatsapp={not_whatsapp_count};statuses={','.join(statuses)}"
     )
+
+@shared_task
+def process_commercial_inbox():
+    from django.conf import settings
+    from .commercial_models import CommercialMessage
+    from .commercial import process_message
+    if not getattr(settings, 'COMMERCIAL_AGENT_ENABLED', False):
+        return
+    # Give short fragmented messages time to arrive. Durable rows survive broker loss.
+    cutoff = timezone.now() - timedelta(seconds=4)
+    for pk in list(CommercialMessage.objects.filter(state='queued', created_at__lte=cutoff).order_by('pk').values_list('pk',flat=True)[:20]):
+        process_message(pk)

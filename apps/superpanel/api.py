@@ -132,6 +132,7 @@ class Password(SuperAdminAPI):
 
 class Dashboard(SuperAdminAPI):
     def get(self, request):
+        from .metrics import platform_metrics
         resources = []
         groups = {}
         for key, (_, title, group) in RESOURCES.items():
@@ -167,6 +168,7 @@ class Dashboard(SuperAdminAPI):
                 "resources": resources,
                 "groups": groups,
                 "stats": {"resources": len(resources)},
+                "metrics": platform_metrics(),
             }
         )
 

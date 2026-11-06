@@ -191,3 +191,5 @@ class ProspectingControl(models.Model):
         if start < end:
             return start <= current_time < end
         return current_time >= start or current_time < end
+
+from .commercial_models import (CommercialControl, CommercialArticle, CommercialConversation, CommercialMessage, CommercialAudit)

@@ -117,3 +117,6 @@ def deliver_order_status_notifications():
 from .sales import plan_sales_messages, deliver_sales_message  # noqa: E402,F401
 
 from .crm import accrue_loyalty, plan_customer_campaigns  # noqa: E402,F401
+
+# Registered through Celery autodiscovery; no device is enabled by default.
+from .printing import plan_thermal_jobs

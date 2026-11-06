@@ -1,3 +1,4 @@
+from apps.prospecting.commercial_api import CommercialPanel
 from django.urls import path
 
 from .api import Dashboard, History, ListEdit, Password, ResourceAction, ResourceDetail, ResourceList, Session
@@ -9,6 +10,7 @@ from .api import Selection, Relationships, Activity
 from .free_days import FreeDays
 
 urlpatterns = [
+    path("commercial/", CommercialPanel.as_view()),
     path("tenants/<int:pk>/free-days/", FreeDays.as_view()),
     path("activity/", Activity.as_view()),
     path("resources/<slug:resource>/selection/", Selection.as_view()),

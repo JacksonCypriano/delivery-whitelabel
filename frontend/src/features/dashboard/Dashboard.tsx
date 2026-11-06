@@ -14,11 +14,17 @@ export function Dashboard() {
           </div>
         </div>
         {d.alerts?.map((a:any) => <div className="alert" key={a.url}><Link to={a.url}>{a.text}</Link></div>)}
-        <div className="actions"><Link className="button" to={panelUrl("prospeccao")}>Prospecção WhatsApp</Link><Link className="button secondary" to={panelUrl("evolution")}>Evolution API</Link></div>
+        <div className="actions"><Link className="button" to={panelUrl("comercial")}>Agente comercial e leads</Link><Link className="button secondary" to={panelUrl("prospeccao")}>Prospecção WhatsApp</Link><Link className="button secondary" to={panelUrl("evolution")}>Evolution API</Link></div>
         <div className="stats">
           <section className="card"><span>Módulos disponíveis</span><strong>{d.stats?.resources || 0}</strong></section>
           <section className="card"><span>Áreas administrativas</span><strong>{Object.keys(d.groups || {}).length}</strong></section>
         </div>
+        {d.metrics && <><div className="stats platform-metrics">
+          <Link className="card" to={panelUrl('tenants-tenant')}><span>Lojas ativas</span><strong>{d.metrics.stores.active}</strong><small>de {d.metrics.stores.total} cadastradas</small></Link>
+          <Link className="card" to={panelUrl('billing-subscription')}><span>Assinaturas gerenciadas</span><strong>{d.metrics.subscriptions.managed}</strong><small>{d.metrics.subscriptions.suspended} suspensas por assinatura</small></Link>
+          <Link className="card" to={panelUrl('comercial')}><span>Conversas aguardando humano</span><strong>{d.metrics.human_requests}</strong><small>Exclui recusas de contato e oportunidades encerradas</small></Link>
+          <section className="card"><span>Recebido no mês · produção</span><strong>{Number(d.metrics.received_month).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</strong><small>Faturas com pagamento confirmado. Não representa receita recorrente.</small></section>
+        </div><section className="card"><h2>Pedidos criados hoje</h2><p className="muted">{d.metrics.date} · Todos os estabelecimentos, incluindo os status cancelados.</p><div className="order-summary-strip">{d.metrics.orders_today.map((row:any)=><span key={row.source}><strong>{row.count}</strong> {({'web':'Loja online','manual':'Balcão','whatsapp':'WhatsApp','ifood':'iFood','99food':'99Food'} as Record<string,string>)[row.source]||row.source}</span>)}</div></section></>}
         <Activity />
         <div className="cards">
           {d.resources.map((r: any) => (

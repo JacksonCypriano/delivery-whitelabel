@@ -1,3 +1,5 @@
+import { Printing } from "../features/orders/Printing";
+import { Commercial } from "../features/superadmin/Commercial";
 import { FreeDays } from "../features/superadmin/FreeDays";
 import { Credit, Prospecting, Evolution, UserPassword } from "../features/superadmin/Operations";
 import { useEffect } from "react";
@@ -51,6 +53,7 @@ export function App() {
             <Route path="integracoes/ifood" element={<MarketplaceProvider provider="ifood" />} />
             <Route path="integracoes/99food" element={<MarketplaceProvider provider="99food" />} />
             <Route path="integracoes/99food/diagnostico" element={<Food99Telemetry />} />
+            <Route path="impressao" element={<Printing />} />
             <Route path="cozinha" element={<Kitchen />} />
             <Route path="whatsapp" element={<Whatsapp />} />
             <Route path="orders" element={<OrdersBoard />} />
@@ -64,6 +67,7 @@ export function App() {
           </>
         )}
         {panel.kind === "superadmin" && <>
+          <Route path="comercial" element={<Commercial />} />
           <Route path="accounts-user/:id/senha" element={<UserPassword />} />
           <Route path="tenants-tenant/:id/gratuidade" element={<FreeDays />} />
           <Route path="prospeccao" element={<Prospecting />} />

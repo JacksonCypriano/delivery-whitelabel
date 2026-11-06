@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import datetime, time, timedelta
+
+from django.db import transaction
 from django.db.models import Count, Prefetch, Q
+from django.utils.dateparse import parse_date, parse_datetime
+from rest_framework.exceptions import ValidationError
 from django.utils import timezone
 from rest_framework.response import Response
 
@@ -120,9 +125,54 @@ def _base_queryset(tenant):
     )
 
 
+def _filter_board(base, params):
+    """Common filters, independent of pagination and operational state."""
+    source = params.get("source", "")
+    if source == "direct":
+        base = base.exclude(source__in=["ifood", "99food"])
+    elif source:
+        if source not in OrderSource.values:
+            raise ValidationError("Origem inválida.")
+        base = base.filter(source=source)
+    modality = params.get("modality", "")
+    if modality:
+        if modality not in {"delivery", "pickup"}:
+            raise ValidationError("Modalidade inválida.")
+        base = base.filter(delivery_type=modality)
+    term = str(params.get("q", "")).strip()[:100]
+    if term:
+        query = Q(customer_name__icontains=term)
+        if term.lstrip("#").isdigit():
+            query |= Q(pk=int(term.lstrip("#")))
+        base = base.filter(query)
+    return base
+
+
+def _period(params):
+    # Tenant schedules use Django's active local timezone, as do these boundaries.
+    today = timezone.localdate()
+    period = params.get("period", "today")
+    start = end = today
+    if period == "yesterday":
+        start = end = today - timedelta(days=1)
+    elif period == "week":
+        start = today - timedelta(days=6)
+    elif period == "custom":
+        try:
+            start, end = parse_date(params.get("start", "")), parse_date(params.get("end", ""))
+        except ValueError:
+            start = end = None
+        if not start or not end or start > end or (end-start).days > 366:
+            raise ValidationError("Informe um período válido de até 367 dias.")
+    elif period != "today":
+        raise ValidationError("Período inválido.")
+    return (timezone.make_aware(datetime.combine(start, time.min)),
+            timezone.make_aware(datetime.combine(end + timedelta(days=1), time.min)))
+
+
 class OrdersBoard(MerchantAPI):
     def get(self, request):
-        base = _base_queryset(request.tenant)
+        base = _filter_board(_base_queryset(request.tenant), request.query_params)
         active_only = request.query_params.get("active_only") == "1"
         settings, _ = OrderNotificationSettings.objects.get_or_create(tenant=request.tenant)
         active_statuses = [
@@ -142,7 +192,18 @@ class OrdersBoard(MerchantAPI):
         from .pagination import paginate, metadata
         finished_page = None if active_only else paginate(base.filter(status__in=[Status.DELIVERED, Status.CANCELLED]).order_by("-created_at", "-pk"), request)
         finished_rows = list(finished_page) if finished_page is not None else []
-        rows = active_rows + finished_rows
+        # Additive response: old consumers keep columns/finished unchanged.
+        start, end = _period(request.query_params)
+        delivered_page = paginate(base.filter(status=Status.DELIVERED,
+            status_updated_at__gte=start, status_updated_at__lt=end).order_by("-status_updated_at", "-pk"), request, key="delivered_page")
+        history = base.filter(created_at__gte=start, created_at__lt=end)
+        status_filter = request.query_params.get("history_status", "")
+        if status_filter:
+            if status_filter not in Status.values:
+                raise ValidationError("Status inválido.")
+            history = history.filter(status=status_filter)
+        all_page = paginate(history.order_by("-created_at", "-pk"), request, key="all_page")
+        rows = list({row.pk: row for row in active_rows + finished_rows + list(delivered_page) + list(all_page)}.values())
         order_ids = [row.pk for row in rows]
         wa = {
             row.order_id: row
@@ -176,7 +237,12 @@ class OrdersBoard(MerchantAPI):
         return Response(
             {
                 "columns": columns,
-                "finished": finished,
+                "finished": [card for card in finished if card["id"] in {row.pk for row in finished_rows}],
+                "delivered": [next(c for c in cards if c["id"] == row.pk) for row in delivered_page],
+                "delivered_pagination": metadata(delivered_page),
+                "all_orders": [next(c for c in cards if c["id"] == row.pk) for row in all_page],
+                "all_pagination": metadata(all_page),
+                "timezone": timezone.get_current_timezone_name(),
                 "finished_pagination": metadata(finished_page) if finished_page is not None else None,
                 "counts": {
                     row["status"]: row["total"]
@@ -249,8 +315,24 @@ class OrderOperationsDetail(MerchantAPI):
 
 
 class OrderTransition(MerchantAPI):
+    @transaction.atomic
     def post(self, request, pk):
         try:
+            expected = request.data.get("expected_status_updated_at")
+            if expected is not None:
+                # Match marketplace workers: connection -> external order -> order.
+                from apps.channels.models import Connection, ExternalOrder
+                external = ExternalOrder.objects.filter(order_id=pk, order__tenant=request.tenant).first()
+                if external:
+                    Connection.objects.select_for_update().get(pk=external.connection_id)
+                    ExternalOrder.objects.select_for_update().get(pk=external.pk)
+                current = Order.objects.select_for_update().get(pk=pk, tenant=request.tenant)
+                try:
+                    parsed = parse_datetime(str(expected))
+                except ValueError:
+                    parsed = None
+                if not parsed or parsed != current.status_updated_at:
+                    return Response({"detail": "O pedido mudou. Atualize o painel e confira a nova etapa."}, status=409)
             order, event = transition_order(
                 order_id=pk,
                 tenant=request.tenant,

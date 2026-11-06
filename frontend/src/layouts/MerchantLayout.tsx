@@ -57,11 +57,13 @@ export function MerchantLayout() {
               <NavLink to={panelUrl()} end>
                 ◈ Visão geral
               </NavLink>
+              {panel.kind === "superadmin" && <NavLink to={panelUrl("comercial")}>Agente comercial e leads</NavLink>}
               {panel.kind === "merchant" && <NavLink to={panelUrl("operacao")}>⚡ Pedidos ativos</NavLink>}
               {panel.kind === "merchant" && <NavLink to={panelUrl("atendimento")}>Atendimento humano</NavLink>}
               {panel.kind === "merchant" && <NavLink to={panelUrl("crm")}>CRM e fidelidade</NavLink>}
               {panel.kind === "merchant" && <NavLink to={panelUrl("logistica")}>Logística</NavLink>}
               {panel.kind === "merchant" && <NavLink to={panelUrl("automacoes")}>Automações</NavLink>}
+              {panel.kind === "merchant" && <NavLink to={panelUrl("impressao")}>Impressão</NavLink>}
               {panel.kind === "merchant" && <NavLink to={panelUrl("cozinha")}>Cozinha / KDS</NavLink>}
               {groups.map(([group, title]) => {
                 const links = d.resources.filter((r: any) => r.group === group);
@@ -79,11 +81,11 @@ export function MerchantLayout() {
               })}
               {panel.kind === "merchant" && (
                 <>
-                  <details className="nav-group" open><summary className="nav-label">Atendimento e financeiro</summary>
+                  <details className="nav-group" open><summary className="nav-label">Integrações</summary>
                   <NavLink to={panelUrl("integracoes/ifood")}>iFood</NavLink>
                   <NavLink to={panelUrl("integracoes/99food")}>99Food</NavLink>
                   <NavLink to={panelUrl("whatsapp")}>WhatsApp e agente</NavLink>
-                  <NavLink to={panelUrl("assinatura")}>Minha assinatura</NavLink>
+                  </details><details className="nav-group" open><summary className="nav-label">Financeiro</summary><NavLink to={panelUrl("assinatura")}>Minha assinatura</NavLink>
                   <NavLink to={panelUrl("notas")}>Notas fiscais</NavLink>
                   {d.online_payments_allowed && (
                     <NavLink to={panelUrl("taxas")}>Tarifas Asaas · consulta</NavLink>

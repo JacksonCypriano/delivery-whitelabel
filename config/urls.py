@@ -1,3 +1,5 @@
+from apps.merchant.printing import device_queue
+from apps.prospecting.commercial_api import commercial_webhook
 from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import include, path, re_path
@@ -15,6 +17,8 @@ from apps.channels.views import ifood_webhook
 from apps.channels.webhook_99food import food99_webhook
 
 urlpatterns = [
+    path("integracoes/print-device/", device_queue),
+    path("integracoes/evolution/commercial-webhook/", commercial_webhook),
     path("integracoes/ifood/<str:mode>/webhook/", ifood_webhook, name="ifood_webhook"),
     path("integracoes/99food/<str:mode>/webhook/", food99_webhook, name="food99_webhook"),
     path("api/merchant/", include("apps.merchant.urls")),

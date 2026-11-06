@@ -921,3 +921,13 @@ CELERY_BEAT_SCHEDULE.update({
 
 # HML-only 99Food operational simulation; never permit in production.
 FOOD99_OPERATIONAL_SIMULATION_ENABLED = False
+
+# Dedicated inbound platform sales: opt-in, never uses a merchant instance.
+COMMERCIAL_AGENT_ENABLED = os.getenv('COMMERCIAL_AGENT_ENABLED', '0') == '1'
+COMMERCIAL_AGENT_WEBHOOK_TOKEN = os.getenv('COMMERCIAL_AGENT_WEBHOOK_TOKEN', '')
+COMMERCIAL_AGENT_WEBHOOK_URL = os.getenv('COMMERCIAL_AGENT_WEBHOOK_URL', '')
+COMMERCIAL_AGENT_OLLAMA_URL = os.getenv('COMMERCIAL_AGENT_OLLAMA_URL', '')
+COMMERCIAL_AGENT_OLLAMA_MODEL = os.getenv('COMMERCIAL_AGENT_OLLAMA_MODEL', '')
+CELERY_BEAT_SCHEDULE['commercial-inbound'] = {'task': 'apps.prospecting.tasks.process_commercial_inbox', 'schedule': 10.0}
+
+CELERY_BEAT_SCHEDULE['thermal-print-jobs'] = {'task':'apps.orders.printing.plan_thermal_jobs','schedule':5.0}

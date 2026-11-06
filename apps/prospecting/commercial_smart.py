@@ -6,12 +6,14 @@ The official prices and product claims are always read from the live catalog.
 """
 import json
 import re
+import time
 from urllib.parse import urlsplit
 
 import requests
 from django.conf import settings
 
 from .commercial_context import conversation_context
+from .commercial_smart_policy import enforce_selection, requested_period, price_question
 
 
 QUESTIONS = {
@@ -61,20 +63,41 @@ def classify(conversation, articles):
         'Responda APENAS JSON com exatamente: article_ids (lista de no máximo 3 IDs fornecidos), '
         'pricing_scope (none, monthly ou all), question (none, business, pain, channels, demo), human (booleano). '
         'O preço deve vir do catálogo, não tente produzi-lo. Escolha monthly se perguntou só mensalidade; '
-        'all somente se pediu comparação de planos. Não repita pergunta já respondida no histórico. '
+        'all somente se pediu comparação de planos. Diferencie anual, semestral e trimestral, nunca troque por mensal. '
+        'Priorize todo assunto pedido, nunca selecione um artigo apenas vagamente relacionado. Não repita pergunta já respondida no histórico. '
         'Quando faltar cobertura para QUALQUER pergunta do lead, se houver negociação, dúvida complexa, '
         'pedido de pessoa ou incerteza, indique human=true. Se múltiplos temas superarem 3 artigos, human=true.'
     )
     data = {'current':redact(latest),'history':recent_history(conversation),'articles':knowledge}
     endpoint=f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent'
-    with requests.Session() as session:
-        session.trust_env=False
-        response=session.post(endpoint, headers={'x-goog-api-key':api_key}, json={
+    request_body = {
             'system_instruction':{'parts':[{'text':instruction}]},
             'contents':[{'role':'user','parts':[{'text':json.dumps(data,ensure_ascii=False)[:20000]}]}],
             'generationConfig':{'responseMimeType':'application/json','temperature':0,'maxOutputTokens':350},
-        }, timeout=(3,12),allow_redirects=False)
-    if response.status_code != 200 or len(response.content)>32000:
+        }
+    # Up to two attempts. A temporary 429/5xx must never produce an unsafe
+    # or partial answer; exhausted attempts are handed to the human queue.
+    # No retry for bad credentials, bad input or a valid 200 with invalid JSON.
+    with requests.Session() as session:
+        session.trust_env = False
+        for attempt in range(2):
+            try:
+                response = session.post(
+                    endpoint, headers={'x-goog-api-key': api_key},
+                    json=request_body, timeout=(3, 12), allow_redirects=False,
+                )
+            except requests.RequestException as exc:
+                if attempt == 0:
+                    time.sleep(0.8)
+                    continue
+                raise ValueError('smart_provider_network_error') from exc
+            if response.status_code == 200:
+                break
+            if response.status_code in {429, 500, 502, 503, 504} and attempt == 0:
+                time.sleep(0.8)
+                continue
+            raise ValueError(f'smart_provider_http_{response.status_code}')
+    if len(response.content) > 32000:
         raise ValueError('smart_model_unavailable')
     try:
         payload=response.json()
@@ -202,6 +225,14 @@ def render(conversation, publication, knowledge, selection):
     question = selection.get('question')
     if scope not in {'none', 'monthly', 'all'} or question not in QUESTIONS:
         raise ValueError('invalid_selection_options')
+    # The Django policy, not the LLM, decides if the selected facts cover the
+    # customer's questions. Unknown business claims are escalated.
+    text = enforce_selection(conversation, selection, knowledge)
+    exact_period = requested_period(text)
+    if exact_period is not None:
+        scope = 'all' if exact_period == 0 else 'monthly'
+    elif scope == 'none' and price_question(text):
+        scope = 'monthly'
     if not ids and scope == 'none' and question == 'none':
         raise ValueError('empty_response')
     previous = list(conversation.messages.exclude(reply='').order_by('-pk').values_list('reply', flat=True)[:6])
@@ -215,7 +246,10 @@ def render(conversation, publication, knowledge, selection):
             lines.append(text)
     if scope != 'none':
         plans = publication['data']['plans']
-        selected = [p for p in plans if p['months'] == 1] if scope == 'monthly' else plans
+        if exact_period not in (None, 0):
+            selected = [p for p in plans if p['months'] == exact_period]
+        else:
+            selected = [p for p in plans if p['months'] == 1] if scope == 'monthly' else plans
         if not selected:
             raise ValueError('catalog_missing_plan')
         for plan in selected:
@@ -238,4 +272,9 @@ def render(conversation, publication, knowledge, selection):
 
 
 def compose(conversation, publication, knowledge):
-    return render(conversation,publication,knowledge,classify(conversation,knowledge))
+    # Sensitive/out-of-scope messages never reach the external classifier.
+    from .commercial_smart_policy import fold, matches, HUMAN_GUARDS
+    customer_text = fold(conversation_context(conversation))
+    if any(matches(pattern, customer_text) for pattern in HUMAN_GUARDS):
+        raise ValueError('commercial_human_review_required')
+    return render(conversation, publication, knowledge, classify(conversation, knowledge))

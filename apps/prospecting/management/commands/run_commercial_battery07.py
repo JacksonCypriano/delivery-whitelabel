@@ -34,6 +34,12 @@ class Command(BaseCommand):
         publication=published_catalog(control)
         knowledge=articles()
         if not knowledge: raise CommandError('Conhecimento publicado ausente.')
+        if not control.demo_url:
+            self.stdout.write('Caso 094: demo_url ausente; encaminhamento humano é obrigatório, mesmo com expectativa original de resposta.')
+        published_slugs = {article.slug for article in knowledge}
+        for slug in ('objecao-valor', 'objecao-canais'):
+            if slug not in published_slugs:
+                self.stdout.write('Cobertura ausente: ' + slug + '. Revisar/publicar no fluxo comercial existente.')
         info=metadata(publication,knowledge)
         info['model']=settings.COMMERCIAL_AGENT_GEMINI_MODEL
         output=Path(options['output'])

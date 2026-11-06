@@ -7,6 +7,7 @@ from .commercial_smart import render
 from .commercial_smart_policy import human_requested, normalized
 from .management.commands.prepare_commercial_knowledge import ARTICLES
 from .management.commands.prepare_commercial_package07 import ARTICLES as OBJECTIONS
+from .management.commands.prepare_commercial_package08 import ARTICLES as SHORT_ARTICLES
 
 
 class Package07Tests(TestCase):
@@ -15,6 +16,9 @@ class Package07Tests(TestCase):
         self.conv = CommercialConversation.objects.create(instance='offline07', phone='5511999990000')
         self.knowledge = [CommercialArticle.objects.create(slug=s, title=t, body=b, version=1, published=True)
                           for s, t, b in (*ARTICLES, *OBJECTIONS)]
+        existing = {a.slug for a in self.knowledge}
+        self.knowledge += [CommercialArticle.objects.create(slug=s, title=t, body=b, version=1, published=True)
+                           for s,t,b in SHORT_ARTICLES if s not in existing]
         a = next(a for a in self.knowledge if a.slug == 'whatsapp')
         a.body = 'O agente da loja atende pelo WhatsApp conforme as funções habilitadas. A equipe pode assumir conversas quando for necessário atendimento humano.'
         a.save()
@@ -43,7 +47,7 @@ class Package07Tests(TestCase):
 
     def test_024_delivery_and_pickup_sentence_not_truncated(self):
         answer = self.answer('Faz entreaga e retiraada tbm?', 'gestao')
-        self.assertIn('Entrega e retirada têm ações próprias.', answer)
+        self.assertIn('configurar entrega e retirada', answer)
 
     def test_041_integration_does_not_require_unrelated_orders_article(self):
         self.inbound('Integra pedidos do ifood?')
@@ -95,7 +99,7 @@ class Package07Tests(TestCase):
 
     def test_four_topics_without_punctuation(self):
         answer = self.answer('tem cardapio zap cozinha imprime e integra ifood', 'integracoes')
-        for word in ('gestão', 'WhatsApp', 'KDS', 'impressão', 'iFood'):
+        for word in ('cardápio', 'WhatsApp', 'KDS', 'impressão', 'iFood'):
             self.assertIn(word, answer)
 
     def test_missing_published_topic_still_escalates(self):
@@ -137,7 +141,8 @@ class Package07Tests(TestCase):
             with self.subTest(text=text):
                 self.conv.messages.all().delete()
                 answer=self.answer(text,slug)
-                self.assertIn(next(a.body for a in self.knowledge if a.slug==slug), answer)
+                self.assertIn(next(a.body for a in self.knowledge if a.slug==slug).split('. ')[0], answer)
+                self.assertLessEqual(answer.count('?'), 1)
 
     def test_fragmented_questions_all_answered(self):
         self.inbound('sou pizzaria')

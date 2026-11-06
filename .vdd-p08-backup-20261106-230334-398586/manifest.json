@@ -1,0 +1,30 @@
+{
+  "apps/prospecting/commercial_smart.py": {
+    "before": "88ddb9bef04624a79fe24f6e4532188a4ede07959e00897d828337aa9f647fd9",
+    "after": "3274ce3d006b52ed5ab5ba5de71e08b16864961dc7fbbd908273859328c01083"
+  },
+  "apps/prospecting/commercial_smart_policy.py": {
+    "before": "1a960b7b971889f6b0ea513f60e45d9bcb2b9af88023ea143cf5018498dacd50",
+    "after": "91ee224500959c8dac40236d6e9ceb2e6a8ae80faf9f8503aa011393231d5302"
+  },
+  "apps/prospecting/commercial_battery.py": {
+    "before": "b0702801a6fcdc840464e30835971af57a8c95ef0be00d1d171bbc287b0e44c8",
+    "after": "af039d1547f5939343c635979a9cdb52d75493ae4208090fc80e3751503043f4"
+  },
+  "apps/prospecting/management/commands/run_commercial_battery07.py": {
+    "before": "14c30543afe6d0ee755a3d73588c05e1314bea242bb8f0b0d58e73daffbdd23b",
+    "after": "0c71e3fc96b43a9a7615ce82ae5bfc4a075f113cfcbfb9ac582d1c294ad057ed"
+  },
+  "apps/prospecting/management/commands/prepare_commercial_package08.py": {
+    "before": null,
+    "after": "0a114f3b8d8a19dfa31ba2b0d03e4337da34162c3c8a949b1a03000914120e60"
+  },
+  "apps/prospecting/test_commercial_package07.py": {
+    "before": "038d32f2d0531f141efaeb4588c7753cfd0452022199853b2be3373b91c05bd4",
+    "after": "fcf5d31240cfa82000921d63f04f50b138ae7739aa813fda92b4529626743072"
+  },
+  "apps/prospecting/test_commercial_package08.py": {
+    "before": null,
+    "after": "06dc5959a44b7a2a8dac2cc89a8ca0063c8f3bc0f9fc131150354d518481a0e6"
+  }
+}

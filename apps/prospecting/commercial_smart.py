@@ -177,6 +177,8 @@ def _public_summary(article, *, price_requested=False):
     for fragment in fragments:
         sentence = fragment.strip()
         folded = _normalize(sentence)
+        if sentence.endswith('?'):
+            continue  # Qualification belongs to the single contextual CTA below.
         if not sentence or any(folded.startswith(_normalize(bad)) for bad in _POLICY_START):
             continue
         if re.search(r'https?://|R\$|(?<!\w)\d+[,.]\d{2}(?!\w)', sentence, re.I):
@@ -257,8 +259,8 @@ def render(conversation, publication, knowledge, selection):
         scope = 'all' if exact_period == 0 else 'monthly'
     elif price_question(text):
         scope = 'monthly'
-    elif scope == 'all':
-        scope = 'none'
+    else:
+        scope = 'none'  # Never repeat prices merely because the model selected them.
     if not ids and scope == 'none' and question == 'none' and not wants_demo:
         raise ValueError('empty_response')
     previous = list(conversation.messages.exclude(reply='').order_by('-pk').values_list('reply', flat=True)[:6])
@@ -266,11 +268,28 @@ def render(conversation, publication, knowledge, selection):
     greeted = not previous and bool(re.search(r'\b(?:oi|ola|bom dia|boa tarde|boa noite|opa)\b', _normalize(text)))
     if greeted:
         lines.append('Olá! Sou o assistente virtual comercial do VemDeDelivery.')
+    from .commercial_smart_policy import requested_topics
+    required = requested_topics(text)
+    detailed = bool(re.search(r'\b(?:detalh(?:e|es|ado|ada)|explique tudo|explica tudo)\b', _normalize(text)))
+    # Keep semantic selections for open questions, but remove unrelated material
+    # when explicit topics give us a complete deterministic answer scope.
+    used_ids = []
     for pk in ids:
         article = permitted[pk]
-        text = _public_summary(article, price_requested=scope != 'none')
-        if text and not any(text in reply or article.body.strip() in reply for reply in previous):
-            lines.append(text)
+        if not detailed and required and article.slug not in required:
+            if not (article.slug == 'visao-geral' and 'gestao' in required):
+                continue
+        if article.slug == 'contratacao' and (wants_demo or wants_signup):
+            continue  # The approved link is the direct answer.
+        summary = _public_summary(article, price_requested=scope != 'none')
+        if summary and not any(summary in reply or article.body.strip() in reply for reply in previous):
+            # Only whole, reviewed sentences; preserve every condition in an article.
+            sentences = re.split(r'(?<=[.!?])\s+', summary)
+            existing = ' '.join(lines)
+            unique = [sentence for sentence in sentences if sentence not in existing]
+            if unique:
+                lines.append(' '.join(unique))
+                used_ids.append(pk)
     if scope != 'none':
         plans = publication['data']['plans']
         if exact_period not in (None, 0):
@@ -295,15 +314,16 @@ def render(conversation, publication, knowledge, selection):
             raise ValueError('commercial_demo_human_required' if wants_demo else 'commercial_signup_human_required')
         lines.append(('Acesse a demonstração do VemDeDelivery: ' if wants_demo else 'Para iniciar a contratação, fale com nossa equipe: ') + url)
     question_text = '' if wants_demo or wants_signup else _selected_question(conversation, question, previous)
-    if question_text:
+    if question_text and sum(map(len, lines)) + len(question_text) + 2 * len(lines) <= 800:
         lines.append(question_text)
     # Never send a greeting alone, and never invent an answer when everything was repeated.
     if len(lines) == (1 if greeted else 0):
         raise ValueError('response_needs_human')
     result = '\n\n'.join(lines)
-    if not result or len(result) > MAX_OUTPUT:
+    limit = MAX_OUTPUT if detailed or len(required) > 3 or exact_period == 0 else 800
+    if not result or len(result) > limit:
         raise ValueError('response_needs_human')
-    return result, ids
+    return result, used_ids
 
 
 

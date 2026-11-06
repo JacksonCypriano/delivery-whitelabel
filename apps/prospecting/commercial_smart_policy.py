@@ -47,6 +47,13 @@ def demo_requested(text):
 # Requests requiring capabilities, exceptions or promises outside the approved
 # product article facts must not receive a vague sales pitch as an answer.
 HUMAN_GUARDS = (
+    r'\b(?:entrega\s+(?:com\s+)?motoboy|(?:fornece|fornecem|manda|mandam)\s+(?:um\s+)?motoboy)\b',
+    r'\b(?:impressora|termica)\b.{0,65}\b(?:homologad[ao]s?|modelos?|marcas?|compativel)\b',
+    r'\b(?:qual|quais)\b.{0,30}\b(?:modelo|marca)\b.{0,30}\bimpressora\b',
+    r'\b(?:qual|quais)\b.{0,70}\bimpressoras?\b.{0,70}\bhomolog(?:aram|ad[ao]s?)\b',
+    r'\b(?:audio|audios|transcreve|transcrever|transcricao|mensagem de voz)\b',
+    r'\b(?:clinica|clinicas|consultorio|medico|medica|hospital|odontologico|dentista|agendamento de saude)\b',
+
     r'\b(?:contratar|contratacao|fornecer|fornecem)\b.{0,50}\b(?:motoboys?|entregadores?)\b',
     r'\btem\s+(?:(?:um|algum|seu)\s+)?(?:motoboys?|entregadores?)\b',
     r'\b(?:criar|cria|fazer|faz|fazem)\b.{0,45}\b(?:identidade visual|logo|logotipo)\b',
@@ -85,6 +92,11 @@ TOPIC_PATTERNS = {
     'objecao-canais': r'\b(?:instagram|so (?:vendo|recebo|vendo pedidos) (?:por|pelo) ifood)\b',
     'objecao-cadastro': r'\b(?:sem tempo|nao tenho tempo)\b',
     'objecao-socio': r'\bsocio\b',
+    'kds': r'\b(?:o que e|oque e|que significa|como funciona)\s+(?:o\s+)?kds\b',
+    'mobile': r'\b(?:celular|smartphone|mobile|responsivo)\b',
+    'linguagem-informal': r'\b(?:erros? de portugues|erros? de digitacao|linguagem informal|abreviacoes|escrev[eo] errado)\b',
+    'cardapio-proprio': r'\b(?:cardapio|cadapio|cartapio|site)\b',
+    'modalidades': r'\b(?:entrega|retirada|entreaga|retiraada)\b',
     'contratacao': r'\b(?:quero contratar|como (?:faco (?:pra|para) )?(?:contratar|comecar))\b',
     'comissoes': r'\b(?:comiss(?:ao|oes)|comissao|comisoes|taxa por pedido|taxas por pedido|taxa por venda)\b',
 }
@@ -100,6 +112,17 @@ def requested_topics(text):
     operational = r'\b(?:cozinha|kds|kanban|preparo|retirada|entrega|mesa)\b'
     if 'integracoes' in topics and not matches(operational, folded):
         topics.discard('pedidos')
+    if 'objecao-canais' in topics:
+        topics.discard('gestao')
+        topics.discard('cardapio-proprio')
+    if 'cardapio-proprio' in topics and not matches(r'\b(?:crm|estoque|fidelidade|categorias)\b', folded):
+        topics.discard('gestao')
+    if 'kds' in topics and not matches(r'\b(?:cozinha|preparo|pedidos|kanban)\b', folded):
+        topics.discard('pedidos')
+    if 'modalidades' in topics and not matches(r'\b(?:cozinha|kds|preparo|pedidos|kanban|mesa)\b', folded):
+        topics.discard('pedidos')
+    if 'mobile' in topics:
+        topics.discard('cardapio-proprio')
     return topics
 
 
@@ -167,6 +190,6 @@ def enforce_selection(conversation, selection, knowledge):
         # The payment methods are in the structured catalog, but the current
         # renderer cannot give a payment-specific answer yet.
         raise ValueError('commercial_payment_detail_review_required')
-    if matches(r'\b(?:kds)\b', folded) and 'pedidos' not in selected:
+    if matches(r'\b(?:kds)\b', folded) and not ({'kds', 'pedidos'} & selected):
         raise ValueError('commercial_topics_uncovered')
     return text

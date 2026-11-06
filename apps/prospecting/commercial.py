@@ -13,6 +13,7 @@ from apps.integrations.whatsapp_agent.client import TenantEvolutionClient
 from apps.integrations.whatsapp_agent.provider import is_agent_outbound
 from .commercial_models import CommercialControl, CommercialArticle, CommercialConversation, CommercialMessage, CommercialAudit
 from .commercial_catalog import published_catalog
+from .commercial_smart_policy import human_requested
 
 
 def validate_instance(name):
@@ -59,7 +60,7 @@ def receive(instance, message):
         elif re.search(r'\b(parar|pare|sair|stop|cancelar mensagens|não me envie)\b', text):
             reason = 'opt_out'
             conversation.opted_out = True
-        elif re.search(r'\b(humano|atendente|pessoa|responsável)\b', text):
+        elif human_requested(text):
             reason = 'human_requested'
         elif message['kind'] != 'text':
             reason = 'media_requires_human'

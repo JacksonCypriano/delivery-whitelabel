@@ -15,12 +15,46 @@ def fold(value):
 
 
 def matches(pattern, text):
-    return re.search(pattern, text, flags=re.I) is not None
+    return re.search(pattern, text, flags=re.I | re.S) is not None
+
+
+# Whole-token aliases: do not fuzzy-rewrite arbitrary customer words.
+ALIASES = {'vc': 'voce', 'vcs': 'voces', 'tb': 'tambem', 'tbm': 'tambem',
+           'cadapio': 'cardapio', 'cartapio': 'cardapio', 'cardapioo': 'cardapio',
+           'ifod': 'ifood', 'ifudi': 'ifood', 'impremir': 'imprimir',
+           'impresora': 'impressora', 'cozina': 'cozinha', 'coizinha': 'cozinha',
+           'entreaga': 'entrega', 'retiraada': 'retirada', 'cistema': 'sistema',
+           'intregacao': 'integracao', 'valoor': 'valor', 'planu': 'plano'}
+
+
+def normalized(text):
+    return re.sub(r'\b\w+\b', lambda m: ALIASES.get(m[0], m[0]), fold(text))
+
+
+def human_requested(text):
+    text = normalized(text).strip(' !?.')
+    target = r'(?:um[ae]? |o |a |de |com |com um[ae]? )*(?:humano|atendente|pessoa|responsavel|alguem)'
+    return (matches(r'^(?:humano|atendente(?: humano)?|pessoa|responsavel)$', text)
+            or matches(r'\b(?:quero|preciso|prefiro|chame|chama|chamar|falar|conversar|transfira|transferir|me passa|me passe)\s+(?:falar com |conversar com |para |pra )?' + target + r'\b', text))
+
+
+def demo_requested(text):
+    text = normalized(text)
+    return (matches(r'\b(?:demo|demonstracao)\b', text)
+            and not matches(r'\bnao (?:quero|preciso|desejo)\b.{0,30}\b(?:demo|demonstracao)\b', text))
 
 
 # Requests requiring capabilities, exceptions or promises outside the approved
 # product article facts must not receive a vague sales pitch as an answer.
 HUMAN_GUARDS = (
+    r'\b(?:contratar|contratacao|fornecer|fornecem)\b.{0,50}\b(?:motoboys?|entregadores?)\b',
+    r'\btem\s+(?:(?:um|algum|seu)\s+)?(?:motoboys?|entregadores?)\b',
+    r'\b(?:criar|cria|fazer|faz|fazem)\b.{0,45}\b(?:identidade visual|logo|logotipo)\b',
+    r'\b(?:implantacao no mesmo dia|cancelar meu plano|cobre preco)\b',
+    r'\b(?:sem confirm(?:ar|acao)|confirmacao automatica)\b',
+    r'\b(?:99\s?food)\b.{0,50}\b(?:liberad[oa]|disponivel|homologad[oa])\b',
+    r'\b(?:liberad[oa]|disponivel|homologad[oa])\b.{0,50}\b99\s?food\b',
+
     r'\b(?:gratis|gratuito|de graca|free|90 dias gratis|teste gratis)\b',
     r'\b(?:parcelar|parcelamento|em \d+ vezes|desconto extra|cobre (?:o )?preco|faz por \d+)\b',
     r'\b(?:motoboy|entregador(?:es)?)\s+(?:proprio|de voces|incluso|incluso|gratis|de graca)\b',
@@ -44,19 +78,29 @@ HUMAN_GUARDS = (
 TOPIC_PATTERNS = {
     'integracoes': r'\b(?:ifood|ifod|ifudi|99\s?food|integrac(?:ao|oes)|intregacao|marketplace)\b',
     'impressao': r'\b(?:impress(?:ao|ora|oras)|impremir|imprimir|imprime|cupom|comprovante|termica)\b',
-    'whatsapp': r'\b(?:whatsapp|whats|wpp|zap|robo|agente de atendimento|atendente automatizad[oa])\b',
+    'whatsapp': r'\b(?:whatsapp|whats|wpp|zap|robo|agente de atendimento|atendente automatizad[oa]|atendente humano|intervencao humana)\b',
     'gestao': r'\b(?:cardapio|cadapio|cartapio|catalogo|meio a meio|adicionais|crm|fidelidade|estoque|categorias)\b',
     'pedidos': r'\b(?:cozinha|cozina|kds|kanban|preparo|pedidos?|retirada|retiraada|entrega|entreaga|mesa)\b',
+    'objecao-valor': r'\b(?:caro|compensa|vale a pena|poucos pedidos|muitos pedidos ainda)\b',
+    'objecao-canais': r'\b(?:instagram|so (?:vendo|recebo|vendo pedidos) (?:por|pelo) ifood)\b',
+    'objecao-cadastro': r'\b(?:sem tempo|nao tenho tempo)\b',
+    'objecao-socio': r'\bsocio\b',
+    'contratacao': r'\b(?:quero contratar|como (?:faco (?:pra|para) )?(?:contratar|comecar))\b',
     'comissoes': r'\b(?:comiss(?:ao|oes)|comissao|comisoes|taxa por pedido|taxas por pedido|taxa por venda)\b',
 }
 
-# A same-message selection of multiple topics is allowed within the 3-article
+# A same-message selection of multiple topics is allowed within the 6-article
 # bound. If unsupported by selected *published* articles, escalate instead.
 
 
 def requested_topics(text):
-    folded = fold(text)
-    return {slug for slug, pattern in TOPIC_PATTERNS.items() if matches(pattern, folded)}
+    folded = normalized(text)
+    topics = {slug for slug, pattern in TOPIC_PATTERNS.items() if matches(pattern, folded)}
+    # "Pedidos do iFood" describes the integration, not a second KDS question.
+    operational = r'\b(?:cozinha|kds|kanban|preparo|retirada|entrega|mesa)\b'
+    if 'integracoes' in topics and not matches(operational, folded):
+        topics.discard('pedidos')
+    return topics
 
 
 def requested_period(text):
@@ -66,7 +110,7 @@ def requested_period(text):
     Ambiguous multiple periods are treated as comparisons rather than guesses.
     """
     message = fold(text)
-    all_requested = matches(r'\b(?:todos os planos|todos planos|4 planos|quatro planos|comparar planos|comparacao de planos|planos com descontos|tabela de planos)\b', message)
+    all_requested = matches(r'\b(?:todos os planos|todos planos|4 planos|quatro planos|comparar planos|comparacao de planos|planos com descontos|tabela de planos|quais (?:sao os )?planos)\b', message)
     if all_requested:
         return 0
     patterns = {
@@ -99,8 +143,8 @@ def enforce_selection(conversation, selection, knowledge):
             raise
         text = (conversation.messages.filter(from_me=False)
                 .order_by('-pk').values_list('text', flat=True).first() or '')
-    folded = fold(text)
-    if any(matches(pattern, folded) for pattern in HUMAN_GUARDS):
+    folded = normalized(text)
+    if human_requested(text) or any(matches(pattern, folded) for pattern in HUMAN_GUARDS):
         raise ValueError('commercial_human_review_required')
 
     articles = {article.slug: article for article in knowledge}
@@ -114,7 +158,7 @@ def enforce_selection(conversation, selection, knowledge):
     missing = required - selected
     if missing and not (missing <= {'gestao'} and 'visao-geral' in selected):
         raise ValueError('commercial_topics_uncovered')
-    if len(required) > 3:
+    if len(required) > 6:
         raise ValueError('commercial_too_many_topics')
 
     # Semantically unsafe explicit enquiries that article excerpts cannot settle

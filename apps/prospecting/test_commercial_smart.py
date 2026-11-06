@@ -43,9 +43,10 @@ class SmartCommercialTests(TestCase):
         self.assertIn('canais homologados',answer)
         self.assertNotIn('Plano 12:',answer)
 
-    def test_full_plans_only_when_requested_by_model(self):
+    def test_model_cannot_expand_monthly_question_to_full_plans(self):
         answer,_=render(self.conv,catalog(),self.articles,self.choice(pricing_scope='all'))
-        self.assertIn('Plano 12:',answer)
+        self.assertNotIn('Plano 12:',answer)
+        self.assertIn('Plano 1:',answer)
 
     def test_unknown_article_rejected(self):
         with self.assertRaises(ValueError):render(self.conv,catalog(),self.articles,self.choice(article_ids=[999]))

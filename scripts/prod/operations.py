@@ -159,7 +159,13 @@ def _backup(prune=True):
         with (path / 'database.dump').open('rb') as source:
             subprocess.run(['docker', 'compose', '-f', CFG['compose_file'], 'exec', '-T', 'db', 'pg_restore', '--list'], cwd=APP, stdin=source, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, check=True, timeout=600)
         with (path / 'media.tar.gz').open('wb') as out:
-            dc('run', '--rm', '--no-deps', '-T', '--entrypoint', 'tar', 'backend', '-C', '/app/media', '-czf', '-', '.', output=out)
+            # No primeiro deploy blue/green ainda nao existe um container backend.
+            # O Nginx ja monta o mesmo volume de midia (somente leitura),
+            # permitindo backup sem iniciar/recriar servicos da aplicacao.
+            if os.environ.get('VDD_MEDIA_BACKUP_SERVICE') == 'nginx':
+                dc('exec', '-T', 'nginx', 'tar', '-C', '/app/media', '-czf', '-', '.', output=out)
+            else:
+                dc('run', '--rm', '--no-deps', '-T', '--entrypoint', 'tar', 'backend', '-C', '/app/media', '-czf', '-', '.', output=out)
         try:
             commit = run(['git', 'rev-parse', 'HEAD']).decode().strip()
         except subprocess.CalledProcessError:

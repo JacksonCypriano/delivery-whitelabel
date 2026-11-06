@@ -30,6 +30,16 @@ jobs:
             cd /opt/vemdedelivery/app
             # Evita executar o script legado antes de atualizar o checkout.
             git fetch origin main
+            # Upstream e estado operacional. O checkout novo nao deve trocar
+            # o arquivo antes do deploy validar o novo backend.
+            UPSTREAM=docker/prod/nginx/conf.d/active-upstream.conf
+            UPSTREAM_SAVED="$(mktemp)"
+            cp "$UPSTREAM" "$UPSTREAM_SAVED"
+            restore_upstream_on_exit() {
+              cp "$UPSTREAM_SAVED" "$UPSTREAM"
+              rm -f "$UPSTREAM_SAVED"
+            }
+            trap restore_upstream_on_exit EXIT
             HML_CONF=docker/prod/nginx/conf.d/hml.conf
             if [ -f "$HML_CONF" ] && ! git ls-files --error-unmatch "$HML_CONF" >/dev/null 2>&1; then
               # So remove o arquivo operacional se for IDENTICO ao versionado.
@@ -49,6 +59,10 @@ jobs:
               fi
               exit 1
             fi
+            # Restaura upstream original apos checkout, antes de qualquer reload.
+            cp "$UPSTREAM_SAVED" "$UPSTREAM"
+            rm -f "$UPSTREAM_SAVED"
+            trap - EXIT
             # O workflow de PR protege o merge em main (regra obrigatória GitHub).
             # Verifica que o checkout publicado é EXATAMENTE o push que disparou este workflow.
             [ "$(git rev-parse HEAD)" = "$DEPLOY_SHA" ] || { echo "HEAD divergiu do push aprovado. Deploy cancelado."; exit 1; }

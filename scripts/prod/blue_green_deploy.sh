@@ -17,12 +17,30 @@ ACTIVE="$(grep -oE '(backend|web)-(blue|green)' "$ACTIVE_FILE" | head -1 || true
 [[ "$ACTIVE" == *-blue ]] && NEXT=green || NEXT=blue
 
 rollback() {
+  local restored=0
+  trap - ERR
   if [[ "$SWITCHED" == 1 ]]; then
     printf '%s\n' "$PREVIOUS_UPSTREAM" > "$ACTIVE_FILE"
-    "${COMPOSE[@]}" exec -T nginx nginx -t >/dev/null 2>&1 && "${COMPOSE[@]}" exec -T nginx nginx -s reload >/dev/null 2>&1 || true
+    if "${COMPOSE[@]}" exec -T nginx nginx -t >/dev/null 2>&1 && \
+       "${COMPOSE[@]}" exec -T nginx nginx -s reload >/dev/null 2>&1; then
+      restored=1
+      echo "Upstream anterior restaurado e recarregado."
+    else
+      echo "ERRO CRITICO: nao foi possivel confirmar o rollback do Nginx." >&2
+      echo "Mantendo backend-$NEXT ligado para evitar corte de trafego." >&2
+      return 0
+    fi
+  else
+    restored=1
   fi
-  echo "Falha: o tráfego permanece no ambiente ${ACTIVE:-atual}."
-  "${COMPOSE[@]}" stop "backend-$NEXT" 2>/dev/null || true
+  if [[ "$restored" == 1 ]]; then
+    # Em falhas posteriores as migracoes, o backend anterior pode nao ser
+    # compativel com o banco novo. Preservar o novo backend tambem como fallback.
+    echo "Falha de deploy; upstream mantido/restaurado para ${ACTIVE:-anterior}."
+    if [[ "$SWITCHED" == 0 ]]; then
+      "${COMPOSE[@]}" stop "backend-$NEXT" 2>/dev/null || true
+    fi
+  fi
 }
 trap rollback ERR
 
@@ -36,13 +54,35 @@ if [[ -z "${VDD_DEPLOY_SHA:-}" || "$(git rev-parse HEAD)" != "$VDD_DEPLOY_SHA" ]
   exit 1
 fi
 
+# No primeiro corte React, nao executar migrations automaticamente sem
+# aprovacao explicita para o SHA revisado. A action pode atualizar arquivos,
+# mas nao iniciara containers novos antes desta aprovacao.
+if [[ "$ACTIVE" == web-blue || "$ACTIVE" == web-green ]]; then
+  APPROVAL="/opt/vemdedelivery/operations/first-react-cutover-approved"
+  if [[ ! -f "$APPROVAL" || "$(cat "$APPROVAL")" != "$VDD_DEPLOY_SHA" ]]; then
+    echo "Primeiro corte bloqueado: revisar migracoes e aprovar SHA em $APPROVAL" >&2
+    exit 1
+  fi
+fi
+
+# Usar apenas os containers preexistentes: sem recriar PostgreSQL/Redis/Nginx.
+for service in db redis nginx; do
+  container="$("${COMPOSE[@]}" ps -q "$service")"
+  [[ -n "$container" && "$(docker inspect --format='{{.State.Running}}' "$container")" == true ]] || {
+    echo "Servico existente indisponivel: $service" >&2
+    exit 1
+  }
+done
+
 echo "▶ Criando e verificando backup antes da publicação..."
-bash backup-prod.sh
-bash test-restore-prod.sh
+# O Nginx tem acesso somente leitura ao mesmo volume de media usado pelos
+# backends, inclusive antes de existir a primeira imagem React/Django.
+COMPOSE_FILE=docker/prod/docker-compose.bluegreen.yml VDD_MEDIA_BACKUP_SERVICE=nginx bash backup-prod.sh
+COMPOSE_FILE=docker/prod/docker-compose.bluegreen.yml bash test-restore-prod.sh
 
 # Suítes críticas executadas em CI/homolog; build compila o TypeScript.
-"${COMPOSE[@]}" up -d --build --wait public-ssr
-"${COMPOSE[@]}" up -d "backend-$NEXT"
+"${COMPOSE[@]}" up -d --no-deps --build --wait public-ssr
+"${COMPOSE[@]}" up -d --no-deps --build "backend-$NEXT"
 
 for _ in $(seq 1 30); do
   container="$(${COMPOSE[@]} ps -q "backend-$NEXT" || true)"
@@ -53,12 +93,13 @@ done
 [[ "$status" == healthy ]] || { echo "Nova versão não ficou saudável."; exit 1; }
 
 printf 'upstream vemdedelivery_upstream { server backend-%s:8000; }\n' "$NEXT" > "$ACTIVE_FILE"
+# Ativar o rollback antes de validar/recarregar o Nginx.
+SWITCHED=1
 "${COMPOSE[@]}" exec -T nginx nginx -t
 "${COMPOSE[@]}" exec -T nginx nginx -s reload
-SWITCHED=1
 curl --fail --silent --show-error --resolve vemdedelivery.com.br:443:127.0.0.1 https://vemdedelivery.com.br/health/ready/ >/dev/null
 "${COMPOSE[@]}" build celery celery-prospecting celery-beat
-"${COMPOSE[@]}" up -d celery celery-prospecting celery-beat
+"${COMPOSE[@]}" up -d --no-deps celery celery-prospecting celery-beat
 
 prospecting_status=""
 for _ in $(seq 1 20); do

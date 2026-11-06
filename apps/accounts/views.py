@@ -6,7 +6,8 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, get_user_model, login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import PasswordResetConfirmView
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect
+from apps.public_ui.rendering import render_public as render
 from django.urls import reverse_lazy
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.cache import never_cache
@@ -321,6 +322,9 @@ def customer_password_reset_done(request):
 
 
 class CustomerPasswordResetConfirmView(PasswordResetConfirmView):
+    def render_to_response(self, context, **response_kwargs):
+        return render(self.request, self.template_name, context, **response_kwargs)
+
     template_name = "accounts/customer_password_reset_confirm.html"
     success_url = reverse_lazy("customer_accounts:password-reset-complete")
     post_reset_login = False

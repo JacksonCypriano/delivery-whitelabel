@@ -323,3 +323,13 @@ class WhatsAppOrderNotice(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["checkout", "recipient"], name="wa_unique_order_recipient")]
+
+class ConversationEntry(models.Model):
+    conversation = models.ForeignKey(TenantWhatsAppConversation,on_delete=models.CASCADE,related_name='entries')
+    key = models.CharField(max_length=200)
+    role = models.CharField(max_length=16)
+    text = models.TextField(blank=True)
+    context = models.JSONField(default=dict,blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['conversation','key'],name='conversation_entry_once')]

@@ -1,0 +1,81 @@
+"""Homologacao publica isolada da producao.
+
+Credenciais e banco devem vir exclusivamente de /opt/vemdedelivery/hml/config/.env.
+Nunca habilitar pagamentos reais, mensageria real ou marketplaces live aqui.
+"""
+
+from django.core.exceptions import ImproperlyConfigured
+
+from .prod import *
+
+# Fail closed if a production database is accidentally supplied to homologacao.
+if (
+    os.getenv("POSTGRES_DB") != "delivery_hml"
+    or os.getenv("POSTGRES_USER") != "delivery_hml"
+    or os.getenv("DATABASE_HOST") != "db"
+):
+    raise ImproperlyConfigured("Homologacao exige banco delivery_hml no servico db.")
+
+if os.getenv("ASAAS_ENVIRONMENT") != "sandbox":
+    raise ImproperlyConfigured("Homologacao exige ASAAS_ENVIRONMENT=sandbox.")
+
+if os.getenv("TENANT_BASE_DOMAIN") != "hml.vemdedelivery.com.br":
+    raise ImproperlyConfigured("Homologacao exige TENANT_BASE_DOMAIN=hml.vemdedelivery.com.br.")
+
+DEBUG = False
+
+# HSTS do ambiente de producao nao deve abranger subdominios de homologacao.
+SECURE_HSTS_SECONDS = 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+SECURE_HSTS_PRELOAD = False
+
+# Protecoes adicionais contra efeitos em sistemas externos.
+ASAAS_ENVIRONMENT = "sandbox"
+BILLING_ALLOW_SANDBOX = True
+BILLING_ENABLED = False
+ASAAS_API_KEY = ""
+WHATSAPP_AGENT_ENABLED = False
+EVOLUTION_MONITOR_ENABLED = False
+EVOLUTION_AUTO_RECONNECT = False
+MARKETING_LEAD_TRACKING_ENABLED = False
+MARKETPLACE_GEOCODER_ENABLED = False
+CHANNELS_NETWORK_ENABLED = False
+CHANNELS_LIVE_ENABLED = False
+CHANNELS_SIMULATOR_ENABLED = False
+
+# Nenhum envio por SMTP de testes.
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+# Os workers e o scheduler nao sobem na etapa inicial.
+# Deixamos as tarefas agendadas inertes mesmo se alguem iniciar Beat sem querer.
+CELERY_BEAT_SCHEDULE = {}
+
+# 99Food — Ambiente Sandbox
+FOOD99_SANDBOX_ENABLED = (os.getenv("FOOD99_SANDBOX_ENABLED", "0") == "1")
+FOOD99_TEST_APP_ID = os.getenv("FOOD99_TEST_APP_ID", "")
+FOOD99_TEST_APP_SECRET = os.getenv("FOOD99_TEST_APP_SECRET", "")
+FOOD99_SANDBOX_IMPORT_TO_ORDERS = (os.getenv("FOOD99_SANDBOX_IMPORT_TO_ORDERS", "0") == "1")
+FOOD99_OPERATIONAL_SIMULATION_ENABLED = True
+# Explicit opt-in for inbound metadata capture only. Still returns 503, never ACK.
+FOOD99_WEBHOOK_CAPTURE_ENABLED = (os.getenv("FOOD99_WEBHOOK_CAPTURE_ENABLED", "0") == "1")
+
+# Explicit opt-in, HML-only, manual Celery reconciliation. Disabled by default.
+FOOD99_ASYNC_RECONCILE_ENABLED = (os.getenv("FOOD99_ASYNC_RECONCILE_ENABLED", "0") == "1")
+
+# Package 17: isolated pilot switches. Both remain disabled by default.
+# Local sync touches ONLY existing imported sandbox Orders; no remote writes.
+FOOD99_LOCAL_EVENT_SYNC_ENABLED = (os.getenv("FOOD99_LOCAL_EVENT_SYNC_ENABLED", "0") == "1")
+# Irreversible single-shot confirmation is never enabled outside authorized pilot.
+FOOD99_REMOTE_CONFIRM_ENABLED = (os.getenv("FOOD99_REMOTE_CONFIRM_ENABLED", "0") == "1")
+
+# Pacote 18: ACK somente após gravação durável + tentativa de enfileiramento.
+# Exige CAPTURE=1 e ASYNC_RECONCILE=1; por padrão continua respondendo 503.
+FOOD99_WEBHOOK_ACK_ENABLED = (os.getenv("FOOD99_WEBHOOK_ACK_ENABLED", "0") == "1")
+
+# Pacote 19: one-store, opt-in sandbox end-to-end pilot only. No production mode.
+FOOD99_AUTO_PILOT_ENABLED = (os.getenv("FOOD99_AUTO_PILOT_ENABLED", "0") == "1")
+FOOD99_PILOT_BRL_CONFIRMED = (os.getenv("FOOD99_PILOT_BRL_CONFIRMED", "0") == "1")
+FOOD99_PILOT_TENANT_SLUG = os.getenv("FOOD99_PILOT_TENANT_SLUG", "")
+
+# Pacote 21: ações remotas 99Food somente para sandbox explicitamente autorizado.
+FOOD99_SANDBOX_ACTIONS_ENABLED = (os.getenv("FOOD99_SANDBOX_ACTIONS_ENABLED", "0") == "1")

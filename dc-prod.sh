@@ -84,7 +84,7 @@ on_error() {
     "${DC[@]}" ps 2>/dev/null || true
     echo ""
     echo "Use para investigar:"
-    echo "  docker compose -f docker/prod/docker-compose.yml logs --tail=200 web"
+    echo "  docker compose -f docker/prod/docker-compose.yml logs --tail=200 backend"
     echo ""
 
     exit "$exit_code"
@@ -177,10 +177,10 @@ wait_for_healthy db
 wait_for_healthy redis
 
 # ============================================================
-# 7. Web
+# 7. backend
 # ============================================================
 #
-# O entrypoint do serviço WEB já executa automaticamente:
+# O entrypoint do serviço backend já executa automaticamente:
 #
 # 1. Aguarda PostgreSQL
 # 2. Aguarda Redis
@@ -192,11 +192,11 @@ wait_for_healthy redis
 # Não repetimos esses comandos aqui.
 # ============================================================
 
-info "Subindo aplicação web"
+info "Subindo aplicação backend"
 
-"${DC[@]}" up -d web
+"${DC[@]}" up -d backend
 
-wait_for_healthy web
+wait_for_healthy backend
 
 # ============================================================
 # 8. Celery

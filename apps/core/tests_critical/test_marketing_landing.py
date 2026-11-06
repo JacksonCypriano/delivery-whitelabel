@@ -155,6 +155,8 @@ class MarketingLandingTests(SimpleTestCase):
         text = marketing_views.robots_txt(self.request("/robots.txt")).content.decode()
         self.assertIn("Sitemap: https://vemdedelivery.com.br/sitemap.xml", text)
         self.assertIn("Disallow: /admin/", text)
+        self.assertIn("Disallow: /painel/", text)
+        self.assertIn("Disallow: /superadmin-legacy/", text)
         self.assertIn("Disallow: /superadmin/", text)
         self.assertIn("Disallow: /checkout/", text)
         self.assertIn("Allow: /", text)

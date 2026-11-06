@@ -75,7 +75,8 @@ INSTALLED_APPS = [
     "apps.tenants",
     "apps.accounts",
     "apps.stores",
-    "apps.orders",
+    "apps.orders.apps.OrdersConfig",
+    "apps.channels.apps.ChannelsConfig",
     "apps.checkout",
     "apps.frontend",
     "apps.customers",
@@ -94,16 +95,19 @@ MIDDLEWARE = [
     "apps.accounts.audit.AuditContextMiddleware",
 
     "apps.tenants.middleware.TenantMiddleware",
+    "apps.merchant.navigation.MerchantCutoverMiddleware",
     "apps.tenants.middleware.ForceInitialPasswordChangeMiddleware",
     "apps.marketplace.middleware.GlobalDeliveryLocationMiddleware",
 
     "django.contrib.messages.middleware.MessageMiddleware",
+    "apps.merchant.activity_middleware.ActivityScopeMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
 
 WSGI_APPLICATION = "config.wsgi.application"
+ASGI_APPLICATION = "config.asgi.application"
 
 # Banco
 DATABASES = {
@@ -694,6 +698,23 @@ UNFOLD_SUPER = {
                 ],
             },
             {
+                "title": _("99Food — Revisão"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Pedidos em revisão"),
+                        "icon": "inventory_2",
+                        "link": reverse_lazy("super_admin:channels_food99stagedorder_changelist"),
+                    },
+                    {
+                        "title": _("Histórico de revisões"),
+                        "icon": "history",
+                        "link": reverse_lazy("super_admin:channels_food99stagedrevision_changelist"),
+                    },
+                ],
+            },
+            {
                 "title": _("Marketplace"),
                 "separator": True,
                 "collapsible": True,
@@ -823,6 +844,10 @@ CELERY_BEAT_SCHEDULE = {
     "evolution-monitor": {"task": "apps.integrations.tasks.monitor_whatsapp", "schedule": 60.0},
     "evolution-alerts": {"task": "apps.integrations.tasks.send_whatsapp_alerts", "schedule": 60.0},
     "tenant-whatsapp-agent-monitor": {"task": "apps.integrations.tasks.monitor_tenant_whatsapp_agents", "schedule": 60.0},
+    "admin-selection-cleanup": {
+        "task": "apps.core.tasks.prune_expired_admin_selections",
+        "schedule": crontab(minute="*/15"),
+    },
     "billing-suspend-daily": {
         "task": "apps.billing.tasks.suspend_expired_subscriptions",
         "schedule": crontab(hour=6, minute=0),
@@ -859,5 +884,53 @@ CELERY_BEAT_SCHEDULE["whatsapp-order-notices"] = {
 CELERY_BEAT_SCHEDULE["whatsapp-checkout-maintenance"] = {
     "task": "apps.integrations.tasks.maintain_whatsapp_checkouts", "schedule": 60.0,
 }
+CELERY_BEAT_SCHEDULE["order-status-notifications"] = {
+    "task": "apps.orders.tasks.deliver_order_status_notifications", "schedule": 15.0,
+}
 # The optional Ollama interpreter produces proposals only, never orders/payments.
 WHATSAPP_AGENT_NLU_ENABLED = os.getenv("WHATSAPP_AGENT_NLU_ENABLED", "true").lower() == "true"
+
+# Enable after the Package 12 homologation gates. No production rollout implied.
+MERCHANT_REACT_ENABLED = os.getenv("MERCHANT_REACT_ENABLED", "true").lower() == "true"
+
+CELERY_BEAT_SCHEDULE["sales-automations"] = {"task": "apps.orders.sales.plan_sales_messages", "schedule": 300.0}
+
+WHATSAPP_MEDIA_ENABLED = os.getenv("WHATSAPP_MEDIA_ENABLED", "false").lower() == "true"
+WHATSAPP_MEDIA_API_KEY = os.getenv("WHATSAPP_MEDIA_API_KEY", "")
+WHATSAPP_AUDIO_MODEL = os.getenv("WHATSAPP_AUDIO_MODEL", "gpt-4o-mini-transcribe")
+WHATSAPP_IMAGE_MODEL = os.getenv("WHATSAPP_IMAGE_MODEL", "gpt-4o-mini")
+
+CELERY_BEAT_SCHEDULE["crm-loyalty"] = {"task":"apps.orders.crm.accrue_loyalty","schedule":300.0}
+CELERY_BEAT_SCHEDULE["crm-campaigns"] = {"task":"apps.orders.crm.plan_customer_campaigns","schedule":300.0}
+
+LEGACY_ADMIN_ENABLED = os.getenv("LEGACY_ADMIN_ENABLED", "false").lower() == "true"
+
+# Marketplace network access is opt-in; simulator is local-only and off by default.
+CHANNELS_NETWORK_ENABLED = os.getenv("CHANNELS_NETWORK_ENABLED", "0") == "1"
+CHANNELS_LIVE_ENABLED = os.getenv("CHANNELS_LIVE_ENABLED", "0") == "1"
+CHANNELS_SIMULATOR_ENABLED = os.getenv("CHANNELS_SIMULATOR_ENABLED", "0") == "1"
+IFOOD_TEST_CLIENT_ID = os.getenv("IFOOD_TEST_CLIENT_ID", "")
+IFOOD_TEST_CLIENT_SECRET = os.getenv("IFOOD_TEST_CLIENT_SECRET", "")
+IFOOD_LIVE_CLIENT_ID = os.getenv("IFOOD_LIVE_CLIENT_ID", "")
+IFOOD_LIVE_CLIENT_SECRET = os.getenv("IFOOD_LIVE_CLIENT_SECRET", "")
+CELERY_BEAT_SCHEDULE.update({
+    "marketplace-ifood-test": {"task": "apps.channels.tasks.poll_ifood", "schedule": 30.0, "args": ["test"]},
+    "marketplace-ifood-live": {"task": "apps.channels.tasks.poll_ifood", "schedule": 30.0, "args": ["live"]},
+    "marketplace-durable-queues": {"task": "apps.channels.tasks.drain", "schedule": 5.0},
+})
+
+# HML-only 99Food operational simulation; never permit in production.
+FOOD99_OPERATIONAL_SIMULATION_ENABLED = False
+
+# Dedicated inbound platform sales: opt-in, never uses a merchant instance.
+COMMERCIAL_AGENT_ENABLED = os.getenv('COMMERCIAL_AGENT_ENABLED', '0') == '1'
+COMMERCIAL_AGENT_WEBHOOK_TOKEN = os.getenv('COMMERCIAL_AGENT_WEBHOOK_TOKEN', '')
+COMMERCIAL_AGENT_WEBHOOK_URL = os.getenv('COMMERCIAL_AGENT_WEBHOOK_URL', '')
+COMMERCIAL_AGENT_OLLAMA_URL = os.getenv('COMMERCIAL_AGENT_OLLAMA_URL', '')
+COMMERCIAL_AGENT_OLLAMA_MODEL = os.getenv('COMMERCIAL_AGENT_OLLAMA_MODEL', '')
+COMMERCIAL_AGENT_MODE = os.getenv('COMMERCIAL_AGENT_MODE', 'rules').lower()
+COMMERCIAL_AGENT_GEMINI_API_KEY = os.getenv('COMMERCIAL_AGENT_GEMINI_API_KEY', '')
+COMMERCIAL_AGENT_GEMINI_MODEL = os.getenv('COMMERCIAL_AGENT_GEMINI_MODEL', 'gemini-2.5-flash-lite')
+CELERY_BEAT_SCHEDULE['commercial-inbound'] = {'task': 'apps.prospecting.tasks.process_commercial_inbox', 'schedule': 10.0}
+
+CELERY_BEAT_SCHEDULE['thermal-print-jobs'] = {'task':'apps.orders.printing.plan_thermal_jobs','schedule':5.0}

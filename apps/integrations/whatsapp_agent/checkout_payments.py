@@ -17,7 +17,9 @@ from apps.integrations.models import (
     WhatsAppOrderNotice,
 )
 from apps.orders import cart_service, inventory
+from apps.orders.choices import OrderSource
 from apps.orders.models import Order, OrderItem
+from apps.orders.operations import record_initial_event
 from apps.orders.services import build_whatsapp_message
 
 
@@ -203,6 +205,7 @@ def create_order(c):
     s = c.snapshot
     order = Order.objects.create(
         tenant=c.cart.tenant,
+        source=OrderSource.WHATSAPP,
         checkout_token=c.token,
         source_cart_id=c.cart_id,
         subtotal=s["subtotal"],
@@ -210,6 +213,7 @@ def create_order(c):
         total=s["total"],
         **s["fields"],
     )
+    record_initial_event(order, note="Pedido criado pelo atendimento no WhatsApp.")
     for item in s["items"]:
         OrderItem.objects.create(order=order, **item)
     inventory.consume(order, snapshot_lines(c), exclude_whatsapp_checkout_id=c.pk)

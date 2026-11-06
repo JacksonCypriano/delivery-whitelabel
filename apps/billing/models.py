@@ -490,3 +490,21 @@ class BillingAudit(models.Model):
         ordering = ["-created_at"]
         verbose_name = "Evento da assinatura"
         verbose_name_plural = "Auditoria de assinaturas"
+
+
+class FreeAccessGrant(models.Model):
+    operation_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    subscription = models.ForeignKey(Subscription, on_delete=models.PROTECT, related_name='free_grants')
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    days = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    reason = models.CharField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+    previous_until = models.DateField(null=True)
+    starts_on = models.DateField()
+    ends_on = models.DateField()
+    access_before = models.JSONField(default=dict)
+    access_after = models.JSONField(default=dict)
+
+    class Meta:
+        ordering = ('-created_at', '-operation_id')
+        constraints = [models.CheckConstraint(condition=models.Q(days__gt=0), name='free_grant_positive_days')]

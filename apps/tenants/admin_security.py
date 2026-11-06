@@ -9,6 +9,7 @@ from django.views.decorators.cache import never_cache
 from unfold.forms import AuthenticationForm
 
 from apps.accounts.audit import record_event
+from apps.tenants.domains import is_platform_host
 from apps.core.rate_limit import rate_limit_exceeded, identifier_rate_limit_exceeded
 
 logger = logging.getLogger(__name__)
@@ -50,7 +51,7 @@ class SuperAdminAuthenticationForm(ProtectedAdminAuthenticationForm):
 
     def confirm_login_allowed(self, user):
         super().confirm_login_allowed(user)
-        if not user.is_superuser:
+        if not is_platform_host(self.request) or not user.is_superuser:
             record_event("access_denied", request=self.request, user_id=user.pk, reason="not_allowed")
             raise ValidationError("Credenciais inválidas para este painel.", code="invalid_admin_login")
 

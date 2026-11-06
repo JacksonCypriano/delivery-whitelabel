@@ -1,0 +1,108 @@
+import { Activity } from "./Activity";
+import { panel, panelUrl } from "../../panel";
+import { Link, useOutletContext } from "react-router-dom";
+export function Dashboard() {
+  const d = useOutletContext<any>();
+  if (panel.kind === "superadmin") {
+    return (
+      <>
+        <div className="page-heading">
+          <div>
+            <p className="eyebrow">Visão geral</p>
+            <h1>Administração global</h1>
+            <p className="muted">Gestão central da plataforma VemDeDelivery.</p>
+          </div>
+        </div>
+        {d.alerts?.map((a:any) => <div className="alert" key={a.url}><Link to={a.url}>{a.text}</Link></div>)}
+        <div className="actions"><Link className="button" to={panelUrl("comercial")}>Agente comercial e leads</Link><Link className="button secondary" to={panelUrl("prospeccao")}>Prospecção WhatsApp</Link><Link className="button secondary" to={panelUrl("evolution")}>Evolution API</Link></div>
+        <div className="stats">
+          <section className="card"><span>Módulos disponíveis</span><strong>{d.stats?.resources || 0}</strong></section>
+          <section className="card"><span>Áreas administrativas</span><strong>{Object.keys(d.groups || {}).length}</strong></section>
+        </div>
+        {d.metrics && <><div className="stats platform-metrics">
+          <Link className="card" to={panelUrl('tenants-tenant')}><span>Lojas ativas</span><strong>{d.metrics.stores.active}</strong><small>de {d.metrics.stores.total} cadastradas</small></Link>
+          <Link className="card" to={panelUrl('billing-subscription')}><span>Assinaturas gerenciadas</span><strong>{d.metrics.subscriptions.managed}</strong><small>{d.metrics.subscriptions.suspended} suspensas por assinatura</small></Link>
+          <Link className="card" to={panelUrl('comercial')}><span>Conversas aguardando humano</span><strong>{d.metrics.human_requests}</strong><small>Exclui recusas de contato e oportunidades encerradas</small></Link>
+          <section className="card"><span>Recebido no mês · produção</span><strong>{Number(d.metrics.received_month).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</strong><small>Faturas com pagamento confirmado. Não representa receita recorrente.</small></section>
+        </div><section className="card"><h2>Pedidos criados hoje</h2><p className="muted">{d.metrics.date} · Todos os estabelecimentos, incluindo os status cancelados.</p><div className="order-summary-strip">{d.metrics.orders_today.map((row:any)=><span key={row.source}><strong>{row.count}</strong> {({'web':'Loja online','manual':'Balcão','whatsapp':'WhatsApp','ifood':'iFood','99food':'99Food'} as Record<string,string>)[row.source]||row.source}</span>)}</div></section></>}
+        <Activity />
+        <div className="cards">
+          {d.resources.map((r: any) => (
+            <Link className="card shortcut" key={r.key} to={panelUrl(r.key)}>
+              <h3>{r.title}</h3><span>Acessar →</span>
+            </Link>
+          ))}
+        </div>
+      </>
+    );
+  }
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">Visão geral</p>
+          <h1>Olá, {d.store}</h1>
+          <p className="muted">Tudo para cuidar da sua loja, em um só lugar.</p>
+        </div>
+        <a
+          className="button secondary"
+          href={d.public_url}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Ver minha loja ↗
+        </a>
+      </div>
+      <div className="stats">
+        <Link to={panelUrl("products")} className="card">
+          <span>Produtos</span>
+          <strong>{d.stats.products}</strong>
+        </Link>
+        <Link to={panelUrl("categories")} className="card">
+          <span>Categorias</span>
+          <strong>{d.stats.categories}</strong>
+        </Link>
+        <Link to={panelUrl("assinatura")} className="card">
+          <span>Minha assinatura</span>
+          <strong>{d.subscription.situation}</strong>
+        </Link>
+      </div>
+      <section className="card">
+        <div className="page-heading">
+          <h2>
+            {d.setup.complete
+              ? "Sua loja está pronta para publicar"
+              : "Vamos preparar sua loja"}
+          </h2>
+          <strong>{d.setup.percent}%</strong>
+        </div>
+        <progress value={d.setup.percent} max={100} />
+        <div className="checklist">
+          {d.setup.steps
+            .filter((s: any) => s.required)
+            .map((s: any) => (
+              <Link key={s.key} to={s.url}>
+                <span className={"check " + (s.complete ? "done" : "")}>
+                  {s.complete ? "✓" : "○"}
+                </span>
+                <div>
+                  <strong>{s.title}</strong>
+                  <p>{s.description}</p>
+                </div>
+                <span>→</span>
+              </Link>
+            ))}
+        </div>
+      </section>
+      <Activity />
+      <div className="cards">
+        {d.resources.map((r: any) => (
+          <Link className="card shortcut" key={r.key} to={panelUrl(r.key)}>
+            <h3>{r.title}</h3>
+            <span>Acessar →</span>
+          </Link>
+        ))}
+      </div>
+    </>
+  );
+}

@@ -10,7 +10,7 @@ from urllib.parse import urlencode, urlsplit
 
 from django.conf import settings
 from django.http import Http404, HttpResponse
-from django.shortcuts import render
+from apps.public_ui.rendering import render_public as render
 from django.templatetags.static import static
 from django.urls import reverse
 from django.utils.html import escape
@@ -359,7 +359,9 @@ def robots_txt(request):
         "User-agent: *",
         "Allow: /",
         "Disallow: /admin/",
+        "Disallow: /painel/",
         "Disallow: /superadmin/",
+        "Disallow: /superadmin-legacy/",
         "Disallow: /dashboard/",
         "Disallow: /conta/",
         "Disallow: /checkout/",

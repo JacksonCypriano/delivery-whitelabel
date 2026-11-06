@@ -1,0 +1,505 @@
+"""Operational order API used by the React merchant panel (Package 13)."""
+
+from __future__ import annotations
+
+from datetime import datetime, time, timedelta
+
+from django.db import transaction
+from django.db.models import Count, Prefetch, Q
+from django.utils.dateparse import parse_date, parse_datetime
+from rest_framework.exceptions import ValidationError
+from django.utils import timezone
+from rest_framework.response import Response
+
+from apps.integrations.models import WhatsAppCheckout
+from apps.orders.choices import OrderSource, Status
+from apps.orders.models import (
+    Order,
+    OrderItem,
+    OrderNotificationSettings,
+)
+from apps.orders.operations import (
+    OrderOperationError,
+    STATUS_LABELS,
+    allowed_transitions,
+    operational_order_q,
+    build_status_message,
+    notification_enabled,
+    _prep_minutes,
+    create_manual_order,
+    manual_catalog,
+    quote_manual_order,
+    transition_order,
+    update_estimate,
+)
+
+from .api import MerchantAPI
+from .schema import value
+
+
+def _payment_info(order, whatsapp_checkout=None):
+    if order.source in ("ifood", "99food"):
+        x = getattr(order, "external_order", None)
+        return {"status": order.payment_flow, "label": "Pago no marketplace" if x and x.paid else "Cobrança na entrega · conferir plataforma", "paid": bool(x and x.paid)}
+    if order.payment_flow == "in_person":
+        return {
+            "status": "in_person",
+            "label": "Pagamento na entrega/retirada",
+            "paid": False,
+        }
+    payment = getattr(order, "online_payment", None)
+    if payment is not None:
+        return {
+            "status": payment.status,
+            "label": payment.get_status_display(),
+            "paid": payment.status == "PAID",
+        }
+    if whatsapp_checkout is not None:
+        paid = bool(whatsapp_checkout.paid_at)
+        return {
+            "status": whatsapp_checkout.status,
+            "label": "Pix pago e validado" if paid else "Aguardando confirmação",
+            "paid": paid,
+        }
+    return {"status": "pending", "label": "Aguardando confirmação", "paid": False}
+
+
+def _order_card(order, whatsapp_checkout=None, settings=None):
+    now = timezone.now()
+    estimate = order.estimated_ready_at
+    from apps.channels.services import presentation
+    return {
+        **presentation(order),
+        "id": order.pk,
+        "kitchen_priority": order.kitchen_priority,
+        "scheduled_for": value(order.scheduled_for),
+        "customer_name": order.customer_name or "Cliente",
+        "customer_phone": order.customer_phone,
+        "status": order.status,
+        "status_label": STATUS_LABELS.get(order.status, order.status),
+        "source": order.source,
+        "source_label": dict(OrderSource.choices).get(order.source, order.source),
+        "delivery_type": order.delivery_type,
+        "delivery_label": order.delivery_type_label,
+        "payment": _payment_info(order, whatsapp_checkout),
+        "payment_label": order.payment_label,
+        "total": str(order.total),
+        "created_at": value(order.created_at),
+        "status_updated_at": value(order.status_updated_at),
+        "estimated_ready_at": value(estimate),
+        "estimated_fulfillment_at": value(order.estimated_fulfillment_at),
+        "delivery_address": order.delivery_address_label,
+        "delivery_reference": order.delivery_reference,
+        "late": bool(
+            estimate
+            and estimate < now
+            and order.status not in {Status.READY, Status.READY_FOR_PICKUP, Status.OUT_FOR_DELIVERY, Status.DELIVERED, Status.CANCELLED}
+        ),
+        "items": [
+            {
+                "id": item.pk,
+                "name": item.name,
+                "quantity": item.quantity,
+                "price": str(item.price),
+                "notes": item.notes,
+                "combination_details": item.combination_details or {},
+            }
+            for item in order.items.all()
+        ],
+        "item_count": sum(item.quantity for item in order.items.all()),
+        "allowed_transitions": [
+            {"value": status, "label": STATUS_LABELS[status],
+             "message": build_status_message(order, status, include_estimate=False),
+             "notification_enabled": False if order.source in ("ifood", "99food") else notification_enabled(settings, status) if settings else None}
+            for status in allowed_transitions(order)
+        ],
+    }
+
+
+def _base_queryset(tenant):
+    return (
+        Order.objects.filter(tenant=tenant, abandoned_at__isnull=True)
+        .filter(operational_order_q())
+        .select_related("online_payment", "external_order__connection").prefetch_related("external_order__commands")
+        .prefetch_related(Prefetch("items", queryset=OrderItem.objects.order_by("pk")))
+    )
+
+
+def _filter_board(base, params):
+    """Common filters, independent of pagination and operational state."""
+    source = params.get("source", "")
+    if source == "direct":
+        base = base.exclude(source__in=["ifood", "99food"])
+    elif source:
+        if source not in OrderSource.values:
+            raise ValidationError("Origem inválida.")
+        base = base.filter(source=source)
+    modality = params.get("modality", "")
+    if modality:
+        if modality not in {"delivery", "pickup"}:
+            raise ValidationError("Modalidade inválida.")
+        base = base.filter(delivery_type=modality)
+    term = str(params.get("q", "")).strip()[:100]
+    if term:
+        query = Q(customer_name__icontains=term)
+        if term.lstrip("#").isdigit():
+            query |= Q(pk=int(term.lstrip("#")))
+        base = base.filter(query)
+    return base
+
+
+def _period(params):
+    # Tenant schedules use Django's active local timezone, as do these boundaries.
+    today = timezone.localdate()
+    period = params.get("period", "today")
+    start = end = today
+    if period == "yesterday":
+        start = end = today - timedelta(days=1)
+    elif period == "week":
+        start = today - timedelta(days=6)
+    elif period == "custom":
+        try:
+            start, end = parse_date(params.get("start", "")), parse_date(params.get("end", ""))
+        except ValueError:
+            start = end = None
+        if not start or not end or start > end or (end-start).days > 366:
+            raise ValidationError("Informe um período válido de até 367 dias.")
+    elif period != "today":
+        raise ValidationError("Período inválido.")
+    return (timezone.make_aware(datetime.combine(start, time.min)),
+            timezone.make_aware(datetime.combine(end + timedelta(days=1), time.min)))
+
+
+class OrdersBoard(MerchantAPI):
+    def get(self, request):
+        base = _filter_board(_base_queryset(request.tenant), request.query_params)
+        active_only = request.query_params.get("active_only") == "1"
+        settings, _ = OrderNotificationSettings.objects.get_or_create(tenant=request.tenant)
+        active_statuses = [
+            Status.PENDING,
+            Status.CONFIRMED,
+            Status.PREPARING,
+            Status.READY,
+            Status.READY_FOR_PICKUP,
+            Status.OUT_FOR_DELIVERY,
+        ]
+        # Keep every operational order visible regardless of volume. Only the
+        # completed/cancelled history is capped, otherwise a busy store could
+        # hide the newest orders behind an arbitrary global limit.
+        active_rows = list(
+            base.filter(status__in=active_statuses).order_by("created_at", "pk")
+        )
+        from .pagination import paginate, metadata
+        finished_page = None if active_only else paginate(base.filter(status__in=[Status.DELIVERED, Status.CANCELLED]).order_by("-created_at", "-pk"), request)
+        finished_rows = list(finished_page) if finished_page is not None else []
+        # Additive response: old consumers keep columns/finished unchanged.
+        start, end = _period(request.query_params)
+        delivered_page = paginate(base.filter(status=Status.DELIVERED,
+            status_updated_at__gte=start, status_updated_at__lt=end).order_by("-status_updated_at", "-pk"), request, key="delivered_page")
+        history = base.filter(created_at__gte=start, created_at__lt=end)
+        status_filter = request.query_params.get("history_status", "")
+        if status_filter:
+            if status_filter not in Status.values:
+                raise ValidationError("Status inválido.")
+            history = history.filter(status=status_filter)
+        all_page = paginate(history.order_by("-created_at", "-pk"), request, key="all_page")
+        rows = list({row.pk: row for row in active_rows + finished_rows + list(delivered_page) + list(all_page)}.values())
+        order_ids = [row.pk for row in rows]
+        wa = {
+            row.order_id: row
+            for row in WhatsAppCheckout.objects.filter(order_id__in=order_ids).only(
+                "order_id", "status", "paid_at"
+            )
+        }
+        cards = [_order_card(row, wa.get(row.pk), settings) for row in rows]
+        # Cancellation is an operational lane, not a terminal Order.status.
+        columns = [
+            {
+                "status": status,
+                "label": "Novos" if status == Status.PENDING else STATUS_LABELS[status],
+                "orders": [card for card in cards if card["status"] == status and not card.get("cancellation_pending")],
+            }
+            for status in active_statuses
+        ]
+        columns.insert(1, {
+            "status": "awaiting_cancellation",
+            "label": "Aguardando cancelamento",
+            "orders": [card for card in cards if card.get("cancellation_pending")],
+        })
+        finished = [
+            card
+            for card in cards
+            if card["status"] in {Status.DELIVERED, Status.CANCELLED}
+        ]
+        settings, _ = OrderNotificationSettings.objects.get_or_create(
+            tenant=request.tenant
+        )
+        return Response(
+            {
+                "columns": columns,
+                "finished": [card for card in finished if card["id"] in {row.pk for row in finished_rows}],
+                "delivered": [next(c for c in cards if c["id"] == row.pk) for row in delivered_page],
+                "delivered_pagination": metadata(delivered_page),
+                "all_orders": [next(c for c in cards if c["id"] == row.pk) for row in all_page],
+                "all_pagination": metadata(all_page),
+                "timezone": timezone.get_current_timezone_name(),
+                "finished_pagination": metadata(finished_page) if finished_page is not None else None,
+                "counts": {
+                    row["status"]: row["total"]
+                    for row in Order.objects.filter(
+                        tenant=request.tenant, abandoned_at__isnull=True
+                    )
+                    .filter(
+                        operational_order_q()
+                    )
+                    .values("status")
+                    .annotate(total=Count("id"))
+                },
+                "notification_settings": _settings_json(settings),
+                "server_time": value(timezone.now()),
+            }
+        )
+
+
+class OrderOperationsDetail(MerchantAPI):
+    def get(self, request, pk):
+        order = _base_queryset(request.tenant).filter(pk=pk).first()
+        if order is None:
+            return Response({"detail": "Pedido não encontrado."}, status=404)
+        checkout = WhatsAppCheckout.objects.filter(order_id=order.pk).first()
+        events = order.status_events.select_related("actor").order_by("-created_at", "-pk")[:100]
+        settings, _ = OrderNotificationSettings.objects.get_or_create(tenant=request.tenant)
+        card = _order_card(order, checkout, settings)
+        card.update(
+            notification_settings=_settings_json(settings),
+            subtotal=str(order.subtotal),
+            delivery_fee=str(order.delivery_fee),
+            discount_amount=str(order.discount_amount),
+            coupon_code=order.coupon_code,
+            delivery_address=order.delivery_address_label,
+            delivery_reference=order.delivery_reference,
+            events=[
+                {
+                    "id": event.pk,
+                    "from_status": event.from_status,
+                    "from_label": STATUS_LABELS.get(event.from_status, event.from_status),
+                    "to_status": event.to_status,
+                    "to_label": STATUS_LABELS.get(event.to_status, event.to_status),
+                    "source": event.get_source_display(),
+                    "actor": (
+                        event.actor.get_full_name() or event.actor.username
+                        if event.actor
+                        else "Sistema"
+                    ),
+                    "note": event.note,
+                    "metadata": event.metadata,
+                    "created_at": value(event.created_at),
+                    "notification": _notification_json(getattr(event, "notification", None)),
+                }
+                for event in events
+            ],
+            items=[
+                {
+                    "id": item.pk,
+                    "name": item.name,
+                    "quantity": item.quantity,
+                    "price": str(item.price),
+                    "line_total": str(item.get_total_price()),
+                    "notes": item.notes,
+                    "combination_details": item.combination_details or {},
+                }
+                for item in order.items.all()
+            ],
+        )
+        return Response(card)
+
+
+class OrderTransition(MerchantAPI):
+    @transaction.atomic
+    def post(self, request, pk):
+        try:
+            expected = request.data.get("expected_status_updated_at")
+            if expected is not None:
+                # Match marketplace workers: connection -> external order -> order.
+                from apps.channels.models import Connection, ExternalOrder
+                external = ExternalOrder.objects.filter(order_id=pk, order__tenant=request.tenant).first()
+                if external:
+                    Connection.objects.select_for_update().get(pk=external.connection_id)
+                    ExternalOrder.objects.select_for_update().get(pk=external.pk)
+                current = Order.objects.select_for_update().get(pk=pk, tenant=request.tenant)
+                try:
+                    parsed = parse_datetime(str(expected))
+                except ValueError:
+                    parsed = None
+                if not parsed or parsed != current.status_updated_at:
+                    return Response({"detail": "O pedido mudou. Atualize o painel e confira a nova etapa."}, status=409)
+            order, event = transition_order(
+                order_id=pk,
+                tenant=request.tenant,
+                target_status=str(request.data.get("status") or ""),
+                actor=request.user,
+                prep_minutes=request.data.get("prep_minutes"),
+                note=str(request.data.get("note") or ""),
+                fulfillment_minutes=request.data.get("fulfillment_minutes"),
+                message=request.data.get("message"),
+                complement=request.data.get("complement", ""),
+                send_notification=request.data.get("send_notification"),
+                cancellation_code=request.data.get("cancellation_code"),
+                cancellation_reason=request.data.get("cancellation_reason"),
+            )
+        except Order.DoesNotExist:
+            return Response({"detail": "Pedido não encontrado."}, status=404)
+        except OrderOperationError as exc:
+            return Response({"detail": str(exc)}, status=400)
+        return Response(
+            {
+                "detail": ("Status alterado somente na simulação local." if getattr(getattr(order, "external_order", None), "connection", None) and order.external_order.connection.mode == "simulation" else "Solicitação registrada; aguardando confirmação da plataforma." if order.source in ("ifood", "99food") else "Status atualizado.") if event else "O pedido já estava neste status.",
+                "order": _order_card(order),
+            }
+        )
+
+
+class OrderEstimate(MerchantAPI):
+    def post(self, request, pk):
+        try:
+            order, _event = update_estimate(
+                order_id=pk,
+                tenant=request.tenant,
+                minutes=request.data.get("minutes"),
+                actor=request.user,
+            )
+        except Order.DoesNotExist:
+            return Response({"detail": "Pedido não encontrado."}, status=404)
+        except OrderOperationError as exc:
+            return Response({"detail": str(exc)}, status=400)
+        return Response({"detail": "Previsão atualizada.", "order": _order_card(order)})
+
+
+def _settings_json(settings):
+    return {
+        "enabled": settings.enabled,
+        "notify_confirmed": settings.notify_confirmed,
+        "notify_preparing": settings.notify_preparing,
+        "notify_ready": settings.notify_ready,
+        "notify_out_for_delivery": settings.notify_out_for_delivery,
+        "notify_delivered": settings.notify_delivered,
+        "notify_cancelled": settings.notify_cancelled,
+        "default_prep_minutes": settings.default_prep_minutes,
+        "default_delivery_minutes": settings.default_delivery_minutes,
+        "default_pickup_minutes": settings.default_pickup_minutes,
+        "allow_skip_notification": settings.allow_skip_notification,
+    }
+
+
+class OrderSettings(MerchantAPI):
+    def get(self, request):
+        settings, _ = OrderNotificationSettings.objects.get_or_create(
+            tenant=request.tenant
+        )
+        return Response(_settings_json(settings))
+
+    def post(self, request):
+        settings, _ = OrderNotificationSettings.objects.get_or_create(
+            tenant=request.tenant
+        )
+        boolean_fields = [
+            "enabled",
+            "allow_skip_notification",
+            "notify_confirmed",
+            "notify_preparing",
+            "notify_ready",
+            "notify_out_for_delivery",
+            "notify_delivered",
+            "notify_cancelled",
+        ]
+        for field in boolean_fields:
+            if field in request.data:
+                raw = request.data.get(field)
+                if not isinstance(raw, bool):
+                    return Response({"detail": f"Valor inválido para {field}."}, status=400)
+                setattr(settings, field, raw)
+        for field in ("default_prep_minutes", "default_delivery_minutes", "default_pickup_minutes"):
+            if field in request.data:
+                try:
+                    minutes = _prep_minutes(request.data[field])
+                    if minutes is None:
+                        raise OrderOperationError("Informe um prazo padrão.")
+                except OrderOperationError as exc:
+                    return Response({"detail": str(exc)}, status=400)
+                setattr(settings, field, minutes)
+        settings.save()
+        return Response({"detail": "Preferências salvas.", **_settings_json(settings)})
+
+
+class ManualOrderCatalog(MerchantAPI):
+    def get(self, request):
+        return Response(manual_catalog(request.tenant))
+
+
+class ManualOrderQuote(MerchantAPI):
+    def post(self, request):
+        try:
+            result = quote_manual_order(
+                tenant=request.tenant,
+                items=request.data.get("items"),
+                delivery_type=request.data.get("delivery_type") or "pickup",
+                city=request.data.get("delivery_city") or "",
+                neighborhood=request.data.get("delivery_neighborhood") or "",
+            )
+        except OrderOperationError as exc:
+            return Response({"detail": str(exc)}, status=400)
+        return Response(
+            {
+                "subtotal": str(result["subtotal"]),
+                "delivery_fee": str(result["delivery_fee"]),
+                "total": str(result["total"]),
+                "items": [
+                    {
+                        "name": quote.name,
+                        "quantity": count,
+                        "unit_price": str(quote.price),
+                        "line_total": str(quote.price * count),
+                    }
+                    for quote, count in result["lines"]
+                ],
+            }
+        )
+
+
+class ManualOrderCreate(MerchantAPI):
+    def post(self, request):
+        try:
+            order = create_manual_order(
+                tenant=request.tenant,
+                data=request.data,
+                actor=request.user,
+            )
+        except OrderOperationError as exc:
+            return Response({"detail": str(exc)}, status=400)
+        return Response(
+            {
+                "detail": f"Pedido #{order.pk} criado.",
+                "id": order.pk,
+            },
+            status=201,
+        )
+
+
+def _notification_json(notice):
+    if notice is None:
+        return None
+    if notice.sent_at:
+        status = "sent"
+    elif notice.skipped_at:
+        status = "skipped"
+    elif notice.attempted_at:
+        status = "pending_retry"
+    else:
+        status = "pending"
+    return {
+        "status": status,
+        "attempts": notice.attempts,
+        "text": notice.text,
+        "sent_at": value(notice.sent_at),
+        "last_error": notice.last_error,
+    }

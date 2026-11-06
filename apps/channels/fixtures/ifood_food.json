@@ -1,0 +1,15 @@
+{
+  "id": "00000000-0000-4000-8000-000000000001",
+  "displayId": "SIM-1001",
+  "merchant": {"id": "test-merchant"},
+  "createdAt": "2026-10-09T12:00:00Z",
+  "orderType": "DELIVERY",
+  "orderTiming": "IMMEDIATE",
+  "category": "FOOD",
+  "customer": {"name": "Cliente fictício", "phone": {"number": "00000000000"}},
+  "items": [{"id": "item-1", "externalCode": "DEMO-LANCHE", "name": "Lanche teste", "quantity": 1, "unit": "UN", "unitPrice": 39.90, "price": 39.90, "optionsPrice": 5.00, "totalPrice": 44.90, "observations": "Sem cebola", "options": [{"name": "Queijo", "quantity": 1, "unitPrice": 5.00, "price": 5.00}]}],
+  "total": {"subTotal": 44.90, "deliveryFee": 5.00, "benefits": 0, "orderAmount": 49.90, "additionalFees": 0},
+  "payments": {"prepaid": 49.90, "pending": 0, "methods": [{"method": "CREDIT", "prepaid": true, "value": 49.90}]},
+  "delivery": {"deliveredBy": "MERCHANT", "deliveryAddress": {"streetName": "Rua de Teste", "streetNumber": "100", "neighborhood": "Centro", "city": "Cidade teste", "state": "SP", "postalCode": "00000000"}},
+  "benefits": []
+}

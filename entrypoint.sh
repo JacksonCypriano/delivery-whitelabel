@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROLE="${1:-web}"
+ROLE="${1:-backend}"
 DB_HOST="${DATABASE_HOST:-db}"
 DB_PORT="${DATABASE_PORT:-5432}"
 REDIS_HOST="${REDIS_HOST:-redis}"
@@ -43,7 +43,7 @@ wait_for_port "$DB_HOST" "$DB_PORT" "database"
 wait_for_port "$REDIS_HOST" "$REDIS_PORT" "redis"
 
 case "$ROLE" in
-  web)
+  backend)
     echo "📁 Preparing static/media directories..."
     mkdir -p /app/staticfiles /app/media
 

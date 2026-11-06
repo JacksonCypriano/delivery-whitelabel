@@ -5,7 +5,9 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.http import Http404
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect
+from apps.public_ui.rendering import render_public as render
+from apps.public_ui.rendering import render_public
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
@@ -20,6 +22,7 @@ from .models import (
 from .services import build_whatsapp_message
 from . import cart_service as integrity
 from . import inventory
+from .operations import record_initial_event
 from apps.coupons.models import CouponCampaign
 from apps.coupons.services import validate_coupon
 from apps.billing.models import OrderPayment
@@ -78,6 +81,9 @@ def open_whatsapp(request, public_token):
     if order.whatsapp_opened_at is None:
         try:
             integrity.ensure_store(request.tenant)
+            if order.scheduled_for:
+                from .scheduling import validate_schedule
+                validate_schedule(request.tenant, order.scheduled_for, order.delivery_type)
             if integrity.expired(order):
                 raise integrity.CartError(
                     "A revisão do pedido expirou. Confira os valores e confirme novamente."
@@ -147,6 +153,9 @@ def open_whatsapp(request, public_token):
             cart.items.all().delete()
             integrity.invalidate_draft(cart)
             request.session["checkout_token"] = str(cart.checkout_token)
+    # Only after this commit point is the generated web draft an operational
+    # order for the merchant. get_or_create also backfills older finalized rows.
+    record_initial_event(order, note="Pedido confirmado pelo cliente na loja online.")
     # Reopening an old order must never delete the customer's new cart.
     message = build_whatsapp_message(order)
     return redirect(
@@ -240,7 +249,7 @@ def order_history(request):
     paginator = Paginator(orders, 8)
     page_obj = paginator.get_page(request.GET.get("page"))
 
-    return render(
+    return render_public(
         request, "orders/history.html", {"orders": page_obj, "page_obj": page_obj}
     )
 

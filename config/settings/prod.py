@@ -51,3 +51,6 @@ if SENTRY_DSN:
 # Produção usa somente a API real; homologação permanece sandbox por padrão.
 ASAAS_ENVIRONMENT = os.getenv("ASAAS_ENVIRONMENT", "production")
 BILLING_ALLOW_SANDBOX = False
+
+# Local fake orders must never enter a production-settings process.
+CHANNELS_SIMULATOR_ENABLED = False

@@ -25,3 +25,28 @@ WHATSAPP_AGENT_OLLAMA_ENABLED = False
 # alterar a configuração de produção.
 SIMPLE_JWT = {"LEEWAY": 30}
 
+
+# Hosts artificiais usados pelo Django test client para exercitar o fallback
+# técnico do SuperAdmin. Não existe em produção e não amplia os hosts reais.
+PLATFORM_ADMIN_HOST_ALIASES = ("testserver", "localhost")
+
+# Legacy permission tests intentionally exercise the retained fallback backend.
+# Dedicated cutover tests enable the production-default React routing.
+MERCHANT_REACT_ENABLED = False
+LEGACY_ADMIN_ENABLED = True
+
+# Marketplace tests cannot inherit real credentials or external access.
+CHANNELS_NETWORK_ENABLED = False
+CHANNELS_LIVE_ENABLED = False
+CHANNELS_SIMULATOR_ENABLED = False
+IFOOD_TEST_CLIENT_ID = IFOOD_TEST_CLIENT_SECRET = ""
+IFOOD_LIVE_CLIENT_ID = IFOOD_LIVE_CLIENT_SECRET = ""
+COMMERCIAL_AGENT_ENABLED = False
+COMMERCIAL_AGENT_WEBHOOK_TOKEN = ''
+COMMERCIAL_AGENT_WEBHOOK_URL = ''
+COMMERCIAL_AGENT_OLLAMA_URL = ''
+COMMERCIAL_AGENT_OLLAMA_MODEL = ''
+
+COMMERCIAL_AGENT_MODE = "rules"
+COMMERCIAL_AGENT_GEMINI_API_KEY = ""
+COMMERCIAL_AGENT_GEMINI_MODEL = "gemini-2.5-flash-lite"

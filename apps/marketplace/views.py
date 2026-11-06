@@ -5,7 +5,8 @@ from django.db.models import Q, Subquery
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import redirect
+from apps.public_ui.rendering import render_public as render
 from django.views.decorators.http import require_GET, require_POST
 
 from apps.customers.models import Customer, CustomerAddress

@@ -52,8 +52,8 @@ def _safe_naturalized(candidate, fallback, facts):
     return True
 
 
-def answer(tenant, question, context=None):
-    knowledge = answer_from_store(tenant, question, context=context or {})
+def answer(tenant, question, context=None, phone=""):
+    knowledge = answer_from_store(tenant, question, context=context or {}, phone=phone)
     text = knowledge.fallback
     if knowledge.intent in _NATURALIZE_INTENTS:
         try:

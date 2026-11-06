@@ -1,3 +1,5 @@
+> Atualização para homologação: leia [LEIA-ME-PACOTES-14-A-19.md](LEIA-ME-PACOTES-14-A-19.md). Produção não autorizada.
+
 # 🍕 Delivery White-label
 
 Plataforma de **cardápio digital e delivery white-label** (multi-tenant): cada
@@ -118,7 +120,7 @@ As principais:
 
 ## 🏪 Como configurar uma loja e começar a vender
 
-1. **Acesse o super admin** em `/superadmin/` e faça login com o superusuário.
+1. **Acesse a administração global** em `/painel/` no domínio raiz e faça login com o superusuário. O `/superadmin-legacy/` é somente fallback técnico de homologação.
 2. **Crie um Tenant (loja)** informando `slug` (subdomínio), nome, número de
    WhatsApp, endereço, horário de funcionamento, estimativa de entrega e a
    taxa de entrega (deixe `0` para entrega grátis).

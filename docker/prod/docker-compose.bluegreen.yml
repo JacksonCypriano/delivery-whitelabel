@@ -1,11 +1,14 @@
 # Compose de produção blue/green. Não use junto com docker-compose.yml.
 services:
-  web-blue: &web
+  public-ssr:
+    build: {context: ../../, dockerfile: docker/Dockerfile.public-ssr}
+    restart: unless-stopped
+  backend-blue: &backend
     build: {context: ../../}
     env_file: [.env]
-    environment: {RUN_MIGRATIONS: "true", COLLECTSTATIC: "true"}
-    command: ["web"]
-    depends_on: {db: {condition: service_healthy}, redis: {condition: service_healthy}}
+    environment: {PUBLIC_REACT_SSR_URL: "http://public-ssr:3001", RUN_MIGRATIONS: "true", COLLECTSTATIC: "true"}
+    command: ["backend"]
+    depends_on: {public-ssr: {condition: service_healthy}, db: {condition: service_healthy}, redis: {condition: service_healthy}}
     restart: unless-stopped
     init: true
     volumes: [static_volume:/app/staticfiles, media_volume:/app/media]
@@ -15,8 +18,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-  web-green:
-    <<: *web
+  backend-green:
+    <<: *backend
   db:
     image: postgres:15
     env_file: [.env]
@@ -30,11 +33,17 @@ services:
     volumes: [redisdata:/data]
     healthcheck: {test: ["CMD", "redis-cli", "ping"], interval: 10s, timeout: 5s, retries: 5}
   celery:
-    <<: *web
+    <<: *backend
     command: ["celery"]
     volumes: []
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A config inspect ping -d celery@$$HOSTNAME --timeout=5 2>/dev/null | grep -q pong"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
   celery-prospecting:
-    <<: *web
+    <<: *backend
     command: ["celery-prospecting"]
     volumes: []
     healthcheck:
@@ -44,9 +53,11 @@ services:
       retries: 3
       start_period: 30s
   celery-beat:
-    <<: *web
+    <<: *backend
     command: ["beat"]
     volumes: []
+    healthcheck:
+      disable: true
   nginx:
     image: nginx:stable-alpine
     ports: ["80:80", "443:443"]
@@ -56,7 +67,8 @@ services:
       - /opt/vemdedelivery/ssl:/etc/nginx/ssl:ro
       - static_volume:/app/staticfiles:ro
       - media_volume:/app/media:ro
-    networks: [default, evolution_network]
+    networks: [default, evolution_network, hml_edge_network]
 volumes: {pgdata: {}, redisdata: {}, static_volume: {}, media_volume: {}}
 networks:
   evolution_network: {external: true, name: evolution_evolution}
+  hml_edge_network: {external: true, name: vdd_hml_edge}

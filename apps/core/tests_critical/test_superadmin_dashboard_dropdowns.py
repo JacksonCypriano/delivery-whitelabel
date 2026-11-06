@@ -12,14 +12,14 @@ class SuperAdminDashboardDropdownCriticalTests(CriticalTestCase):
     def test_superadmin_uses_collapsible_dashboard_template(self):
         self.assertEqual(super_admin_site.index_template, "admin/super/index.html")
 
-        response = self.client.get("/superadmin/", HTTP_HOST="vemdedelivery.com.br")
+        response = self.client.get("/superadmin-legacy/", HTTP_HOST="vemdedelivery.com.br")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<details class="app-tenants module">', html=False)
         self.assertContains(response, '<details class="app-billing module">', html=False)
         self.assertContains(response, '<details class="app-integrations module">', html=False)
 
     def test_superadmin_dashboard_apps_are_in_operational_order(self):
-        request = RequestFactory().get("/superadmin/")
+        request = RequestFactory().get("/superadmin-legacy/")
         request.user = self.superuser
         request.tenant = None
 

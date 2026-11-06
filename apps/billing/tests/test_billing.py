@@ -374,10 +374,10 @@ class BillingTests(TestCase):
         root_client = Client(HTTP_HOST="vemdedelivery.com.br")
         root_client.force_login(self.root)
         self.assertEqual(
-            root_client.get("/superadmin/billing/subscription/").status_code, 200
+            root_client.get("/superadmin-legacy/billing/subscription/").status_code, 200
         )
         self.assertEqual(
-            root_client.post("/superadmin/billing/credit/add/", {}).status_code, 403
+            root_client.post("/superadmin-legacy/billing/credit/add/", {}).status_code, 403
         )
 
     @override_settings(**OPTIONS)

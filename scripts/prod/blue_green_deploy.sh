@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Uso: bash scripts/prod/blue_green_deploy.sh
-# Alterna web-blue/web-green apenas depois de testes e health checks.
+# Alterna backend-blue/backend-green apenas depois de testes e health checks.
 set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -12,54 +12,94 @@ ACTIVE_FILE="docker/prod/nginx/conf.d/active-upstream.conf"
 git update-index --assume-unchanged "$ACTIVE_FILE" 2>/dev/null || true
 PREVIOUS_UPSTREAM="$(cat "$ACTIVE_FILE")"
 SWITCHED=0
-ACTIVE="$(grep -oE 'web-(blue|green)' "$ACTIVE_FILE" | head -1 || true)"
-[[ "$ACTIVE" == "web-blue" ]] && NEXT=green || NEXT=blue
+# No primeiro deploy migratorio, upstream pode ser web-blue/web-green.
+ACTIVE="$(grep -oE '(backend|web)-(blue|green)' "$ACTIVE_FILE" | head -1 || true)"
+[[ "$ACTIVE" == *-blue ]] && NEXT=green || NEXT=blue
 
 rollback() {
+  local restored=0
+  trap - ERR
   if [[ "$SWITCHED" == 1 ]]; then
     printf '%s\n' "$PREVIOUS_UPSTREAM" > "$ACTIVE_FILE"
-    "${COMPOSE[@]}" exec -T nginx nginx -t >/dev/null 2>&1 && "${COMPOSE[@]}" exec -T nginx nginx -s reload >/dev/null 2>&1 || true
+    if "${COMPOSE[@]}" exec -T nginx nginx -t >/dev/null 2>&1 && \
+       "${COMPOSE[@]}" exec -T nginx nginx -s reload >/dev/null 2>&1; then
+      restored=1
+      echo "Upstream anterior restaurado e recarregado."
+    else
+      echo "ERRO CRITICO: nao foi possivel confirmar o rollback do Nginx." >&2
+      echo "Mantendo backend-$NEXT ligado para evitar corte de trafego." >&2
+      return 0
+    fi
+  else
+    restored=1
   fi
-  echo "Falha: o tráfego permanece no ambiente ${ACTIVE:-atual}."
-  "${COMPOSE[@]}" stop "web-$NEXT" 2>/dev/null || true
+  if [[ "$restored" == 1 ]]; then
+    # Em falhas posteriores as migracoes, o backend anterior pode nao ser
+    # compativel com o banco novo. Preservar o novo backend tambem como fallback.
+    echo "Falha de deploy; upstream mantido/restaurado para ${ACTIVE:-anterior}."
+    if [[ "$SWITCHED" == 0 ]]; then
+      "${COMPOSE[@]}" stop "backend-$NEXT" 2>/dev/null || true
+    fi
+  fi
 }
 trap rollback ERR
 
 [[ "$(git branch --show-current)" == "main" ]] || { echo "Produção exige a branch main."; exit 1; }
 git diff --quiet && git diff --cached --quiet || { echo "Há alterações locais; deploy cancelado."; exit 1; }
-git pull --ff-only origin main
+# Nenhum pull aqui: a action já fez fetch/pull e verificou o SHA do push.
+# Exigir o SHA encaminhado pelo workflow evita avançar para outro commit
+# entre a validação do checkout e o corte do tráfego.
+if [[ -z "${VDD_DEPLOY_SHA:-}" || "$(git rev-parse HEAD)" != "$VDD_DEPLOY_SHA" ]]; then
+  echo 'Deploy bloqueado: SHA local não coincide com o push da action.' >&2
+  exit 1
+fi
+
+# No primeiro corte React, nao executar migrations automaticamente sem
+# aprovacao explicita para o SHA revisado. A action pode atualizar arquivos,
+# mas nao iniciara containers novos antes desta aprovacao.
+if [[ "$ACTIVE" == web-blue || "$ACTIVE" == web-green ]]; then
+  APPROVAL="/opt/vemdedelivery/operations/first-react-cutover-approved"
+  if [[ ! -f "$APPROVAL" || "$(cat "$APPROVAL")" != "$VDD_DEPLOY_SHA" ]]; then
+    echo "Primeiro corte bloqueado: revisar migracoes e aprovar SHA em $APPROVAL" >&2
+    exit 1
+  fi
+fi
+
+# Usar apenas os containers preexistentes: sem recriar PostgreSQL/Redis/Nginx.
+for service in db redis nginx; do
+  container="$("${COMPOSE[@]}" ps -q "$service")"
+  [[ -n "$container" && "$(docker inspect --format='{{.State.Running}}' "$container")" == true ]] || {
+    echo "Servico existente indisponivel: $service" >&2
+    exit 1
+  }
+done
 
 echo "▶ Criando e verificando backup antes da publicação..."
-bash backup-prod.sh
-bash test-restore-prod.sh
+# O Nginx tem acesso somente leitura ao mesmo volume de media usado pelos
+# backends, inclusive antes de existir a primeira imagem React/Django.
+COMPOSE_FILE=docker/prod/docker-compose.bluegreen.yml VDD_MEDIA_BACKUP_SERVICE=nginx bash backup-prod.sh
+COMPOSE_FILE=docker/prod/docker-compose.bluegreen.yml bash test-restore-prod.sh
 
-# Testa o código que será publicado antes de subir a nova cor.
-"${COMPOSE[@]}" build "web-$NEXT"
-# Use the same isolated critical suite used by homolog/prod deployments,
-# against the image that was just built.
-"${COMPOSE[@]}" run --rm --no-deps \
-  -e DJANGO_SETTINGS_MODULE=config.settings.test \
-  -e EVOLUTION_WHATSAPP_VALIDATION_ENABLED=false \
-  --entrypoint python "web-$NEXT" manage.py test \
-  apps.accounts apps.billing.tests apps.integrations.tests apps.prospecting apps.core.tests_critical \
-  --settings=config.settings.test --verbosity=2 --noinput
-"${COMPOSE[@]}" up -d "web-$NEXT"
+# Suítes críticas executadas em CI/homolog; build compila o TypeScript.
+"${COMPOSE[@]}" up -d --no-deps --build --wait public-ssr
+"${COMPOSE[@]}" up -d --no-deps --build "backend-$NEXT"
 
 for _ in $(seq 1 30); do
-  container="$(${COMPOSE[@]} ps -q "web-$NEXT" || true)"
+  container="$(${COMPOSE[@]} ps -q "backend-$NEXT" || true)"
   status="$(docker inspect --format='{{.State.Health.Status}}' "$container" 2>/dev/null || true)"
   [[ "$status" == healthy ]] && break
   sleep 2
 done
 [[ "$status" == healthy ]] || { echo "Nova versão não ficou saudável."; exit 1; }
 
-printf 'upstream vemdedelivery_upstream { server web-%s:8000; }\n' "$NEXT" > "$ACTIVE_FILE"
+printf 'upstream vemdedelivery_upstream { server backend-%s:8000; }\n' "$NEXT" > "$ACTIVE_FILE"
+# Ativar o rollback antes de validar/recarregar o Nginx.
+SWITCHED=1
 "${COMPOSE[@]}" exec -T nginx nginx -t
 "${COMPOSE[@]}" exec -T nginx nginx -s reload
-SWITCHED=1
 curl --fail --silent --show-error --resolve vemdedelivery.com.br:443:127.0.0.1 https://vemdedelivery.com.br/health/ready/ >/dev/null
 "${COMPOSE[@]}" build celery celery-prospecting celery-beat
-"${COMPOSE[@]}" up -d celery celery-prospecting celery-beat
+"${COMPOSE[@]}" up -d --no-deps celery celery-prospecting celery-beat
 
 prospecting_status=""
 for _ in $(seq 1 20); do
@@ -74,8 +114,11 @@ if [[ "$prospecting_status" != healthy ]]; then
   exit 1
 fi
 
-"${COMPOSE[@]}" stop "web-$ACTIVE" 2>/dev/null || true
-# Remove somente o container legado do compose anterior, sem tocar em volumes.
-legacy="$(docker ps -q --filter name='^prod-web-1$' || true)"
+# Os containers web-* antigos nao pertencem ao Compose novo. Preserva-os
+# como fallback na primeira migracao; nao tenta parar um servico inexistente.
+if [[ "$ACTIVE" == backend-blue || "$ACTIVE" == backend-green ]]; then
+  "${COMPOSE[@]}" stop "$ACTIVE" 2>/dev/null || true
+fi
+legacy="$(docker ps -q --filter name='^prod-backend-1$' || true)"
 [[ -z "$legacy" ]] || docker stop "$legacy" >/dev/null
-echo "Deploy concluído: tráfego em web-$NEXT."
+echo "Deploy concluído: tráfego em backend-$NEXT."

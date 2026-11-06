@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ENV=${1:-dev}
-SERVICE=${2:-web}
+SERVICE=${2:-backend}
 
 DC="docker compose -f docker/$ENV/docker-compose.yml"
 

@@ -1408,7 +1408,11 @@ def checkout_step_one(request):
             else payment_label
         )
 
+        from apps.orders.scheduling import validate_schedule
+        scheduled_for = validate_schedule(request.tenant, request.POST.get('scheduled_for'), delivery_type)
         order_data = {
+            'scheduled_for': scheduled_for,
+            'attribution': {k:v for k,v in request.session.get('order_attribution',{}).items() if k!='tenant'} if request.session.get('order_attribution',{}).get('tenant')==request.tenant.pk else {},
             'tenant': request.tenant,
             'customer': customer,
             'customer_name': full_name,

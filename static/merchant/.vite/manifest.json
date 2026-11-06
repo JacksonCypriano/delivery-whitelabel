@@ -1,0 +1,11 @@
+{
+  "src/main.tsx": {
+    "file": "assets/main-C-8-CSez.js",
+    "name": "main",
+    "src": "src/main.tsx",
+    "isEntry": true,
+    "css": [
+      "assets/main-UQ_MCkib.css"
+    ]
+  }
+}

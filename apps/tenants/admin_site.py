@@ -2,10 +2,12 @@ import pprint
 import logging
 
 from django.core.exceptions import ValidationError
+from django.http import Http404
 from django.contrib.auth.forms import PasswordChangeForm
 
 from apps.tenants.models import BrandConfig
 from apps.tenants.onboarding import get_store_setup
+from apps.tenants.domains import is_platform_host
 from .admin_security import (ProtectedAdminAuthenticationForm, ProtectedAdminSiteMixin, SuperAdminAuthenticationForm)
 from unfold.sites import UnfoldAdminSite
 
@@ -37,6 +39,12 @@ class TenantAdminAuthenticationForm(ProtectedAdminAuthenticationForm):
 # ── Admin do Lojista ──────────────────────────────────────────────────────────
 class TenantAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
     login_form = TenantAdminAuthenticationForm
+
+    def login(self, request, extra_context=None):
+        # O fallback Django do lojista nunca existe no host raiz da plataforma.
+        if getattr(request, "tenant", None) is None:
+            raise Http404("Painel de lojista não disponível neste domínio.")
+        return super().login(request, extra_context=extra_context)
     password_change_form = PasswordChangeForm
     site_title = "Painel"
     site_header = "Painel da loja"
@@ -199,6 +207,12 @@ tenant_admin_site = TenantAdminSite(name="tenant_admin")
 # ── Admin Global (Superusuário) ───────────────────────────────────────────────
 class SuperAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
     login_form = SuperAdminAuthenticationForm
+
+    def login(self, request, extra_context=None):
+        # O fallback global nunca é exposto em host de tenant ou host desconhecido.
+        if not is_platform_host(request) or getattr(request, "tenant", None) is not None:
+            raise Http404("Administração global não disponível neste domínio.")
+        return super().login(request, extra_context=extra_context)
     site_title = "Administração global"
     site_header = "Painel Global"
     index_title = "Gestão do Sistema"
@@ -323,6 +337,7 @@ class SuperAdminSite(ProtectedAdminSiteMixin, UnfoldAdminSite):
         user = request.user
 
         return (
+            is_platform_host(request) and
             user.is_authenticated and
             user.is_active and
             user.is_superuser

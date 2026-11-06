@@ -928,6 +928,9 @@ COMMERCIAL_AGENT_WEBHOOK_TOKEN = os.getenv('COMMERCIAL_AGENT_WEBHOOK_TOKEN', '')
 COMMERCIAL_AGENT_WEBHOOK_URL = os.getenv('COMMERCIAL_AGENT_WEBHOOK_URL', '')
 COMMERCIAL_AGENT_OLLAMA_URL = os.getenv('COMMERCIAL_AGENT_OLLAMA_URL', '')
 COMMERCIAL_AGENT_OLLAMA_MODEL = os.getenv('COMMERCIAL_AGENT_OLLAMA_MODEL', '')
+COMMERCIAL_AGENT_MODE = os.getenv('COMMERCIAL_AGENT_MODE', 'rules').lower()
+COMMERCIAL_AGENT_GEMINI_API_KEY = os.getenv('COMMERCIAL_AGENT_GEMINI_API_KEY', '')
+COMMERCIAL_AGENT_GEMINI_MODEL = os.getenv('COMMERCIAL_AGENT_GEMINI_MODEL', 'gemini-2.5-flash-lite')
 CELERY_BEAT_SCHEDULE['commercial-inbound'] = {'task': 'apps.prospecting.tasks.process_commercial_inbox', 'schedule': 10.0}
 
 CELERY_BEAT_SCHEDULE['thermal-print-jobs'] = {'task':'apps.orders.printing.plan_thermal_jobs','schedule':5.0}

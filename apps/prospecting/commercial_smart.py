@@ -86,48 +86,155 @@ def classify(conversation, articles):
     return result
 
 
+
+# Instructions in approved knowledge are for the agent, not WhatsApp recipients.
+_POLICY_START = (
+    'não prometer', 'nao prometer', 'não afirmar', 'nao afirmar',
+    'nunca prometer', 'não confundir', 'nao confundir',
+    'não é correto afirmar', 'nao e correto afirmar',
+    'os preços devem', 'os precos devem', 'não oferecer', 'nao oferecer',
+    'evitar prometer', 'não garantir', 'nao garantir',
+    'a demonstração pública pode', 'a demonstracao publica pode',
+)
+_BUSINESS_TYPES = (
+    'pizzaria', 'pizza', 'hamburgueria', 'hamburguer', 'restaurante',
+    'lanchonete', 'marmitaria', 'açaiteria', 'acaiteria', 'padaria',
+    'cafeteria', 'bar', 'doceria', 'sorveteria',
+)
+
+
+def _normalize(value):
+    import unicodedata
+    return ''.join(c for c in unicodedata.normalize('NFKD', value.casefold())
+                   if not unicodedata.combining(c))
+
+
+def _recent_customer_text(conversation):
+    """Read only relevant recent inbound messages; never infer business from assistant claims."""
+    rows = conversation.messages.filter(from_me=False).order_by('-pk').values_list('text', flat=True)[:12]
+    return _normalize(' '.join(x or '' for x in rows))
+
+
+def _business_is_known(conversation):
+    text = _recent_customer_text(conversation)
+    return any(re.search(r'(?<!\w)' + re.escape(word) + r'(?!\w)', text) for word in _BUSINESS_TYPES)
+
+
+def _public_summary(article, *, price_requested=False):
+    """Extract approved factual sentences; never reproduce operational instructions.
+
+    A filtered article with no safe factual sentence requires human review.
+    No AI output is used as unverified prose.
+    """
+    if price_requested and article.slug in {'contratacao'}:
+        return ''
+    body = article.body.strip()
+    if not body or len(body) > 1100:
+        raise ValueError('unreviewed_article')
+    fragments = re.split(r'(?<=[.!?])\s+', body)
+    approved = []
+    for fragment in fragments:
+        sentence = fragment.strip()
+        folded = _normalize(sentence)
+        if not sentence or any(folded.startswith(_normalize(bad)) for bad in _POLICY_START):
+            continue
+        if re.search(r'https?://|R\$|(?<!\w)\d+[,.]\d{2}(?!\w)', sentence, re.I):
+            # Links and prices come only from approved structured config/catalog.
+            continue
+        if len(sentence) > 330:
+            continue
+        approved.append(sentence)
+        if len(approved) == 2:
+            break
+    if not approved:
+        raise ValueError('article_has_no_public_facts')
+    return ' '.join(approved)
+
+
+def _money(value):
+    from decimal import Decimal, InvalidOperation
+    try:
+        amount = Decimal(str(value))
+        if not amount.is_finite() or amount < 0:
+            raise ValueError('invalid_catalog_price')
+    except (InvalidOperation, ValueError, TypeError) as exc:
+        raise ValueError('invalid_catalog_price') from exc
+    return f"{amount:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+
+
+def _plan_line(plan):
+    months = plan['months']
+    discount = _money(plan['discount']).rstrip('0').rstrip(',')
+    name = plan['name']
+    total = _money(plan['total'])
+    if months == 1:
+        return f'{name}: R$ {total} por mês, com pagamento antecipado.'
+    period = {3: '3 meses', 6: '6 meses', 12: '12 meses'}.get(months)
+    if period is None:
+        raise ValueError('unapproved_plan_duration')
+    return f'{name}: R$ {total} pelo período de {period}, com {discount}% de desconto e pagamento antecipado.'
+
+
+def _selected_question(conversation, question, previous):
+    value = QUESTIONS[question]
+    if question == 'business' and _business_is_known(conversation):
+        # Gemini sometimes misses a business type in an informal message.
+        # A demo invitation is preferable to repeating a question already answered.
+        value = QUESTIONS['demo']
+    if value and any(value in reply for reply in previous):
+        value = ''
+    return value
+
+
 def render(conversation, publication, knowledge, selection):
-    """Deterministic only: no LLM-generated claims, prices, links or actions."""
-    if not isinstance(selection,dict) or selection.get('human') is not False:
+    """Short WhatsApp responses containing reviewed factual excerpts only."""
+    if not isinstance(selection, dict) or selection.get('human') is not False:
         raise ValueError('human_review_required')
-    ids=selection.get('article_ids')
-    if (not isinstance(ids,list) or len(ids)>MAX_ARTICLES or
-        any(type(pk) is not int for pk in ids) or len(ids)!=len(set(ids))):
+    ids = selection.get('article_ids')
+    if (not isinstance(ids, list) or len(ids) > MAX_ARTICLES
+            or any(type(pk) is not int for pk in ids)
+            or len(ids) != len(set(ids))):
         raise ValueError('invalid_article_selection')
-    permitted={article.pk:article for article in knowledge}
+    permitted = {article.pk: article for article in knowledge}
     if any(pk not in permitted for pk in ids):
         raise ValueError('unknown_article')
-    scope=selection.get('pricing_scope')
-    question=selection.get('question')
-    if scope not in {'none','monthly','all'} or question not in QUESTIONS:
+    scope = selection.get('pricing_scope')
+    question = selection.get('question')
+    if scope not in {'none', 'monthly', 'all'} or question not in QUESTIONS:
         raise ValueError('invalid_selection_options')
-    if not ids and scope=='none' and question=='none':
+    if not ids and scope == 'none' and question == 'none':
         raise ValueError('empty_response')
-    lines=[]
-    if not conversation.messages.exclude(reply='').exists():
+    previous = list(conversation.messages.exclude(reply='').order_by('-pk').values_list('reply', flat=True)[:6])
+    lines = []
+    if not previous:
         lines.append('Olá! Sou o assistente virtual comercial do VemDeDelivery.')
-    previous=list(conversation.messages.exclude(reply='').order_by('-pk').values_list('reply',flat=True)[:6])
     for pk in ids:
-        content=permitted[pk].body.strip()
-        if not content or len(content)>1100:
-            raise ValueError('unreviewed_article')
-        if not any(content in reply for reply in previous):
-            lines.append(content)
-    if scope!='none':
-        plan_list=publication['data']['plans']
-        selected=[p for p in plan_list if p['months']==1] if scope=='monthly' else plan_list
+        article = permitted[pk]
+        text = _public_summary(article, price_requested=scope != 'none')
+        if text and not any(text in reply or article.body.strip() in reply for reply in previous):
+            lines.append(text)
+    if scope != 'none':
+        plans = publication['data']['plans']
+        selected = [p for p in plans if p['months'] == 1] if scope == 'monthly' else plans
         if not selected:
             raise ValueError('catalog_missing_plan')
         for plan in selected:
-            lines.append(f"{plan['name']}: R$ {plan['total'].replace('.', ',')} por {plan['months']} mês(es), antecipado.")
-        lines.append('Não cobramos comissão sobre pedidos diretos. Taxas de terceiros são independentes.')
-    question_text=QUESTIONS[question]
-    if question_text and not any(question_text in reply for reply in previous):
+            line = _plan_line(plan)
+            if not any(line in reply for reply in previous):
+                lines.append(line)
+        # Only mention commission if the user actually asked about it or
+        # the approved commission article was deliberately selected.
+    question_text = _selected_question(conversation, question, previous)
+    if question_text:
         lines.append(question_text)
-    result='\n\n'.join(lines)
-    if not result or len(result)>MAX_OUTPUT:
+    # Never send a greeting alone, and never invent an answer when everything was repeated.
+    if len(lines) == (1 if not previous else 0):
+        raise ValueError('response_needs_human')
+    result = '\n\n'.join(lines)
+    if not result or len(result) > MAX_OUTPUT:
         raise ValueError('response_needs_human')
     return result, ids
+
 
 
 def compose(conversation, publication, knowledge):

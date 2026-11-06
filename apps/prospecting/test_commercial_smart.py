@@ -12,6 +12,9 @@ from .commercial_smart import render, redact
 @override_settings(COMMERCIAL_AGENT_MODE='smart',COMMERCIAL_AGENT_GEMINI_API_KEY='test-key')
 class SmartCommercialTests(TestCase):
     def setUp(self):
+        quota_patch = patch('apps.prospecting.commercial_smart.reserve')
+        quota_patch.start()
+        self.addCleanup(quota_patch.stop)
         for months, discount in ((1,0),(3,5),(6,10),(12,15)):
             Plan.objects.update_or_create(months=months, defaults={'name':f'Plano {months}','monthly_price':'149.90','discount':discount,'active':True})
         self.articles=[]
@@ -83,10 +86,14 @@ class SmartCommercialTests(TestCase):
                 session.assert_not_called()
 
     def test_provider_failure_no_rules_fallback(self):
+        from .commercial_quota import CommercialQuotaDeferred
         response=Mock(status_code=503,content=b'{}')
-        with patch('apps.prospecting.commercial_smart.requests.Session') as s:
-            s.return_value.__enter__.return_value.post.return_value=response
-            with self.assertRaises(ValueError): compose(self.conv,catalog(),self.articles)
+        with patch('apps.prospecting.commercial_smart.time.sleep'), patch('apps.prospecting.commercial_smart.requests.Session') as s:
+            post=s.return_value.__enter__.return_value.post
+            post.return_value=response
+            with self.assertRaisesRegex(CommercialQuotaDeferred, 'smart_provider_http_503'):
+                compose(self.conv,catalog(),self.articles)
+            self.assertEqual(post.call_count, 2)
 
     def test_provider_payload_has_no_phone(self):
         response=Mock(status_code=200, content=b'{}')

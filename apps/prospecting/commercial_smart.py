@@ -14,6 +14,7 @@ from django.conf import settings
 
 from .commercial_context import conversation_context
 from .commercial_smart_policy import enforce_selection, requested_period, price_question
+from .commercial_quota import CommercialQuotaDeferred, reserve, cooldown
 
 
 QUESTIONS = {
@@ -81,6 +82,9 @@ def classify(conversation, articles):
     with requests.Session() as session:
         session.trust_env = False
         for attempt in range(2):
+            # Atomic Redis reservation. Quota exhaustion is not an error for a
+            # lead: it is a durable postponement in the Django inbox.
+            reserve(model)
             try:
                 response = session.post(
                     endpoint, headers={'x-goog-api-key': api_key},
@@ -90,12 +94,23 @@ def classify(conversation, articles):
                 if attempt == 0:
                     time.sleep(0.8)
                     continue
-                raise ValueError('smart_provider_network_error') from exc
+                raise CommercialQuotaDeferred(65, 'smart_provider_network_deferred') from exc
             if response.status_code == 200:
                 break
-            if response.status_code in {429, 500, 502, 503, 504} and attempt == 0:
-                time.sleep(0.8)
-                continue
+            if response.status_code == 429:
+                # NEVER immediately retry a throttled request. All workers
+                # sharing Redis respect this provider-wide cooldown.
+                delay=65
+                header=response.headers.get('Retry-After')
+                if isinstance(header,str) and header.isdecimal():
+                    delay=max(65,min(int(header),3600))
+                cooldown(model,delay)
+                raise CommercialQuotaDeferred(delay,'smart_provider_http_429')
+            if response.status_code in {500,502,503,504}:
+                if attempt == 0:
+                    time.sleep(0.8)
+                    continue
+                raise CommercialQuotaDeferred(65,f'smart_provider_http_{response.status_code}')
             raise ValueError(f'smart_provider_http_{response.status_code}')
     if len(response.content) > 32000:
         raise ValueError('smart_model_unavailable')

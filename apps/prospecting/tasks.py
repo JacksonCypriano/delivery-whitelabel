@@ -239,5 +239,9 @@ def process_commercial_inbox():
         return
     # Give short fragmented messages time to arrive. Durable rows survive broker loss.
     cutoff = timezone.now() - timedelta(seconds=4)
-    for pk in list(CommercialMessage.objects.filter(state='queued', created_at__lte=cutoff).order_by('pk').values_list('pk',flat=True)[:20]):
+    from django.db.models import Q
+    due = (Q(next_attempt_at__isnull=True) | Q(next_attempt_at__lte=timezone.now()))
+    for pk in list(CommercialMessage.objects.filter(
+        due, state='queued', created_at__lte=cutoff,
+    ).order_by('pk').values_list('pk',flat=True)[:20]):
         process_message(pk)

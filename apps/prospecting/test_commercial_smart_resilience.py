@@ -10,6 +10,9 @@ from .commercial_smart import classify, compose
 @override_settings(COMMERCIAL_AGENT_GEMINI_API_KEY='test-key', COMMERCIAL_AGENT_GEMINI_MODEL='gemini-test')
 class SmartResilienceTests(TestCase):
     def setUp(self):
+        quota_patch = patch('apps.prospecting.commercial_smart.reserve')
+        quota_patch.start()
+        self.addCleanup(quota_patch.stop)
         self.conv = CommercialConversation.objects.create(instance='resilience-offline', phone='559911110001')
         CommercialMessage.objects.create(conversation=self.conv, provider_id='i1', text='quanto custa?', from_me=False)
         self.knowledge = [CommercialArticle.objects.create(
@@ -32,14 +35,23 @@ class SmartResilienceTests(TestCase):
         self.assertEqual(session.return_value.__enter__.return_value.post.call_count, 2)
         sleep.assert_called_once()
 
-    @patch('apps.prospecting.commercial_smart.time.sleep')
-    @patch('apps.prospecting.commercial_smart.requests.Session')
-    def test_429_exhaustion_has_no_third_attempt(self, session, sleep):
+    @patch("apps.prospecting.commercial_smart.requests.Session")
+    def test_429_exhaustion_has_no_third_attempt(self, session):
+        from .commercial_quota import CommercialQuotaDeferred
+
         post = session.return_value.__enter__.return_value.post
         post.return_value = self.response(429)
-        with self.assertRaisesRegex(ValueError, 'smart_provider_http_429'):
-            classify(self.conv, self.knowledge)
-        self.assertEqual(post.call_count, 2)
+
+        with patch("apps.prospecting.commercial_smart.cooldown") as cooldown:
+            with self.assertRaisesRegex(
+                CommercialQuotaDeferred, "smart_provider_http_429"
+            ):
+                classify(self.conv, self.knowledge)
+
+        self.assertEqual(post.call_count, 1)
+        cooldown.assert_called_once()
+
+
 
     @patch('apps.prospecting.commercial_smart.time.sleep')
     @patch('apps.prospecting.commercial_smart.requests.Session')

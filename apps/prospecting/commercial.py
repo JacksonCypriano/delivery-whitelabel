@@ -264,6 +264,7 @@ def compose(conversation, publication, knowledge):
 
 
 def process_message(pk):
+    from .commercial_quota import CommercialQuotaDeferred
     """No automatic retry after a POST might have escaped.
 
     Global control then conversation lock gives pause, webhook and worker the
@@ -277,6 +278,7 @@ def process_message(pk):
         row = CommercialMessage.objects.select_related('conversation').get(pk=pk)
         conv = CommercialConversation.objects.select_for_update().get(pk=row.conversation_id)
         if row.state != 'queued': return
+        if row.next_attempt_at and row.next_attempt_at > timezone.now(): return
         if not control.enabled or conv.paused or conv.opted_out or conv.instance != control.instance:
             row.state='held'; row.save(update_fields=['state']); return
         try:
@@ -292,6 +294,12 @@ def process_message(pk):
             client = TenantEvolutionClient()
             if client.status(control.instance) != 'open': raise ValueError('instance_disconnected')
             reply, sources = compose(conv,publication,knowledge)
+        except CommercialQuotaDeferred as exc:
+            # The message was NOT sent. Keep it queued, without pausing the
+            # lead or marking it as a human handoff. Beat will retry when due.
+            row.next_attempt_at = timezone.now() + timedelta(seconds=exc.seconds)
+            row.save(update_fields=['next_attempt_at', 'updated_at'])
+            return
         except Exception:
             row.state='human';row.save(update_fields=['state'])
             conv.paused=True;conv.reason='generation_or_catalog_review';conv.save()

@@ -18,7 +18,7 @@ class CommercialTests(TestCase):
         self.control.catalog_fingerprint=catalog()['fingerprint'];self.control.save()
         self.article=CommercialArticle.objects.create(slug='produto',version=1,title='Produto',body='O VemDeDelivery organiza os pedidos diretos da sua loja.',published=True)
         self.admin=get_user_model().objects.create_superuser('commercial-admin','sales@example.com','password')
-        self.client=Client(HTTP_HOST='testserver');self.client.force_login(self.admin)
+        self.client=Client(HTTP_HOST='lvh.me');self.client.force_login(self.admin)
 
     def message(self,mid='m1',text='Olá',**kwargs):
         return receive('commercial-test',{'message_id':mid,'phone':'5511999999999','text':text,'from_me':False,'kind':'text',**kwargs})

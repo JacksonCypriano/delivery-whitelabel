@@ -193,30 +193,9 @@ def _answer_from_selection(conversation, publication, knowledge, choice):
 
 
 def _rules_choice(conversation, knowledge):
-    last = conversation.messages.filter(from_me=False).order_by('-pk').first()
-    if last is None or not last.text.strip():
-        raise ValueError('empty_inbound')
-    raw = _fold(last.text)
-    tokens = set(re.findall(r'[a-z0-9]+', raw))
-    if len(raw) > 1200:
-        raise ValueError('complex_inbound_requires_human')
-    if any(x in raw for x in ('reembolso', 'cancelamento', 'reclamacao', 'processo judicial', 'advogado', 'garantia de resultado')):
-        raise ValueError('sensitive_request_requires_human')
-    pricing = bool(any(w in tokens for w in _PRICE_WORDS))
-    scored = []
-    for article in knowledge:
-        words = _TOPIC_WORDS.get(article.slug, ())
-        score = sum(1 for word in words if word in tokens)
-        if score:
-            scored.append((-score, article.slug, article.pk))
-    scored.sort()
-    ids = [item[2] for item in scored[:2]]
-    if not ids and not pricing:
-        greeting = raw.strip(' !?.')
-        if greeting in _GREETING_WORDS or greeting in ('quero conhecer', 'tenho interesse'):
-            return {'article_ids': [], 'pricing': False, 'question': 'business', 'human': False}
-        raise ValueError('unknown_intent_requires_human')
-    return {'article_ids': ids, 'pricing': pricing, 'question': 'demo' if pricing else 'pain', 'human': False}
+    from .commercial_nlu import choose as choose_commercial_intent
+    from .commercial_context import conversation_context
+    return choose_commercial_intent(conversation_context(conversation), knowledge)
 
 
 def _gemini_choice(conversation, knowledge):
@@ -226,10 +205,8 @@ def _gemini_choice(conversation, knowledge):
     model = getattr(settings, 'COMMERCIAL_AGENT_GEMINI_MODEL', 'gemini-2.5-flash-lite')
     if not key or not re.fullmatch(r'[a-zA-Z0-9._-]{3,100}', model):
         raise ValueError('gemini_not_configured')
-    last = conversation.messages.filter(from_me=False).order_by('-pk').first()
-    if last is None or not last.text.strip() or len(last.text) > 1200:
-        raise ValueError('invalid_inbound')
-    text = last.text
+    from .commercial_context import conversation_context
+    text = conversation_context(conversation)
     text = re.sub(r'\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b', '[email]', text)
     text = re.sub(r'(?<!\d)\+?\d[\d\s().-]{9,}\d(?!\d)', '[telefone]', text)
     text = re.sub(r'https?://\S+', '[link]', text)
@@ -264,6 +241,9 @@ def _gemini_choice(conversation, knowledge):
 
 def compose(conversation, publication, knowledge):
     mode = getattr(settings, 'COMMERCIAL_AGENT_MODE', 'rules').lower()
+    if mode == 'smart':
+        from .commercial_smart import compose as compose_smart
+        return compose_smart(conversation, publication, knowledge)
     if mode == 'ollama':
         return _compose_ollama(conversation, publication, knowledge)
     if mode not in ('rules', 'hybrid'):

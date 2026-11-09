@@ -45,9 +45,9 @@ def conversation(case):
 
 def evaluate(case, publication, knowledge):
     start=time.monotonic()
-    row=dict(case, outcome='', answer='', error='', sources=[], retry_at=0, manual_quality='')
+    row=dict(case, outcome='', answer='', error='', sources=[], retry_at=0, manual_quality='', trace={})
     try:
-        answer, sources=compose(conversation(case), publication, knowledge)
+        answer, sources=compose(conversation(case), publication, knowledge, trace=row['trace'])
         row.update(outcome='answer', answer=answer, sources=sources)
     except CommercialQuotaDeferred as exc:
         row.update(outcome='deferred', error=exc.reason, retry_at=time.time()+exc.seconds)
@@ -96,7 +96,7 @@ def metadata(publication, knowledge):
     # Include approval configuration in resume identity; never silently reuse
     # a case 094 result produced with a different demo link.
     links = [control.demo_url, control.contact_url] if control else ['', '']
-    return dict(composer_version=9, commercial_links_sha256=hashlib.sha256(json.dumps(links).encode()).hexdigest(),
+    return dict(composer_version=10, commercial_links_sha256=hashlib.sha256(json.dumps(links).encode()).hexdigest(),
                 demo_configured=bool(links[0]), cases_sha256=hashlib.sha256(CASES.read_bytes()).hexdigest(),
                 catalog_fingerprint=publication['fingerprint'],
                 articles_sha256=hashlib.sha256(json.dumps([(a.pk,a.version,a.body) for a in knowledge],ensure_ascii=False).encode()).hexdigest())

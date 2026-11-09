@@ -107,8 +107,8 @@ TOPIC_PATTERNS = {
     'comissoes': r'\b(?:comiss(?:ao|oes)|comissao|comisoes|taxa por pedido|taxas por pedido|taxa por venda)\b',
 }
 
-# A same-message selection of multiple topics is allowed within the 6-article
-# bound. If unsupported by selected *published* articles, escalate instead.
+# Compatibility anchors for callers without semantic question spans.
+# The planner reconciles overlapping routes; this is not an article quota.
 
 
 def requested_topics(text, available=None):
@@ -172,7 +172,7 @@ def price_question(text):
     return matches(r'\b(?:preco|precos|valor|valoor|custa|custam|custo|qto|quanto|qt|plano|planu|planos|mensalidade|desconto|pago|sai por)\b', message)
 
 
-def enforce_selection(conversation, selection, knowledge):
+def enforce_safety(conversation, knowledge):
     """Fail closed on unknown requirements or unverifiable classifier selection."""
     try:
         text = conversation_context(conversation)
@@ -188,25 +188,19 @@ def enforce_selection(conversation, selection, knowledge):
         raise ValueError('commercial_human_review_required')
 
     articles = {article.slug: article for article in knowledge}
-    ids = selection.get('article_ids', [])
-    selected = {article.slug for article in knowledge if article.pk in ids}
-    required = requested_topics(text, set(articles))
-
-    # Some catalog content covers more than one topic (a general overview, e.g.),
-    # but explicit topics must be answered by their dedicated vetted article.
-    # This refuses to send a confident partial answer.
-    missing = required - selected
-    if missing and not (missing <= {'gestao'} and 'visao-geral' in selected):
-        raise ValueError('commercial_topics_uncovered')
-    if len(required) > 6:
-        raise ValueError('commercial_too_many_topics')
-
     # Semantically unsafe explicit enquiries that article excerpts cannot settle
     # cannot be answered by a loosely related article.
     if matches(r'\b(?:pix|cartao|boleto)\b', folded) and 'pagamento' not in articles:
         # The payment methods are in the structured catalog, but the current
         # renderer cannot give a payment-specific answer yet.
         raise ValueError('commercial_payment_detail_review_required')
-    if matches(r'\b(?:kds)\b', folded) and not ({'kds', 'pedidos'} & selected):
-        raise ValueError('commercial_topics_uncovered')
     return text
+
+
+def enforce_selection(conversation, selection, knowledge):
+    """Compatibility facade; the planner owns coverage, not a second topic pass."""
+    from .commercial_plan import build_plan
+    plan = build_plan(conversation, selection, knowledge)
+    if plan.uncovered:
+        raise ValueError('commercial_topics_uncovered')
+    return plan.text

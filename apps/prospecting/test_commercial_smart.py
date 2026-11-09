@@ -54,8 +54,10 @@ class SmartCommercialTests(TestCase):
     def test_four_articles_rejected(self):
         with self.assertRaises(ValueError):render(self.conv,catalog(),self.articles,self.choice(article_ids=[1,2,3,4]))
 
-    def test_duplicate_article_rejected(self):
-        with self.assertRaises(ValueError):render(self.conv,catalog(),self.articles,self.choice(article_ids=[self.articles[0].pk]*2))
+    def test_duplicate_article_deduplicated_and_coverage_repaired(self):
+        answer, ids = render(self.conv,catalog(),self.articles,self.choice(article_ids=[self.articles[0].pk]*2))
+        self.assertEqual(ids, [a.pk for a in self.articles[:2]])
+        self.assertEqual(answer.count(self.articles[0].body), 1)
 
     def test_human_handoff(self):
         with self.assertRaises(ValueError):render(self.conv,catalog(),self.articles,self.choice(human=True))

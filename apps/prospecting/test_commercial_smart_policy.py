@@ -76,10 +76,12 @@ class SmartPolicyTests(TestCase):
         self.assertIn('cozinha', reply)
         self.assertNotIn('Qual é o tipo', reply)
 
-    def test_multi_topic_missing_requires_human(self):
+    def test_multi_topic_missing_selection_repaired(self):
         self.inbound('tem ifood, impressora e whatsapp?')
-        with self.assertRaisesRegex(ValueError, 'commercial_topics_uncovered'):
-            render(self.conv, self.catalog, self.articles, self.selection('integracoes', 'impressao'))
+        reply, _ = render(self.conv, self.catalog, self.articles, self.selection('integracoes', 'impressao'))
+        self.assertIn('WhatsApp', reply)
+        self.assertIn('impressão', reply)
+        self.assertIn('iFood', reply)
 
     def test_unsupported_physical_delivery_not_answered(self):
         self.inbound('vcs entregam marmita aqui em Itapevi?')

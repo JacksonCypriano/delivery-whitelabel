@@ -35,6 +35,8 @@ def normalized(text):
 
 def human_requested(text):
     text = normalized(text).strip(' !?.')
+    clauses = re.split(r'[;.!?\n]|\b(?:mas|porem)\b', text)
+    text = ' '.join(c for c in clauses if not matches(r'\bnao (?:quero|preciso|prefiro|desejo)\b', c))
     target = r'(?:um[ae]? |o |a |de |com |com um[ae]? )*(?:humano|atendente|pessoa|responsavel|alguem)'
     return (matches(r'^(?:humano|atendente(?: humano)?|pessoa|responsavel)$', text)
             or matches(r'\b(?:quero|preciso|prefiro|chame|chama|chamar|falar|conversar|transfira|transferir|me passa|me passe)\s+(?:falar com |conversar com |para |pra )?' + target + r'\b', text))

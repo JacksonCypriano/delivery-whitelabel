@@ -7,7 +7,7 @@ existing article draft/version/publication workflow.
 """
 from dataclasses import dataclass
 
-VERSION = 'contextual-1'
+VERSION = 'contextual-final-1'
 
 
 @dataclass(frozen=True)
@@ -20,7 +20,7 @@ INTENTS = {
     'cardapio': Intent(('cardapio-proprio',), ('cardapio', 'site', 'catalogo digital')),
     'whatsapp': Intent(('whatsapp',), ('whatsapp', 'robo', 'atendimento automatico', 'atendimento automatizado', 'agente', 'atendente humano', 'intervencao humana')),
     'cozinha': Intent(('kds', 'pedidos'), ('cozinha', 'kds', 'preparo')),
-    'pedidos': Intent(('pedidos',), ('pedido', 'pedidos', 'kanban', 'painel operacional', 'etapas', 'status', 'mesa', 'mesma tela')),
+    'pedidos': Intent(('pedidos',), ('pedido', 'pedidos', 'kanban', 'painel operacional', 'etapas', 'status', 'mesa', 'mesma tela', 'centralizar', 'centralizacao')),
     'impressao': Intent(('impressao',), ('impressao', 'impressora', 'imprimir', 'imprime', 'termica', 'comprovante')),
     'modalidades': Intent(('modalidades', 'pedidos'), ('entrega', 'retirada')),
     'entregadores': Intent(('entregadores', 'pedidos'), ('gestao de entregadores', 'gerenciar motoboys', 'gerenciar entregadores', 'gerencia entregadores', 'painel de motoboys')),

@@ -28,7 +28,7 @@ class MemoryRows(list):
         return MemoryRows(r for r in self if not all(r[k] == v for k,v in kwargs.items()))
 
     def values(self, *keys):
-        return MemoryRows({k:r[k] for k in keys} for r in self)
+        return MemoryRows({k:r.get(k) for k in keys} for r in self)
 
     def values_list(self, key, flat=False):
         return MemoryRows(r[key] if flat else (r[key],) for r in self)

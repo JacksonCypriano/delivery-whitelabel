@@ -15,7 +15,11 @@ def recent_context(rows, *, max_messages=6, window_seconds=180, max_chars=1200):
     chosen = []
     most_recent_at = None
     for row in rows:
-        if row.get('from_me') or row.get('reply'):
+        # A mensagem mais recente pode estar 'held' enquanto aguarda o agente;
+        # isso nao autoriza reutilizar mensagens 'held' mais antigas.
+        if (row.get('from_me') or row.get('reply')
+                or row.get('state') in {'human', 'uncertain', 'sending'}
+                or (row.get('state') == 'held' and chosen)):
             break
         text = str(row.get('text') or '').strip()
         if not text:
@@ -30,8 +34,8 @@ def recent_context(rows, *, max_messages=6, window_seconds=180, max_chars=1200):
         if not chosen:
             most_recent_at = created_at
         chosen.append(text)
-        if len(chosen) >= max_messages:
-            break
+        if len(chosen) > max_messages:
+            raise ValueError('context_requires_human')
     if not chosen:
         raise ValueError('empty_inbound')
     result = '\n'.join(reversed(chosen))
@@ -42,6 +46,6 @@ def recent_context(rows, *, max_messages=6, window_seconds=180, max_chars=1200):
 
 def conversation_context(conversation):
     rows = conversation.messages.order_by('-pk').values(
-        'text', 'from_me', 'reply', 'created_at'
+        'text', 'from_me', 'reply', 'created_at', 'state'
     )[:12]
     return recent_context(rows)

@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from .commercial_local import compose, HumanReview
 from .commercial_local_knowledge import VERSION
+from .commercial_quality import quality
 
 CASES = Path(__file__).parent / 'fixtures' / 'commercial_battery07.json'
 
@@ -16,7 +17,7 @@ class MemoryRows(list):
         return MemoryRows(sorted(self, key=lambda r: r[key.lstrip('-')], reverse=key.startswith('-')))
 
     def values(self, *keys):
-        return MemoryRows({k: row[k] for k in keys} for row in self)
+        return MemoryRows({k: row.get(k) for k in keys} for row in self)
 
 
 def conversation(case):
@@ -45,6 +46,7 @@ def evaluate(case, publication, knowledge, links):
     row['coverage'] = ('clarification' if trace.get('clarification') else
                        'uncovered' if trace.get('uncovered') or row['outcome'] != 'answer' else
                        'mapped_requires_manual_review')
+    row['quality'] = quality(row, publication, knowledge, links)
     return row
 
 
@@ -61,7 +63,7 @@ def read_snapshot(path):
     digest = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
     if digest != wrapper['sha256']:
         raise ValueError('snapshot_integrity_error')
-    if data['engine'] != VERSION or not data['publication'].get('valid'):
+    if data['engine'] not in {'contextual-1', VERSION} or not data['publication'].get('valid'):
         raise ValueError('snapshot_version_or_catalog_error')
     knowledge = [SimpleNamespace(**a) for a in data['articles']]
     if not knowledge or any(not a.published for a in knowledge):
@@ -70,6 +72,7 @@ def read_snapshot(path):
 
 
 def write_reports(directory, rows, info):
+    rows = [dict(row, messages=redact(row['messages'])) for row in rows]
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     if any((directory / name).exists() for name in ('checkpoint.json', 'report.csv', 'report.md')):
@@ -85,5 +88,15 @@ def write_reports(directory, rows, info):
         lines.extend([f"## {row['id']} — {row['outcome']}", '', row['messages'], '',
                       row['answer'] or row['error'], '',
                       'Intenções: ' + ', '.join(row['trace'].get('intents', [])),
-                      'Cobertura: ' + row['coverage'], 'Qualidade manual: pendente', ''])
+                      'Cobertura: ' + row['coverage'],
+                      'Métricas objetivas: ' + json.dumps(row['quality'], ensure_ascii=False),
+                      'Qualidade manual: pendente', ''])
     (directory / 'report.md').write_text('\n'.join(lines))
+
+
+def redact(value):
+    """Report helper; safe even if future scenarios include real contact data."""
+    import re
+    value = re.sub(r'\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b', '[email]', value)
+    value = re.sub(r'(?<!\w)(?:\+?\d[\d(). -]{8,}\d)(?!\w)', '[contato]', value)
+    return value

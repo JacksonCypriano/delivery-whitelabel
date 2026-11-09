@@ -70,8 +70,10 @@ def receive(instance, message):
             conversation.paused, conversation.reason = True, reason
             row.state = 'human'
             row.save(update_fields=['state'])
+            conversation.messages.filter(state='queued').exclude(pk=row.pk).update(state='held')
             CommercialAudit.objects.create(conversation=conversation,action=reason)
-        elif conversation.paused or conversation.opted_out or not control.enabled:
+        elif (conversation.paused or conversation.opted_out or not control.enabled
+              or not getattr(settings, 'COMMERCIAL_AGENT_ENABLED', False)):
             row.state = 'held'
             row.save(update_fields=['state'])
         conversation.save()
@@ -248,7 +250,6 @@ def compose(conversation, publication, knowledge):
 
 
 def process_message(pk):
-    from .commercial_quota import CommercialQuotaDeferred
     """No automatic retry after a POST might have escaped.
 
     Global control then conversation lock gives pause, webhook and worker the
@@ -256,6 +257,8 @@ def process_message(pk):
     sends before confirming a takeover. A killed worker leaves 'sending' for
     human reconciliation, never replays that POST.
     """
+    from .commercial_local import HumanReview
+    from .commercial_quota import CommercialQuotaDeferred
     if not getattr(settings,'COMMERCIAL_AGENT_ENABLED',False): return
     with transaction.atomic():
         control = CommercialControl.objects.select_for_update().get(pk=1)
@@ -279,10 +282,18 @@ def process_message(pk):
             if client.status(control.instance) != 'open': raise ValueError('instance_disconnected')
             reply, sources = compose(conv,publication,knowledge)
         except CommercialQuotaDeferred as exc:
-            # The message was NOT sent. Keep it queued, without pausing the
-            # lead or marking it as a human handoff. Beat will retry when due.
+            # Compatibilidade com tarefas adiadas. Nunca transformar cota temporaria
+            # em transferencia humana; o motor local nao usa a cota Gemini.
             row.next_attempt_at = timezone.now() + timedelta(seconds=exc.seconds)
-            row.save(update_fields=['next_attempt_at', 'updated_at'])
+            row.save(update_fields=['next_attempt_at'])
+            return
+        except HumanReview as exc:
+            row.state='human';row.save(update_fields=['state'])
+            conv.paused=True
+            # Stable internal code only; never customer text or provider bodies.
+            conv.reason=str(exc) if re.fullmatch(r'[a-z_0-9]{1,80}', str(exc)) else 'commercial_review'
+            conv.save()
+            CommercialAudit.objects.create(conversation=conv, action=conv.reason)
             return
         except Exception:
             row.state='human';row.save(update_fields=['state'])
@@ -296,7 +307,10 @@ def process_message(pk):
         control=CommercialControl.objects.select_for_update().get(pk=1)
         conv=CommercialConversation.objects.select_for_update().get(pk=conv.pk)
         row=CommercialMessage.objects.select_for_update().get(pk=pk)
-        if not control.enabled or conv.paused or conv.opted_out or control.instance!=conv.instance:
+        if row.state != 'sending':
+            return
+        if (not getattr(settings, 'COMMERCIAL_AGENT_ENABLED', False) or not control.enabled
+                or conv.paused or conv.opted_out or control.instance!=conv.instance):
             row.state='held';row.save(update_fields=['state']);return
         try:
             if published_catalog(control)['fingerprint'] != row.catalog_fingerprint:

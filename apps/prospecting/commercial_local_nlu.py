@@ -17,6 +17,10 @@ ALIASES = {**COMMON_ALIASES, 'qto': 'quanto', 'qnt': 'quanto', 'qt': 'quanto',
            'ta': 'esta', 'eh': 'e', 'oq': 'o que', 'tm': 'tem'}
 VOCAB = {word for item in INTENTS.values() for phrase in item.aliases for word in phrase.split()}
 VOCAB |= set(BUSINESSES) | {'preco', 'mensalidade', 'contratar', 'demonstracao', 'anual', 'mensal', 'semestral', 'trimestral'}
+# Negation/conditions are never fuzzy-normalized into feature vocabulary.
+PROTECTED = {'nao', 'nunca', 'nem', 'sem', 'somente', 'apenas', 'exceto', 'salvo', 'se', 'quando'}
+DECLINED_ACTION = re.compile(r'\bnao (?:quero|preciso|desejo)(?: (?:uma?|ver|a|o|de))* (?:demo|demonstracao|contratar|contratacao|assinar)\b')
+DEMO_INVITE = 'Quer ver a demonstração do VemDeDelivery?'
 JOINABLE = {'tem', 'quero', 'quanto', 'custa', 'preco', 'cardapio', 'cozinha', 'impressora', 'whatsapp', 'ifood', 'retirada', 'entrega'}
 
 
@@ -39,7 +43,7 @@ def normalize(value):
         word = match[0]
         if word in ALIASES:
             return ALIASES[word]
-        if word in VOCAB:
+        if word in PROTECTED or word in VOCAB:
             return word
         singular = variants(word) & VOCAB
         if len(singular) == 1:
@@ -64,7 +68,7 @@ def has(text, phrase):
 
 
 def intents_for(text, memory=''):
-    q = normalize(text)
+    q = DECLINED_ACTION.sub(' ', normalize(text))
     topics = {key for key, item in INTENTS.items() if any(has(q, p) for p in item.aliases)}
     period = requested_period(q)
     if period is not None or re.search(r'\b(?:preco|valor|custo|custa|plano|planos|mensalidade|quanto (?:fica|sai|custa))\b', q):
@@ -88,13 +92,17 @@ def intents_for(text, memory=''):
         topics.discard('whatsapp')
     if 'mobile' in topics:
         topics.discard('cardapio')
-    if 'gestao' in topics:
+    if 'gestao' in topics and re.search(r'\b(?:adicional|adicionais|meio a meio)\b', q):
         topics.discard('cardapio')
     # A noun inside a specific question is not a separate operational question.
     if topics & {'integracoes', 'impressao', 'modalidades', 'objecao-valor'} and not re.search(r'\b(?:kanban|etapas|status|mesa|painel|mesma tela)\b', q):
         topics.discard('pedidos')
-    if 'pedidos' in topics:
+    if 'pedidos' in topics and not (has(q, 'kanban') and (has(q, 'cozinha') or has(q, 'kds'))):
         topics.discard('cozinha')
+    if 'pedidos' in topics and has(q, 'mesma tela'):
+        topics.discard('cardapio')
+    if 'beneficios' in topics and re.search(r'\b(?:diferente|diferenca|diferenciais)\b', q):
+        topics.add('comissoes')
     if 'impressao' in topics and re.search(r'\b(?:imprimir|imprime|impressao)\s+(?:de |os |o )?pedidos?\s+(?:da |de )?cozinha\b', q):
         topics.discard('cozinha')
     if 'objecao-valor' in topics and not re.search(r'\b(?:quanto|qual (?:o )?preco|qual (?:o )?valor)\b', q):

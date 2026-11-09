@@ -160,7 +160,7 @@ def retrieve(intent, q, sources):
     return tuple(f for i, f in enumerate(facts) if i in selected or f.required)
 
 
-def compose(conversation, publication, knowledge, *, links=None, trace=None):
+def compose(conversation, publication, knowledge, *, links=None, trace=None, handoff_signup=False):
     trace = trace if trace is not None else {}
     trace.update(engine=VERSION, intents=[], facts=[], uncovered=[], clarification=False, stage='discovery', fulfilled=[], catalog=[], links=[])
     current = conversation_context(conversation)
@@ -189,6 +189,12 @@ def compose(conversation, publication, knowledge, *, links=None, trace=None):
     if re.search(r'\bdesconto\b', q) and (re.search(r'\d+\s*%', q) or re.search(r'\b(?:extra|especial|negocia|negociar)\b', q)):
         raise HumanReview('commercial_negotiation_required')
     topics, period = intents_for(q, memory)
+    # Contratação é assumida por uma pessoa NESTA conversa. Nunca enviar
+    # o cliente de volta ao próprio número por um link wa.me.
+    # A recusa ('não quero contratar') já é removida por intents_for.
+    if handoff_signup and 'signup' in topics:
+        trace['stage'] = 'contract'
+        raise HumanReview('commercial_signup_handoff')
     if 'pricing' in topics and period is None and re.search(r'\b(?:esse|este|nesse|deste|mesmo) plano\b', q) and memory:
         _, prior_period = intents_for(memory.splitlines()[-1])
         if prior_period == 0:

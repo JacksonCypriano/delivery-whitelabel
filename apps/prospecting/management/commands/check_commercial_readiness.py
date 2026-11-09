@@ -41,7 +41,11 @@ class Command(BaseCommand):
             self.stdout.write('Instância: identificador isolado e válido; conexão remota NÃO consultada.')
         except ValueError:
             self.stdout.write('BLOQUEIO: instância ausente, inválida ou reservada.')
-        self.stdout.write('URLs comerciais HTTPS: ' + str(all(valid_url(v) for v in (control.demo_url, control.contact_url))))
+        self.stdout.write('Demonstração HTTPS: ' + str(valid_url(control.demo_url)))
+        if control.contact_url:
+            self.stdout.write('Link externo de contratação HTTPS (opcional): ' + str(valid_url(control.contact_url)))
+        else:
+            self.stdout.write('Contratação: encaminhamento humano na conversa atual; URL externa dispensada.')
         token = getattr(settings, 'COMMERCIAL_AGENT_WEBHOOK_TOKEN', '')
         self.stdout.write('Callback local configurado: ' + str(len(token) >= 32 and valid_url(getattr(settings, 'COMMERCIAL_AGENT_WEBHOOK_URL', ''))))
         knowledge = articles()

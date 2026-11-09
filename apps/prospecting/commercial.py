@@ -242,11 +242,11 @@ def _gemini_choice(conversation, knowledge):
     return json.loads(content)
 
 
-def compose(conversation, publication, knowledge):
+def compose(conversation, publication, knowledge, *, handoff_signup=False):
     # All legacy mode settings now route locally; none can invoke a model.
     # Provider helpers remain archived below their private interfaces only.
     from .commercial_local import compose as compose_local
-    return compose_local(conversation, publication, knowledge)
+    return compose_local(conversation, publication, knowledge, handoff_signup=handoff_signup)
 
 
 def process_message(pk):
@@ -280,7 +280,7 @@ def process_message(pk):
                 row.state='merged';row.save(update_fields=['state']);return
             client = TenantEvolutionClient()
             if client.status(control.instance) != 'open': raise ValueError('instance_disconnected')
-            reply, sources = compose(conv,publication,knowledge)
+            reply, sources = compose(conv,publication,knowledge, handoff_signup=True)
         except CommercialQuotaDeferred as exc:
             # Compatibilidade com tarefas adiadas. Nunca transformar cota temporaria
             # em transferencia humana; o motor local nao usa a cota Gemini.
@@ -290,6 +290,8 @@ def process_message(pk):
         except HumanReview as exc:
             row.state='human';row.save(update_fields=['state'])
             conv.paused=True
+            if str(exc) == 'commercial_signup_handoff':
+                conv.stage = 'negotiation'
             # Stable internal code only; never customer text or provider bodies.
             conv.reason=str(exc) if re.fullmatch(r'[a-z_0-9]{1,80}', str(exc)) else 'commercial_review'
             conv.save()

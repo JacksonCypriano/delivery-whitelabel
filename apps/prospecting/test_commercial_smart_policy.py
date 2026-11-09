@@ -112,8 +112,10 @@ class SmartPolicyTests(TestCase):
         self.assertEqual(requested_period('qual valor mensal?'), 1)
         self.assertTrue({'integracoes','impressao','pedidos'} <= requested_topics('ifod, impremir pedidu da cozina?'))
 
-    def test_normal_presentation_unchanged(self):
+    def test_price_for_known_business_has_no_redundant_pitch(self):
         self.inbound('tenho uma pizzaria, quanto custa?')
         reply, _ = render(self.conv, self.catalog, self.articles, self.selection('visao-geral', question='business'))
         self.assertIn('149,90', reply)
-        self.assertIn('demonstração', reply)
+        self.assertTrue(reply.startswith('Mensal: R$ 149,90'))
+        self.assertNotIn('tipo do seu estabelecimento', reply)
+        self.assertNotIn('demonstração', reply)

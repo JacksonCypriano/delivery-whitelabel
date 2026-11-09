@@ -13,7 +13,7 @@ import requests
 from django.conf import settings
 
 from .commercial_context import conversation_context
-from .commercial_smart_policy import enforce_selection, requested_period, price_question
+from .commercial_smart_policy import enforce_selection, requested_period, price_question, normalized
 from .commercial_quota import CommercialQuotaDeferred, reserve, cooldown
 
 
@@ -66,6 +66,9 @@ def classify(conversation, articles):
         'O preço deve vir do catálogo, não tente produzi-lo. Escolha monthly se perguntou só mensalidade; '
         'all somente se pediu comparação de planos. Diferencie anual, semestral e trimestral, nunca troque por mensal. '
         'Priorize todo assunto pedido, nunca selecione um artigo apenas vagamente relacionado. Não repita pergunta já respondida no histórico. '
+        'Para preço sem outra pergunta, use article_ids=[] e question=none, mesmo que o lead informe seu ramo. '
+        'Para explicar KDS, prefira o artigo kds; para adequação do ramo ou diferenciais, prefira visao-geral. '
+        'Escolha somente os artigos necessários para responder, sem apresentação genérica adicional. '
         'Quando faltar cobertura para QUALQUER pergunta do lead, se houver negociação, dúvida complexa, '
         'Diferencie pergunta sobre intervenção humana de pedido para falar com uma pessoa. '
         'Para demonstração solicitada, selecione question=none; o servidor fornece o link aprovado. '
@@ -140,7 +143,7 @@ _POLICY_START = (
 _BUSINESS_TYPES = (
     'pizzaria', 'pizza', 'hamburgueria', 'hamburguer', 'restaurante',
     'lanchonete', 'marmitaria', 'açaiteria', 'acaiteria', 'padaria',
-    'cafeteria', 'bar', 'doceria', 'sorveteria',
+    'cafeteria', 'bar', 'doceria', 'sorveteria', 'acai', 'lanche', 'lanches',
 )
 
 
@@ -153,7 +156,7 @@ def _normalize(value):
 def _recent_customer_text(conversation):
     """Read only relevant recent inbound messages; never infer business from assistant claims."""
     rows = conversation.messages.filter(from_me=False).order_by('-pk').values_list('text', flat=True)[:12]
-    return _normalize(' '.join(x or '' for x in rows))
+    return normalized(' '.join(x or '' for x in rows))
 
 
 def _business_is_known(conversation):
@@ -224,8 +227,8 @@ def _selected_question(conversation, question, previous):
     if question == 'pain' and re.search(r'\b(?:meu problema|minha dificuldade|nao tenho tempo)\b', customer):
         return ''
     if question == 'business' and _business_is_known(conversation):
-        # Gemini sometimes misses a business type in an informal message.
-        # A demo invitation is preferable to repeating a question already answered.
+        # A known establishment needs no second qualification question. For
+        # conversational enquiries, retain the approved demo invitation.
         value = QUESTIONS['demo']
     if value and any(value in reply for reply in previous):
         value = ''
@@ -266,16 +269,24 @@ def render(conversation, publication, knowledge, selection):
     previous = list(conversation.messages.exclude(reply='').order_by('-pk').values_list('reply', flat=True)[:6])
     lines = []
     greeted = not previous and bool(re.search(r'\b(?:oi|ola|bom dia|boa tarde|boa noite|opa)\b', _normalize(text)))
+    from .commercial_smart_policy import requested_topics
+    required = requested_topics(text, {a.slug for a in knowledge})
+    greeted = greeted and scope == 'none' and not required and not wants_demo and not wants_signup
     if greeted:
         lines.append('Olá! Sou o assistente virtual comercial do VemDeDelivery.')
-    from .commercial_smart_policy import requested_topics
-    required = requested_topics(text)
     detailed = bool(re.search(r'\b(?:detalh(?:e|es|ado|ada)|explique tudo|explica tudo)\b', _normalize(text)))
     # Keep semantic selections for open questions, but remove unrelated material
     # when explicit topics give us a complete deterministic answer scope.
+    price_only = bool(re.fullmatch(
+        r'(?:e )?(?:quanto|qto|qt) (?:custa|fica|sai)(?: (?:pra|para) mim)?[?!. ]*',
+        normalized(text).splitlines()[-1].strip())) and not required
     used_ids = []
     for pk in ids:
+        if price_only and not detailed:
+            continue
         article = permitted[pk]
+        if not detailed and scope != 'none' and not required and article.slug in {'visao-geral', 'contratacao'}:
+            continue
         if not detailed and required and article.slug not in required:
             if not (article.slug == 'visao-geral' and 'gestao' in required):
                 continue
@@ -283,6 +294,8 @@ def render(conversation, publication, knowledge, selection):
             continue  # The approved link is the direct answer.
         summary = _public_summary(article, price_requested=scope != 'none')
         if summary and not any(summary in reply or article.body.strip() in reply for reply in previous):
+            # Do not resend an article already supplied. Explicit repeat price
+            # requests remain supported by the independent catalog price lines.
             # Only whole, reviewed sentences; preserve every condition in an article.
             sentences = re.split(r'(?<=[.!?])\s+', summary)
             existing = ' '.join(lines)
@@ -290,6 +303,7 @@ def render(conversation, publication, knowledge, selection):
             if unique:
                 lines.append(' '.join(unique))
                 used_ids.append(pk)
+    price_lines = []
     if scope != 'none':
         plans = publication['data']['plans']
         if exact_period not in (None, 0):
@@ -300,10 +314,10 @@ def render(conversation, publication, knowledge, selection):
             raise ValueError('catalog_missing_plan')
         for plan in selected:
             line = _plan_line(plan)
-            if not any(line in reply for reply in previous):
-                lines.append(line)
+            price_lines.append(line)
         # Only mention commission if the user actually asked about it or
         # the approved commission article was deliberately selected.
+    lines = price_lines + lines  # Answer the price question before supporting facts.
     if wants_demo or wants_signup:
         from .commercial_models import CommercialControl
         control = CommercialControl.objects.filter(pk=1).first()
@@ -313,14 +327,27 @@ def render(conversation, publication, knowledge, selection):
                 or parsed.password or any(c.isspace() for c in url)):
             raise ValueError('commercial_demo_human_required' if wants_demo else 'commercial_signup_human_required')
         lines.append(('Acesse a demonstração do VemDeDelivery: ' if wants_demo else 'Para iniciar a contratação, fale com nossa equipe: ') + url)
-    question_text = '' if wants_demo or wants_signup else _selected_question(conversation, question, previous)
+    question_text = '' if wants_demo or wants_signup or price_only else _selected_question(conversation, question, previous)
+
+    # Não oferecer demonstração automaticamente numa consulta direta de
+    # preço. Preservar o convite aprovado quando o artigo selecionado
+    # for especificamente o de contratação.
+    if (
+        question == 'business'
+        and _business_is_known(conversation)
+        and not any(permitted[pk].slug == 'contratacao' for pk in ids)
+    ):
+        question_text = ''
     if question_text and sum(map(len, lines)) + len(question_text) + 2 * len(lines) <= 800:
         lines.append(question_text)
-    # Never send a greeting alone, and never invent an answer when everything was repeated.
+    # Never send a greeting alone. Explicit repeated questions may repeat facts.
     if len(lines) == (1 if greeted else 0):
         raise ValueError('response_needs_human')
     result = '\n\n'.join(lines)
-    limit = MAX_OUTPUT if detailed or len(required) > 3 or exact_period == 0 else 800
+    # Four or more genuinely requested topics need room for complete,
+    # approved factual paragraphs. Keep the strict 800-character cap for
+    # ordinary questions rather than truncating safety conditions.
+    limit = MAX_OUTPUT if detailed or len(required) > 3 else 800
     if not result or len(result) > limit:
         raise ValueError('response_needs_human')
     return result, used_ids
@@ -339,11 +366,20 @@ def compose(conversation, publication, knowledge):
     if isinstance(selection, dict) and selection.get('human') is False:
         from .commercial_smart_policy import requested_topics
         ids = selection.get('article_ids')
-        if isinstance(ids, list) and all(type(pk) is int for pk in ids):
+        permitted = {a.pk: a for a in knowledge}
+        if (isinstance(ids, list) and len(ids) <= MAX_ARTICLES
+                and all(type(pk) is int and pk in permitted for pk in ids)
+                and len(ids) == len(set(ids))):
             selection = dict(selection)
-            ids = list(ids)
+            required = requested_topics(customer_text, {a.slug for a in knowledge})
+            detailed = bool(re.search(r'\b(?:detalh(?:e|es|ado|ada)|explique tudo|explica tudo)\b', customer_text))
+            # Drop irrelevant selections before adding specific published topics,
+            # so repair cannot overflow six merely due to generic model choices.
+            ids = [pk for pk in ids if not required or detailed
+                   or permitted[pk].slug in required
+                   or (permitted[pk].slug == 'visao-geral' and 'gestao' in required)]
             for article in knowledge:
-                if article.slug in requested_topics(customer_text) and article.pk not in ids:
+                if article.slug in required and article.pk not in ids:
                     ids.append(article.pk)
             selection['article_ids'] = ids
     return render(conversation, publication, knowledge, selection)

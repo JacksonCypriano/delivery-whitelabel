@@ -96,7 +96,7 @@ def metadata(publication, knowledge):
     # Include approval configuration in resume identity; never silently reuse
     # a case 094 result produced with a different demo link.
     links = [control.demo_url, control.contact_url] if control else ['', '']
-    return dict(composer_version=8, commercial_links_sha256=hashlib.sha256(json.dumps(links).encode()).hexdigest(),
+    return dict(composer_version=9, commercial_links_sha256=hashlib.sha256(json.dumps(links).encode()).hexdigest(),
                 demo_configured=bool(links[0]), cases_sha256=hashlib.sha256(CASES.read_bytes()).hexdigest(),
                 catalog_fingerprint=publication['fingerprint'],
                 articles_sha256=hashlib.sha256(json.dumps([(a.pk,a.version,a.body) for a in knowledge],ensure_ascii=False).encode()).hexdigest())

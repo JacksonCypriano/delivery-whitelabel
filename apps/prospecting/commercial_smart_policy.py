@@ -24,7 +24,9 @@ ALIASES = {'vc': 'voce', 'vcs': 'voces', 'tb': 'tambem', 'tbm': 'tambem',
            'ifod': 'ifood', 'ifudi': 'ifood', 'impremir': 'imprimir',
            'impresora': 'impressora', 'cozina': 'cozinha', 'coizinha': 'cozinha',
            'entreaga': 'entrega', 'retiraada': 'retirada', 'cistema': 'sistema',
-           'intregacao': 'integracao', 'valoor': 'valor', 'planu': 'plano'}
+           'intregacao': 'integracao', 'valoor': 'valor', 'planu': 'plano',
+           'pedidu': 'pedido', 'pedidus': 'pedidos', 'lanxe': 'lanche',
+           'mnh': 'minha', 'ce': 'voce', 'qq': 'o que', 'q': 'que'}
 
 
 def normalized(text):
@@ -70,7 +72,10 @@ HUMAN_GUARDS = (
     r'\b(?:vende(?:m)?|fornece(?:m)?)\s+(?:uma?\s+)?impressora\b',
     r'\b(?:impressora|equipamento|motoboy)\s+(?:gratis|de graca|inclus[oa])\b',
     r'\b(?:emite|emitir|emissao)\s+(?:nota fiscal|nf-e|nfe|nfce|nf-c?e)\b',
-    r'\b(?:garant[ea]|garantir|100%|nunca (?:cai|vai cair)|sem cair)\b',
+    r'\b(?:garant(?:e|em|a|am|ir|ia|ias|id[oa]s?)|assegur(?:a|am|ar|ad[oa]s?)|nunca (?:cai|vai cair)|sem cair)\b',
+    r'(?<!\w)100\s*%(?!\w)',
+    r'\b(?:promet(?:e|em|er)|certeza|compromisso|direito)\b.{0,80}\b(?:vend(?:a|as|er)|faturamento|lucro|resultado|aumento|dobrar|triplicar)\b',
+    r'\b(?:vend(?:a|as|er)|faturamento|lucro|resultado|aumento)\b.{0,80}\b(?:promet(?:e|em|er)|certeza|compromisso)\b',
     r'\b(?:api key|token secreto|chave (?:do )?gemini|prompt(?:s)? intern[oa]s?|regras internas)\b',
     r'\b(?:ignora (?:suas )?instrucoes|finge que voce|dados de cliente|cpf|laudo medico|qual remedio|marc[ae] como quitada)\b',
     r'\b(?:rappi|aiqfome|divisao de conta|bluetooth|certificado a1|revendedor|comissao por indicacao)\b',
@@ -85,14 +90,15 @@ HUMAN_GUARDS = (
 TOPIC_PATTERNS = {
     'integracoes': r'\b(?:ifood|ifod|ifudi|99\s?food|integrac(?:ao|oes)|intregacao|marketplace)\b',
     'impressao': r'\b(?:impress(?:ao|ora|oras)|impremir|imprimir|imprime|cupom|comprovante|termica)\b',
-    'whatsapp': r'\b(?:whatsapp|whats|wpp|zap|robo|agente de atendimento|atendente automatizad[oa]|atendente humano|intervencao humana)\b',
+    'whatsapp': r'\b(?:whatsapp|whats|wpp|zap|robo|agente de atendimento|atendente automatizad[oa]|atendimento automatizad[oa]|atendente humano|intervencao humana)\b',
     'gestao': r'\b(?:cardapio|cadapio|cartapio|catalogo|meio a meio|adicionais|crm|fidelidade|estoque|categorias)\b',
     'pedidos': r'\b(?:cozinha|cozina|kds|kanban|preparo|pedidos?|retirada|retiraada|entrega|entreaga|mesa)\b',
     'objecao-valor': r'\b(?:caro|compensa|vale a pena|poucos pedidos|muitos pedidos ainda)\b',
     'objecao-canais': r'\b(?:instagram|so (?:vendo|recebo|vendo pedidos) (?:por|pelo) ifood)\b',
     'objecao-cadastro': r'\b(?:sem tempo|nao tenho tempo)\b',
     'objecao-socio': r'\bsocio\b',
-    'kds': r'\b(?:o que e|oque e|que significa|como funciona)\s+(?:o\s+)?kds\b',
+    'kds': r'\b(?:o que e|que e|oque e|que significa|como funciona)\s+(?:o\s+)?kds\b',
+    'visao-geral': r'\b(?:diferenc(?:a|as)|diferente|diferenciais|o que (?:oferece|faz)|da (?:pra|para) usar|serve (?:pra|para)|atende (?:a |uma? )?(?:pizzaria|lanchonete|acaiteria))\b',
     'mobile': r'\b(?:celular|smartphone|mobile|responsivo)\b',
     'linguagem-informal': r'\b(?:erros? de portugues|erros? de digitacao|linguagem informal|abreviacoes|escrev[eo] errado)\b',
     'cardapio-proprio': r'\b(?:cardapio|cadapio|cartapio|site)\b',
@@ -105,7 +111,7 @@ TOPIC_PATTERNS = {
 # bound. If unsupported by selected *published* articles, escalate instead.
 
 
-def requested_topics(text):
+def requested_topics(text, available=None):
     folded = normalized(text)
     topics = {slug for slug, pattern in TOPIC_PATTERNS.items() if matches(pattern, folded)}
     # "Pedidos do iFood" describes the integration, not a second KDS question.
@@ -115,7 +121,7 @@ def requested_topics(text):
     if 'objecao-canais' in topics:
         topics.discard('gestao')
         topics.discard('cardapio-proprio')
-    if 'cardapio-proprio' in topics and not matches(r'\b(?:crm|estoque|fidelidade|categorias)\b', folded):
+    if 'cardapio-proprio' in topics and not matches(r'\b(?:crm|estoque|fidelidade|categorias|adicionais|meio a meio)\b', folded):
         topics.discard('gestao')
     if 'kds' in topics and not matches(r'\b(?:cozinha|preparo|pedidos|kanban)\b', folded):
         topics.discard('pedidos')
@@ -123,6 +129,17 @@ def requested_topics(text):
         topics.discard('pedidos')
     if 'mobile' in topics:
         topics.discard('cardapio-proprio')
+    # A kitchen-only enquiry is covered by the specific KDS article when
+    # published. Retain the operational article for workflow/board questions.
+    if available is not None:
+        if 'kds' not in available and 'kds' in topics:
+            topics.discard('kds')
+            topics.add('pedidos')
+        elif ('kds' in available and 'pedidos' in topics
+              and matches(r'\b(?:cozinha|kds)\b', folded)
+              and not matches(r'\b(?:kanban|etapas|status|origem|mesa|retirada|entrega|preparo)\b', folded)):
+            topics.discard('pedidos')
+            topics.add('kds')
     return topics
 
 
@@ -173,7 +190,7 @@ def enforce_selection(conversation, selection, knowledge):
     articles = {article.slug: article for article in knowledge}
     ids = selection.get('article_ids', [])
     selected = {article.slug for article in knowledge if article.pk in ids}
-    required = requested_topics(text)
+    required = requested_topics(text, set(articles))
 
     # Some catalog content covers more than one topic (a general overview, e.g.),
     # but explicit topics must be answered by their dedicated vetted article.

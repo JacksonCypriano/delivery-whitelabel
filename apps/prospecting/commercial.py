@@ -241,27 +241,10 @@ def _gemini_choice(conversation, knowledge):
 
 
 def compose(conversation, publication, knowledge):
-    mode = getattr(settings, 'COMMERCIAL_AGENT_MODE', 'rules').lower()
-    if mode == 'smart':
-        from .commercial_smart import compose as compose_smart
-        return compose_smart(conversation, publication, knowledge)
-    if mode == 'ollama':
-        return _compose_ollama(conversation, publication, knowledge)
-    if mode not in ('rules', 'hybrid'):
-        raise ValueError('invalid_commercial_agent_mode')
-    if mode == 'hybrid':
-        try:
-            choice = _gemini_choice(conversation, knowledge)
-        except (ValueError, KeyError, IndexError, TypeError, json.JSONDecodeError, requests.RequestException):
-            choice = None  # Rate limit, timeout and bad JSON: rules fallback.
-        if isinstance(choice, dict) and choice.get('human') is True:
-            raise ValueError('gemini_requests_human_review')
-        if choice is not None:
-            try:
-                return _answer_from_selection(conversation, publication, knowledge, choice)
-            except (ValueError, KeyError, TypeError):
-                pass  # Unverifiable IDs, bad shape: rules fallback.
-    return _answer_from_selection(conversation, publication, knowledge, _rules_choice(conversation, knowledge))
+    # All legacy mode settings now route locally; none can invoke a model.
+    # Provider helpers remain archived below their private interfaces only.
+    from .commercial_local import compose as compose_local
+    return compose_local(conversation, publication, knowledge)
 
 
 def process_message(pk):

@@ -3,7 +3,7 @@ import json
 from unittest.mock import Mock, patch
 from django.test import TestCase, override_settings
 from apps.billing.models import Plan
-from .commercial import compose
+from .commercial_smart import compose  # Archived provider contract; operational entrypoint is tested separately.
 from .commercial_catalog import catalog
 from .commercial_models import CommercialArticle, CommercialConversation, CommercialMessage
 from .commercial_smart import render, redact

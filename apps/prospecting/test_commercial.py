@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from apps.tenants.models import Tenant
 from apps.billing.models import Plan
 from apps.integrations.models import TenantWhatsAppAgent
-from .commercial_models import CommercialControl, CommercialConversation, CommercialMessage, CommercialArticle
+from .commercial_models import CommercialControl, CommercialConversation, CommercialMessage, CommercialArticle, CommercialPilotContact
 from .commercial_catalog import catalog
 from .commercial import receive, process_message, validate_instance, compose
 
@@ -14,6 +14,8 @@ from .commercial import receive, process_message, validate_instance, compose
 class CommercialTests(TestCase):
     def setUp(self):
         self.control=CommercialControl.objects.create(instance='commercial-test',enabled=True)
+        # O piloto exige autorização explícita até nos cenários de envio simulados.
+        CommercialPilotContact.objects.create(phone='5511999999999', active=True)
         for months,discount in [(1,0),(3,5),(6,10),(12,15)]: Plan.objects.update_or_create(months=months,defaults={'name':str(months),'monthly_price':'149.90','discount':discount,'active':True})
         self.control.catalog_fingerprint=catalog()['fingerprint'];self.control.save()
         self.article=CommercialArticle.objects.create(slug='produto',version=1,title='Produto',body='O VemDeDelivery organiza os pedidos diretos da sua loja.',published=True)

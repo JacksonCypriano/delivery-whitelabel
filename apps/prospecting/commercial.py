@@ -12,12 +12,15 @@ from apps.integrations.models import TenantWhatsAppAgent
 from apps.integrations.whatsapp_agent.client import TenantEvolutionClient
 from apps.integrations.whatsapp_agent.provider import is_agent_outbound
 from .commercial_models import CommercialControl, CommercialArticle, CommercialConversation, CommercialMessage, CommercialAudit
+from .commercial_pilot import eligible, alert_human, otp_excluded
 from .commercial_catalog import published_catalog
 from .commercial_smart_policy import human_requested
 
 
 def validate_instance(name):
-    reserved = {getattr(settings, x, '') for x in ('EVOLUTION_INSTANCE','PROSPECTING_EVOLUTION_INSTANCE')}
+    reserved = {getattr(settings, x, '') for x in ('EVOLUTION_INSTANCE','PROSPECTING_EVOLUTION_INSTANCE','OTP_EVOLUTION_INSTANCE')}
+    if getattr(settings, 'COMMERCIAL_OTP_SHARED_ENABLED', False):
+        reserved.discard(getattr(settings, 'OTP_EVOLUTION_INSTANCE', '') or getattr(settings, 'EVOLUTION_INSTANCE', ''))
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,100}', name or '') or name in reserved or TenantWhatsAppAgent.objects.filter(instance_name=name).exists():
         raise ValueError('Instância reservada ou inválida. Use um número dedicado à plataforma.')
     return name
@@ -36,6 +39,9 @@ def receive(instance, message):
     with transaction.atomic():
         control = CommercialControl.objects.select_for_update().get(pk=1)
         if control.instance != instance:
+            return None
+        # OTP threads are not sales leads; don't store OTP message text.
+        if otp_excluded(message['phone'], instance):
             return None
         conversation, _ = CommercialConversation.objects.get_or_create(instance=instance, phone=message['phone'])
         conversation = CommercialConversation.objects.select_for_update().get(pk=conversation.pk)
@@ -72,8 +78,11 @@ def receive(instance, message):
             row.save(update_fields=['state'])
             conversation.messages.filter(state='queued').exclude(pk=row.pk).update(state='held')
             CommercialAudit.objects.create(conversation=conversation,action=reason)
+            if not message['from_me'] and reason != 'opt_out':
+                alert_human(conversation, row, reason)
         elif (conversation.paused or conversation.opted_out or not control.enabled
-              or not getattr(settings, 'COMMERCIAL_AGENT_ENABLED', False)):
+              or not getattr(settings, 'COMMERCIAL_AGENT_ENABLED', False)
+              or not eligible(conversation.phone, instance)):
             row.state = 'held'
             row.save(update_fields=['state'])
         conversation.save()
@@ -266,7 +275,7 @@ def process_message(pk):
         conv = CommercialConversation.objects.select_for_update().get(pk=row.conversation_id)
         if row.state != 'queued': return
         if row.next_attempt_at and row.next_attempt_at > timezone.now(): return
-        if not control.enabled or conv.paused or conv.opted_out or conv.instance != control.instance:
+        if not control.enabled or conv.paused or conv.opted_out or conv.instance != control.instance or not eligible(conv.phone, conv.instance):
             row.state='held'; row.save(update_fields=['state']); return
         try:
             validate_instance(control.instance)
@@ -296,11 +305,13 @@ def process_message(pk):
             conv.reason=str(exc) if re.fullmatch(r'[a-z_0-9]{1,80}', str(exc)) else 'commercial_review'
             conv.save()
             CommercialAudit.objects.create(conversation=conv, action=conv.reason)
+            alert_human(conv, row, conv.reason)
             return
         except Exception:
             row.state='human';row.save(update_fields=['state'])
             conv.paused=True;conv.reason='generation_or_catalog_review';conv.save()
             CommercialAudit.objects.create(conversation=conv, action=conv.reason)
+            alert_human(conv, row, conv.reason)
             return
         row.state='sending';row.reply=reply;row.sources=sources;row.catalog_fingerprint=publication['fingerprint'];row.save()
     # The durable sending intent exists BEFORE any POST. Re-lock prevents a
@@ -312,7 +323,8 @@ def process_message(pk):
         if row.state != 'sending':
             return
         if (not getattr(settings, 'COMMERCIAL_AGENT_ENABLED', False) or not control.enabled
-                or conv.paused or conv.opted_out or control.instance!=conv.instance):
+                or conv.paused or conv.opted_out or control.instance!=conv.instance
+                or not eligible(conv.phone, conv.instance)):
             row.state='held';row.save(update_fields=['state']);return
         try:
             if published_catalog(control)['fingerprint'] != row.catalog_fingerprint:
@@ -323,4 +335,5 @@ def process_message(pk):
         except Exception:
             row.state='uncertain';conv.paused=True;conv.reason='send_uncertain'
             CommercialAudit.objects.create(conversation=conv,action='send_uncertain')
+            alert_human(conv, row, 'send_uncertain')
         row.save();conv.save()

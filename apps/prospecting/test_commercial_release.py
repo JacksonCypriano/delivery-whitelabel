@@ -4,13 +4,15 @@ from unittest.mock import patch
 from django.test import TestCase, override_settings
 from .commercial import receive, process_message
 from .commercial_api import CommercialPanel
-from .commercial_models import CommercialControl, CommercialConversation, CommercialMessage
+from .commercial_models import CommercialControl, CommercialConversation, CommercialMessage, CommercialPilotContact
 
 
 @override_settings(COMMERCIAL_AGENT_ENABLED=True)
 class CommercialReleaseTests(TestCase):
     def setUp(self):
         self.control = CommercialControl.objects.create(enabled=True, instance='release-test')
+        # Contato fictício autorizado apenas dentro do banco isolado de testes.
+        CommercialPilotContact.objects.create(phone='5599000000000', active=True)
         self.conv = CommercialConversation.objects.create(instance='release-test', phone='5599000000000')
         self.net = patch('requests.sessions.Session.request', side_effect=AssertionError('network forbidden')).start()
         self.addCleanup(patch.stopall)

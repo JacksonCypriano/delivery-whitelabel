@@ -186,6 +186,9 @@ EVOLUTION_WHATSAPP_VALIDATION_ENABLED = os.getenv("EVOLUTION_WHATSAPP_VALIDATION
 EVOLUTION_API_URL = os.getenv("EVOLUTION_API_URL", "")
 EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY", "")
 EVOLUTION_INSTANCE = os.getenv("EVOLUTION_INSTANCE", "")
+# OTP may explicitly share the platform-sales instance; default remains legacy.
+OTP_EVOLUTION_INSTANCE = os.getenv("OTP_EVOLUTION_INSTANCE", "").strip()
+COMMERCIAL_OTP_SHARED_ENABLED = os.getenv("COMMERCIAL_OTP_SHARED_ENABLED", "false").lower() in ("1", "true", "yes", "on")
 EVOLUTION_API_TIMEOUT = int(os.getenv("EVOLUTION_API_TIMEOUT", "4"))
 PROSPECTING_EVOLUTION_INSTANCE = os.getenv("PROSPECTING_EVOLUTION_INSTANCE", "").strip()
 PROSPECTING_EVOLUTION_AUTO_RECONNECT = os.getenv("PROSPECTING_EVOLUTION_AUTO_RECONNECT", "true").lower() in ("1", "true", "yes", "on")
@@ -924,6 +927,8 @@ FOOD99_OPERATIONAL_SIMULATION_ENABLED = False
 
 # Dedicated inbound platform sales: opt-in, never uses a merchant instance.
 COMMERCIAL_AGENT_ENABLED = os.getenv('COMMERCIAL_AGENT_ENABLED', '0') == '1'
+# Notifications contain only conversation ID, no phone, message or credentials.
+COMMERCIAL_AGENT_HANDOFF_ALERT_EMAILS = [x.strip() for x in os.getenv('COMMERCIAL_AGENT_HANDOFF_ALERT_EMAILS', '').split(',') if x.strip()]
 COMMERCIAL_AGENT_WEBHOOK_TOKEN = os.getenv('COMMERCIAL_AGENT_WEBHOOK_TOKEN', '')
 COMMERCIAL_AGENT_WEBHOOK_URL = os.getenv('COMMERCIAL_AGENT_WEBHOOK_URL', '')
 COMMERCIAL_AGENT_OLLAMA_URL = os.getenv('COMMERCIAL_AGENT_OLLAMA_URL', '')
@@ -937,5 +942,6 @@ COMMERCIAL_GEMINI_RPM = int(os.getenv('COMMERCIAL_GEMINI_RPM', '8'))
 COMMERCIAL_GEMINI_RPD = int(os.getenv('COMMERCIAL_GEMINI_RPD', '350'))
 COMMERCIAL_GEMINI_QUOTA_NAMESPACE = os.getenv('COMMERCIAL_GEMINI_QUOTA_NAMESPACE', 'vdd-commercial')
 CELERY_BEAT_SCHEDULE['commercial-inbound'] = {'task': 'apps.prospecting.tasks.process_commercial_inbox', 'schedule': 10.0}
+CELERY_BEAT_SCHEDULE['commercial-human-alerts'] = {'task': 'apps.prospecting.tasks.dispatch_commercial_handoff_alerts', 'schedule': 30.0}
 
 CELERY_BEAT_SCHEDULE['thermal-print-jobs'] = {'task':'apps.orders.printing.plan_thermal_jobs','schedule':5.0}

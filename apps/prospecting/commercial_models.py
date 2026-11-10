@@ -18,6 +18,30 @@ class CommercialControl(models.Model):
         return cls.objects.get_or_create(pk=1)[0]
 
 
+class CommercialPilotContact(models.Model):
+    """Explicitly permitted recipient for platform-sales pilot. Not a tenant contact."""
+    phone = models.CharField(max_length=20, unique=True)
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+
+
+class CommercialOtpExclusion(models.Model):
+    """Permanent fail-closed separation for contacts receiving OTP from shared instance.
+
+    Never contains OTP code, message text, provider message ID or code hash.
+    Explicit release is intentionally NOT exposed through the commercial panel.
+    """
+    instance = models.CharField(max_length=100)
+    phone = models.CharField(max_length=20)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_otp_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['instance', 'phone'], name='commercial_otp_exclusion_unique')]
+
+
 class CommercialArticle(models.Model):
     """Immutable revisions: only the most recent revision of a slug is considered."""
     slug = models.SlugField(max_length=80)
@@ -68,6 +92,17 @@ class CommercialMessage(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['conversation','provider_id'], name='commercial_message_once')]
+
+
+class CommercialHandoffAlert(models.Model):
+    """Durable human-review notification; never sends a WhatsApp message."""
+    message = models.OneToOneField(CommercialMessage, on_delete=models.CASCADE, related_name='handoff_alert')
+    conversation = models.ForeignKey(CommercialConversation, on_delete=models.CASCADE, related_name='handoff_alerts')
+    reason = models.CharField(max_length=80)
+    state = models.CharField(max_length=20, default='pending', db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    attempted_at = models.DateTimeField(null=True, blank=True)
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
 
 
 class CommercialAudit(models.Model):

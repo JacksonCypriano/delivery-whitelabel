@@ -188,6 +188,16 @@ def compose(conversation, publication, knowledge, *, links=None, trace=None, han
         raise HumanReview('commercial_service_or_broadcast_review_required')
     if re.search(r'\bdesconto\b', q) and (re.search(r'\d+\s*%', q) or re.search(r'\b(?:extra|especial|negocia|negociar)\b', q)):
         raise HumanReview('commercial_negotiation_required')
+    # Perguntas sobre o que foi dito ANTES nao sao pedidos novos de preco.
+    # Consulta apenas mensagens processadas deste contato, nunca OTP/held/humano.
+    from .commercial_history import answer_history_question
+    historical = answer_history_question(conversation, current)
+    if historical is not None:
+        answer, history_topics = historical
+        trace['intents'] = sorted('history_' + topic for topic in history_topics)
+        trace['fulfilled'] = trace['intents'][:]
+        trace['stage'] = 'discovery'
+        return answer, []
     topics, period = intents_for(q, memory)
     # Contratação é assumida por uma pessoa NESTA conversa. Nunca enviar
     # o cliente de volta ao próprio número por um link wa.me.

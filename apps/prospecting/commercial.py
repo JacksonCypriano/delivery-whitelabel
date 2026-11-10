@@ -13,6 +13,7 @@ from apps.integrations.whatsapp_agent.client import TenantEvolutionClient
 from apps.integrations.whatsapp_agent.provider import is_agent_outbound
 from .commercial_models import CommercialControl, CommercialArticle, CommercialConversation, CommercialMessage, CommercialAudit
 from .commercial_catalog import published_catalog
+from .commercial_smart_policy import human_requested
 
 
 def validate_instance(name):
@@ -59,7 +60,7 @@ def receive(instance, message):
         elif re.search(r'\b(parar|pare|sair|stop|cancelar mensagens|não me envie)\b', text):
             reason = 'opt_out'
             conversation.opted_out = True
-        elif re.search(r'\b(humano|atendente|pessoa|responsável)\b', text):
+        elif human_requested(text):
             reason = 'human_requested'
         elif message['kind'] != 'text':
             reason = 'media_requires_human'
@@ -69,8 +70,10 @@ def receive(instance, message):
             conversation.paused, conversation.reason = True, reason
             row.state = 'human'
             row.save(update_fields=['state'])
+            conversation.messages.filter(state='queued').exclude(pk=row.pk).update(state='held')
             CommercialAudit.objects.create(conversation=conversation,action=reason)
-        elif conversation.paused or conversation.opted_out or not control.enabled:
+        elif (conversation.paused or conversation.opted_out or not control.enabled
+              or not getattr(settings, 'COMMERCIAL_AGENT_ENABLED', False)):
             row.state = 'held'
             row.save(update_fields=['state'])
         conversation.save()
@@ -193,30 +196,9 @@ def _answer_from_selection(conversation, publication, knowledge, choice):
 
 
 def _rules_choice(conversation, knowledge):
-    last = conversation.messages.filter(from_me=False).order_by('-pk').first()
-    if last is None or not last.text.strip():
-        raise ValueError('empty_inbound')
-    raw = _fold(last.text)
-    tokens = set(re.findall(r'[a-z0-9]+', raw))
-    if len(raw) > 1200:
-        raise ValueError('complex_inbound_requires_human')
-    if any(x in raw for x in ('reembolso', 'cancelamento', 'reclamacao', 'processo judicial', 'advogado', 'garantia de resultado')):
-        raise ValueError('sensitive_request_requires_human')
-    pricing = bool(any(w in tokens for w in _PRICE_WORDS))
-    scored = []
-    for article in knowledge:
-        words = _TOPIC_WORDS.get(article.slug, ())
-        score = sum(1 for word in words if word in tokens)
-        if score:
-            scored.append((-score, article.slug, article.pk))
-    scored.sort()
-    ids = [item[2] for item in scored[:2]]
-    if not ids and not pricing:
-        greeting = raw.strip(' !?.')
-        if greeting in _GREETING_WORDS or greeting in ('quero conhecer', 'tenho interesse'):
-            return {'article_ids': [], 'pricing': False, 'question': 'business', 'human': False}
-        raise ValueError('unknown_intent_requires_human')
-    return {'article_ids': ids, 'pricing': pricing, 'question': 'demo' if pricing else 'pain', 'human': False}
+    from .commercial_nlu import choose as choose_commercial_intent
+    from .commercial_context import conversation_context
+    return choose_commercial_intent(conversation_context(conversation), knowledge)
 
 
 def _gemini_choice(conversation, knowledge):
@@ -226,10 +208,8 @@ def _gemini_choice(conversation, knowledge):
     model = getattr(settings, 'COMMERCIAL_AGENT_GEMINI_MODEL', 'gemini-2.5-flash-lite')
     if not key or not re.fullmatch(r'[a-zA-Z0-9._-]{3,100}', model):
         raise ValueError('gemini_not_configured')
-    last = conversation.messages.filter(from_me=False).order_by('-pk').first()
-    if last is None or not last.text.strip() or len(last.text) > 1200:
-        raise ValueError('invalid_inbound')
-    text = last.text
+    from .commercial_context import conversation_context
+    text = conversation_context(conversation)
     text = re.sub(r'\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b', '[email]', text)
     text = re.sub(r'(?<!\d)\+?\d[\d\s().-]{9,}\d(?!\d)', '[telefone]', text)
     text = re.sub(r'https?://\S+', '[link]', text)
@@ -262,25 +242,11 @@ def _gemini_choice(conversation, knowledge):
     return json.loads(content)
 
 
-def compose(conversation, publication, knowledge):
-    mode = getattr(settings, 'COMMERCIAL_AGENT_MODE', 'rules').lower()
-    if mode == 'ollama':
-        return _compose_ollama(conversation, publication, knowledge)
-    if mode not in ('rules', 'hybrid'):
-        raise ValueError('invalid_commercial_agent_mode')
-    if mode == 'hybrid':
-        try:
-            choice = _gemini_choice(conversation, knowledge)
-        except (ValueError, KeyError, IndexError, TypeError, json.JSONDecodeError, requests.RequestException):
-            choice = None  # Rate limit, timeout and bad JSON: rules fallback.
-        if isinstance(choice, dict) and choice.get('human') is True:
-            raise ValueError('gemini_requests_human_review')
-        if choice is not None:
-            try:
-                return _answer_from_selection(conversation, publication, knowledge, choice)
-            except (ValueError, KeyError, TypeError):
-                pass  # Unverifiable IDs, bad shape: rules fallback.
-    return _answer_from_selection(conversation, publication, knowledge, _rules_choice(conversation, knowledge))
+def compose(conversation, publication, knowledge, *, handoff_signup=False):
+    # All legacy mode settings now route locally; none can invoke a model.
+    # Provider helpers remain archived below their private interfaces only.
+    from .commercial_local import compose as compose_local
+    return compose_local(conversation, publication, knowledge, handoff_signup=handoff_signup)
 
 
 def process_message(pk):
@@ -291,12 +257,15 @@ def process_message(pk):
     sends before confirming a takeover. A killed worker leaves 'sending' for
     human reconciliation, never replays that POST.
     """
+    from .commercial_local import HumanReview
+    from .commercial_quota import CommercialQuotaDeferred
     if not getattr(settings,'COMMERCIAL_AGENT_ENABLED',False): return
     with transaction.atomic():
         control = CommercialControl.objects.select_for_update().get(pk=1)
         row = CommercialMessage.objects.select_related('conversation').get(pk=pk)
         conv = CommercialConversation.objects.select_for_update().get(pk=row.conversation_id)
         if row.state != 'queued': return
+        if row.next_attempt_at and row.next_attempt_at > timezone.now(): return
         if not control.enabled or conv.paused or conv.opted_out or conv.instance != control.instance:
             row.state='held'; row.save(update_fields=['state']); return
         try:
@@ -311,7 +280,23 @@ def process_message(pk):
                 row.state='merged';row.save(update_fields=['state']);return
             client = TenantEvolutionClient()
             if client.status(control.instance) != 'open': raise ValueError('instance_disconnected')
-            reply, sources = compose(conv,publication,knowledge)
+            reply, sources = compose(conv,publication,knowledge, handoff_signup=True)
+        except CommercialQuotaDeferred as exc:
+            # Compatibilidade com tarefas adiadas. Nunca transformar cota temporaria
+            # em transferencia humana; o motor local nao usa a cota Gemini.
+            row.next_attempt_at = timezone.now() + timedelta(seconds=exc.seconds)
+            row.save(update_fields=['next_attempt_at'])
+            return
+        except HumanReview as exc:
+            row.state='human';row.save(update_fields=['state'])
+            conv.paused=True
+            if str(exc) == 'commercial_signup_handoff':
+                conv.stage = 'negotiation'
+            # Stable internal code only; never customer text or provider bodies.
+            conv.reason=str(exc) if re.fullmatch(r'[a-z_0-9]{1,80}', str(exc)) else 'commercial_review'
+            conv.save()
+            CommercialAudit.objects.create(conversation=conv, action=conv.reason)
+            return
         except Exception:
             row.state='human';row.save(update_fields=['state'])
             conv.paused=True;conv.reason='generation_or_catalog_review';conv.save()
@@ -324,7 +309,10 @@ def process_message(pk):
         control=CommercialControl.objects.select_for_update().get(pk=1)
         conv=CommercialConversation.objects.select_for_update().get(pk=conv.pk)
         row=CommercialMessage.objects.select_for_update().get(pk=pk)
-        if not control.enabled or conv.paused or conv.opted_out or control.instance!=conv.instance:
+        if row.state != 'sending':
+            return
+        if (not getattr(settings, 'COMMERCIAL_AGENT_ENABLED', False) or not control.enabled
+                or conv.paused or conv.opted_out or control.instance!=conv.instance):
             row.state='held';row.save(update_fields=['state']);return
         try:
             if published_catalog(control)['fingerprint'] != row.catalog_fingerprint:

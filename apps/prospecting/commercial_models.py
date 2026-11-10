@@ -58,6 +58,7 @@ class CommercialMessage(models.Model):
     text = models.TextField(blank=True)
     from_me = models.BooleanField(default=False)
     state = models.CharField(max_length=20, default='queued', db_index=True)
+    next_attempt_at = models.DateTimeField(null=True, blank=True, db_index=True)
     reply = models.TextField(blank=True)
     reply_id = models.CharField(max_length=160, blank=True)
     catalog_fingerprint = models.CharField(max_length=64, blank=True)

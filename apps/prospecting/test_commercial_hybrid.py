@@ -1,4 +1,4 @@
-"""Tests for commercial agent without Ollama, and safeguarded Gemini fallback."""
+"""Legacy mode settings now use the contextual engine without any model."""
 import json
 from unittest.mock import patch, Mock
 from django.test import TestCase, override_settings
@@ -32,8 +32,10 @@ class HybridCommercialTests(TestCase):
     @override_settings(COMMERCIAL_AGENT_MODE='rules')
     def test_unknown_topic_does_not_hallucinate(self):
         data = self.inbound('Vocês vendem helicópteros?')
-        with self.assertRaises(ValueError):
-            compose(self.conv, data, [self.article])
+        answer, ids = compose(self.conv, data, [self.article])
+        self.assertEqual(ids, [])
+        self.assertIn('Você quer saber', answer)
+        self.assertNotIn('vendemos', answer)
 
     @override_settings(COMMERCIAL_AGENT_MODE='rules')
     def test_price_must_use_official_catalog(self):
@@ -42,13 +44,14 @@ class HybridCommercialTests(TestCase):
         self.assertIn('149,90', answer)
 
     @override_settings(COMMERCIAL_AGENT_MODE='hybrid', COMMERCIAL_AGENT_GEMINI_API_KEY='test-key')
-    def test_gemini_bad_article_id_falls_back_to_rules(self):
+    def test_hybrid_setting_never_reads_provider_selection(self):
         data = self.inbound('Como funciona a cozinha?')
         response = Mock(status_code=200, content=b'{}')
         response.json.return_value = {'candidates': [{'content': {'parts': [{'text': json.dumps({'article_ids':[99999], 'pricing':False, 'question':'none', 'human':False})}]}}]}
         with patch('apps.prospecting.commercial.requests.Session') as session:
             session.return_value.__enter__.return_value.post.return_value = response
             answer, ids = compose(self.conv, data, [self.article])
+        session.assert_not_called()
         self.assertIn('pedidos', answer)
         self.assertEqual(ids, [self.article.pk])
 

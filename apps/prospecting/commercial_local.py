@@ -9,6 +9,7 @@ import re
 from urllib.parse import urlsplit
 
 from .commercial_context import conversation_context
+from .commercial_quality_p14 import fiscal_needs_human, business_overview_requested, soften_value_objection
 from .commercial_facts import facts_for
 from .commercial_copy import select_units
 from .commercial_local_knowledge import INTENTS, DETAILS, BUSINESSES, CLARIFY, AMBIGUOUS, VERSION
@@ -170,6 +171,8 @@ def compose(conversation, publication, knowledge, *, links=None, trace=None, han
         q = RESET.split(q)[-1].strip(' ,.!\n')
         memory, previous = '', []
     safety = normalize(current)
+    if fiscal_needs_human(q):
+        raise HumanReview('commercial_fiscal_review_required')
     # Only referential follow-ups reuse a previous integration for safety.
     if re.search(r'\b(?:liberado|homologado|disponivel)\b', q) and not has(q, '99food'):
         if has(normalize(memory.splitlines()[-1] if memory else ''), '99food'):
@@ -261,6 +264,13 @@ def compose(conversation, publication, knowledge, *, links=None, trace=None, han
             question = 'Qual é a maior dificuldade hoje na sua operação?' if business_known else 'Qual é o tipo do seu estabelecimento?'
             if question in previous:
                 question = 'Sobre qual recurso você quer conversar?'
+            if business_statement and business_overview_requested(q):
+                facts = retrieve('beneficios', q, sources)
+                trace['fulfilled'].append('beneficios')
+                trace['facts'].extend({'intent': 'beneficios', 'article_id': fact.article_id}
+                                      for fact in facts)
+                text = ' '.join(fact.text for fact in facts)
+                return text + '\n\n' + question, list(dict.fromkeys(fact.article_id for fact in facts))
             return (('Olá! Sou o assistente comercial do VemDeDelivery. ' if greeting and not previous else '') + question), []
         if re.fullmatch(r'(?:obrigado|obrigada|valeu|vlw|ok|blz|beleza)[!. ]*', q):
             return 'Por nada! Se surgir outra dúvida, pode me chamar.', []
@@ -337,4 +347,6 @@ def compose(conversation, publication, knowledge, *, links=None, trace=None, han
                       'pricing' if 'pricing' in topics else 'discovery')
     if not lines:
         raise HumanReview('commercial_topics_uncovered')
+    if 'objecao-valor' in topics:
+        lines = [soften_value_objection(line) for line in lines]
     return '\n\n'.join(lines), used

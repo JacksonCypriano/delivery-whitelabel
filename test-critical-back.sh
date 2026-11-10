@@ -8,7 +8,7 @@ cd "$SCRIPT_DIR"
 
 usage() {
     echo "Uso: $0 [homolog|prod]"
-    echo "Sem argumento: prod (mantém o comportamento anterior)."
+    echo "Sem argumento: homolog (seguro; produção exige argumento explícito)."
 }
 
 if [[ $# -gt 1 ]]; then
@@ -16,7 +16,7 @@ if [[ $# -gt 1 ]]; then
     exit 1
 fi
 
-ENVIRONMENT="${1:-prod}"
+ENVIRONMENT="${1:-homolog}"
 
 case "$ENVIRONMENT" in
     homolog)

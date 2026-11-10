@@ -57,7 +57,7 @@ export function MerchantLayout() {
               <NavLink to={panelUrl()} end>
                 ◈ Visão geral
               </NavLink>
-              {panel.kind === "superadmin" && <NavLink to={panelUrl("comercial")}>Agente comercial e leads</NavLink>}
+              {panel.kind === "superadmin" && <><NavLink to={panelUrl("comercial")}>Agente comercial</NavLink><NavLink to={panelUrl("comercial/inbox")}>Inbox comercial</NavLink></>}
               {panel.kind === "merchant" && <NavLink to={panelUrl("operacao")}>⚡ Pedidos ativos</NavLink>}
               {panel.kind === "merchant" && <NavLink to={panelUrl("atendimento")}>Atendimento humano</NavLink>}
               {panel.kind === "merchant" && <NavLink to={panelUrl("crm")}>CRM e fidelidade</NavLink>}

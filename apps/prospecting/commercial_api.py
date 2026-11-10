@@ -1,6 +1,7 @@
 import json
 import re
 import secrets
+import uuid
 from urllib.parse import quote, urlsplit
 from django.conf import settings
 from django.db import transaction
@@ -73,19 +74,61 @@ class CommercialPanel(SuperAdminAPI):
         if str(raw_id).isdigit():
             c=CommercialConversation.objects.filter(pk=raw_id).first()
             if c:
-                selected={'id':c.pk,'phone':c.phone,'name':c.name,'notes':c.notes,'stage':c.stage,'paused':c.paused,'opted_out':c.opted_out,'reason':c.reason,'messages':list(c.messages.order_by('-pk').values('id','text','reply','from_me','state','created_at')[:100])[::-1]}
+                selected={'id':c.pk,'phone':c.phone,'name':c.name,'notes':c.notes,'stage':c.stage,'paused':c.paused,'opted_out':c.opted_out,'reason':c.reason,'owner_id':c.owner_id,'messages':list(c.messages.order_by('-pk').values('id','text','reply','from_me','state','created_at')[:100])[::-1]}
         result=catalog()
         pilot=list(CommercialPilotContact.objects.filter(active=True).order_by('phone').values('phone','created_at'))
         alerts=list(CommercialHandoffAlert.objects.filter(state='pending').order_by('-created_at').values('id','conversation_id','reason','created_at')[:30])
-        return Response({'pilot':{'restricted':True,'allowed':pilot,'alerts':alerts,'pending_count':CommercialHandoffAlert.objects.filter(state='pending').count(),'otp_excluded_count':CommercialOtpExclusion.objects.filter(instance=control.instance).count()},'control':{'instance':control.instance,'enabled':control.enabled,'server_enabled':getattr(settings,'COMMERCIAL_AGENT_ENABLED',False),'demo_url':control.demo_url,'contact_url':control.contact_url},
+        return Response({'pilot':{'restricted':True,'allowed':pilot,'alerts':alerts,'pending_count':CommercialHandoffAlert.objects.filter(state='pending').count(),'otp_excluded_count':CommercialOtpExclusion.objects.filter(instance=control.instance).count()},'control':{'instance':control.instance,'enabled':control.enabled,'server_enabled':getattr(settings,'COMMERCIAL_AGENT_ENABLED',False),'demo_url':control.demo_url,'contact_url':control.contact_url,'human_send_enabled':bool(getattr(settings,'COMMERCIAL_HUMAN_PANEL_SEND_ENABLED',False))},
             'catalog':result,'published':result['valid'] and result['fingerprint']==control.catalog_fingerprint,
             'articles':[{'id':a.pk,'slug':a.slug,'version':a.version,'title':a.title,'body':a.body,'source_url':a.source_url,'published':a.published} for a in articles(include_drafts=True)],
             'conversations':list(page.object_list.values('id','phone','name','stage','source','paused','reason','updated_at')),'pagination':metadata(page),'selected':selected,
             'metrics':list(CommercialConversation.objects.values('stage').annotate(count=Count('id'))),
             'events':list(CommercialAudit.objects.order_by('-pk').values('action','created_at','conversation_id')[:30])})
 
-    @transaction.atomic
     def post(self,request):
+        if request.data.get('action') == 'send_human':
+            return self._send_human(request)
+        return self._post_settings(request)
+
+    def _send_human(self, request):
+        """Manual takeover only. Reserve once before POST; never retry uncertain sends."""
+        from apps.integrations.whatsapp.client import EvolutionError
+        if not getattr(settings, 'COMMERCIAL_HUMAN_PANEL_SEND_ENABLED', False):
+            return Response({'detail': 'Envio humano pelo painel não autorizado no servidor.'}, status=403)
+        text = str(request.data.get('text', '')).strip()
+        raw = request.data.get('conversation')
+        if not str(raw).isdigit() or not text or len(text) > 3000:
+            return Response({'detail': 'Informe conversa e mensagem com até 3000 caracteres.'}, status=400)
+        with transaction.atomic():
+            control = CommercialControl.objects.select_for_update().get(pk=1)
+            c = CommercialConversation.objects.select_for_update().filter(pk=raw).first()
+            if not c:
+                return Response({'detail': 'Conversa não encontrada.'}, status=404)
+            if not control.instance or c.instance != control.instance or not c.paused or c.owner_id != request.user.pk:
+                return Response({'detail': 'Assuma esta conversa antes de enviar uma mensagem.'}, status=409)
+            if c.opted_out or otp_excluded(c.phone, c.instance):
+                return Response({'detail': 'Contato excluído ou opt-out: envio comercial proibido.'}, status=409)
+            if c.messages.filter(state__in=['sending', 'uncertain']).exists():
+                return Response({'detail': 'Há um envio incerto. Concilie antes de enviar novamente.'}, status=409)
+            row = CommercialMessage.objects.create(
+                conversation=c, provider_id='human:' + uuid.uuid4().hex,
+                text=text, from_me=True, state='sending',
+            )
+            CommercialAudit.objects.create(actor=request.user, conversation=c, action='human_send_reserved')
+            instance, phone = c.instance, c.phone
+        # Provider call only after reservation has COMMITTED.
+        try:
+            message_id = TenantEvolutionClient().send_text(instance, phone, text)
+        except Exception:
+            CommercialMessage.objects.filter(pk=row.pk, state='sending').update(state='uncertain')
+            CommercialAudit.objects.create(actor=request.user, conversation=c, action='human_send_uncertain')
+            return Response({'detail': 'Envio não confirmado. NÃO repita; concilie com a Evolution.'}, status=502)
+        CommercialMessage.objects.filter(pk=row.pk, state='sending').update(state='sent', reply_id=message_id)
+        CommercialAudit.objects.create(actor=request.user, conversation=c, action='human_send_confirmed')
+        return Response({'detail': 'Mensagem enviada pelo painel.'})
+
+    @transaction.atomic
+    def _post_settings(self,request):
         control=CommercialControl.current()
         control=CommercialControl.objects.select_for_update().get(pk=control.pk)
         action=request.data.get('action')

@@ -137,5 +137,30 @@ class OTPTransport:
         EvolutionClient(instance=instance).send_text(number, text)
 
 
+
+def shared_otp_instance():
+    """Return shared instance only for explicitly opted-in, matched configuration.
+
+    A missing/mismatched control is an error, never an excuse to skip isolation.
+    """
+    from apps.prospecting.commercial_models import CommercialControl
+    if not getattr(settings, 'COMMERCIAL_OTP_SHARED_ENABLED', False):
+        return None
+    instance = getattr(settings, 'OTP_EVOLUTION_INSTANCE', '') or settings.EVOLUTION_INSTANCE
+    control = CommercialControl.objects.filter(pk=1).first()
+    if not instance or not control or not control.instance or control.instance != instance:
+        raise EvolutionError('configuration')
+    return instance
+
+
+def prepare_shared_otp_recipient(phone):
+    """Stage exclusion in the OTP transaction; caller must COMMIT before POST."""
+    instance = shared_otp_instance()
+    if instance is None:
+        return
+    from apps.prospecting.commercial_pilot import quarantine_otp_recipient
+    quarantine_otp_recipient(phone, instance)
+
+
 def phone_otp_transport():
     return OTPTransport()

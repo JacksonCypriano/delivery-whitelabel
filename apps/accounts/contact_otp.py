@@ -11,7 +11,7 @@ from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, transaction, connection
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.crypto import salted_hmac
@@ -163,8 +163,14 @@ def deliver_contact_code(pending, user, code):
 
 
 @audited_otp("contact", "send")
-@sensitive_variables("code")
+@sensitive_variables('code')
 def send_contact_code(user_id, pending_id, ip):
+    # Shared-instance OTP requires a committed suppression record BEFORE POST.
+    # Fail closed rather than send inside an unrelated outer transaction.
+    from apps.integrations.whatsapp.client import prepare_shared_otp_recipient
+    shared_enabled = bool(getattr(settings, 'COMMERCIAL_OTP_SHARED_ENABLED', False))
+    if shared_enabled and PendingContactChange.objects.filter(pk=pending_id, channel='whatsapp').exists() and connection.in_atomic_block:
+        raise OTPError('Envio de WhatsApp indisponível nesta operação.', reason='delivery')
     error = None
     with transaction.atomic():
         user, customer = _lock_account(user_id)
@@ -180,13 +186,25 @@ def send_contact_code(user_id, pending_id, ip):
         pending.code_expires_at = now + timedelta(minutes=10)
         pending.last_sent_at = now
         pending.attempts = 0
+        shared = shared_enabled and pending.channel == 'whatsapp'
+        if shared:
+            try:
+                prepare_shared_otp_recipient(normalize_br_phone(pending.destination))
+            except Exception:
+                raise OTPError('Não foi possível preparar o envio do código.', reason='delivery') from None
+        else:
+            try:
+                deliver_contact_code(pending, user, code)
+            except Exception:
+                pending.code_hash = ""
+                error = "Não foi possível enviar o código. Seu contato atual foi mantido. Aguarde 60 segundos e tente reenviar."
+        pending.save()
+    if shared:
         try:
             deliver_contact_code(pending, user, code)
         except Exception:
-            # Provider errors can include tokens/OTP. Do not log their raw content.
-            pending.code_hash = ""
+            PendingContactChange.objects.filter(pk=pending_id, code_hash=pending.code_hash).update(code_hash='')
             error = "Não foi possível enviar o código. Seu contato atual foi mantido. Aguarde 60 segundos e tente reenviar."
-        pending.save()
     if error:
         raise OTPError(error, reason="delivery")
 

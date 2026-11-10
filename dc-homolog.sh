@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 DC=(docker compose -f docker/dev/docker-compose.yml)
+# Este script opera exclusivamente na homologação local; nunca em produção.
 
 COMMAND=${1:-deploy}
 

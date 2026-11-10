@@ -5,7 +5,7 @@ from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, transaction, connection
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.crypto import salted_hmac
@@ -13,7 +13,7 @@ from django.views.decorators.debug import sensitive_variables
 
 from apps.customers.models import Customer
 from apps.integrations.whatsapp.service import normalize_br_phone
-from apps.integrations.whatsapp.client import phone_otp_transport, EvolutionError
+from apps.integrations.whatsapp.client import phone_otp_transport, EvolutionError, prepare_shared_otp_recipient
 from .models import PendingRegistration, RegistrationRateLimit, User
 from .audit import audited_otp
 
@@ -111,6 +111,11 @@ def deliver(channel, pending, code):
 @audited_otp('registration', 'send')
 @sensitive_variables('code')
 def send_code(pending_id, ip, channel):
+    # Shared OTP is exceptional: the exclusion must be COMMITTED before the
+    # external WhatsApp POST. Do not allow an outer atomic block to postpone it.
+    shared = channel == 'whatsapp' and bool(getattr(settings, 'COMMERCIAL_OTP_SHARED_ENABLED', False))
+    if shared and connection.in_atomic_block:
+        raise OTPError('Envio de WhatsApp indisponível nesta operação.', reason='delivery')
     error = None
     with transaction.atomic():
         pending = PendingRegistration.objects.select_for_update().get(pk=pending_id)
@@ -126,15 +131,29 @@ def send_code(pending_id, ip, channel):
         pending.code_expires_at = now + timedelta(minutes=10)
         pending.last_sent_at = now
         pending.attempts = 0
+        if shared:
+            try:
+                prepare_shared_otp_recipient(normalize_br_phone(pending.phone))
+            except Exception:
+                # No credential/code/provider error details leave this boundary.
+                raise OTPError('Não foi possível preparar o envio do código.', reason='delivery') from None
+        else:
+            try:
+                deliver(channel, pending, code)
+            except Exception:
+                pending.code_hash = ''
+                error = 'Não foi possível enviar o código. Aguarde 60 segundos e tente reenviar.'
+        pending.save()
+    if shared:
+        # At this point the OTP hash, cooldown and permanent commercial
+        # exclusion have all committed. A failed POST never removes exclusion.
         try:
             deliver(channel, pending, code)
         except Exception:
-            # Do not log provider exceptions: they can include credentials or OTPs.
-            pending.code_hash = ''
+            PendingRegistration.objects.filter(pk=pending_id, code_hash=pending.code_hash).update(code_hash='')
             error = 'Não foi possível enviar o código. Aguarde 60 segundos e tente reenviar.'
-        pending.save()
     if error:
-        raise OTPError(error, reason="delivery")
+        raise OTPError(error, reason='delivery')
 
 
 @audited_otp('registration', 'verify')

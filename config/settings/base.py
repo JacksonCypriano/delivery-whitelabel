@@ -189,6 +189,7 @@ EVOLUTION_INSTANCE = os.getenv("EVOLUTION_INSTANCE", "")
 # OTP may explicitly share the platform-sales instance; default remains legacy.
 OTP_EVOLUTION_INSTANCE = os.getenv("OTP_EVOLUTION_INSTANCE", "").strip()
 COMMERCIAL_OTP_SHARED_ENABLED = os.getenv("COMMERCIAL_OTP_SHARED_ENABLED", "false").lower() in ("1", "true", "yes", "on")
+COMMERCIAL_HUMAN_PANEL_SEND_ENABLED = os.getenv("COMMERCIAL_HUMAN_PANEL_SEND_ENABLED", "false").lower() in ("1", "true", "yes", "on")
 EVOLUTION_API_TIMEOUT = int(os.getenv("EVOLUTION_API_TIMEOUT", "4"))
 PROSPECTING_EVOLUTION_INSTANCE = os.getenv("PROSPECTING_EVOLUTION_INSTANCE", "").strip()
 PROSPECTING_EVOLUTION_AUTO_RECONNECT = os.getenv("PROSPECTING_EVOLUTION_AUTO_RECONNECT", "true").lower() in ("1", "true", "yes", "on")

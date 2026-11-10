@@ -1,0 +1,132 @@
+"""Bateria comercial P14: executar somente via python manage.py shell < arquivo.
+
+Não usa receive/process_message; todas as inserções são revertidas.
+Não chama APIs externas, não requer WhatsApp em homologação.
+"""
+import uuid
+from unittest.mock import patch
+from django.db import transaction
+
+from apps.prospecting.commercial_models import (
+    CommercialControl, CommercialConversation, CommercialMessage,
+)
+from apps.prospecting.commercial import articles
+from apps.prospecting.commercial_catalog import published_catalog
+from apps.prospecting.commercial_local import compose, HumanReview
+from apps.prospecting.commercial_greetings import enhance_reply
+
+# Formato: nome, mensagens em sequência, esperado da última mensagem, termos obrigatórios
+# 'human' significa transferência legítima, sem alegação comercial não confirmada.
+scenarios = [
+    ('01 Primeiro contato', ['Oi, quanto custa o sistema?'], 'answer', ['149,90']),
+    ('02 Linguagem informal', ['boa tarde vcs tem cardapio online e qto custa?'], 'answer', ['cardápio', '149,90']),
+    ('03 Apresentação para pizzaria', ['Tenho uma pizzaria, o que o sistema faz?'], 'answer', ['cardápio', 'pedidos']),
+    ('04 Perguntas combinadas', ['Integra com iFood? Tem KDS, impressão e painel de pedidos?'], 'answer', ['iFood', 'KDS', 'impressão', 'painel']),
+    ('05 Plano anual', ['Quanto custa o plano anual?'], 'answer', ['1.528,98']),
+    ('06 Plano trimestral', ['E o plano de 3 meses, quanto fica?'], 'answer', ['427,22']),
+    ('07 Objeção de preço', ['Achei caro, por que vale a pena?'], 'answer', ['Entendo', 'custo']),
+    ('08 Agente WhatsApp da loja', ['O sistema atende meus clientes pelo WhatsApp?'], 'answer', ['WhatsApp']),
+    ('09 99Food', ['Vocês já têm integração com 99Food?'], 'answer', ['99Food', 'homologação']),
+    ('10 Estoque desconhecido', ['Tem controle de estoque automático?'], 'human', []),
+    ('11 Impressão de cozinha', ['Consigo imprimir os pedidos direto na impressora?'], 'answer', ['impressão']),
+    ('12 Motoboy terceirizado', ['Vocês fornecem motoboy para fazer as entregas?'], 'human', []),
+    ('13 Negociação especial', ['Consegue fazer 50% de desconto pra mim?'], 'human', []),
+    ('14 Contratação', ['Gostei, quero contratar agora!'], 'human', []),
+    ('15 Pedido humano', ['Quero falar com uma pessoa de verdade'], 'human', []),
+    ('16 Memória do ramo', ['Tenho uma pizzaria e recebo pedidos pelo iFood.', 'Você lembra qual é meu tipo de estabelecimento?'], 'answer', ['pizzaria']),
+    ('17 Memória do plano', ['Quanto custa o plano anual?', 'Qual foi o plano que eu perguntei anteriormente?'], 'answer', ['anual']),
+    ('18 Continuidade', ['Tenho uma hamburgueria.', 'E quanto custa o sistema?'], 'answer', ['149,90']),
+    ('19 Erros ortográficos', ['vcs tem cadapioo e impresora pra cosinha?'], 'answer', ['cardápio', 'impressão']),
+    ('20 Nota fiscal eletrônica', ['O sistema faz emissão de nota fiscal eletrônica automaticamente?'], 'human', []),
+    ('21 NFC-e', ['Emite NFC-e diretamente pelo sistema?'], 'human', []),
+    ('22 Cupom não fiscal', ['Tem comprovante de cozinha para imprimir?'], 'answer', ['comprovantes']),
+    ('23 Funcionalidades hamburgueria', ['Tenho hamburgueria. Como o sistema funciona?'], 'answer', ['pedidos']),
+    ('24 Preço sem período', ['Quanto custa?'], 'answer', ['149,90']),
+    ('25 Desconto anual', ['Qual o valor anual com desconto?'], 'answer', ['1.528,98']),
+    ('26 Pizzas meio a meio', ['Consigo cadastrar pizza meio a meio?'], 'answer', ['meio a meio']),
+    ('27 Retirada de pedidos', ['Consigo oferecer retirada no balcão?'], 'answer', ['retirada']),
+    ('28 Cartão e Pix', ['Como funciona o pagamento por Pix e cartão?'], 'answer', ['Pix']),
+    ('29 Sem comissão', ['Vocês cobram comissão por pedido direto?'], 'answer', ['comissão']),
+    ('30 Centralização do iFood', ['Organiza pedidos do iFood com os do cardápio próprio?'], 'answer', ['pedidos']),
+    ('31 WhatsApp + KDS', ['Tenho delivery, atende no whats e tem tela da cozinha?'], 'answer', ['WhatsApp', 'KDS']),
+    ('32 Sem garantias', ['Vocês garantem que vou dobrar as vendas?'], 'human', []),
+    ('33 Pedido de gratuidade', ['Posso testar 90 dias grátis?'], 'human', []),
+    ('34 Histórico sem informação', ['Você lembra qual plano eu perguntei anteriormente?'], 'answer', ['Não encontrei']),
+    ('35 Encaminhar serviço fiscal', ['Vocês geram nota fiscal automaticamente para minha pizzaria?'], 'human', []),
+    ('36 Início e seguimento', ['Oi!', 'Tenho uma pizzaria, quero saber dos pedidos.'], 'answer', ['pedidos']),
+]
+
+
+def forbid(*args, **kwargs):
+    raise RuntimeError('BATERIA: tentativa de acesso externo BLOQUEADA')
+
+
+passed = 0
+failed = 0
+handoffs = 0
+answers = 0
+print('========== BATERIA P14 — VPS, SIMULAÇÃO LOCAL ==========', flush=True)
+print('Cenários:', len(scenarios))
+print('Envio WhatsApp: BLOQUEADO; transação: ROLLBACK')
+
+with patch('requests.sessions.Session.request', side_effect=forbid), \
+     patch('apps.integrations.whatsapp_agent.client.TenantEvolutionClient.send_text', side_effect=forbid), \
+     patch('apps.integrations.whatsapp_agent.client.TenantEvolutionClient.status', side_effect=forbid):
+    with transaction.atomic():
+        control = CommercialControl.objects.get(pk=1)
+        publication = published_catalog(control)
+        knowledge = articles()
+        assert publication['valid'] and knowledge
+        for name, messages, expected, terms in scenarios:
+            conversation = CommercialConversation.objects.create(
+                instance='battery-p14-' + uuid.uuid4().hex[:12],
+                phone='5500000000000', name='Bateria P14 temporária',
+            )
+            actual = None
+            response = ''
+            print('\n' + '-' * 65)
+            print(name)
+            for message in messages:
+                row = CommercialMessage.objects.create(
+                    conversation=conversation,
+                    provider_id='test:' + uuid.uuid4().hex,
+                    text=message, from_me=False, state='queued',
+                )
+                print('CLIENTE:', message)
+                try:
+                    reply, sources = compose(conversation, publication, knowledge, handoff_signup=True)
+                    reply = enhance_reply(conversation, row, reply)
+                    actual = 'answer'
+                    response = reply
+                    print('AGENTE:', reply[:1400])
+                    row.reply, row.state = reply, 'submitted'
+                    row.save(update_fields=['reply', 'state'])
+                    answers += 1
+                except HumanReview as exc:
+                    actual = 'human'
+                    response = str(exc)
+                    print('TRANSFERÊNCIA HUMANA:', response)
+                    handoffs += 1
+                    break
+                except Exception as exc:
+                    actual = 'error'
+                    response = type(exc).__name__ + ': ' + str(exc)[:150]
+                    print('ERRO:', response)
+                    break
+            found_terms = all(term.casefold() in response.casefold() for term in terms)
+            ok = actual == expected and (expected == 'human' or found_terms)
+            if ok:
+                passed += 1
+                print('AVALIAÇÃO AUTOMÁTICA: PASSOU')
+            else:
+                failed += 1
+                print('AVALIAÇÃO AUTOMÁTICA: REVISAR; esperado=', expected,
+                      'obtido=', actual, 'termos=', terms)
+        # Não altera a produção: até IDs/linhas temporários são revertidos.
+        transaction.set_rollback(True)
+
+print('\n' + '=' * 65)
+print('TOTAL:', len(scenarios), '| PASSOU:', passed, '| REVISAR:', failed)
+print('INTERAÇÕES RESPONDIDAS:', answers, '| TRANSFERÊNCIAS:', handoffs)
+print('Nenhuma mensagem real enviada. Dados temporários revertidos.')
+print('ATENÇÃO: aprovação automática por termos não substitui auditoria humana das respostas.')

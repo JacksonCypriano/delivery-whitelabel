@@ -4,7 +4,7 @@ Authored for developer CI; not executed when assembling the delivery package.
 """
 from unittest.mock import patch
 
-from django.test import TestCase, override_settings
+from django.test import TestCase, TransactionTestCase, override_settings
 
 from apps.integrations.whatsapp.client import EvolutionError, phone_otp_transport
 from .commercial import receive
@@ -98,3 +98,77 @@ class SharedOtpIsolationTests(TestCase):
         self.assertFalse(CommercialOtpExclusion.objects.exists())
         self.assertTrue(eligible(self.phone, self.instance))
         request.assert_called_once()
+
+
+@override_settings(
+    EVOLUTION_API_URL='https://evolution.test', EVOLUTION_API_KEY='safe-test',
+    EVOLUTION_INSTANCE='old-otp', OTP_EVOLUTION_INSTANCE='vemdedelivery-comercial',
+    COMMERCIAL_OTP_SHARED_ENABLED=True,
+)
+class SharedOtpCommitBoundaryTests(TransactionTestCase):
+    """Real DB commits with provider mocked; never touches a WhatsApp connection."""
+    def setUp(self):
+        from apps.accounts.otp import create_pending
+        self.phone = '11988887777'
+        self.pending = create_pending({
+            'first_name': 'Cliente', 'last_name': 'Teste', 'email': 'commit@example.com',
+            'phone': self.phone, 'password1': 'never-shared',
+        })
+        from django.utils import timezone
+        self.pending.email_verified_at = timezone.now()
+        self.pending.save(update_fields=['email_verified_at'])
+        CommercialControl.objects.create(pk=1, instance='vemdedelivery-comercial', enabled=False)
+
+    def test_registration_exclusion_commits_before_provider_call(self):
+        from django.db import connection
+        from apps.accounts.otp import send_code
+        observed = []
+        def provider_send(number, message):
+            observed.append((connection.in_atomic_block, CommercialOtpExclusion.objects.filter(
+                instance='vemdedelivery-comercial', phone='5511988887777'
+            ).exists()))
+        with patch('apps.integrations.whatsapp.client.EvolutionClient.send_text', side_effect=provider_send):
+            send_code(self.pending.pk, '192.0.2.7', 'whatsapp')
+        self.assertEqual(observed, [(False, True)])
+
+    def test_provider_failure_keeps_exclusion_and_invalidates_code(self):
+        from apps.accounts.otp import send_code, OTPError
+        with patch('apps.integrations.whatsapp.client.EvolutionClient.send_text', side_effect=TimeoutError()):
+            with self.assertRaises(OTPError):
+                send_code(self.pending.pk, '192.0.2.8', 'whatsapp')
+        self.assertTrue(CommercialOtpExclusion.objects.filter(instance='vemdedelivery-comercial').exists())
+        self.pending.refresh_from_db()
+        self.assertEqual(self.pending.code_hash, '')
+
+    def test_outer_transaction_denied_before_any_send(self):
+        from django.db import transaction
+        from apps.accounts.otp import send_code, OTPError
+        with transaction.atomic(), patch('apps.integrations.whatsapp.client.EvolutionClient.send_text') as client:
+            with self.assertRaises(OTPError):
+                send_code(self.pending.pk, '192.0.2.9', 'whatsapp')
+            client.assert_not_called()
+
+    def test_contact_change_exclusion_commits_before_provider_call(self):
+        from django.db import connection
+        from django.contrib.auth import get_user_model
+        from django.utils import timezone
+        from apps.customers.models import Customer
+        from apps.accounts.contact_otp import save_profile, send_contact_code
+        user = get_user_model().objects.create_user(
+            username='contact-otp@example.com', email='contact-otp@example.com',
+            password='a-valid-test-password', first_name='Cliente', email_verified=True,
+            email_verified_at=timezone.now(),
+        )
+        Customer.objects.create(user=user, phone='11999991111', phone_verified=True)
+        pending = save_profile(user.pk, {
+            'first_name': 'Cliente', 'last_name': 'Teste',
+            'email': 'contact-otp@example.com', 'phone': '11988887777',
+        })[1][0]
+        observed = []
+        def provider_send(number, message):
+            observed.append((connection.in_atomic_block, CommercialOtpExclusion.objects.filter(
+                instance='vemdedelivery-comercial', phone='5511988887777',
+            ).exists()))
+        with patch('apps.integrations.whatsapp.client.EvolutionClient.send_text', side_effect=provider_send):
+            send_contact_code(user.pk, pending.pk, '192.0.2.10')
+        self.assertEqual(observed, [(False, True)])

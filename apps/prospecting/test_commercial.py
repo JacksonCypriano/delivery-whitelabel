@@ -114,3 +114,51 @@ class CommercialTests(TestCase):
         self.assertEqual(r.status_code,200)
         self.assertEqual(r.json()['metrics']['human_requests'],1)
         self.assertEqual(r.json()['metrics']['received_month'],'0')
+
+
+    @override_settings(COMMERCIAL_HUMAN_PANEL_SEND_ENABLED=False)
+    def test_manual_panel_send_is_off_by_default(self):
+        row = self.message()
+        row.conversation.paused = True
+        row.conversation.owner = self.admin
+        row.conversation.save()
+        with patch('apps.prospecting.commercial_api.TenantEvolutionClient') as client:
+            result = self.client.post('/api/superadmin/commercial/', {
+                'action': 'send_human', 'conversation': row.conversation_id,
+                'text': 'Mensagem humana',
+            }, content_type='application/json')
+        self.assertEqual(result.status_code, 403)
+        client.assert_not_called()
+
+    @override_settings(COMMERCIAL_HUMAN_PANEL_SEND_ENABLED=True)
+    def test_manual_send_requires_takeover_and_is_never_retried(self):
+        row = self.message()
+        url = '/api/superadmin/commercial/'
+        data = {'action': 'send_human', 'conversation': row.conversation_id, 'text': 'Olá, sou da equipe!'}
+        with patch('apps.prospecting.commercial_api.TenantEvolutionClient') as client:
+            self.assertEqual(self.client.post(url, data, content_type='application/json').status_code, 409)
+            client.assert_not_called()
+        self.assertEqual(self.client.post(url, {'action':'takeover', 'conversation':row.conversation_id}, content_type='application/json').status_code, 200)
+        with patch('apps.prospecting.commercial_api.TenantEvolutionClient') as client:
+            client.return_value.send_text.side_effect = TimeoutError()
+            result = self.client.post(url, data, content_type='application/json')
+            self.assertEqual(result.status_code, 502)
+            self.assertEqual(self.client.post(url, data, content_type='application/json').status_code, 409)
+            client.return_value.send_text.assert_called_once()
+        self.assertEqual(CommercialMessage.objects.filter(from_me=True, state='uncertain').count(), 1)
+
+    @override_settings(COMMERCIAL_HUMAN_PANEL_SEND_ENABLED=True)
+    def test_manual_send_rejects_otp_excluded_contact(self):
+        from .commercial_models import CommercialOtpExclusion
+        row = self.message()
+        row.conversation.paused = True
+        row.conversation.owner = self.admin
+        row.conversation.save()
+        CommercialOtpExclusion.objects.create(instance='commercial-test', phone='5511999999999')
+        with patch('apps.prospecting.commercial_api.TenantEvolutionClient') as client:
+            response = self.client.post('/api/superadmin/commercial/', {
+                'action': 'send_human', 'conversation': row.conversation_id,
+                'text': 'Mensagem comercial',
+            }, content_type='application/json')
+        self.assertEqual(response.status_code, 409)
+        client.assert_not_called()

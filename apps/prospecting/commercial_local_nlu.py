@@ -94,11 +94,30 @@ def intents_for(text, memory=''):
         topics.discard('cardapio')
     if 'gestao' in topics and re.search(r'\b(?:adicional|adicionais|meio a meio)\b', q):
         topics.discard('cardapio')
-    # A noun inside a specific question is not a separate operational question.
-    if topics & {'integracoes', 'impressao', 'modalidades', 'objecao-valor'} and not re.search(r'\b(?:kanban|etapas|status|mesa|painel|mesma tela)\b', q):
+    # Apenas mencionar "pedidos" dentro de outra pergunta não caracteriza
+    # uma intenção independente. Mas uma pergunta explícita sobre organizar,
+    # acompanhar ou centralizar pedidos precisa manter o assunto "pedidos",
+    # mesmo ao citar iFood, KDS ou impressão na mesma mensagem.
+    explicit_order_management = bool(re.search(
+        r'\b(?:organiz\w*|centraliz\w*|gerenci\w*|acompanh\w*|control\w*)\b.{0,55}\bpedidos?\b'
+        r'|\b(?:painel|central|kanban)\b.{0,45}\bpedidos?\b'
+        r'|\bpedidos?\b.{0,45}\b(?:painel|central|kanban)\b', q
+    ))
+    if (topics & {'integracoes', 'impressao', 'modalidades', 'objecao-valor'}
+            and not explicit_order_management
+            and not re.search(r'\b(?:kanban|etapas|status|mesa|painel|mesma tela)\b', q)):
         topics.discard('pedidos')
-    if 'pedidos' in topics and not (has(q, 'kanban') and (has(q, 'cozinha') or has(q, 'kds'))):
+    # Pedido + KDS sao assuntos distintos quando solicitados explicitamente.
+    # 'pedidos da cozinha' por si so nao implica uma pergunta separada sobre KDS.
+    kitchen_explicit = bool(re.search(
+        r'\b(?:kds|tela (?:da |de )?cozinha|tem (?:uma? )?(?:tela (?:da |de )?)?cozinha)\b', q
+    )) or (has(q, 'cozinha') and bool(re.search(r'\b(?:tem|possui|existe)\b.{0,45}\bcozinha\b', q)))
+    if 'pedidos' in topics and not (kitchen_explicit or (has(q, 'kanban') and (has(q, 'cozinha') or has(q, 'kds')))):
         topics.discard('cozinha')
+    # Mencao ao canal de chegada nao equivale a solicitar o agente WhatsApp.
+    if 'whatsapp' in topics and re.search(r'\b(?:recebo|recebe|recebemos|receber|vem|chegam|entram)\b.{0,85}\bpedidos?\b', q):
+        if not re.search(r'\b(?:agente|robo|automatizad[oa]|atendimento|responde|responder|cliente)\b', q):
+            topics.discard('whatsapp')
     if 'pedidos' in topics and has(q, 'mesma tela'):
         topics.discard('cardapio')
     if 'beneficios' in topics and re.search(r'\b(?:diferente|diferenca|diferenciais)\b', q):

@@ -1,0 +1,77 @@
+[
+  {
+    "slug": "cardapio-proprio",
+    "title": "Cardapio proprio",
+    "body": "@commercial-facts-v1\n[{\"for\":[\"cardapio\"],\"text\":\"Sua loja tem cardápio online próprio para apresentar produtos e receber pedidos diretos, conforme configuração.\"}]"
+  },
+  {
+    "slug": "whatsapp",
+    "title": "Whatsapp",
+    "body": "@commercial-facts-v1\n[{\"for\":[\"whatsapp\"],\"text\":\"O agente da loja atende clientes no WhatsApp e auxilia na compra, conforme funções habilitadas. Exige configuração e conexão da conta.\"},{\"for\":[\"whatsapp:humano\"],\"text\":\"A equipe da loja pode assumir a conversa quando necessário. O agente da loja é diferente do assistente comercial do VemDeDelivery.\"}]"
+  },
+  {
+    "slug": "kds",
+    "title": "Kds",
+    "body": "@commercial-facts-v1\n[{\"for\":[\"cozinha\"],\"text\":\"KDS é a tela da cozinha para acompanhar os pedidos e suas etapas de preparo.\"}]"
+  },
+  {
+    "slug": "pedidos",
+    "title": "Pedidos",
+    "body": "@commercial-facts-v1\n[{\"for\":[\"pedidos\"],\"text\":\"O painel operacional organiza pedidos por origem e etapas, como novos, preparo e prontos, conforme o fluxo configurado.\"},{\"for\":[\"pedidos:centralizacao\"],\"text\":\"Pedidos próprios e dos canais habilitados aparecem na central operacional, identificados pela origem. A integração depende de conexão, permissões e homologação do canal.\"}]"
+  },
+  {
+    "slug": "impressao",
+    "title": "Impressao",
+    "body": "@commercial-facts-v1\n[{\"for\":[\"impressao\"],\"text\":\"Há impressão de comprovantes de cozinha e entrega, não fiscais. A impressão direta exige agente configurado e compatibilidade da impressora verificada.\"},{\"for\":[\"impressao:detalhes\"],\"text\":\"A via de entrega pode mostrar endereço, itens, observações e pagamento. É comprovante não fiscal; impressão direta exige agente configurado e compatibilidade verificada.\"}]"
+  },
+  {
+    "slug": "integracoes",
+    "title": "Integracoes",
+    "body": "@commercial-facts-v1\n[{\"for\":[\"integracoes\"],\"text\":\"Há integração com iFood e implementação para 99Food. A ativação depende de conexão, permissões, configuração e homologação de cada canal.\"},{\"for\":[\"integracoes:ifood\"],\"text\":\"A integração de pedidos do iFood depende da conexão, das permissões e da configuração da loja, além da homologação aplicável.\"},{\"for\":[\"integracoes:99food\"],\"text\":\"Há implementação de integração com 99Food. A equipe precisa confirmar conexão, permissões e homologação antes de liberar para a loja.\"}]"
+  },
+  {
+    "slug": "gestao",
+    "title": "Gestao",
+    "body": "@commercial-facts-v1\n[{\"for\":[\"gestao\"],\"text\":\"O painel reúne produtos, categorias, clientes e gestão comercial, conforme permissões e funções habilitadas.\"},{\"for\":[\"gestao:adicional\"],\"text\":\"O cardápio permite adicionais e personalizações, conforme configuração da loja.\"},{\"for\":[\"gestao:meio\"],\"text\":\"O cardápio permite pizzas meio a meio, conforme produtos e opções configurados.\"},{\"for\":[\"gestao:crm\"],\"text\":\"O CRM organiza clientes e histórico, conforme permissões e configuração da loja.\"},{\"for\":[\"gestao:automacao\"],\"text\":\"Há automações de recuperação, feedback e reativação, quando habilitadas e com consentimento do cliente. Não são disparos irrestritos para todos os contatos.\"},{\"for\":[\"gestao:identidade\"],\"text\":\"A loja pode configurar sua identidade visual. Isso não inclui serviço de criação de marca ou logotipo.\"}]"
+  },
+  {
+    "slug": "comissoes",
+    "title": "Comissoes",
+    "body": "@commercial-facts-v1\n[{\"for\":[\"comissoes\"],\"text\":\"O VemDeDelivery não cobra comissão sobre pedidos diretos. Taxas de pagamento e de marketplaces são independentes.\"},{\"for\":[\"payment\"],\"text\":\"Nos pedidos, Pix e cartão via Asaas dependem da habilitação e aprovação da subconta da loja. Taxas do meio de pagamento são independentes.\"}]"
+  },
+  {
+    "slug": "modalidades",
+    "title": "Modalidades",
+    "body": "@commercial-facts-v1\n[{\"for\":[\"modalidades\"],\"text\":\"A loja pode configurar entrega e retirada, com etapas próprias no painel. O VemDeDelivery não fornece motoboys próprios.\"}]"
+  },
+  {
+    "slug": "visao-geral",
+    "title": "Visao geral",
+    "body": "@commercial-facts-v1\n[{\"for\":[\"beneficios\"],\"text\":\"Reúne cardápio próprio, vendas diretas, WhatsApp, pedidos e cozinha, conforme recursos habilitados. Resultados dependem da operação da loja.\"},{\"for\":[\"beneficios:ramo\"],\"text\":\"O VemDeDelivery atende restaurantes, pizzarias, hamburguerias, marmitarias, açaiterias e outros negócios de alimentação, conforme configuração.\"}]"
+  },
+  {
+    "slug": "objecao-valor",
+    "title": "Objecao valor",
+    "body": "@commercial-facts-v1\n[{\"for\":[\"objecao-valor\"],\"text\":\"Para avaliar o custo, considere reunir cardápio próprio, pedidos e cozinha e reduzir tarefas manuais. Não há garantia de vendas, economia ou retorno financeiro.\"}]"
+  },
+  {
+    "slug": "objecao-canais",
+    "title": "Objecao canais",
+    "body": "@commercial-facts-v1\n[{\"for\":[\"objecao-canais\"],\"text\":\"O canal próprio complementa Instagram e iFood com pedidos diretos. Pedidos de canais habilitados podem ser centralizados, conforme conexão, configuração e homologação aplicável.\"}]"
+  },
+  {
+    "slug": "mobile",
+    "title": "Mobile",
+    "body": "@commercial-facts-v1\n[{\"for\":[\"mobile\"],\"text\":\"O cardápio se adapta ao celular: o cliente consulta produtos e faz pedidos pelo navegador, conforme configuração da loja.\"}]"
+  },
+  {
+    "slug": "linguagem-informal",
+    "title": "Linguagem informal",
+    "body": "@commercial-facts-v1\n[{\"for\":[\"linguagem\"],\"text\":\"O agente trata abreviações e erros comuns de escrita. Pode pedir esclarecimento ou encaminhar à equipe; a compreensão não é perfeita.\"}]"
+  },
+  {
+    "slug": "contratacao",
+    "title": "Contratacao",
+    "body": "@commercial-facts-v1\n[{\"for\":[\"contratacao\"],\"text\":\"A contratação usa os canais oficiais da plataforma. Condições especiais e prazos de implantação exigem confirmação da equipe.\"}]"
+  }
+]

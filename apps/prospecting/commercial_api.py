@@ -99,6 +99,8 @@ class CommercialPanel(SuperAdminAPI):
                     validate_instance(control.instance);published_catalog(control)
                     if not articles(): raise ValueError('Publique ao menos um artigo revisado.')
                     if client.status(control.instance)!='open': raise ValueError('Conecte a instância primeiro.')
+                if action == 'pause' or not control.enabled:
+                    CommercialMessage.objects.filter(state='queued').update(state='held')
                 control.enabled=action=='enable';control.save()
             elif action=='instances':
                 data=client._request('GET','instance/fetchInstances')
@@ -141,6 +143,9 @@ class CommercialPanel(SuperAdminAPI):
                 if re.search(r'R\$|\d+[.,]\d{2}|https?://',body,re.I):
                     raise ValueError('Preços e links devem vir do catálogo/configuração, não do artigo.')
                 if source and (urlsplit(source).scheme!='https' or not urlsplit(source).hostname): raise ValueError('Fonte deve usar HTTPS.')
+                from types import SimpleNamespace
+                from .commercial_copy import units
+                units(SimpleNamespace(pk=0, version=0, slug=slug, body=body))
                 version=(CommercialArticle.objects.filter(slug=slug).aggregate(n=Max('version'))['n'] or 0)+1
                 CommercialArticle.objects.create(slug=slug,version=version,title=title,body=body,source_url=source,published=request.data.get('published') is True,author=request.user)
             elif action in {'takeover','resume','lead'}:
@@ -157,6 +162,8 @@ class CommercialPanel(SuperAdminAPI):
                     stage=request.data.get('stage',c.stage)
                     if stage not in dict(CommercialConversation._meta.get_field('stage').choices): raise ValueError('Etapa inválida.')
                     c.stage=stage;c.notes=str(request.data.get('notes',c.notes))[:4000];c.name=str(request.data.get('name',c.name))[:120]
+                if action in {'takeover', 'resume'}:
+                    c.messages.filter(state='queued').update(state='held')
                 c.save();CommercialAudit.objects.create(actor=request.user,conversation=c,action=action)
                 return Response({'detail':'Conversa atualizada. Mensagens retidas não são reenviadas.'})
             else: raise ValueError('Ação inválida.')

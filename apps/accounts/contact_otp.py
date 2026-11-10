@@ -153,7 +153,7 @@ def deliver_contact_code(pending, user, code):
         "Não solicitou esta alteração? Pode ignorar esta mensagem. "
         "Sem a confirmação, seu telefone não será alterado."
     )
-    if not all([settings.EVOLUTION_API_URL, settings.EVOLUTION_API_KEY, settings.EVOLUTION_INSTANCE]):
+    if not all([settings.EVOLUTION_API_URL, settings.EVOLUTION_API_KEY, (getattr(settings, "OTP_EVOLUTION_INSTANCE", "") or settings.EVOLUTION_INSTANCE)]):
         raise OTPError("Envio de WhatsApp indisponível.")
     from apps.integrations.whatsapp.client import phone_otp_transport, EvolutionError
     try:

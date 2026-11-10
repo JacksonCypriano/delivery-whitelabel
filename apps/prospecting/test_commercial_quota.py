@@ -6,7 +6,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 from apps.billing.models import Plan
 from .commercial_catalog import catalog
-from .commercial_models import CommercialControl, CommercialMessage, CommercialConversation, CommercialArticle
+from .commercial_models import CommercialControl, CommercialMessage, CommercialConversation, CommercialArticle, CommercialPilotContact
 from .commercial_quota import CommercialQuotaDeferred
 from .commercial import process_message
 
@@ -15,6 +15,8 @@ from .commercial import process_message
 class CommercialQuotaQueueTests(TestCase):
     def setUp(self):
         self.control=CommercialControl.objects.create(instance='quota-test',enabled=True)
+        # Necessário para alcançar o teste da quota sem abrir o piloto globalmente.
+        CommercialPilotContact.objects.create(phone='5511999999888', active=True)
         for months,discount in [(1,0),(3,5),(6,10),(12,15)]:
             Plan.objects.update_or_create(months=months,defaults={'name':str(months),'monthly_price':'149.90','discount':discount,'active':True})
         self.control.catalog_fingerprint=catalog()['fingerprint']

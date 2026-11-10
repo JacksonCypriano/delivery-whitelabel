@@ -15,10 +15,13 @@ class EvolutionError(Exception):
 
 
 class EvolutionClient:
+    def __init__(self, instance=None):
+        self.instance = instance
+
     @sensitive_variables()
     def request(self, method, operation, payload=None):
         base = settings.EVOLUTION_API_URL.rstrip("/")
-        instance = settings.EVOLUTION_INSTANCE
+        instance = self.instance if self.instance is not None else settings.EVOLUTION_INSTANCE
         parsed = urlsplit(base)
         if (
             not settings.EVOLUTION_API_KEY
@@ -86,7 +89,7 @@ class EvolutionClient:
         instance = data.get("instance") if isinstance(data, dict) else None
         if (
             not isinstance(instance, dict)
-            or instance.get("instanceName") != settings.EVOLUTION_INSTANCE
+            or instance.get("instanceName") != (self.instance if self.instance is not None else settings.EVOLUTION_INSTANCE)
         ):
             raise EvolutionError("invalid_response")
         state = instance.get("state")
@@ -118,7 +121,20 @@ class OTPTransport:
     """Transport boundary, not verification policy. E-mail never verifies a phone."""
 
     def send_phone_code(self, number, text):
-        EvolutionClient().send_text(number, text)
+        from apps.prospecting.commercial_pilot import quarantine_otp_recipient
+        from apps.prospecting.commercial_models import CommercialControl
+        instance = getattr(settings, 'OTP_EVOLUTION_INSTANCE', '') or settings.EVOLUTION_INSTANCE
+        # Explicit opt-in required to share an instance; fail closed on mismatch.
+        control = CommercialControl.objects.filter(pk=1).first()
+        sharing = bool(control and control.instance and instance == control.instance)
+        if sharing and not getattr(settings, 'COMMERCIAL_OTP_SHARED_ENABLED', False):
+            raise EvolutionError('configuration')
+        if getattr(settings, 'COMMERCIAL_OTP_SHARED_ENABLED', False) and not sharing:
+            raise EvolutionError('configuration')
+        if sharing:
+            # Durable exclusion must be committed BEFORE any provider POST.
+            quarantine_otp_recipient(number, instance)
+        EvolutionClient(instance=instance).send_text(number, text)
 
 
 def phone_otp_transport():

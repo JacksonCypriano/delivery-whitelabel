@@ -100,7 +100,7 @@ def deliver(channel, pending, code):
         "Após a confirmação, sua conta estará pronta para fazer pedidos!\n\n"
         "Não iniciou este cadastro? Pode ignorar esta mensagem."
     )
-    if not all([settings.EVOLUTION_API_URL, settings.EVOLUTION_API_KEY, settings.EVOLUTION_INSTANCE]):
+    if not all([settings.EVOLUTION_API_URL, settings.EVOLUTION_API_KEY, (getattr(settings, "OTP_EVOLUTION_INSTANCE", "") or settings.EVOLUTION_INSTANCE)]):
         raise OTPError("Envio de WhatsApp indisponível. Tente novamente mais tarde.", reason="delivery")
     try:
         phone_otp_transport().send_phone_code(normalize_br_phone(pending.phone), message)

@@ -245,3 +245,38 @@ def process_commercial_inbox():
         due, state='queued', created_at__lte=cutoff,
     ).order_by('pk').values_list('pk',flat=True)[:20]):
         process_message(pk)
+
+
+@shared_task(name='apps.prospecting.tasks.dispatch_commercial_handoff_alerts')
+def dispatch_commercial_handoff_alerts():
+    """Best-effort email alert, at-most-once attempt; inbox notification is durable."""
+    from django.conf import settings
+    from django.core.mail import send_mail
+    from .commercial_models import CommercialHandoffAlert
+
+    addresses = getattr(settings, 'COMMERCIAL_AGENT_HANDOFF_ALERT_EMAILS', [])
+    if not addresses:
+        return 'panel_only'
+    count = 0
+    for alert_id in list(CommercialHandoffAlert.objects.filter(
+        state='pending', attempted_at__isnull=True,
+    ).order_by('pk').values_list('pk', flat=True)[:20]):
+        # Mark before SMTP to avoid repeated alerts on unknown delivery.
+        if not CommercialHandoffAlert.objects.filter(pk=alert_id, attempted_at__isnull=True, state='pending').update(
+            attempted_at=timezone.now(),
+        ):
+            continue
+        alert = CommercialHandoffAlert.objects.get(pk=alert_id)
+        try:
+            send_mail(
+                'VemDeDelivery — atendimento humano necessário',
+                f'Uma conversa comercial exige atendimento humano (ID {alert.conversation_id}). '
+                'Acesse o Inbox comercial no painel administrativo. Não responda por este e-mail.',
+                settings.DEFAULT_FROM_EMAIL,
+                addresses,
+                fail_silently=False,
+            )
+        except Exception:
+            CommercialHandoffAlert.objects.filter(pk=alert_id, state='pending').update(state='email_uncertain')
+        count += 1
+    return f'attempted={count}'

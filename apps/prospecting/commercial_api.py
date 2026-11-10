@@ -15,7 +15,8 @@ from apps.integrations.whatsapp_agent.client import TenantEvolutionClient
 from apps.integrations.whatsapp_agent.provider import extract_message, extract_qr, normalize_event_name
 from .commercial import validate_instance, receive, articles
 from .commercial_catalog import catalog, published_catalog
-from .commercial_models import CommercialControl, CommercialConversation, CommercialMessage, CommercialArticle, CommercialAudit
+from .commercial_models import CommercialControl, CommercialConversation, CommercialMessage, CommercialArticle, CommercialAudit, CommercialPilotContact, CommercialHandoffAlert, CommercialOtpExclusion
+from .commercial_pilot import normalize_phone, otp_excluded
 
 
 @csrf_exempt
@@ -74,7 +75,9 @@ class CommercialPanel(SuperAdminAPI):
             if c:
                 selected={'id':c.pk,'phone':c.phone,'name':c.name,'notes':c.notes,'stage':c.stage,'paused':c.paused,'opted_out':c.opted_out,'reason':c.reason,'messages':list(c.messages.order_by('-pk').values('id','text','reply','from_me','state','created_at')[:100])[::-1]}
         result=catalog()
-        return Response({'control':{'instance':control.instance,'enabled':control.enabled,'server_enabled':getattr(settings,'COMMERCIAL_AGENT_ENABLED',False),'demo_url':control.demo_url,'contact_url':control.contact_url},
+        pilot=list(CommercialPilotContact.objects.filter(active=True).order_by('phone').values('phone','created_at'))
+        alerts=list(CommercialHandoffAlert.objects.filter(state='pending').order_by('-created_at').values('id','conversation_id','reason','created_at')[:30])
+        return Response({'pilot':{'restricted':True,'allowed':pilot,'alerts':alerts,'pending_count':CommercialHandoffAlert.objects.filter(state='pending').count(),'otp_excluded_count':CommercialOtpExclusion.objects.filter(instance=control.instance).count()},'control':{'instance':control.instance,'enabled':control.enabled,'server_enabled':getattr(settings,'COMMERCIAL_AGENT_ENABLED',False),'demo_url':control.demo_url,'contact_url':control.contact_url},
             'catalog':result,'published':result['valid'] and result['fingerprint']==control.catalog_fingerprint,
             'articles':[{'id':a.pk,'slug':a.slug,'version':a.version,'title':a.title,'body':a.body,'source_url':a.source_url,'published':a.published} for a in articles(include_drafts=True)],
             'conversations':list(page.object_list.values('id','phone','name','stage','source','paused','reason','updated_at')),'pagination':metadata(page),'selected':selected,
@@ -95,13 +98,26 @@ class CommercialPanel(SuperAdminAPI):
                 control.catalog_fingerprint=result['fingerprint'];control.catalog_reviewed_at=timezone.now();control.save()
             elif action in {'enable','pause'}:
                 if action=='enable':
+                    if request.data.get('confirm_pilot') is not True: raise ValueError('Confirme explicitamente o piloto restrito.')
                     if not getattr(settings,'COMMERCIAL_AGENT_ENABLED',False): raise ValueError('Ativação no servidor ainda não autorizada/configurada.')
                     validate_instance(control.instance);published_catalog(control)
                     if not articles(): raise ValueError('Publique ao menos um artigo revisado.')
                     if client.status(control.instance)!='open': raise ValueError('Conecte a instância primeiro.')
+                    if not CommercialPilotContact.objects.filter(active=True).exists(): raise ValueError('Cadastre um contato autorizado antes de iniciar o piloto.')
                 if action == 'pause' or not control.enabled:
                     CommercialMessage.objects.filter(state='queued').update(state='held')
                 control.enabled=action=='enable';control.save()
+            elif action in {'pilot_allow','pilot_revoke'}:
+                if control.enabled:
+                    raise ValueError('Pause o agente antes de alterar a lista do piloto.')
+                number=normalize_phone(request.data.get('phone'))
+                if action=='pilot_allow':
+                    if otp_excluded(number, control.instance): raise ValueError('Contato usado para OTP; não pode ser autorizado como lead comercial.')
+                    row,_=CommercialPilotContact.objects.get_or_create(phone=number,defaults={'author':request.user})
+                    if not row.active:
+                        row.active=True;row.author=request.user;row.save(update_fields=['active','author','updated_at'])
+                else:
+                    CommercialPilotContact.objects.filter(phone=number).update(active=False)
             elif action=='instances':
                 data=client._request('GET','instance/fetchInstances')
                 if not isinstance(data,list): raise ValueError('Resposta incompatível da Evolution.')
@@ -155,9 +171,12 @@ class CommercialPanel(SuperAdminAPI):
                 if not c: return Response({'detail':'Conversa não encontrada.'},status=404)
                 if action=='resume':
                     if c.opted_out: raise ValueError('Contato recusou mensagens; retomada automática bloqueada.')
+                    if otp_excluded(c.phone, c.instance): raise ValueError('Conversa de OTP excluída permanentemente da automação comercial.')
                     if c.messages.filter(state__in=['sending','uncertain']).exists(): raise ValueError('Envio incerto: concilie na Evolution antes de retomar.')
                     c.paused=False;c.reason='';c.owner=None
-                elif action=='takeover': c.paused=True;c.reason='human_takeover';c.owner=request.user
+                elif action=='takeover':
+                    c.paused=True;c.reason='human_takeover';c.owner=request.user
+                    CommercialHandoffAlert.objects.filter(conversation=c,state='pending').update(state='acknowledged', acknowledged_at=timezone.now())
                 else:
                     stage=request.data.get('stage',c.stage)
                     if stage not in dict(CommercialConversation._meta.get_field('stage').choices): raise ValueError('Etapa inválida.')

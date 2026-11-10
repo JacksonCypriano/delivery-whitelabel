@@ -290,6 +290,8 @@ def process_message(pk):
             client = TenantEvolutionClient()
             if client.status(control.instance) != 'open': raise ValueError('instance_disconnected')
             reply, sources = compose(conv,publication,knowledge, handoff_signup=True)
+            from .commercial_greetings import enhance_reply
+            reply = enhance_reply(conv, row, reply)
         except CommercialQuotaDeferred as exc:
             # Compatibilidade com tarefas adiadas. Nunca transformar cota temporaria
             # em transferencia humana; o motor local nao usa a cota Gemini.

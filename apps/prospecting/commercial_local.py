@@ -116,7 +116,7 @@ def retrieve(intent, q, sources):
             tags = {'integracoes:' + next(iter(channels))}
     elif intent == 'whatsapp' and re.search(r'\b(?:humano|assumir|equipe)\b', q):
         tags = {'whatsapp:humano'}
-    elif intent == 'beneficios' and any(has(q, b) for b in BUSINESSES) and not re.search(r'\b(?:diferente|diferenca|diferenciais|oferece)\b', q):
+    elif intent == 'beneficios' and any(has(q, b) for b in BUSINESSES) and not business_overview_requested(q) and not re.search(r'\b(?:diferente|diferenca|diferenciais|oferece)\b', q):
         tags = {'beneficios:ramo'}
     elif intent == 'impressao':
         if has(q, 'motoboy') or has(q, 'motoboys'):
@@ -202,6 +202,9 @@ def compose(conversation, publication, knowledge, *, links=None, trace=None, han
         trace['stage'] = 'discovery'
         return answer, []
     topics, period = intents_for(q, memory)
+    overview = business_overview_requested(q)
+    if overview:
+        topics.add('beneficios')
     # Contratação é assumida por uma pessoa NESTA conversa. Nunca enviar
     # o cliente de volta ao próprio número por um link wa.me.
     # A recusa ('não quero contratar') já é removida por intents_for.
@@ -264,13 +267,6 @@ def compose(conversation, publication, knowledge, *, links=None, trace=None, han
             question = 'Qual é a maior dificuldade hoje na sua operação?' if business_known else 'Qual é o tipo do seu estabelecimento?'
             if question in previous:
                 question = 'Sobre qual recurso você quer conversar?'
-            if business_statement and business_overview_requested(q):
-                facts = retrieve('beneficios', q, sources)
-                trace['fulfilled'].append('beneficios')
-                trace['facts'].extend({'intent': 'beneficios', 'article_id': fact.article_id}
-                                      for fact in facts)
-                text = ' '.join(fact.text for fact in facts)
-                return text + '\n\n' + question, list(dict.fromkeys(fact.article_id for fact in facts))
             return (('Olá! Sou o assistente comercial do VemDeDelivery. ' if greeting and not previous else '') + question), []
         if re.fullmatch(r'(?:obrigado|obrigada|valeu|vlw|ok|blz|beleza)[!. ]*', q):
             return 'Por nada! Se surgir outra dúvida, pode me chamar.', []
@@ -297,7 +293,13 @@ def compose(conversation, publication, knowledge, *, links=None, trace=None, han
             trace['catalog'].append(lines[-1])
             continue
         try:
-            facts = retrieve(intent, q, sources)
+            if intent == 'beneficios' and overview:
+                # Um resumo de produto requer fatos concretos de fontes publicadas;
+                # a unidade "ramo" isolada nunca responde "o que o sistema faz?".
+                facts = tuple(fact for topic in ('beneficios', 'cardapio', 'pedidos', 'cozinha')
+                              for fact in retrieve(topic, q if topic == 'beneficios' else '', sources))
+            else:
+                facts = retrieve(intent, q, sources)
         except (HumanReview, ValueError):
             trace['uncovered'].append(intent)
             raise HumanReview('commercial_topics_uncovered')
@@ -330,6 +332,12 @@ def compose(conversation, publication, knowledge, *, links=None, trace=None, han
             lines.append(line)
             trace['fulfilled'].append(action)
             trace['links'].append(line)
+    # Qualificação somente na apresentação global, sem repetir perguntas anteriores.
+    if (overview and topics == {'beneficios'}
+            and any(has(q, business) for business in BUSINESSES)
+            and 'Qual é a maior dificuldade hoje na sua operação?' not in previous
+            and sum(map(len, lines)) < 650):
+        lines.append('Qual é a maior dificuldade hoje na sua operação?')
     # Qualification follows an objection only once, never every feature/price reply.
     if topics & {'objecao-valor', 'objecao-canais'}:
         question = 'Qual é a maior dificuldade hoje na sua operação?'

@@ -57,6 +57,68 @@ scenarios = [
 ]
 
 
+# Casos adicionais P14.1: positivos e negativos, sem modificar os 36 originais.
+# Opcional 5o campo: trechos que NAO podem aparecer na resposta.
+scenarios += [
+    ('37 Nota fiscal plural', ['Vocês geram nota fiscal pra pizzaria?'], 'human', []),
+    ('38 Nota fiscal singular', ['Vcs gera nota fiscal automaticamente?'], 'human', []),
+    ('39 Emissão NF-e', ['O sistema emite NF-e?'], 'human', []),
+    ('40 NFC-e', ['É possível emitir NFC-e?'], 'human', []),
+    ('41 Cupom fiscal', ['Consegue gerar cupom fiscal?'], 'human', []),
+    ('42 Documento fiscal', ['Tem emissão de documento fiscal?'], 'human', []),
+    ('43 Nota fiscal sem verbo de emissão', ['Vocês têm nota fiscal eletrônica?'], 'human', []),
+    ('44 Nota fiscal junto de preço', ['Quanto custa e voces geram nota fiscal?'], 'human', []),
+    ('45 Visão geral restaurante', ['Tenho restaurante. Quais as funcionalidades?'], 'answer',
+     ['cardápio', 'painel', 'KDS'], ['O VemDeDelivery atende restaurantes, pizzarias']),
+    ('46 Visão geral lanchonete', ['Tenho uma lanchonete, como o sistema funciona?'], 'answer',
+     ['cardápio', 'painel', 'KDS'], ['O VemDeDelivery atende restaurantes, pizzarias']),
+    ('47 Visão geral alternativa', ['Sou pizzaria, o que esse sistema oferece?'], 'answer',
+     ['cardápio', 'painel', 'KDS'], ['O VemDeDelivery atende restaurantes, pizzarias']),
+    ('48 Visão geral sem ramo', ['O que o VemDeDelivery faz?'], 'answer', ['cardápio', 'painel', 'KDS']),
+    ('49 Visão geral informal', ['tenho hamburgueria, me explica o sistema'], 'answer',
+     ['cardápio', 'painel', 'KDS']),
+    ('50 Pergunta específica de KDS', ['Como funciona o KDS?'], 'answer', ['KDS'],
+     ['O VemDeDelivery atende restaurantes']),
+    ('51 Impressão de cozinha sem KDS', ['Imprime pedidos da cozinha?'], 'answer',
+     ['impressão'], ['KDS é a tela', 'O painel operacional organiza']),
+    ('52 Comprovante não fiscal', ['Tem comprovante de cozinha para imprimir?'], 'answer',
+     ['não fiscais'], ['KDS é a tela']),
+    ('53 Impressão sem painel', ['Tem impressão dos comprovantes de cozinha?'], 'answer',
+     ['impressão'], ['O painel operacional organiza', 'KDS é a tela']),
+    ('54 Comissão sem painel', ['Cobram comissão por pedido direto?'], 'answer',
+     ['comissão'], ['O painel operacional organiza', 'KDS é a tela']),
+    ('55 Taxa em pedidos sem painel', ['Existe comissão sobre pedidos diretos?'], 'answer',
+     ['comissão'], ['O painel operacional organiza']),
+    ('56 Pedido + impressão explícitos', ['Tem painel de pedidos e impressão?'], 'answer',
+     ['painel', 'impressão']),
+    ('57 KDS + impressão explícitos', ['Tem KDS e impressão de cozinha?'], 'answer',
+     ['KDS', 'impressão']),
+    ('58 Visão geral + preço', ['Tenho hamburgueria. Como o sistema funciona e quanto custa?'],
+     'answer', ['cardápio', 'painel', 'KDS', '149,90']),
+    ('59 Visão geral + iFood', ['Tenho pizzaria. O que o sistema faz? Integra iFood?'],
+     'answer', ['cardápio', 'painel', 'KDS', 'iFood']),
+    ('60 Visão geral + nota fiscal', ['Tenho pizzaria. O que o sistema faz e emite nota fiscal?'],
+     'human', []),
+    ('61 Preço anual + comissão', ['Qual o preço anual e tem comissão sobre pedidos diretos?'],
+     'answer', ['1.528,98', 'comissão'], ['O painel operacional organiza']),
+    ('62 Somente ramo', ['Tenho uma pizzaria.'], 'answer',
+     ['Qual é a maior dificuldade'], ['KDS é a tela']),
+    ('63 Continuidade após ramo', ['Tenho uma pizzaria.', 'Como o sistema funciona?'],
+     'answer', ['cardápio', 'painel', 'KDS']),
+    ('64 Semestral', ['Quanto fica o semestral?'], 'answer', ['809,46'], ['KDS é a tela']),
+    ('65 Fiscal informal', ['vcs fazem emissao de nfe?'], 'human', []),
+    ('66 Fiscal e comprovante', ['Tem comprovantes e vocês emitem NF-e?'], 'human', []),
+    ('67 Nota fiscal isolada', ['Nota fiscal?'], 'human', []),
+    ('68 Nota fiscal de serviço', ['Vocês emitem NFS-e?'], 'human', []),
+    ('69 Regressão funcionalidades restaurante', ['Tenho restaurante, quais as funcionalidades?'],
+     'answer', ['cardápio', 'painel', 'KDS'], ['O VemDeDelivery atende restaurantes, pizzarias']),
+    ('70 Funcionalidades normalizadas', ['Quais são as funcionalidades do sistema?'],
+     'answer', ['cardápio', 'painel', 'KDS']),
+    ('71 Recursos gerais', ['Quais os recursos do VemDeDelivery?'],
+     'answer', ['cardápio', 'painel', 'KDS']),
+]
+
+
 def forbid(*args, **kwargs):
     raise RuntimeError('BATERIA: tentativa de acesso externo BLOQUEADA')
 
@@ -77,7 +139,9 @@ with patch('requests.sessions.Session.request', side_effect=forbid), \
         publication = published_catalog(control)
         knowledge = articles()
         assert publication['valid'] and knowledge
-        for name, messages, expected, terms in scenarios:
+        for scenario in scenarios:
+            name, messages, expected, terms, *extra = scenario
+            forbidden_terms = extra[0] if extra else ()
             conversation = CommercialConversation.objects.create(
                 instance='battery-p14-' + uuid.uuid4().hex[:12],
                 phone='5500000000000', name='Bateria P14 temporária',
@@ -114,14 +178,15 @@ with patch('requests.sessions.Session.request', side_effect=forbid), \
                     print('ERRO:', response)
                     break
             found_terms = all(term.casefold() in response.casefold() for term in terms)
-            ok = actual == expected and (expected == 'human' or found_terms)
+            unwanted = [term for term in forbidden_terms if term.casefold() in response.casefold()]
+            ok = actual == expected and (expected == 'human' or (found_terms and not unwanted))
             if ok:
                 passed += 1
                 print('AVALIAÇÃO AUTOMÁTICA: PASSOU')
             else:
                 failed += 1
                 print('AVALIAÇÃO AUTOMÁTICA: REVISAR; esperado=', expected,
-                      'obtido=', actual, 'termos=', terms)
+                      'obtido=', actual, 'termos=', terms, 'indevidos=', unwanted)
         # Não altera a produção: até IDs/linhas temporários são revertidos.
         transaction.set_rollback(True)
 

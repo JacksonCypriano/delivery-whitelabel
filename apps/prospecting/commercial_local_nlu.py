@@ -103,7 +103,7 @@ def intents_for(text, memory=''):
         r'|\b(?:painel|central|kanban)\b.{0,45}\bpedidos?\b'
         r'|\bpedidos?\b.{0,45}\b(?:painel|central|kanban)\b', q
     ))
-    if (topics & {'integracoes', 'impressao', 'modalidades', 'objecao-valor'}
+    if (topics & {'integracoes', 'impressao', 'modalidades', 'objecao-valor', 'comissoes'}
             and not explicit_order_management
             and not re.search(r'\b(?:kanban|etapas|status|mesa|painel|mesma tela)\b', q)):
         topics.discard('pedidos')
@@ -113,6 +113,12 @@ def intents_for(text, memory=''):
         r'\b(?:kds|tela (?:da |de )?cozinha|tem (?:uma? )?(?:tela (?:da |de )?)?cozinha)\b', q
     )) or (has(q, 'cozinha') and bool(re.search(r'\b(?:tem|possui|existe)\b.{0,45}\bcozinha\b', q)))
     if 'pedidos' in topics and not (kitchen_explicit or (has(q, 'kanban') and (has(q, 'cozinha') or has(q, 'kds')))):
+        topics.discard('cozinha')
+    # "Imprimir pedido na cozinha" é sobre comprovante, não sobre usar KDS.
+    # Preservar KDS quando também for explicitamente pedido na mesma mensagem.
+    if ('impressao' in topics and 'cozinha' in topics
+            and not re.search(r'\b(?:kds|tela (?:da |de )?cozinha|tem (?:uma? )?cozinha)\b', q)
+            and re.search(r'\b(?:impressao|impressora|imprimir|imprime|comprovante)\b.{0,80}\bcozinha\b', q)):
         topics.discard('cozinha')
     # Mencao ao canal de chegada nao equivale a solicitar o agente WhatsApp.
     if 'whatsapp' in topics and re.search(r'\b(?:recebo|recebe|recebemos|receber|vem|chegam|entram)\b.{0,85}\bpedidos?\b', q):

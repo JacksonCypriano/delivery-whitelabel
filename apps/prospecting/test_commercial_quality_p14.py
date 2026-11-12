@@ -17,6 +17,9 @@ class CommercialQualityP14Tests(SimpleTestCase):
             'Vocês emitem NF-e?',
             'Tem emissão de NFC-e?',
             'Posso gerar cupom fiscal?',
+            'Tem emissão de documento fiscal?',
+            'O sistema emite documento fiscal?',
+            'Vocês geram documentos fiscais?',
         )
         for question in samples:
             with self.subTest(question=question):
@@ -24,7 +27,9 @@ class CommercialQualityP14Tests(SimpleTestCase):
 
     def test_non_fiscal_comprovante_keeps_existing_safe_route(self):
         for question in ('Tem impressão de comprovantes de cozinha?',
-                         'Imprime pedidos?', 'Como funciona KDS?'):
+                         'Imprime pedidos?', 'Como funciona KDS?',
+                         'Tem comprovante não fiscal na cozinha?',
+                         'Documento não fiscal para impressão?'):
             self.assertFalse(fiscal_needs_human(normalize(question)))
 
     def test_business_overview_is_explicit(self):
@@ -133,6 +138,10 @@ class CommercialQualityP141RegressionTests(SimpleTestCase):
             'Fazem emissão de nota fiscal eletrônica?',
             'Tem nota fiscal automática?', 'Nota fiscal?', 'Vocês emitem NFS-e?',
             'Quero saber o preço e se vocês geram nota fiscal.',
+            'Tem emissão de documento fiscal?',
+            'O sistema emite documento fiscal?',
+            'Vocês geram documentos fiscais?',
+            'Preciso de documentos fiscais eletrônicos.',
         ):
             with self.subTest(question=question):
                 with self.assertRaisesRegex(self.HumanReview, 'commercial_fiscal_review_required'):

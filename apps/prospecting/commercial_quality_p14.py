@@ -10,7 +10,7 @@ import re
 # Não confundir documento fiscal com comprovante NÃO fiscal da cozinha.
 _FISCAL_DOCUMENT = re.compile(
     r'\b(?:notas? (?:fiscais|fiscal)|nf[- ]?e|nfe|nf[- ]?c[- ]?e|nfce|'
-    r'nf[- ]?s[- ]?e|cupom fiscal|documentos? fiscais?)\b'
+    r'nf[- ]?s[- ]?e|cupom fiscal|documentos? (?:fiscal|fiscais))\b'
 )
 _FISCAL_REQUEST = re.compile(
     r'\b(?:emit\w*|emiss\w*|ger\w*|gerac\w*|faz|fazem|fazer|'

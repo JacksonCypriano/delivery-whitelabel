@@ -116,6 +116,10 @@ scenarios += [
      'answer', ['cardápio', 'painel', 'KDS']),
     ('71 Recursos gerais', ['Quais os recursos do VemDeDelivery?'],
      'answer', ['cardápio', 'painel', 'KDS']),
+    # P14.1 - fechamento da lacuna de documentos fiscais no singular/plural.
+    ('72 Documento fiscal singular', ['O sistema emite documento fiscal?'], 'human', []),
+    ('73 Documentos fiscais plural', ['Vocês geram documentos fiscais?'], 'human', []),
+    ('74 Documento fiscal combinado', ['Quanto custa e tem emissão de documento fiscal?'], 'human', []),
 ]
 
 

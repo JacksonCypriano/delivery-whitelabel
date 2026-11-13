@@ -11,6 +11,10 @@ class CommercialControl(models.Model):
     catalog_reviewed_at = models.DateTimeField(null=True, blank=True)
     demo_url = models.URLField(blank=True)
     contact_url = models.URLField(blank=True)
+    # Operational alert recipient, separate from the commercial pilot allowlist.
+    handoff_notify_phone = models.CharField(max_length=20, default='5511983491206')
+    handoff_notify_enabled = models.BooleanField(default=False)
+    handoff_notify_enabled_at = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     @classmethod
@@ -20,6 +24,7 @@ class CommercialControl(models.Model):
 
 class CommercialPilotContact(models.Model):
     """Explicitly permitted recipient for platform-sales pilot. Not a tenant contact."""
+    id = models.BigAutoField(primary_key=True)
     phone = models.CharField(max_length=20, unique=True)
     active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -33,6 +38,7 @@ class CommercialOtpExclusion(models.Model):
     Never contains OTP code, message text, provider message ID or code hash.
     Explicit release is intentionally NOT exposed through the commercial panel.
     """
+    id = models.BigAutoField(primary_key=True)
     instance = models.CharField(max_length=100)
     phone = models.CharField(max_length=20)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -95,14 +101,18 @@ class CommercialMessage(models.Model):
 
 
 class CommercialHandoffAlert(models.Model):
-    """Durable human-review notification; never sends a WhatsApp message."""
+    """Durable unresolved human-review case with optional operational alerts."""
+    id = models.BigAutoField(primary_key=True)
     message = models.OneToOneField(CommercialMessage, on_delete=models.CASCADE, related_name='handoff_alert')
     conversation = models.ForeignKey(CommercialConversation, on_delete=models.CASCADE, related_name='handoff_alerts')
     reason = models.CharField(max_length=80)
     state = models.CharField(max_length=20, default='pending', db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    attempted_at = models.DateTimeField(null=True, blank=True)
-    acknowledged_at = models.DateTimeField(null=True, blank=True)
+    attempted_at = models.DateTimeField(null=True, blank=True)  # email: at most one attempt
+    acknowledged_at = models.DateTimeField(null=True, blank=True)  # resolution by human reply
+    whatsapp_attempted_at = models.DateTimeField(null=True, blank=True)
+    whatsapp_status = models.CharField(max_length=20, default='not_attempted')
+    whatsapp_message_id = models.CharField(max_length=160, blank=True)
 
 
 class CommercialAudit(models.Model):

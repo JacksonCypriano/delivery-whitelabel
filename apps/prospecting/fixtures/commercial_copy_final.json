@@ -47,7 +47,7 @@
   {
     "slug": "visao-geral",
     "title": "Visao geral",
-    "body": "@commercial-facts-v1\n[{\"for\":[\"beneficios\"],\"text\":\"Reúne cardápio próprio, vendas diretas, WhatsApp, pedidos e cozinha, conforme recursos habilitados. Resultados dependem da operação da loja.\"},{\"for\":[\"beneficios:ramo\"],\"text\":\"O VemDeDelivery atende restaurantes, pizzarias, hamburguerias, marmitarias, açaiterias e outros negócios de alimentação, conforme configuração.\"}]"
+    "body": "@commercial-facts-v1\n[{\"for\":[\"beneficios\"],\"text\":\"Reúne cardápio próprio, vendas diretas, WhatsApp, pedidos e cozinha, conforme recursos habilitados. Resultados dependem da operação da loja.\"},{\"for\":[\"beneficios:ramo\"],\"text\":\"O VemDeDelivery atende restaurantes, pizzarias, hamburguerias, marmitarias, açaiterias e outros negócios de alimentação, conforme configuração.\"},{\"for\":[\"beneficios:overview\"],\"text\":\"O VemDeDelivery reúne cardápio online próprio, pedidos diretos, painel operacional e tela de cozinha (KDS) para organizar seu delivery, conforme recursos habilitados e o fluxo configurado. O atendimento pelo WhatsApp exige configuração e conexão da conta da loja. Resultados dependem da operação da loja.\"}]"
   },
   {
     "slug": "objecao-valor",
@@ -73,5 +73,10 @@
     "slug": "contratacao",
     "title": "Contratacao",
     "body": "@commercial-facts-v1\n[{\"for\":[\"contratacao\"],\"text\":\"A contratação usa os canais oficiais da plataforma. Condições especiais e prazos de implantação exigem confirmação da equipe.\"}]"
+  },
+  {
+    "slug": "notas-fiscais",
+    "title": "Notas fiscais: assinatura e vendas da loja",
+    "body": "@commercial-facts-v1\n[{\"for\":[\"fiscal:service\",\"fiscal:both\",\"fiscal:ambiguous\"],\"text\":\"Sim! O VemDeDelivery emite nota fiscal referente aos serviços contratados, incluindo a assinatura da plataforma.\"},{\"for\":[\"fiscal:store\",\"fiscal:both\",\"fiscal:ambiguous\"],\"text\":\"Atualmente, o VemDeDelivery não possui integração para emissão automática de notas fiscais das vendas da sua loja, como NF-e ou NFC-e. Os comprovantes dos pedidos são não fiscais e não substituem uma nota fiscal.\"},{\"for\":[\"fiscal:ambiguous\"],\"text\":\"Você está perguntando sobre a nota fiscal da assinatura ou das vendas da sua loja?\"}]"
   }
 ]

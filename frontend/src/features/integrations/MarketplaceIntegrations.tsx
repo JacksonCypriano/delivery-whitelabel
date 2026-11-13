@@ -63,7 +63,7 @@ function ChannelCard({channel, onUpdated}: {channel: Channel; onUpdated: () => v
     <div className={`channel-band channel-${channel.provider}`}><strong>{channel.label}</strong></div>
     <h2>{channel.label}</h2>
     <p>Receba pedidos do {channel.label} em Pedidos ativos e na Cozinha/KDS, com a origem identificada.</p>
-    <p><strong>Status:</strong> {notice ? 'Solicitação em análise' : status}</p>
+    <p className="admin-status"><strong>Status:</strong> {notice ? 'Solicitação em análise' : status}</p>
     {connected && <>
       <p><strong>Loja vinculada:</strong> {connected.merchant_name || 'Estabelecimento autorizado'}</p>
       {connected.last_sync && <p>Última sincronização: {new Date(connected.last_sync).toLocaleString('pt-BR')}</p>}
@@ -87,9 +87,9 @@ export function MarketplaceIntegrations() {
       <p>Conecte seus canais de venda e acompanhe os pedidos em um só lugar.</p></div></div>
     <div className="integration-grid">
       <section className="card"><div className="channel-band channel-ifood"><strong>iFood</strong></div>
-        <p>Conecte sua loja ao iFood.</p><Link to={panelUrl('integracoes/ifood')}>Gerenciar iFood</Link></section>
+        <p>Conecte sua loja ao iFood.</p><Link className="button secondary" to={panelUrl('integracoes/ifood')}>Gerenciar iFood</Link></section>
       <section className="card"><div className="channel-band channel-99food"><strong>99Food</strong></div>
-        <p>Solicite a integração com a 99Food.</p><Link to={panelUrl('integracoes/99food')}>Gerenciar 99Food</Link></section>
+        <p>Solicite a integração com a 99Food.</p><Link className="button secondary" to={panelUrl('integracoes/99food')}>Gerenciar 99Food</Link></section>
     </div>
   </>;
 }
@@ -105,7 +105,8 @@ export function MarketplaceProvider({provider}: {provider:Provider}) {
     </div><button type="button" className="secondary" onClick={query.reload}>Atualizar status</button></div>
     {provider === '99food' && <p><Link to={panelUrl('integracoes/99food/diagnostico')}>Diagnóstico técnico do sandbox (somente homologação)</Link></p>}
     <Feedback loading={query.loading} error={query.error}>
-      {channel && <div className="integration-grid"><ChannelCard key={channel.connections.map(c=>`${c.id}:${c.status}:${c.enabled}`).join('|')} channel={channel} onUpdated={query.reload}/></div>}
+      {!channel && query.data && <section className="card"><h2>Conexão indisponível</h2><p>Não há informações deste canal para sua loja. Atualize o status ou entre em contato com o suporte.</p></section>}
+      {channel && <div className="integration-detail"><ChannelCard key={channel.connections.map(c=>`${c.id}:${c.status}:${c.enabled}`).join('|')} channel={channel} onUpdated={query.reload}/></div>}
     </Feedback>
   </>;
 }

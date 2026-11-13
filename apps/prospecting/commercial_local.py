@@ -4,17 +4,17 @@ No model selection contract, provider calls, quotas or tenant-agent imports.
 The public compose interface remains (text, article_ids).
 """
 from datetime import timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import re
 from urllib.parse import urlsplit
 
 from .commercial_context import conversation_context
-from .commercial_quality_p14 import fiscal_needs_human, business_overview_requested, soften_value_objection
+from .commercial_quality_p14 import fiscal_scope, business_overview_requested, soften_value_objection
 from .commercial_facts import facts_for
 from .commercial_copy import select_units
 from .commercial_local_knowledge import INTENTS, DETAILS, BUSINESSES, CLARIFY, AMBIGUOUS, VERSION
 from .commercial_local_nlu import normalize, fold, has, intents_for, DECLINED_ACTION, DEMO_INVITE
-from .commercial_smart_policy import HUMAN_GUARDS, human_requested, matches
+from .commercial_smart_policy import HUMAN_GUARDS, LEGACY_FISCAL_GUARD, human_requested, matches
 
 RESET = re.compile(r'\b(?:mudando de assunto|outro assunto|esquece isso|esqueca isso|vamos recomecar)\b', re.I)
 
@@ -63,7 +63,7 @@ def money(value):
     return f'{amount:,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.')
 
 
-def price_lines(publication, period):
+def price_lines(publication, period, *, equivalent=False):
     plans = publication['data']['plans']
     selected = sorted((p for p in plans if period == 0 or p['months'] == (period or 1)), key=lambda p: p['months'])
     if not selected:
@@ -76,6 +76,9 @@ def price_lines(publication, period):
         elif months in {3, 6, 12}:
             discount = money(plan['discount']).rstrip('0').rstrip(',')
             result.append(f"{plan['name']}: R$ {total} por {months} meses, com {discount}% de desconto e pagamento antecipado.")
+            if equivalent:
+                monthly = (Decimal(str(plan['total'])) / months).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                result[-1] += f' Equivale a R$ {money(monthly)} por mês; o pagamento é antecipado pelo período completo, não uma cobrança mensal.'
         else:
             raise HumanReview('unapproved_plan_duration')
     return result
@@ -92,12 +95,21 @@ def published_sources(knowledge):
     return {slug: a for slug, a in latest.items() if a.published}
 
 
-def retrieve(intent, q, sources):
+def retrieve(intent, q, sources, *, fiscal=None):
     candidates = ('pagamento', 'comissoes') if intent == 'payment' else INTENTS[intent].sources
     article = next((sources[s] for s in candidates if s in sources), None)
     if article is None:
         raise HumanReview('commercial_topics_uncovered')
     tags = {intent}
+    if intent == 'fiscal':
+        scope = fiscal or fiscal_scope(q)
+        if scope not in {'service', 'store', 'both', 'ambiguous'}:
+            raise HumanReview('commercial_fiscal_review_required')
+        # No prose fallback for fiscal: only the reviewed scoped units qualify.
+        compact = select_units(article, {'fiscal:' + scope})
+        if compact is None:
+            raise HumanReview('commercial_topics_uncovered')
+        return compact
     if intent == 'gestao':
         facets = {'adicional': ('adicional', 'adicionais', 'personalizacoes'),
                   'meio': ('meio a meio',), 'crm': ('crm', 'clientes', 'historico'),
@@ -171,13 +183,16 @@ def compose(conversation, publication, knowledge, *, links=None, trace=None, han
         q = RESET.split(q)[-1].strip(' ,.!\n')
         memory, previous = '', []
     safety = normalize(current)
-    if fiscal_needs_human(q):
+    scope = fiscal_scope(q, normalize(memory))
+    detected, _ = intents_for(q, memory)
+    trace['intents'] = sorted(detected)
+    if scope == 'human':
         raise HumanReview('commercial_fiscal_review_required')
     # Only referential follow-ups reuse a previous integration for safety.
     if re.search(r'\b(?:liberado|homologado|disponivel)\b', q) and not has(q, '99food'):
         if has(normalize(memory.splitlines()[-1] if memory else ''), '99food'):
             safety = '99food ' + q
-    if human_requested(safety) or any(matches(pattern, candidate) for pattern in HUMAN_GUARDS for candidate in (safety, fold(current))):
+    if human_requested(safety) or any(matches(pattern, candidate) for pattern in HUMAN_GUARDS if pattern != LEGACY_FISCAL_GUARD for candidate in (safety, fold(current))):
         raise HumanReview('commercial_human_review_required')
     if re.search(r'\b(?:contador|advogado|cancelamento|estorno)\b', q):
         raise HumanReview('commercial_out_of_scope')
@@ -202,7 +217,7 @@ def compose(conversation, publication, knowledge, *, links=None, trace=None, han
         trace['stage'] = 'discovery'
         return answer, []
     topics, period = intents_for(q, memory)
-    overview = business_overview_requested(q)
+    overview = business_overview_requested(q) or bool(re.fullmatch(r'como funciona[ ?!.]*', q))
     if overview:
         topics.add('beneficios')
     # Contratação é assumida por uma pessoa NESTA conversa. Nunca enviar
@@ -238,7 +253,7 @@ def compose(conversation, publication, knowledge, *, links=None, trace=None, han
     for clause in re.split(r'[?;\n]+|\s+e\s+(?=(?:tem|faz|emite|aceita|oferece|integra)\b)', q):
         clause = clause.strip(' ,.')
         found, _ = intents_for(clause, memory)
-        if not found and re.search(r'^(?:e )?(?:tem|faz|emite|aceita|oferece|integra|como funciona)\b', clause):
+        if not found and not business_overview_requested(clause) and not re.fullmatch(r'como funciona', clause) and re.search(r'^(?:e )?(?:tem|faz|emite|aceita|oferece|integra|como funciona)\b', clause):
             unknown.append(clause)
     if topics:
         for extra in re.split(r'\s+e\s+', q)[1:]:
@@ -276,12 +291,16 @@ def compose(conversation, publication, knowledge, *, links=None, trace=None, han
         return CLARIFY, []
 
     lines, used, seen = [], [], set()
+    overview_covered = set()
     if 'pricing' in topics:
-        lines.extend(price_lines(publication, period))
+        lines.extend(price_lines(publication, period, equivalent=bool(re.search(r'\bpor mes\b', q))))
         trace['catalog_fingerprint'] = publication.get('fingerprint', '')
         trace['fulfilled'].append('pricing')
         trace['catalog'].extend(lines)
     for intent in sorted(topics - {'pricing', 'demo', 'signup'}):
+        if intent in overview_covered:
+            trace['fulfilled'].append(intent)
+            continue
         if intent == 'payment' and re.search(r'\b(?:pagar|pago|assinatura|mensalidade|plano)\b', q):
             methods = publication['data'].get('payments', [])
             names = {'pix': 'Pix', 'boleto': 'boleto', 'card': 'cartão'}
@@ -296,14 +315,27 @@ def compose(conversation, publication, knowledge, *, links=None, trace=None, han
             if intent == 'beneficios' and overview:
                 # Um resumo de produto requer fatos concretos de fontes publicadas;
                 # a unidade "ramo" isolada nunca responde "o que o sistema faz?".
-                facts = tuple(fact for topic in ('beneficios', 'cardapio', 'pedidos', 'cozinha')
-                              for fact in retrieve(topic, q if topic == 'beneficios' else '', sources))
+                overview_article = sources.get('visao-geral')
+                try:
+                    facts = select_units(overview_article, {'beneficios:overview'}) if overview_article else None
+                except ValueError:
+                    facts = None
+                if facts is not None:
+                    overview_covered = {'cardapio', 'cozinha'}
+                    if not re.search(r'\b(?:mesa|centraliz\w*|mesma tela|status|etapas|kanban)\b', q):
+                        overview_covered.add('pedidos')
+                if facts is None:
+                    # Old publications remain usable until editorial review.
+                    facts = tuple(fact for topic in ('beneficios', 'cardapio', 'pedidos', 'cozinha')
+                                  for fact in retrieve(topic, q if topic == 'beneficios' else '', sources))
             else:
-                facts = retrieve(intent, q, sources)
+                facts = retrieve(intent, q, sources, fiscal=scope)
         except (HumanReview, ValueError):
             trace['uncovered'].append(intent)
             raise HumanReview('commercial_topics_uncovered')
         trace['fulfilled'].append(intent)
+        if intent == 'fiscal' and scope == 'ambiguous':
+            trace['clarification'] = True
         fragments = []
         for fact in facts:
             if fact.text not in seen:
@@ -334,7 +366,7 @@ def compose(conversation, publication, knowledge, *, links=None, trace=None, han
             trace['links'].append(line)
     # Qualificação somente na apresentação global, sem repetir perguntas anteriores.
     if (overview and topics == {'beneficios'}
-            and any(has(q, business) for business in BUSINESSES)
+            and not re.search(r'\b(?:problema|dificuldade)\b', normalize(memory + '\n' + current))
             and 'Qual é a maior dificuldade hoje na sua operação?' not in previous
             and sum(map(len, lines)) < 650):
         lines.append('Qual é a maior dificuldade hoje na sua operação?')

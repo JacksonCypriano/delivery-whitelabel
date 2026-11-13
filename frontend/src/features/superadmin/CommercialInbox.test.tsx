@@ -5,7 +5,7 @@ import {MemoryRouter} from 'react-router-dom';
 import {CommercialInbox} from './CommercialInbox';
 import {request} from '../../api/client';
 vi.mock('../../api/client',()=>({request:vi.fn(async()=>({detail:'Mensagem enviada pelo painel.'}))}));
-vi.mock('../../hooks/useQuery',()=>({useQuery:()=>({data:{control:{human_send_enabled:true},pilot:{pending_count:1},conversations:[{id:2,name:'Lead',phone:'5511999999999',stage:'new',paused:true,updated_at:'2026-11-10T12:00:00Z'}],pagination:{page:1,pages:1},selected:{id:2,phone:'5511999999999',name:'Lead',owner_id:1,stage:'new',paused:true,opted_out:false,notes:'',messages:[]}},loading:false,reload:vi.fn()})}));
+vi.mock('../../hooks/useQuery',()=>({useQuery:()=>({data:{control:{human_send_enabled:true},pilot:{pending_count:1,alerts:[{id:4,conversation_id:2,name:'Lead',phone:'5511999999999',wa_link:'https://wa.me/5511999999999',reason:'human_requested',created_at:'2026-11-10T12:00:00Z',whatsapp_status:'submitted'}]},conversations:[{id:2,name:'Lead',phone:'5511999999999',stage:'new',paused:true,updated_at:'2026-11-10T12:00:00Z'}],pagination:{page:1,pages:1},selected:{id:2,phone:'5511999999999',name:'Lead',owner_id:1,stage:'new',paused:true,opted_out:false,notes:'',messages:[]}},loading:false,reload:vi.fn()})}));
 afterEach(()=>{cleanup();vi.clearAllMocks();});
 it('sends a human message to the selected conversation using the scoped API',async()=>{
  render(<MemoryRouter><CommercialInbox/></MemoryRouter>);
@@ -13,4 +13,20 @@ it('sends a human message to the selected conversation using the scoped API',asy
  fireEvent.change(screen.getByLabelText('Responder pelo painel'),{target:{value:'Olá, sou da equipe.'}});
  fireEvent.click(screen.getByRole('button',{name:'Enviar no WhatsApp'}));
  await waitFor(()=>expect(request).toHaveBeenCalledWith('commercial/',expect.objectContaining({method:'POST',body:JSON.stringify({action:'send_human',conversation:2,text:'Olá, sou da equipe.'})})));
+});
+
+it('lists unresolved handoffs with the client whatsapp link',()=>{
+ render(<MemoryRouter><CommercialInbox/></MemoryRouter>);
+ expect(screen.getByText('Atendimentos aguardando resposta')).toBeTruthy();
+ const link=screen.getByRole('link',{name:'Abrir WhatsApp'});
+ expect(link.getAttribute('href')).toBe('https://wa.me/5511999999999');
+});
+
+it('requires explicit confirmation to resolve a reply made outside the connected instance',async()=>{
+ vi.spyOn(window,'confirm').mockReturnValue(true);
+ render(<MemoryRouter><CommercialInbox/></MemoryRouter>);
+ fireEvent.click(screen.getByRole('button',{name:'Já respondi fora'}));
+ await waitFor(()=>expect(request).toHaveBeenCalledWith('commercial/',expect.objectContaining({
+   method:'POST',body:JSON.stringify({action:'resolve_handoff',conversation:2,confirm_external_reply:true}),
+ })));
 });

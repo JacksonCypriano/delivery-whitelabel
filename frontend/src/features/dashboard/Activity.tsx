@@ -7,7 +7,7 @@ export function Activity() {
   const [page, setPage] = useState(1);
   const q = useQuery(() => request(`activity/?page=${page}`), [page]);
   return (
-    <section className="card">
+    <section className="card activity-list">
       <h2>Atividades administrativas recentes</h2>
       <Feedback loading={q.loading} error={q.error}>
         <>

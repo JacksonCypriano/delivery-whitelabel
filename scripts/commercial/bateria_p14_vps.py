@@ -123,6 +123,42 @@ scenarios += [
 ]
 
 
+# P15: a regra oficial substitui o handoff genérico fiscal dos P14/14.1.
+# Preservamos cada entrada original; NFS-e (68) continua exigindo confirmação
+# de tipo documental específico. A negativa da emissão das vendas é obrigatória.
+_fiscal_corrected = {20, 21, 35, 37, 38, 39, 40, 41, 42, 43, 44, 60, 65, 66, 67, 72, 73, 74}
+scenarios = [
+    (name, messages, 'answer',
+     ['não possui integração', 'não fiscais'] + (['149,90'] if int(name[:2]) in {44, 74} else []),
+     ['emitimos automaticamente', 'emissão fiscal disponível'])
+    if int(name[:2]) in _fiscal_corrected else (name, messages, expected, terms, *extra)
+    for name, messages, expected, terms, *extra in scenarios
+]
+scenarios += [
+    ('75 NF mensalidade', ['Preciso da nota fiscal da mensalidade.'], 'answer', ['emite nota fiscal', 'assinatura'], ['não possui integração']),
+    ('76 NF anual', ['Consigo nota fiscal da assinatura anual?'], 'answer', ['assinatura'], ['R$']),
+    ('77 NF contratação', ['Quero contratar, mas preciso de nota fiscal.'], 'human', []),
+    ('78 NF CNPJ', ['Vocês faturam para CNPJ?'], 'answer', ['emite nota fiscal']),
+    ('79 NF pedidos', ['Preciso da nota fiscal dos pedidos.'], 'answer', ['não possui integração', 'não fiscais']),
+    ('80 NF contexto assinatura', ['Quanto custa o plano anual?', 'E a nota fiscal?'], 'answer', ['assinatura'], ['não possui integração']),
+    ('81 NF contexto vendas', ['Como organizo as vendas da minha loja?', 'E a nota fiscal?'], 'answer', ['não possui integração']),
+    ('82 NF informal', ['vcs emite notafisca da mensalidade'], 'answer', ['assinatura']),
+    ('83 Fiscal combinado', ['Quanto custa, integra com iFood, tem KDS e emite nota?'], 'answer', ['149,90', 'iFood', 'KDS', 'não possui integração']),
+    ('84 Tributação específica', ['Qual CFOP da nota fiscal?'], 'human', []),
+    ('85 Equivalência anual', ['Quanto sai por mês no plano anual?'], 'answer', ['127,42', '1.528,98', 'não uma cobrança mensal']),
+    ('86 Contratação informal', ['blz quero fecha'], 'human', []),
+    ('87 Emissão contextual', ['Preciso da nota fiscal da mensalidade.', 'Vocês emitem?'], 'answer', ['assinatura']),
+    ('88 Diferença fiscal', ['Qual a diferença entre comprovante e nota fiscal?'], 'answer', ['não substituem', 'não fiscais']),
+    ('89 Impressora informal', ['tem impreçora'], 'answer', ['compatibilidade', 'não fiscais']),
+    ('90 Menor plano', ['Qual o plano mais barato?'], 'answer', ['149,90', 'antecipado']),
+    ('91 Documento específico', ['Pode enviar XML da nota fiscal?'], 'human', []),
+    ('92 Mudar escopo', ['Preciso da nota fiscal da mensalidade.', 'E das vendas?'], 'answer', ['não possui integração'], ['Sim!']),
+    ('93 Prazo não inventado', ['Quando emitem a nota fiscal da assinatura?'], 'human', []),
+    ('94 Automação fiscal assinatura', ['A nota fiscal da mensalidade é automática?'], 'human', []),
+    ('95 Confirmação informal', ['como funsiona'], 'answer', ['cardápio', 'KDS']),
+]
+
+
 def forbid(*args, **kwargs):
     raise RuntimeError('BATERIA: tentativa de acesso externo BLOQUEADA')
 
@@ -131,7 +167,7 @@ passed = 0
 failed = 0
 handoffs = 0
 answers = 0
-print('========== BATERIA P14 — VPS, SIMULAÇÃO LOCAL ==========', flush=True)
+print('========== BATERIA P15 — VPS, SIMULAÇÃO LOCAL ==========', flush=True)
 print('Cenários:', len(scenarios))
 print('Envio WhatsApp: BLOQUEADO; transação: ROLLBACK')
 
@@ -183,15 +219,19 @@ with patch('requests.sessions.Session.request', side_effect=forbid), \
                     break
             found_terms = all(term.casefold() in response.casefold() for term in terms)
             unwanted = [term for term in forbidden_terms if term.casefold() in response.casefold()]
-            ok = actual == expected and (expected == 'human' or (found_terms and not unwanted))
+            # Besides keywords, reject repeated sentences in any answer.
+            import re
+            sentences = [part.strip().casefold() for part in re.split(r'(?<=[.!?])\s+', response) if part.strip()]
+            repeated = actual == 'answer' and len(sentences) != len(set(sentences))
+            ok = actual == expected and found_terms and not unwanted and not repeated
             if ok:
                 passed += 1
                 print('AVALIAÇÃO AUTOMÁTICA: PASSOU')
             else:
                 failed += 1
                 print('AVALIAÇÃO AUTOMÁTICA: REVISAR; esperado=', expected,
-                      'obtido=', actual, 'termos=', terms, 'indevidos=', unwanted)
-        # Não altera a produção: até IDs/linhas temporários são revertidos.
+                      'obtido=', actual, 'termos=', terms, 'indevidos=', unwanted, 'repeticao=', repeated)
+        # Não altera a produção: linhas temporárias são revertidas; sequências PostgreSQL podem avançar.
         transaction.set_rollback(True)
 
 print('\n' + '=' * 65)
@@ -199,3 +239,6 @@ print('TOTAL:', len(scenarios), '| PASSOU:', passed, '| REVISAR:', failed)
 print('INTERAÇÕES RESPONDIDAS:', answers, '| TRANSFERÊNCIAS:', handoffs)
 print('Nenhuma mensagem real enviada. Dados temporários revertidos.')
 print('ATENÇÃO: aprovação automática por termos não substitui auditoria humana das respostas.')
+
+if failed:
+    raise SystemExit(1)

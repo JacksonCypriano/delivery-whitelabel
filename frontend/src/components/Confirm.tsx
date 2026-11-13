@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 export function Confirm({
   title,
   details,
@@ -11,12 +11,13 @@ export function Confirm({
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
   useEffect(() => {
     ref.current?.showModal();
   }, []);
   return (
-    <dialog ref={ref} onCancel={onClose}>
-      <h2>{title}</h2>
+    <dialog ref={ref} aria-labelledby={titleId} onCancel={onClose}>
+      <h2 id={titleId}>{title}</h2>
       <p>Confira os registros afetados antes de continuar.</p>
       <div className="confirmation">
         {Array.isArray(details) ? (
@@ -36,10 +37,10 @@ export function Confirm({
         )}
       </div>
       <div className="actions">
-        <button className="secondary" onClick={onClose}>
+        <button type="button" autoFocus className="secondary" onClick={onClose}>
           Voltar
         </button>
-        <button className="danger" onClick={onConfirm}>
+        <button type="button" className="danger" onClick={onConfirm}>
           Confirmar
         </button>
       </div>

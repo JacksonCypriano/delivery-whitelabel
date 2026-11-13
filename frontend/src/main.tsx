@@ -1,6 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { App } from "./routes/App";
 import "./style.css";
 class ErrorBoundary extends React.Component<
@@ -23,14 +23,16 @@ class ErrorBoundary extends React.Component<
     );
   }
 }
+const router = createBrowserRouter([{ path: "*", element: <App /> }]);
+
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      <RouterProvider router={router} />
     </ErrorBoundary>
   </React.StrictMode>,
 );
 
 import "./panel-design.css";
+
+import "./admin-workspace.css";

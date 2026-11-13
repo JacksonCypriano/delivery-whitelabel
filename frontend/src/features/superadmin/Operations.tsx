@@ -1,3 +1,5 @@
+import { PageHeading } from "../../components/PageHeading";
+import { SectionTabs } from "../../components/SectionTabs";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { request, post, formData } from "../../api/client";
@@ -39,7 +41,7 @@ export function Credit() {
   return (
     <>
       <Link to={panelUrl(`billing-subscription/${id}`)}>← Assinatura</Link>
-      <h1>Acrescentar meses de calendário</h1>
+      <PageHeading eyebrow="Assinaturas · crédito" title="Acrescentar meses de calendário" description="Confira o impacto no vencimento antes de confirmar a concessão."/>
       <p>Esta operação é para créditos em meses. Para oferecer qualquer quantidade de dias, use a gratuidade em dias.</p>
       {q.data?.free_days_url && (
         <Link className="button" to={q.data.free_days_url}>
@@ -67,7 +69,7 @@ export function Credit() {
                     meses preserva essas restrições.
                   </p>
                 )}
-                <form
+                <form className="admin-form"
                   onSubmit={(e) => {
                     e.preventDefault();
                     void submit(new FormData(e.currentTarget));
@@ -137,9 +139,9 @@ export function Prospecting() {
   const d = q.data;
   return (
     <>
-      <h1>Prospecção WhatsApp</h1>
-      <Notice messages={messages} />
-      <Feedback loading={q.loading} error={q.error || error}>
+      <PageHeading eyebrow="Aquisição" title="Prospecção WhatsApp" description="Acompanhe campanhas e organize a importação de contatos." actions={<button type="button" className="secondary" onClick={q.reload}>Atualizar</button>}/>
+      <Notice messages={messages} /><Feedback error={q.data ? q.error || error : error}><></></Feedback>
+      <Feedback loading={q.loading && !q.data} error={!q.data ? q.error : null}>
         <>
           {d && (
             <>
@@ -168,9 +170,9 @@ export function Prospecting() {
                   {d.enabled ? "Pausar campanha" : "Iniciar campanha"}
                 </button>
               </section>
-              <section className="card">
+              <SectionTabs label="Gestão da prospecção" sections={[{id:"import",label:"Importar contatos",content:<section className="card">
                 <h2>Importar contatos</h2>
-                <form
+                <form className="admin-form"
                   onSubmit={(e) => {
                     e.preventDefault();
                     const data = new FormData(e.currentTarget);
@@ -187,12 +189,12 @@ export function Prospecting() {
                       required
                     />
                   </label>
-                  <button disabled={busy}>Importar XLSX</button>
+                  <button disabled={busy}>{busy ? "Importando…" : "Importar XLSX"}</button>
                 </form>
               </section>
-              <section className="card">
+              },{id:"settings",label:"Janela e velocidade",content:<section className="card">
                 <h2>Janela e velocidade</h2>
-                <form
+                <form className="admin-form"
                   key={`${d.start_time}-${d.end_time}-${d.messages_per_minute}-${d.weekdays}`}
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -254,10 +256,10 @@ export function Prospecting() {
                       </label>
                     ))}
                   </fieldset>
-                  <button disabled={busy}>Salvar configuração</button>
+                  <button disabled={busy}>{busy ? "Salvando…" : "Salvar configuração"}</button>
                 </form>
               </section>
-              <section className="card">
+              },{id:"batches",label:"Lotes e resultados",content:<section className="card">
                 <h2>Lotes e resultados</h2>
                 <div className="table-scroll">
                   <table>
@@ -307,7 +309,7 @@ export function Prospecting() {
                 <Link to={panelUrl("prospecting-prospectingbatch")}>
                   Pesquisar todos os lotes →
                 </Link>
-              </section>
+              </section>}]} />
             </>
           )}
         </>
@@ -363,7 +365,7 @@ export function Evolution() {
     c = d?.connection;
   return (
     <>
-      <h1>WhatsApp / Evolution API</h1>
+      <PageHeading eyebrow="Integrações da plataforma" title="WhatsApp / Evolution API" description="Consulte a conexão e acompanhe os eventos da instância da plataforma."/>
       <Notice messages={messages} />
       <Feedback loading={q.loading} error={q.error || error}>
         <>
@@ -453,15 +455,14 @@ export function UserPassword() {
   return (
     <>
       <Link to={panelUrl(`accounts-user/${id}`)}>← Usuário</Link>
-      <h1>Alterar senha · {q.data?.username}</h1>
+      <PageHeading eyebrow="Acessos e segurança" title={<>Alterar senha · {q.data?.username}</>} description="Defina a nova senha do usuário selecionado."/>
       <Feedback loading={q.loading} error={q.error || error}>
         <>
           {done ? (
             <p role="status">{done}</p>
           ) : (
             q.data && (
-              <form
-                className="card"
+              <form className="admin-form card"
                 onSubmit={async (e) => {
                   e.preventDefault();
                   const data = new FormData(e.currentTarget);
@@ -482,7 +483,7 @@ export function UserPassword() {
                 {q.data.fields.map((f: any) => (
                   <FieldInput key={f.name} field={f} />
                 ))}
-                <button disabled={busy}>Salvar senha</button>
+                <button disabled={busy}>{busy ? "Salvando…" : "Salvar senha"}</button>
               </form>
             )
           )}

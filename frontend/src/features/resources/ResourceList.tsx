@@ -1,6 +1,7 @@
+import { resourceDescription, isNumericColumn } from "./presentation";
 import { panel, panelUrl } from "../../panel";
 import { ListEditor } from "./ListEditor";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { resources } from "../../api/resources";
 import { useQuery } from "../../hooks/useQuery";
@@ -58,12 +59,19 @@ export function ResourceList() {
   }
   const [editing, setEditing] = useState(false);
   const d = query.data;
+  const selectPage = useRef<HTMLInputElement>(null);
+  const pageSelected = d?.rows.filter((row: any) => selected.includes(String(row.id))).length || 0;
+  useEffect(() => {
+    if (selectPage.current) selectPage.current.indeterminate = !across && pageSelected > 0 && pageSelected < (d?.rows.length || 0);
+  }, [across, pageSelected, d]);
+  const activeFilters = Array.from(params.entries()).filter(([key, value]) => value && !["p", "page_size", "o"].includes(key));
   return (
     <>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">Sua operação</p>
+          <p className="eyebrow">{panel.kind === "superadmin" ? "Administração da plataforma" : "Gestão da loja"}</p>
           <h1>{d?.title || "Carregando"}</h1>
+          <p className="muted">{resourceDescription(resource)}</p>
         </div>
         {d?.can_add && (
           <Link className="button" to="novo">
@@ -154,6 +162,7 @@ export function ResourceList() {
               >
                 <input
                   aria-label="Buscar"
+                  key={params.get("q") || ""}
                   name="q"
                   placeholder="Buscar registros…"
                   defaultValue={params.get("q") || ""}
@@ -198,6 +207,7 @@ export function ResourceList() {
                   )}
                 </nav>
               )}
+              {activeFilters.length > 0 && <p className="filter-summary" role="status">{activeFilters.length} filtro(s) aplicado(s) · {d.count} registro(s) encontrado(s). Use “Limpar filtros” para ver todos.</p>}
               <div className="filters">
                 {d.filters.map((f: any, i: number) => (
                   <label key={i}>
@@ -270,7 +280,7 @@ export function ResourceList() {
                   >
                     Selecionar todos os {d.count} resultados filtrados
                   </button>
-                  <span>{across?.count ?? selected.length} selecionados</span>
+                  <span className="selection-summary" role="status">{across?.count ?? selected.length} selecionados{across ? " em todos os resultados filtrados" : ""}</span>
                   <button
                     type="button"
                     className="text-button"
@@ -284,19 +294,20 @@ export function ResourceList() {
                 </div>
               )}
               {d.rows.length === 0 ? (
-                <Empty />
+                <Empty message={activeFilters.length ? "Nenhum registro encontrado com os filtros selecionados." : "Nenhum registro cadastrado nesta área."} />
               ) : (
-                <div className="table-scroll">
+                <div className="table-scroll" tabIndex={0} role="region" aria-label={`Registros de ${d.title}`}>
                   <table className="resource-table">
                     <thead>
                       <tr>
                         <th>
                           <input
                             type="checkbox"
+                            ref={selectPage}
                             aria-label="Selecionar página"
                             checked={
                               !!across ||
-                              (selected.length === d.rows.length &&
+                              (pageSelected === d.rows.length &&
                                 d.rows.length > 0)
                             }
                             onChange={(e) => {
@@ -310,7 +321,7 @@ export function ResourceList() {
                           />
                         </th>
                         {d.columns.map((c: any) => (
-                          <th key={c.name}>
+                          <th key={c.name} className={isNumericColumn(c.name) ? "numeric" : undefined}>
                             {c.sort ? (
                               <button
                                 type="button"
@@ -331,7 +342,7 @@ export function ResourceList() {
                     </thead>
                     <tbody>
                       {d.rows.map((row: any) => (
-                        <tr key={row.id}>
+                        <tr key={row.id} data-selected={!!across || selected.includes(String(row.id))}>
                           <td>
                             <input
                               type="checkbox"
@@ -352,7 +363,7 @@ export function ResourceList() {
                             />
                           </td>
                           {row.values.map((v: any, i: number) => (
-                            <td key={i} data-label={d.columns[i].label}>
+                            <td key={i} className={isNumericColumn(d.columns[i].name) ? "numeric" : undefined} data-label={d.columns[i].label}>
                               <Display value={v} />
                             </td>
                           ))}

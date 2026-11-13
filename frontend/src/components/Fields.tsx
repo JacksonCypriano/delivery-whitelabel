@@ -43,7 +43,7 @@ export function FieldInput({ field: f }: { field: Field }) {
     required: f.required,
     disabled: f.disabled,
     "aria-invalid": f.errors.length > 0,
-    "aria-describedby": f.html_name + "-help",
+    "aria-describedby": [f.html_name + "-help", ...(f.errors.length ? [f.html_name + "-errors"] : [])].join(" "),
   };
   const current = f.value ?? "";
   async function cep(e: React.FocusEvent<HTMLInputElement>) {
@@ -231,7 +231,7 @@ export function FieldInput({ field: f }: { field: Field }) {
       />
     );
   return (
-    <div className={"field " + (f.kind === "checkbox" ? "check-field" : "")}>
+    <div className={"field " + (f.kind === "checkbox" ? "check-field" : ["textarea", "checkboxes", "multiple"].includes(f.kind) ? "field-wide" : "")}>
       <label htmlFor={f.html_name}>
         {f.label}
         {f.required ? " *" : ""}
@@ -239,11 +239,11 @@ export function FieldInput({ field: f }: { field: Field }) {
       {input}
       <small id={f.html_name + "-help"}>{f.help}</small>
       {lookup && <small role="status">{lookup}</small>}
-      {f.errors.map((e, i) => (
+      <div id={f.html_name + "-errors"} hidden={!f.errors.length}>{f.errors.map((e, i) => (
         <p className="field-error" role="alert" key={i}>
           {e}
         </p>
-      ))}
+      ))}</div>
     </div>
   );
 }
@@ -288,7 +288,7 @@ export function FormFields({ row }: { row: FormRow }) {
         }}
       >
         {row.fields.map((f) => (
-          <div key={f.html_name} hidden={!visible(f)}>
+          <div key={f.html_name} className={["textarea", "checkboxes", "multiple"].includes(f.kind) ? "field-wide" : undefined} hidden={f.kind === "hidden" || !visible(f)}>
             <FieldInput field={{ ...f, required: visible(f) && f.required }} />
           </div>
         ))}

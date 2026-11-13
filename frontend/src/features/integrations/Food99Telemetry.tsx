@@ -34,8 +34,8 @@ export function Food99Telemetry() {
         <p role="status">{state.data.connection_count} conexão(ões) sandbox · {state.data.imported_count} pedido(s) importado(s) ·
         {' '}Piloto {state.data.pilot_enabled?'habilitado':'desabilitado'} · Confirmação remota {state.data.remote_confirm_enabled?'habilitada':'desabilitada'}</p>
         <div className="food99-telemetry-grid"><StatusCounts title="Inbox · Webhooks" data={state.data.inbox}/><StatusCounts title="Outbox · Comandos" data={state.data.outbox}/><StatusCounts title="Quarentena · Revisões" data={state.data.staging}/></div>
-        {state.data.backlog && <section className="card" aria-label="Backlog local 99Food">
-          <h2>Webhooks de pedidos importados · Backlog</h2>
+        {state.data.backlog && <details className="card" aria-label="Backlog local 99Food">
+          <summary>Webhooks de pedidos importados · Backlog</summary>
           {!state.data.backlog.available ? <p>{state.data.backlog.reason}</p> : <>
             <p role="status">Primeira página: {state.data.backlog.selected} eventos · {state.data.backlog.ready} elegíveis · {state.data.backlog.invalid} envelopes inválidos.</p>
             <p>Prévia somente leitura. A aplicação exige comando administrativo explícito; nenhum POST é enviado à 99Food.</p>
@@ -44,7 +44,7 @@ export function Food99Telemetry() {
             </li>)}</ul>
             {state.data.backlog.has_more && <p>Há eventos adicionais; use a paginação pelo comando administrativo.</p>}
           </>}
-        </section>}
+        </details>}
         {state.data.readiness && <section className="card" aria-label="Critérios de liberação 99Food">
           <h2>Critérios de liberação · 99Food</h2>
           <p role="status">{state.data.readiness.internal_passed}/{state.data.readiness.internal_total} verificações locais atendidas · {state.data.readiness.external_pending} pendências externas. <strong>Produção não autorizada.</strong></p>
@@ -67,7 +67,7 @@ export function Food99Telemetry() {
           {state.data.integrity.truncated && <p>Limite de resultados atingido. Execute a auditoria pelo backend.</p>}
           <small>{state.data.integrity.warning}</small>
         </section>}
-        <section className="card" aria-label="Protocolo de entrega 99Food"><h2>Confirmação de entrega · sandbox</h2><p>Um comando <code>delivered</code> em <code>awaiting</code> não significa entrega concluída. Mantenha o pedido em rota até a confirmação oficial, confira o pedido no portal da 99Food e não reenvie o POST.</p><p>Em entrega própria (MERCHANT), cabe ao motoboy obter a confirmação com o destinatário pelo fluxo oficial. Em entrega pela plataforma (PLATFORM), o entregador da 99Food faz a confirmação pelo próprio aplicativo. A logística administrativa apenas acompanha. O código retornado pela API pode não ser o identificador exigido pela página externa; não crie nem complete códigos manualmente.</p></section>
+        <details className="card" aria-label="Protocolo de entrega 99Food"><summary>Orientações de confirmação de entrega · sandbox</summary><p>Um comando <code>delivered</code> em <code>awaiting</code> não significa entrega concluída. Mantenha o pedido em rota até a confirmação oficial, confira o pedido no portal da 99Food e não reenvie o POST.</p><p>Em entrega própria (MERCHANT), cabe ao motoboy obter a confirmação com o destinatário pelo fluxo oficial. Em entrega pela plataforma (PLATFORM), o entregador da 99Food faz a confirmação pelo próprio aplicativo. A logística administrativa apenas acompanha. O código retornado pela API pode não ser o identificador exigido pela página externa; não crie nem complete códigos manualmente.</p></details>
         <section className="card"><h2>Alertas que exigem atenção ({state.data.alerts.length})</h2>
           {!state.data.alerts.length && <p>Nenhum alerta identificado pelas regras locais.</p>}
           <div className="food99-telemetry-alerts">{state.data.alerts.map((alert,i)=><article className={`food99-telemetry-alert severity-${alert.severity}`} key={`${alert.code}-${alert.order_id||alert.external_id}-${i}`}>

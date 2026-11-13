@@ -12,7 +12,7 @@ from apps.integrations.models import TenantWhatsAppAgent
 from apps.integrations.whatsapp_agent.client import TenantEvolutionClient
 from apps.integrations.whatsapp_agent.provider import is_agent_outbound
 from .commercial_models import CommercialControl, CommercialArticle, CommercialConversation, CommercialMessage, CommercialAudit
-from .commercial_pilot import eligible, alert_human, otp_excluded
+from .commercial_pilot import eligible, alert_human, otp_excluded, human_replied
 from .commercial_catalog import published_catalog
 from .commercial_smart_policy import human_requested
 
@@ -43,9 +43,23 @@ def receive(instance, message):
         # OTP threads are not sales leads; don't store OTP message text.
         if otp_excluded(message['phone'], instance):
             return None
+        if message['from_me'] and is_agent_outbound(instance, message['phone'], message['message_id'], message['text']):
+            return None
+        if message['from_me'] and control.handoff_notify_phone == message['phone']:
+            # Ignore notification echoes even if the cache was evicted. This is
+            # an operator destination, not a marketing lead; use persisted IDs.
+            from .commercial_models import CommercialHandoffAlert
+            if CommercialHandoffAlert.objects.filter(
+                conversation__instance=instance, whatsapp_message_id=message['message_id'],
+            ).exists():
+                return None
         conversation, _ = CommercialConversation.objects.get_or_create(instance=instance, phone=message['phone'])
         conversation = CommercialConversation.objects.select_for_update().get(pk=conversation.pk)
-        if message['from_me'] and (is_agent_outbound(instance,message['phone'],message['message_id'],message['text']) or conversation.messages.filter(reply_id=message['message_id']).exists()):
+        if message['from_me'] and (
+            is_agent_outbound(instance, message['phone'], message['message_id'], message['text'])
+            or conversation.messages.filter(reply_id=message['message_id']).exists()
+            or conversation.handoff_alerts.filter(whatsapp_message_id=message['message_id']).exists()
+        ):
             return None
         row, created = CommercialMessage.objects.get_or_create(conversation=conversation, provider_id=message['message_id'], defaults={'text':message['text'], 'from_me':message['from_me']})
         if not created:
@@ -63,6 +77,9 @@ def receive(instance, message):
         reason = ''
         if message['from_me']:
             reason = 'human_message'
+            # Outbound bot replies were excluded above; an operator's message is
+            # the evidence required to clear the pending attention notification.
+            human_replied(conversation)
         elif re.search(r'\b(parar|pare|sair|stop|cancelar mensagens|não me envie)\b', text):
             reason = 'opt_out'
             conversation.opted_out = True

@@ -12,17 +12,69 @@ _FISCAL_DOCUMENT = re.compile(
     r'\b(?:notas? (?:fiscais|fiscal)|nf[- ]?e|nfe|nf[- ]?c[- ]?e|nfce|'
     r'nf[- ]?s[- ]?e|cupom fiscal|documentos? (?:fiscal|fiscais))\b'
 )
-_FISCAL_REQUEST = re.compile(
-    r'\b(?:emit\w*|emiss\w*|ger\w*|gerac\w*|faz|fazem|fazer|'
-    r'automatic\w*|integr\w*|tem|ter|possui|possuem|oferec\w*|'
-    r'consigo|consegue|conseguem|pode|podem|da para|sai|saem|'
-    r'preciso|quero|existe|inclui|inclus\w*|disponiv\w*)\b'
+# Scope is shared by classification and retrieval; it contains no public copy.
+_FISCAL_SERVICE = re.compile(r'\b(?:assinatura|mensalidade|anual|contratacao|contratar|contrato|contratante|servicos?|plataforma|cnpj|valor que pago|nota do pagamento)\b')
+_FISCAL_STORE = re.compile(r'\b(?:vendas?|vendo|pedidos?|clientes?|consumidor|caixa|emissor|pizzaria|hamburgueria|loja|nf-?e|nfc-?e|cupom fiscal)\b')
+_FISCAL_SPECIFIC = re.compile(
+    r'\b(?:icms|iss|cfop|ncm|aliquota|tribut\w*|imposto|simples nacional|'
+    r'certificado|a1|contador|cnae|retencao|deducao|xml|danfe|segunda via|'
+    r'enviar|envia|manda|mandar|prazo|corrigir|cancelar|nfs-?e)\b'
 )
 
 
-def fiscal_needs_human(q):
-    """Dúvida sobre documento fiscal requer confirmação humana, mesmo junto a outros assuntos."""
-    return bool(_FISCAL_DOCUMENT.search(q) and (_FISCAL_REQUEST.search(q) or '?' in q))
+def fiscal_scope(q, memory=''):
+    """Resolve only a fiscal request, with bounded caller-supplied chat memory.
+
+    Unrelated pricing/integration clauses must not decide the invoice scope.
+    A generic 'emitem?' follows only the immediately preceding fiscal topic.
+    """
+    document = bool(_FISCAL_DOCUMENT.search(q) or re.search(
+        r'\b(?:nf|emissao fiscal|emissor fiscal|notafiscal|nota fisca[l]*|notas? (?:da|das|do|dos) '
+        r'(?:venda|vendas|pedido|pedidos|mensalidade|assinatura|pagamento)|'
+        r'(?:emite|emitir|emitem|gera|gerar|geram) (?:a |uma )?nota|automatiz\w* (?:as )?notas|faturam para cnpj)\b', q))
+    history = memory.splitlines()[-20:]
+    last = history[-1] if history else ''
+    prior = fiscal_scope(last, '\n'.join(history[:-1])) if last else None
+    if not document:
+        if prior and re.fullmatch(r'(?:e )?(?:voces )?(?:emitem|emite|gera|geram|tem)[ ?!.]*', q):
+            return prior
+        if prior and re.fullmatch(r'(?:e |a |da |das |do |dos |sobre )*(?:assinatura|mensalidade|vendas|pedidos|loja)[ ?!.]*', q):
+            return 'service' if _FISCAL_SERVICE.search(q) else 'store'
+        return None
+    if (_FISCAL_SPECIFIC.search(q)
+            or re.search(r'\bquando (?:voces )?(?:emit\w*|envia\w*|receb\w*)\b', q)):
+        # Ordinary "manda nota do pagamento" has an approved existence answer;
+        # actual delivery, deadlines and document-type requests need verification.
+        if not re.fullmatch(r'(?:voces )?manda nota do pagamento[ ?!.]*', q):
+            return 'human'
+    clauses = re.split(r'[,;?\n]+|\s+e\s+(?=(?:tem|emite|emitem|gera|geram|integra)\b)', q)
+    scoped = [c for c in clauses if _FISCAL_DOCUMENT.search(c) or re.search(r'\b(?:nota|nf|fiscal|cnpj)\b', c)]
+    target = ' '.join(scoped) or q
+    service, store = bool(_FISCAL_SERVICE.search(target)), bool(_FISCAL_STORE.search(target))
+    # "plataforma/sistema emite para meus clientes" is a store request.
+    if store and not re.search(r'\b(?:assinatura|mensalidade|contratacao|servico)\b', target):
+        service = False
+    if service and re.search(r'\b(?:automatic\w*|prazo)\b', q):
+        return 'human'
+    if service and store:
+        return 'both'
+    if service:
+        return 'service'
+    if store:
+        return 'store'
+    if last:
+        if prior in {'service', 'store'}:
+            return prior
+        if not prior:
+            service, store = bool(_FISCAL_SERVICE.search(last) or re.search(r'\bplano\b', last)), bool(_FISCAL_STORE.search(last))
+            if service != store:
+                return 'service' if service else 'store'
+    return 'ambiguous'
+
+
+def fiscal_needs_human(q, memory=''):
+    """Only undocumented fiscal procedures need human verification (P15)."""
+    return fiscal_scope(q, memory) == 'human'
 
 
 def business_overview_requested(q):

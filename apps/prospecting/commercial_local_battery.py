@@ -63,7 +63,7 @@ def read_snapshot(path):
     digest = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
     if digest != wrapper['sha256']:
         raise ValueError('snapshot_integrity_error')
-    if data['engine'] not in {'contextual-1', VERSION} or not data['publication'].get('valid'):
+    if data['engine'] not in {'contextual-1', 'contextual-final-1', VERSION} or not data['publication'].get('valid'):
         raise ValueError('snapshot_version_or_catalog_error')
     knowledge = [SimpleNamespace(**a) for a in data['articles']]
     if not knowledge or any(not a.published for a in knowledge):

@@ -28,6 +28,7 @@ export function MerchantLayout() {
   const navigate = useNavigate(),
     location = useLocation(),
     [open, setOpen] = useState(false),
+    [commercialPending, setCommercialPending] = useState(0),
     q = useQuery(async () => {
       const s = await request("session/");
       if (!s.authenticated) {
@@ -41,6 +42,18 @@ export function MerchantLayout() {
       return request("dashboard/");
     });
   useEffect(() => setOpen(false), [location.pathname]);
+  useEffect(() => {
+    if (panel.kind !== 'superadmin') return;
+    let active = true;
+    const update = () => {
+      void request('commercial/?alerts_only=1')
+        .then((response: any) => { if (active) setCommercialPending(Math.max(0, Number(response.pending_count) || 0)); })
+        .catch(() => { /* Navigation remains available if polling fails. */ });
+    };
+    update();
+    const timer = window.setInterval(update, 30000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [location.pathname]);
   const d = q.data;
   const groups = panel.kind === "superadmin" ? adminGroups : merchantGroups;
 
@@ -57,7 +70,7 @@ export function MerchantLayout() {
               <NavLink to={panelUrl()} end>
                 ◈ Visão geral
               </NavLink>
-              {panel.kind === "superadmin" && <><NavLink to={panelUrl("comercial")}>Agente comercial</NavLink><NavLink to={panelUrl("comercial/inbox")}>Inbox comercial</NavLink></>}
+              {panel.kind === "superadmin" && <><NavLink to={panelUrl("comercial")}>Agente comercial</NavLink><NavLink to={panelUrl("comercial/inbox")}>Inbox comercial{commercialPending>0&&<span className="commercial-nav-count" aria-label={`${commercialPending} atendimentos pendentes`}>{commercialPending}</span>}</NavLink></>}
               {panel.kind === "merchant" && <NavLink to={panelUrl("operacao")}>⚡ Pedidos ativos</NavLink>}
               {panel.kind === "merchant" && <NavLink to={panelUrl("atendimento")}>Atendimento humano</NavLink>}
               {panel.kind === "merchant" && <NavLink to={panelUrl("crm")}>CRM e fidelidade</NavLink>}
@@ -114,6 +127,7 @@ export function MerchantLayout() {
                 ☰ Menu
               </button>
               <span>{panel.title}</span>
+              {panel.kind === "superadmin" && <NavLink className="commercial-header-alert" to={panelUrl("comercial/inbox")} aria-label={`Atendimentos comerciais: ${commercialPending} pendentes`}>🔔 {commercialPending>0?`${commercialPending} pendente${commercialPending===1?'':'s'}`:'Inbox comercial'}</NavLink>}
               {panel.kind === "merchant" && d.public_url && (
                 <a href={d.public_url} target="_blank" rel="noopener noreferrer">
                   Ver loja ↗

@@ -11,14 +11,22 @@ COPY = Path(__file__).resolve().parents[2] / 'fixtures' / 'commercial_copy_final
 
 
 class Command(BaseCommand):
-    help = 'Mostra as 15 propostas. --apply cria revisões em rascunho, somente com agente pausado.'
+    help = 'Mostra as propostas comerciais (incluindo P15). --apply cria revisões em rascunho, somente com agente pausado.'
 
     def add_arguments(self, parser):
         parser.add_argument('--apply', action='store_true')
+        parser.add_argument('--slug', action='append', default=[],
+                            help='Limita a revisão a um slug; pode repetir.')
 
     @transaction.atomic
     def handle(self, *args, **options):
         proposed = json.loads(COPY.read_text())
+        selected = set(options.get('slug') or [])
+        unknown = selected - {row['slug'] for row in proposed}
+        if unknown:
+            raise CommandError('Slug desconhecido: ' + ', '.join(sorted(unknown)))
+        if selected:
+            proposed = [row for row in proposed if row['slug'] in selected]
         if options['apply']:
             control = CommercialControl.objects.select_for_update().filter(pk=1).first()
             if not control or control.enabled:

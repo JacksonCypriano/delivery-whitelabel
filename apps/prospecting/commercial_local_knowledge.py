@@ -7,7 +7,7 @@ existing article draft/version/publication workflow.
 """
 from dataclasses import dataclass
 
-VERSION = 'contextual-final-1'
+VERSION = 'contextual-p15'
 
 
 @dataclass(frozen=True)
@@ -17,6 +17,7 @@ class Intent:
 
 
 INTENTS = {
+    'fiscal': Intent(('notas-fiscais',), ()),
     'cardapio': Intent(('cardapio-proprio',), ('cardapio', 'site', 'catalogo digital')),
     'whatsapp': Intent(('whatsapp',), ('whatsapp', 'robo', 'atendimento automatico', 'atendimento automatizado', 'agente', 'atendente humano', 'intervencao humana')),
     'cozinha': Intent(('kds', 'pedidos'), ('cozinha', 'kds', 'preparo')),

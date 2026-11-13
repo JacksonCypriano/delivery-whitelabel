@@ -255,8 +255,11 @@ def dispatch_commercial_handoff_alerts():
     from .commercial_models import CommercialHandoffAlert
 
     addresses = getattr(settings, 'COMMERCIAL_AGENT_HANDOFF_ALERT_EMAILS', [])
+    # WhatsApp alerts are an independent at-most-once channel. Even if email
+    # notifications are disabled, the scheduled task still processes WhatsApp.
+    whatsapp_summary = dispatch_commercial_handoff_whatsapp_alerts()
     if not addresses:
-        return 'panel_only'
+        return whatsapp_summary
     count = 0
     for alert_id in list(CommercialHandoffAlert.objects.filter(
         state='pending', attempted_at__isnull=True,
@@ -277,6 +280,78 @@ def dispatch_commercial_handoff_alerts():
                 fail_silently=False,
             )
         except Exception:
-            CommercialHandoffAlert.objects.filter(pk=alert_id, state='pending').update(state='email_uncertain')
+            # Email transport failure must never hide an unresolved handoff
+            # from the inbox (legacy behavior incorrectly changed its state).
+            pass
         count += 1
-    return f'attempted={count}'
+    return f'{whatsapp_summary};email_attempted={count}'
+
+
+def dispatch_commercial_handoff_whatsapp_alerts():
+    """At-most-once outbound notification through the bound commercial instance.
+
+    Marks the attempt BEFORE provider IO. Unknown delivery is never retried by
+    Celery and the panel notification remains pending until a human responds.
+    """
+    from django.conf import settings
+    from django.utils import timezone
+    from apps.integrations.whatsapp_agent.client import TenantEvolutionClient
+    from .commercial_models import CommercialControl, CommercialHandoffAlert, CommercialAudit
+    from .commercial_pilot import normalize_phone, otp_excluded, eligible
+    import re
+
+    control = CommercialControl.current()
+    if not (control.handoff_notify_enabled and control.handoff_notify_enabled_at and control.enabled and control.instance
+            and getattr(settings, 'COMMERCIAL_AGENT_ENABLED', False)):
+        return 'whatsapp_disabled'
+    try:
+        phone = normalize_phone(control.handoff_notify_phone)
+    except ValueError:
+        return 'whatsapp_invalid_recipient'
+    if otp_excluded(phone, control.instance):
+        return 'whatsapp_otp_excluded'
+
+    count = 0
+    ids = list(CommercialHandoffAlert.objects.filter(
+        state='pending', conversation__instance=control.instance,
+        created_at__gte=control.handoff_notify_enabled_at,
+        whatsapp_attempted_at__isnull=True,
+    ).order_by('pk').values_list('pk', flat=True)[:20])
+    for alert_id in ids:
+        # Atomically claim once BEFORE sending, preventing concurrent Beat workers
+        # from attempting the same notification. No automatic retry on crash.
+        updated = CommercialHandoffAlert.objects.filter(
+            pk=alert_id, state='pending', whatsapp_attempted_at__isnull=True,
+        ).update(whatsapp_attempted_at=timezone.now(), whatsapp_status='sending')
+        if not updated:
+            continue
+        alert = CommercialHandoffAlert.objects.select_related('conversation').get(pk=alert_id)
+        if (alert.conversation.instance != control.instance
+                or alert.conversation.phone == phone
+                or not re.fullmatch(r'55[1-9][0-9]{9,10}', alert.conversation.phone)
+                or not eligible(alert.conversation.phone, control.instance)):
+            CommercialHandoffAlert.objects.filter(pk=alert_id).update(whatsapp_status='ineligible_contact')
+            continue
+        # A human may have answered between collection and claim.
+        if not CommercialHandoffAlert.objects.filter(pk=alert_id, state='pending').exists():
+            continue
+        # Only stable, non-sensitive reason codes. Never include chat contents.
+        text = (
+            '🔔 VemDeDelivery — atendimento humano pendente\n\n'
+            f'Conversa #{alert.conversation_id} precisa de atendimento.\n'
+            f'Abrir cliente: https://wa.me/{alert.conversation.phone}\n'
+            'Após responder pela instância comercial, o painel remove o aviso. '
+            'Se responder por outro número, confirme o atendimento no painel.'
+        )
+        try:
+            message_id = TenantEvolutionClient().send_text(control.instance, phone, text)
+        except Exception:
+            CommercialHandoffAlert.objects.filter(pk=alert_id).update(whatsapp_status='uncertain')
+            CommercialAudit.objects.create(conversation=alert.conversation, action='handoff_notification_uncertain')
+        else:
+            CommercialHandoffAlert.objects.filter(pk=alert_id).update(
+                whatsapp_status='submitted', whatsapp_message_id=message_id,
+            )
+            CommercialAudit.objects.create(conversation=alert.conversation, action='handoff_notification_submitted')
+        count += 1
+    return f'whatsapp_attempted={count}'

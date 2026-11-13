@@ -25,10 +25,28 @@ def eligible(phone, instance=None):
 
 
 def alert_human(conversation, message, reason):
+    # Conversation is row-locked by the receiving/processing code. One unresolved
+    # handoff per thread, even if the provider replays an event.
+    pending = CommercialHandoffAlert.objects.filter(
+        conversation=conversation, state='pending',
+    ).order_by('pk').first()
+    if pending:
+        return pending
     return CommercialHandoffAlert.objects.get_or_create(
         message=message,
         defaults={'conversation': conversation, 'reason': reason},
     )[0]
+
+
+def human_replied(conversation):
+    """Only a confirmed human reply (or explicitly audited external resolution) closes alerts.
+
+    Taking ownership alone is not a reply; bot outbound must not invoke this.
+    """
+    from django.utils import timezone
+    CommercialHandoffAlert.objects.filter(
+        conversation=conversation, state='pending',
+    ).update(state='resolved', acknowledged_at=timezone.now())
 
 
 def otp_excluded(phone, instance):

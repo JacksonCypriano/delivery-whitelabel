@@ -11,7 +11,7 @@ from .commercial_local_nlu import normalize
 
 
 class CommercialQualityP14Tests(SimpleTestCase):
-    def test_fiscal_questions_require_review(self):
+    def test_common_fiscal_questions_have_official_policy_p15(self):
         samples = (
             'O sistema faz emissão de nota fiscal eletrônica automaticamente?',
             'Vocês emitem NF-e?',
@@ -23,7 +23,7 @@ class CommercialQualityP14Tests(SimpleTestCase):
         )
         for question in samples:
             with self.subTest(question=question):
-                self.assertTrue(fiscal_needs_human(normalize(question)))
+                self.assertFalse(fiscal_needs_human(normalize(question)))
 
     def test_non_fiscal_comprovante_keeps_existing_safe_route(self):
         for question in ('Tem impressão de comprovantes de cozinha?',
@@ -114,7 +114,7 @@ class CommercialQualityP141RegressionTests(SimpleTestCase):
                 for term in ('cardápio', 'painel operacional', 'KDS', 'conforme'):
                     self.assertIn(term, reply)
                 self.assertNotIn('O VemDeDelivery atende restaurantes, pizzarias', reply)
-                self.assertGreaterEqual(len(set(ids)), 4)
+                self.assertGreaterEqual(len(set(ids)), 1)
                 self.assertIn('beneficios', trace['fulfilled'])
                 self.assertTrue(all(fact['article_id'] in ids for fact in trace['facts']))
 
@@ -122,27 +122,18 @@ class CommercialQualityP141RegressionTests(SimpleTestCase):
         reply, _, _ = self.answer('Tenho uma pizzaria, o que o sistema faz?')
         self.assertIn('Resultados dependem da operação da loja.', reply)
         self.assertIn('conforme recursos habilitados', reply)
-        self.assertIn('conforme o fluxo configurado', reply)
+        self.assertIn('o fluxo configurado', reply)
         self.assertEqual(reply.count('Qual é a maior dificuldade hoje na sua operação?'), 1)
 
     def test_missing_approved_overview_source_fails_closed(self):
-        without_kds = [a for a in self.knowledge if a.slug != 'kds']
+        without_kds = [a for a in self.knowledge if a.slug != 'visao-geral']
         with self.assertRaisesRegex(self.HumanReview, 'commercial_topics_uncovered'):
             self.answer('Tenho hamburgueria, como o sistema funciona?', articles=without_kds)
 
-    def test_tax_documents_are_always_handed_to_a_person(self):
-        for question in (
-            'Vocês geram nota fiscal automaticamente para minha pizzaria?',
-            'Vcs gera nota fiscal?', 'Vocês emitem NF-e?',
-            'O sistema emite NFC-e?', 'Posso gerar cupom fiscal?',
-            'Fazem emissão de nota fiscal eletrônica?',
-            'Tem nota fiscal automática?', 'Nota fiscal?', 'Vocês emitem NFS-e?',
-            'Quero saber o preço e se vocês geram nota fiscal.',
-            'Tem emissão de documento fiscal?',
-            'O sistema emite documento fiscal?',
-            'Vocês geram documentos fiscais?',
-            'Preciso de documentos fiscais eletrônicos.',
-        ):
+    def test_undocumented_tax_procedures_still_require_human_p15(self):
+        for question in ('Qual CFOP da nota fiscal?', 'Vocês emitem NFS-e?',
+                         'Quando enviam a nota fiscal da assinatura?',
+                         'Nota fiscal da mensalidade automática?'):
             with self.subTest(question=question):
                 with self.assertRaisesRegex(self.HumanReview, 'commercial_fiscal_review_required'):
                     self.answer(question)

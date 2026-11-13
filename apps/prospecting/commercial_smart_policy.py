@@ -50,6 +50,8 @@ def demo_requested(text):
 
 # Requests requiring capabilities, exceptions or promises outside the approved
 # product article facts must not receive a vague sales pitch as an answer.
+LEGACY_FISCAL_GUARD = r'\b(?:emite|emitir|emissao)\s+(?:nota fiscal|nf-e|nfe|nfce|nf-c?e)\b'
+
 HUMAN_GUARDS = (
     r'\b(?:entrega\s+(?:com\s+)?motoboy|(?:fornece|fornecem|manda|mandam)\s+(?:um\s+)?motoboy)\b',
     r'\b(?:impressora|termica)\b.{0,65}\b(?:homologad[ao]s?|modelos?|marcas?|compativel)\b',
@@ -73,7 +75,7 @@ HUMAN_GUARDS = (
     r'\b(?:voces entregam|vcs entregam|quero pedir|pedido \d+|status do pedido|reembolso)\b',
     r'\b(?:vende(?:m)?|fornece(?:m)?)\s+(?:uma?\s+)?impressora\b',
     r'\b(?:impressora|equipamento|motoboy)\s+(?:gratis|de graca|inclus[oa])\b',
-    r'\b(?:emite|emitir|emissao)\s+(?:nota fiscal|nf-e|nfe|nfce|nf-c?e)\b',
+    LEGACY_FISCAL_GUARD,
     r'\b(?:garant(?:e|em|a|am|ir|ia|ias|id[oa]s?)|assegur(?:a|am|ar|ad[oa]s?)|nunca (?:cai|vai cair)|sem cair)\b',
     r'(?<!\w)100\s*%(?!\w)',
     r'\b(?:promet(?:e|em|er)|certeza|compromisso|direito)\b.{0,80}\b(?:vend(?:a|as|er)|faturamento|lucro|resultado|aumento|dobrar|triplicar)\b',

@@ -17,7 +17,7 @@ from apps.integrations.whatsapp_agent.provider import extract_message, extract_q
 from .commercial import validate_instance, receive, articles
 from .commercial_catalog import catalog, published_catalog
 from .commercial_models import CommercialControl, CommercialConversation, CommercialMessage, CommercialArticle, CommercialAudit, CommercialPilotContact, CommercialHandoffAlert, CommercialOtpExclusion
-from .commercial_pilot import normalize_phone, otp_excluded
+from .commercial_pilot import normalize_phone, otp_excluded, human_replied
 
 
 @csrf_exempt
@@ -61,6 +61,12 @@ def webhook_config():
 class CommercialPanel(SuperAdminAPI):
     def get(self,request):
         control=CommercialControl.current()
+        if request.query_params.get('alerts_only') == '1':
+            # Lightweight superadmin badge endpoint; no catalog/lead history.
+            waiting = CommercialHandoffAlert.objects.filter(
+                state='pending', conversation__instance=control.instance,
+            )
+            return Response({'pending_count': waiting.count()})
         conversations=CommercialConversation.objects.all().order_by('-updated_at')
         term=str(request.query_params.get('q',''))[:80]
         if term:
@@ -77,8 +83,17 @@ class CommercialPanel(SuperAdminAPI):
                 selected={'id':c.pk,'phone':c.phone,'name':c.name,'notes':c.notes,'stage':c.stage,'paused':c.paused,'opted_out':c.opted_out,'reason':c.reason,'owner_id':c.owner_id,'messages':list(c.messages.order_by('-pk').values('id','text','reply','from_me','state','created_at')[:100])[::-1]}
         result=catalog()
         pilot=list(CommercialPilotContact.objects.filter(active=True).order_by('phone').values('phone','created_at'))
-        alerts=list(CommercialHandoffAlert.objects.filter(state='pending').order_by('-created_at').values('id','conversation_id','reason','created_at')[:30])
-        return Response({'pilot':{'restricted':True,'allowed':pilot,'alerts':alerts,'pending_count':CommercialHandoffAlert.objects.filter(state='pending').count(),'otp_excluded_count':CommercialOtpExclusion.objects.filter(instance=control.instance).count()},'control':{'instance':control.instance,'enabled':control.enabled,'server_enabled':getattr(settings,'COMMERCIAL_AGENT_ENABLED',False),'demo_url':control.demo_url,'contact_url':control.contact_url,'human_send_enabled':bool(getattr(settings,'COMMERCIAL_HUMAN_PANEL_SEND_ENABLED',False))},
+        pending = CommercialHandoffAlert.objects.filter(
+            state='pending', conversation__instance=control.instance,
+        )
+        alerts = [{
+            'id': a.pk, 'conversation_id': a.conversation_id,
+            'name': a.conversation.name, 'phone': a.conversation.phone,
+            'wa_link': f'https://wa.me/{a.conversation.phone}' if re.fullmatch(r'55[1-9][0-9]{9,10}', a.conversation.phone) else '',
+            'reason': a.reason, 'created_at': a.created_at,
+            'whatsapp_status': a.whatsapp_status,
+        } for a in pending.select_related('conversation').order_by('-created_at')[:50]]
+        return Response({'pilot':{'restricted':True,'allowed':pilot,'alerts':alerts,'pending_count':pending.count(),'otp_excluded_count':CommercialOtpExclusion.objects.filter(instance=control.instance).count()},'control':{'instance':control.instance,'enabled':control.enabled,'server_enabled':getattr(settings,'COMMERCIAL_AGENT_ENABLED',False),'demo_url':control.demo_url,'contact_url':control.contact_url,'human_send_enabled':bool(getattr(settings,'COMMERCIAL_HUMAN_PANEL_SEND_ENABLED',False)),'handoff_notify_phone':control.handoff_notify_phone,'handoff_notify_enabled':control.handoff_notify_enabled},
             'catalog':result,'published':result['valid'] and result['fingerprint']==control.catalog_fingerprint,
             'articles':[{'id':a.pk,'slug':a.slug,'version':a.version,'title':a.title,'body':a.body,'source_url':a.source_url,'published':a.published} for a in articles(include_drafts=True)],
             'conversations':list(page.object_list.values('id','phone','name','stage','source','paused','reason','updated_at')),'pagination':metadata(page),'selected':selected,
@@ -124,6 +139,7 @@ class CommercialPanel(SuperAdminAPI):
             CommercialAudit.objects.create(actor=request.user, conversation=c, action='human_send_uncertain')
             return Response({'detail': 'Envio não confirmado. NÃO repita; concilie com a Evolution.'}, status=502)
         CommercialMessage.objects.filter(pk=row.pk, state='sending').update(state='sent', reply_id=message_id)
+        human_replied(c)
         CommercialAudit.objects.create(actor=request.user, conversation=c, action='human_send_confirmed')
         return Response({'detail': 'Mensagem enviada pelo painel.'})
 
@@ -207,11 +223,35 @@ class CommercialPanel(SuperAdminAPI):
                 units(SimpleNamespace(pk=0, version=0, slug=slug, body=body))
                 version=(CommercialArticle.objects.filter(slug=slug).aggregate(n=Max('version'))['n'] or 0)+1
                 CommercialArticle.objects.create(slug=slug,version=version,title=title,body=body,source_url=source,published=request.data.get('published') is True,author=request.user)
-            elif action in {'takeover','resume','lead'}:
+            elif action == 'handoff_notify':
+                phone = normalize_phone(request.data.get('phone', ''))
+                enabled = request.data.get('enabled')
+                if type(enabled) is not bool:
+                    raise ValueError('Informe explicitamente se os alertas WhatsApp estarão habilitados.')
+                if otp_excluded(phone, control.instance):
+                    raise ValueError('Destinatário protegido por OTP não pode receber avisos comerciais.')
+                if CommercialPilotContact.objects.filter(phone=phone, active=True).exists():
+                    raise ValueError('O destinatário de avisos não pode ser um lead autorizado no piloto.')
+                if enabled and not control.instance:
+                    raise ValueError('Configure uma instância comercial antes de habilitar os avisos.')
+                # Enabling is an explicit administrative action; do not send old
+                # pending notifications that predate this approval.
+                if enabled and (not control.handoff_notify_enabled or phone != control.handoff_notify_phone):
+                    control.handoff_notify_enabled_at = timezone.now()
+                control.handoff_notify_enabled = enabled
+                control.handoff_notify_phone = phone
+                control.save(update_fields=['handoff_notify_enabled', 'handoff_notify_phone', 'handoff_notify_enabled_at', 'updated_at'])
+            elif action in {'takeover','resume','lead','resolve_handoff'}:
                 raw=request.data.get('conversation')
                 if not str(raw).isdigit(): raise ValueError('Conversa inválida.')
                 c=CommercialConversation.objects.select_for_update().filter(pk=raw).first()
                 if not c: return Response({'detail':'Conversa não encontrada.'},status=404)
+                if action=='resolve_handoff':
+                    if request.data.get('confirm_external_reply') is not True:
+                        raise ValueError('Confirme que um atendimento humano foi realizado fora da instância monitorada.')
+                    human_replied(c)
+                    CommercialAudit.objects.create(actor=request.user, conversation=c, action='human_reply_external_confirmed')
+                    return Response({'detail': 'Atendimento externo confirmado. Aviso removido dos pendentes.'})
                 if action=='resume':
                     if c.opted_out: raise ValueError('Contato recusou mensagens; retomada automática bloqueada.')
                     if otp_excluded(c.phone, c.instance): raise ValueError('Conversa de OTP excluída permanentemente da automação comercial.')
@@ -219,7 +259,6 @@ class CommercialPanel(SuperAdminAPI):
                     c.paused=False;c.reason='';c.owner=None
                 elif action=='takeover':
                     c.paused=True;c.reason='human_takeover';c.owner=request.user
-                    CommercialHandoffAlert.objects.filter(conversation=c,state='pending').update(state='acknowledged', acknowledged_at=timezone.now())
                 else:
                     stage=request.data.get('stage',c.stage)
                     if stage not in dict(CommercialConversation._meta.get_field('stage').choices): raise ValueError('Etapa inválida.')

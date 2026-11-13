@@ -65,6 +65,8 @@ export function RelationshipInput({ field: f }: { field: Field }) {
       <input
         ref={input}
         id={f.html_name}
+        aria-invalid={f.errors.length > 0}
+        aria-describedby={`${f.html_name}-help ${f.html_name}-errors`}
         aria-label={`Pesquisar ${f.label}`}
         disabled={f.disabled}
         value={term}
@@ -86,6 +88,7 @@ export function RelationshipInput({ field: f }: { field: Field }) {
               <button
                 type="button"
                 className="text-button"
+                aria-pressed={selected.some((s) => s.value === c.value)}
                 disabled={selected.some((s) => s.value === c.value)}
                 onClick={() => {
                   setSelected(f.multiple ? [...selected, c] : [c]);

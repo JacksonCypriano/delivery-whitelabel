@@ -1,3 +1,4 @@
+import { PageHeading } from "../../components/PageHeading";
 import { useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { request, post } from "../../api/client";
@@ -48,7 +49,7 @@ export function FreeDays() {
   return (
     <>
       <Link to={panelUrl(`tenants-tenant/${id}`)}>← Loja</Link>
-      <h1>Conceder dias gratuitos</h1>
+      <PageHeading eyebrow="Lojas · gratuidade" title="Conceder dias gratuitos" description="Informe o período e confira os efeitos sobre acesso e cobrança antes de confirmar."/>
       {message && (
         <p role="status" className="alert">
           {message}
@@ -79,7 +80,7 @@ export function FreeDays() {
                 </p>
                 <p className="alert">{d.impact.billing}</p>
                 <p>{d.impact.access}</p>
-                <form
+                <form className="admin-form"
                   key={`${id}-${d.fields.find((f: any) => f.name === "token")?.value}`}
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -94,7 +95,7 @@ export function FreeDays() {
                   </button>
                 </form>
               </section>
-              <section className="card">
+              <section className="card activity-list">
                 <h2>Histórico de gratuidades em dias</h2>
                 <p>
                   Os créditos anteriores de meses de calendário continuam

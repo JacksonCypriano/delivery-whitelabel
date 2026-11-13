@@ -37,6 +37,6 @@ export function Notice({
     </>
   );
 }
-export function Empty() {
-  return <div className="empty">Nenhum registro encontrado.</div>;
+export function Empty({ message = "Nenhum registro encontrado." }: { message?: string }) {
+  return <div className="empty">{message}</div>;
 }

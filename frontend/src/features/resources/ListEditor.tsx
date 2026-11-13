@@ -39,7 +39,7 @@ export function ListEditor({
   return (
     <section className="card">
       <h2>Edição rápida desta página</h2>
-      <p>Os campos são os mesmos da edição em lista do painel anterior.</p>
+      <p>Atualize os registros desta página e salve todas as alterações ao concluir.</p>
       <Feedback loading={q.loading} error={q.error}>
         <Feedback error={error}>
           <></>

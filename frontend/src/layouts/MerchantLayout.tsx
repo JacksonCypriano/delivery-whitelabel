@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { request } from "../api/client";
 import { useQuery } from "../hooks/useQuery";
@@ -41,7 +41,10 @@ export function MerchantLayout() {
       }
       return request("dashboard/");
     });
-  useEffect(() => setOpen(false), [location.pathname]);
+  useEffect(() => {
+    setOpen(false);
+    if (document.activeElement?.closest(".sidebar")) document.getElementById("main")?.focus();
+  }, [location.pathname]);
   useEffect(() => {
     if (panel.kind !== 'superadmin') return;
     let active = true;
@@ -54,6 +57,36 @@ export function MerchantLayout() {
     const timer = window.setInterval(update, 30000);
     return () => { active = false; window.clearInterval(timer); };
   }, [location.pathname]);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const sidebar = useRef<HTMLElement>(null);
+  const relativePath = location.pathname.slice(panel.basePath.length).replace(/^\/|\/$/g, "");
+  const operational = ["orders", "operacao", "cozinha"].includes(relativePath) || relativePath.startsWith("orders/");
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    sidebar.current?.querySelector<HTMLElement>("a")?.focus();
+    const close = () => { setOpen(false); menuButton.current?.focus(); };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); close(); }
+      if (event.key === "Tab") {
+        const items = Array.from(sidebar.current?.querySelectorAll<HTMLElement>("a, button, summary") || [])
+          .filter(node => node.getClientRects().length > 0);
+        const first = items[0], last = items[items.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
+    };
+    const desktop = window.matchMedia("(min-width: 761px)");
+    const onResize = () => { if (desktop.matches) close(); };
+    document.addEventListener("keydown", onKey);
+    desktop.addEventListener("change", onResize);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKey);
+      desktop.removeEventListener("change", onResize);
+    };
+  }, [open]);
   const d = q.data;
   const groups = panel.kind === "superadmin" ? adminGroups : merchantGroups;
 
@@ -61,16 +94,18 @@ export function MerchantLayout() {
     <Feedback loading={q.loading} error={q.error}>
       {d && (
         <div className="app-shell">
-          <aside className={open ? "sidebar open" : "sidebar"}>
+          <a className="skip-link" href="#main">Pular para o conteúdo</a>
+          <aside ref={sidebar} id="panel-navigation" className={open ? "sidebar open" : "sidebar"}>
             <NavLink className="brand" to={panelUrl()}>
               Vem<span>DeDelivery</span>
             </NavLink>
+            <button type="button" className="sidebar-close secondary" onClick={() => { setOpen(false); menuButton.current?.focus(); }}>Fechar menu ×</button>
             <div className="store-label">{d.store}</div>
             <nav aria-label="Menu principal">
               <NavLink to={panelUrl()} end>
                 ◈ Visão geral
               </NavLink>
-              {panel.kind === "superadmin" && <><NavLink to={panelUrl("comercial")}>Agente comercial</NavLink><NavLink to={panelUrl("comercial/inbox")}>Inbox comercial{commercialPending>0&&<span className="commercial-nav-count" aria-label={`${commercialPending} atendimentos pendentes`}>{commercialPending}</span>}</NavLink></>}
+              {panel.kind === "superadmin" && <><NavLink to={panelUrl("comercial")} end>Agente comercial</NavLink><NavLink to={panelUrl("comercial/inbox")}>Inbox comercial{commercialPending>0&&<span className="commercial-nav-count" aria-label={`${commercialPending} atendimentos pendentes`}>{commercialPending}</span>}</NavLink></>}
               {panel.kind === "merchant" && <NavLink to={panelUrl("operacao")}>⚡ Pedidos ativos</NavLink>}
               {panel.kind === "merchant" && <NavLink to={panelUrl("atendimento")}>Atendimento humano</NavLink>}
               {panel.kind === "merchant" && <NavLink to={panelUrl("crm")}>CRM e fidelidade</NavLink>}
@@ -120,6 +155,9 @@ export function MerchantLayout() {
           <div className="main-column">
             <header>
               <button
+                ref={menuButton}
+                type="button"
+                aria-controls="panel-navigation"
                 className="menu-toggle secondary"
                 aria-expanded={open}
                 onClick={() => setOpen(!open)}
@@ -134,7 +172,7 @@ export function MerchantLayout() {
                 </a>
               )}
             </header>
-            <main id="main">
+            <main id="main" tabIndex={-1} className={operational ? "operational-content" : relativePath === "comercial/inbox" ? "inbox-content" : "admin-content"}>
               <Outlet context={d} />
             </main>
             <footer>VemDeDelivery · Sua operação, em um só lugar.</footer>

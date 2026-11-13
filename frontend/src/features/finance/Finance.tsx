@@ -1,3 +1,4 @@
+import { SectionTabs } from "../../components/SectionTabs";
 import { Pagination } from "../../components/Pagination";
 import { panel, panelUrl } from "../../panel";
 import { useState } from "react";
@@ -49,11 +50,12 @@ function Note({ note: n }: { note: any }) {
     </div>
   );
 }
-export function Finance({
-  mode,
-}: {
-  mode: "assinatura" | "notas" | "taxas" | "cobrancas";
-}) {
+type FinanceMode = "assinatura" | "notas" | "taxas" | "cobrancas";
+export function Finance({ mode }: { mode: FinanceMode }) {
+  const { id } = useParams();
+  return <FinancePage key={`${mode}:${id || ""}`} mode={mode} />;
+}
+function FinancePage({ mode }: { mode: FinanceMode }) {
   const { id } = useParams(),
     [params, setParams] = useSearchParams(),
     navigate = useNavigate(),
@@ -108,18 +110,18 @@ export function Finance({
           }[mode]
         }
       </h1>
-      <nav className="tabs">
-        <Link to={panelUrl("assinatura")}>Assinatura e histórico</Link>
-        <Link to={panelUrl("notas")}>Notas fiscais</Link>
+      <nav className="tabs" aria-label="Financeiro">
+        <Link aria-current={mode === "assinatura" || mode === "cobrancas" ? "page" : undefined} to={panelUrl("assinatura")}>Assinatura e histórico</Link>
+        <Link aria-current={mode === "notas" ? "page" : undefined} to={panelUrl("notas")}>Notas fiscais</Link>
         {context?.online_payments_allowed && (
-          <Link to={panelUrl("taxas")}>Tarifas Asaas</Link>
+          <Link aria-current={mode === "taxas" ? "page" : undefined} to={panelUrl("taxas")}>Tarifas Asaas</Link>
         )}
       </nav>
       <Notice messages={messages} />
-      <Feedback error={error}>
+      <Feedback error={error || q.error}>
         <></>
       </Feedback>
-      <Feedback loading={q.loading} error={q.error}>
+      <Feedback loading={q.loading && !q.data}>
         {d && (
           <>
             {d.missing ? (
@@ -175,7 +177,7 @@ export function Finance({
                     </strong>
                   </section>
                 </div>
-                {[
+                <SectionTabs label="Assinatura" initial={params.has("pagina") ? "history" : "offers"} sections={[{id:"offers",label:"Planos e serviços",content:<>{[
                   ["plans", "Planos disponíveis"],
                   ["services", "Serviços adicionais"],
                 ].map(([key, title]) => (
@@ -274,7 +276,7 @@ export function Finance({
                     </div>
                   </section>
                 ))}
-                <section className="card">
+                </>},{id:"history",label:"Histórico de cobranças",content:<section className="card">
                   <h2>Histórico de cobranças</h2>
                   {d.invoices.length ? (
                     <div className="table-scroll">
@@ -286,7 +288,7 @@ export function Finance({
                             <th>Valor</th>
                             <th>Forma</th>
                             <th>Situação</th>
-                            <th></th>
+                            <th>Ações</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -294,7 +296,7 @@ export function Finance({
                             <tr key={b.pk}>
                               <td>{date(b.created_at)}</td>
                               <td>{b.plan_name}</td>
-                              <td>{money(b.amount)}</td>
+                              <td className="numeric">{money(b.amount)}</td>
                               <td>{b.method_label}</td>
                               <td>{b.status_label}</td>
                               <td>
@@ -310,10 +312,12 @@ export function Finance({
                   ) : (
                     <Empty />
                   )}
-                </section>
+                <Pagination page={d.page} pages={d.pages} size={Number(params.get("page_size")||10)} onPage={n=>{const next=new URLSearchParams(params);next.set("pagina",String(n));setParams(next);}} onSize={n=>{const next=new URLSearchParams(params);next.set("page_size",String(n));next.delete("pagina");setParams(next);}}/>
+                </section>}]} />
               </>
             ) : mode === "cobrancas" ? (
-              <section className="card">
+              <section className="card billing-detail">
+                <Link className="back" to={panelUrl("assinatura")}>← Histórico e assinatura</Link>
                 <h2>{d.invoice.plan_name}</h2>
                 <h2>{money(d.invoice.amount)}</h2>
                 <p>
@@ -356,7 +360,7 @@ export function Finance({
                   disabled={busy}
                   onClick={() => submit(`invoices/${id}/refresh/`)}
                 >
-                  Já paguei / consultar pagamento
+                  {busy ? "Consultando pagamento…" : "Já paguei / consultar pagamento"}
                 </button>
                 <p>
                   A confirmação é automática e depende da confirmação do
@@ -366,6 +370,7 @@ export function Finance({
               </section>
             ) : mode === "notas" ? (
               <>
+                <p className="muted">Documentos fiscais referentes aos serviços contratados da plataforma.</p>
                 <div className="stats">
                   <section className="card">{d.total ?? 0} notas</section>
                   <section className="card">{d.authorized ?? 0} autorizadas</section>
@@ -452,7 +457,7 @@ export function Finance({
                 </p>
               </section>
             )}
-            {(mode === "notas" || mode === "assinatura") && <Pagination page={d.page} pages={d.pages} size={Number(params.get("page_size")||10)} onPage={n=>{const next=new URLSearchParams(params);next.set("pagina",String(n));setParams(next);}} onSize={n=>{const next=new URLSearchParams(params);next.set("page_size",String(n));next.delete("pagina");setParams(next);}}/>}
+            {(mode === "notas") && <Pagination page={d.page} pages={d.pages} size={Number(params.get("page_size")||10)} onPage={n=>{const next=new URLSearchParams(params);next.set("pagina",String(n));setParams(next);}} onSize={n=>{const next=new URLSearchParams(params);next.set("page_size",String(n));next.delete("pagina");setParams(next);}}/>}
           </>
         )}
       </Feedback>

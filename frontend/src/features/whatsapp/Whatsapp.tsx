@@ -1,3 +1,5 @@
+import { SectionTabs } from "../../components/SectionTabs";
+import { PageHeading } from "../../components/PageHeading";
 import { useState, useEffect } from "react";
 import { Pagination } from "../../components/Pagination";
 import { whatsapp } from "../../api/whatsapp";
@@ -59,18 +61,14 @@ export function Whatsapp() {
   const d = q.data;
   return (
     <>
-      <p className="eyebrow">Atendimento</p>
-      <h1>WhatsApp e agente</h1>
-      <p className="muted">
-        Conecte o número da loja e gerencie o atendimento atual.
-      </p>
+      <PageHeading eyebrow="Atendimento" title="WhatsApp e agente" description="Conecte o número da loja e acompanhe o estado do atendimento." />
       <Notice messages={messages} />
-      <Feedback error={error}>
+      <Feedback error={error || q.error}>
         <></>
       </Feedback>
-      <Feedback loading={q.loading} error={q.error}>
+      <Feedback loading={q.loading && !q.data}>
         {d && (
-          <>
+          <SectionTabs label="WhatsApp da loja" sections={[{id:"connection",label:"Conexão",content:<>
             <section className="card">
               <span className="badge">{d.agent.status_label}</span>
               <h2>
@@ -123,7 +121,7 @@ export function Whatsapp() {
                   <button
                     key={a}
                     className={
-                      a === "disconnect" ? "secondary danger-text" : "secondary"
+                      a === "disconnect" ? "secondary danger-text" : a === "connect" ? "" : "secondary"
                     }
                     disabled={
                       busy ||
@@ -155,7 +153,7 @@ export function Whatsapp() {
                 </div>
               )}
             </section>
-            <section className="card">
+            </>},{id:"guide",label:"Como funciona",content:<><section className="card">
               <h2>Como o atendimento funciona</h2>
               <p>
                 O agente usa o catálogo, horários, disponibilidade, entrega e
@@ -170,7 +168,7 @@ export function Whatsapp() {
                 permanece silencioso.
               </p>
             </section>
-            <section className="card">
+            </>},{id:"history",label:"Histórico da conexão",content:<><section className="card">
               <h2>Histórico da conexão</h2><Pagination page={d.page} pages={d.pages} size={size} onPage={setPage} onSize={n=>{setSize(n);setPage(1);}}/>
               {d.events.length ? (
                 d.events.map((e: any, i: number) => (
@@ -185,7 +183,7 @@ export function Whatsapp() {
                 <Empty />
               )}
             </section>
-          </>
+          </>}]} />
         )}
       </Feedback>
     </>

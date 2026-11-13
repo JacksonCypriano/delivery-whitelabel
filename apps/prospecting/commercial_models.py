@@ -24,6 +24,7 @@ class CommercialControl(models.Model):
 
 class CommercialPilotContact(models.Model):
     """Explicitly permitted recipient for platform-sales pilot. Not a tenant contact."""
+    id = models.BigAutoField(primary_key=True)
     phone = models.CharField(max_length=20, unique=True)
     active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -37,6 +38,7 @@ class CommercialOtpExclusion(models.Model):
     Never contains OTP code, message text, provider message ID or code hash.
     Explicit release is intentionally NOT exposed through the commercial panel.
     """
+    id = models.BigAutoField(primary_key=True)
     instance = models.CharField(max_length=100)
     phone = models.CharField(max_length=20)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -100,6 +102,7 @@ class CommercialMessage(models.Model):
 
 class CommercialHandoffAlert(models.Model):
     """Durable unresolved human-review case with optional operational alerts."""
+    id = models.BigAutoField(primary_key=True)
     message = models.OneToOneField(CommercialMessage, on_delete=models.CASCADE, related_name='handoff_alert')
     conversation = models.ForeignKey(CommercialConversation, on_delete=models.CASCADE, related_name='handoff_alerts')
     reason = models.CharField(max_length=80)

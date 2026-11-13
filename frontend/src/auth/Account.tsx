@@ -48,7 +48,7 @@ export function Account({ password = false }: { password?: boolean }) {
         ["password", "Senha"],
       ];
   return (
-    <div className="auth-page">
+    <div className="auth-page admin-access">
       <section className="card">
         <div className="brand">
           Vem<span>DeDelivery</span>
@@ -60,12 +60,15 @@ export function Account({ password = false }: { password?: boolean }) {
             ? "Escolha uma senha pessoal para continuar."
             : panel.kind === "superadmin" ? "Acesse a administração global da plataforma." : "Acesse sua loja para cuidar da operação."}
         </p>
-        <form onSubmit={submit}>
+        <form onSubmit={submit} aria-busy={busy}>
           {fields.map(([name, label]) => (
             <label className="field" key={name}>
               {label}
               <input
+                id={`account-${name}`}
                 name={name}
+                disabled={busy}
+                aria-describedby={errors[name]?.length ? `account-${name}-errors` : undefined}
                 type={name === "username" ? "text" : "password"}
                 autoComplete={
                   name === "username"
@@ -77,11 +80,11 @@ export function Account({ password = false }: { password?: boolean }) {
                 required
                 aria-invalid={!!errors[name]}
               />
-              {errors[name]?.map((e, i) => (
+              <span id={`account-${name}-errors`}>{errors[name]?.map((e, i) => (
                 <small className="field-error" key={i}>
                   {e}
                 </small>
-              ))}
+              ))}</span>
             </label>
           ))}
           {errors.__all__?.map((e, i) => (
@@ -110,7 +113,7 @@ export function Logout() {
   const navigate = useNavigate(),
     [error, setError] = useState("");
   return (
-    <div className="auth-page">
+    <div className="auth-page admin-access">
       <section className="card">
         <h1>Sair da conta?</h1>
         <button

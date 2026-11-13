@@ -1,3 +1,4 @@
+import { ResourceDirectory } from "../../components/ResourceDirectory";
 import { Activity } from "./Activity";
 import { panel, panelUrl } from "../../panel";
 import { Link, useOutletContext } from "react-router-dom";
@@ -26,13 +27,7 @@ export function Dashboard() {
           <section className="card"><span>Recebido no mês · produção</span><strong>{Number(d.metrics.received_month).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</strong><small>Faturas com pagamento confirmado. Não representa receita recorrente.</small></section>
         </div><section className="card"><h2>Pedidos criados hoje</h2><p className="muted">{d.metrics.date} · Todos os estabelecimentos, incluindo os status cancelados.</p><div className="order-summary-strip">{d.metrics.orders_today.map((row:any)=><span key={row.source}><strong>{row.count}</strong> {({'web':'Loja online','manual':'Balcão','whatsapp':'WhatsApp','ifood':'iFood','99food':'99Food'} as Record<string,string>)[row.source]||row.source}</span>)}</div></section></>}
         <Activity />
-        <div className="cards">
-          {d.resources.map((r: any) => (
-            <Link className="card shortcut" key={r.key} to={panelUrl(r.key)}>
-              <h3>{r.title}</h3><span>Acessar →</span>
-            </Link>
-          ))}
-        </div>
+        <ResourceDirectory resources={d.resources} />
       </>
     );
   }
@@ -76,7 +71,7 @@ export function Dashboard() {
           </h2>
           <strong>{d.setup.percent}%</strong>
         </div>
-        <progress value={d.setup.percent} max={100} />
+        <progress aria-label="Preparação da loja" value={d.setup.percent} max={100} />
         <div className="checklist">
           {d.setup.steps
             .filter((s: any) => s.required)
@@ -95,14 +90,7 @@ export function Dashboard() {
         </div>
       </section>
       <Activity />
-      <div className="cards">
-        {d.resources.map((r: any) => (
-          <Link className="card shortcut" key={r.key} to={panelUrl(r.key)}>
-            <h3>{r.title}</h3>
-            <span>Acessar →</span>
-          </Link>
-        ))}
-      </div>
+      <ResourceDirectory resources={d.resources} />
     </>
   );
 }

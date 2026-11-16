@@ -15,13 +15,22 @@ def normalize_phone(value):
 
 
 def eligible(phone, instance=None):
-    """Fail closed: no allowlist entry means no automatic WhatsApp sending."""
-    if not CommercialPilotContact.objects.filter(phone=phone, active=True).exists():
+    """Autoriza resposta somente na instância vinculada, preservando a quarentena OTP.
+
+    No piloto usa a allowlist. Modo público é opt-in separado e aceita APENAS
+    contatos brasileiros identificados (mensagens recebidas e/ou alertas
+    operacionais são filtrados nos respectivos fluxos, antes do envio).
+    """
+    if not instance:
+        # Sem instância não há como provar isolamento dos destinatários OTP.
         return False
-    if instance is None:
-        # No instance means caller cannot prove OTP separation; deny.
+    if CommercialOtpExclusion.objects.filter(phone=phone, instance=instance).exists():
         return False
-    return not CommercialOtpExclusion.objects.filter(phone=phone, instance=instance).exists()
+    if getattr(settings, 'COMMERCIAL_AGENT_PUBLIC_INBOUND_ENABLED', False):
+        number = str(phone or '')
+        own_number = re.sub(r'\D', '', getattr(settings, 'MARKETING_WHATSAPP', ''))
+        return bool(re.fullmatch(r'55[1-9][0-9]{9,10}', number)) and number != own_number
+    return CommercialPilotContact.objects.filter(phone=phone, active=True).exists()
 
 
 def alert_human(conversation, message, reason):

@@ -93,7 +93,7 @@ class CommercialPanel(SuperAdminAPI):
             'reason': a.reason, 'created_at': a.created_at,
             'whatsapp_status': a.whatsapp_status,
         } for a in pending.select_related('conversation').order_by('-created_at')[:50]]
-        return Response({'pilot':{'restricted':True,'allowed':pilot,'alerts':alerts,'pending_count':pending.count(),'otp_excluded_count':CommercialOtpExclusion.objects.filter(instance=control.instance).count()},'control':{'instance':control.instance,'enabled':control.enabled,'server_enabled':getattr(settings,'COMMERCIAL_AGENT_ENABLED',False),'demo_url':control.demo_url,'contact_url':control.contact_url,'human_send_enabled':bool(getattr(settings,'COMMERCIAL_HUMAN_PANEL_SEND_ENABLED',False)),'handoff_notify_phone':control.handoff_notify_phone,'handoff_notify_enabled':control.handoff_notify_enabled},
+        return Response({'pilot':{'restricted':not bool(getattr(settings, 'COMMERCIAL_AGENT_PUBLIC_INBOUND_ENABLED', False)),'allowed':pilot,'alerts':alerts,'pending_count':pending.count(),'otp_excluded_count':CommercialOtpExclusion.objects.filter(instance=control.instance).count()},'control':{'instance':control.instance,'enabled':control.enabled,'server_enabled':getattr(settings,'COMMERCIAL_AGENT_ENABLED',False),'demo_url':control.demo_url,'contact_url':control.contact_url,'human_send_enabled':bool(getattr(settings,'COMMERCIAL_HUMAN_PANEL_SEND_ENABLED',False)),'handoff_notify_phone':control.handoff_notify_phone,'handoff_notify_enabled':control.handoff_notify_enabled},
             'catalog':result,'published':result['valid'] and result['fingerprint']==control.catalog_fingerprint,
             'articles':[{'id':a.pk,'slug':a.slug,'version':a.version,'title':a.title,'body':a.body,'source_url':a.source_url,'published':a.published} for a in articles(include_drafts=True)],
             'conversations':list(page.object_list.values('id','phone','name','stage','source','paused','reason','updated_at')),'pagination':metadata(page),'selected':selected,
@@ -162,11 +162,15 @@ class CommercialPanel(SuperAdminAPI):
                     validate_instance(control.instance);published_catalog(control)
                     if not articles(): raise ValueError('Publique ao menos um artigo revisado.')
                     if client.status(control.instance)!='open': raise ValueError('Conecte a instância primeiro.')
-                    if not CommercialPilotContact.objects.filter(active=True).exists(): raise ValueError('Cadastre um contato autorizado antes de iniciar o piloto.')
+                    if (not getattr(settings, 'COMMERCIAL_AGENT_PUBLIC_INBOUND_ENABLED', False)
+                            and not CommercialPilotContact.objects.filter(active=True).exists()):
+                        raise ValueError('Cadastre um contato autorizado antes de iniciar o piloto.')
                 if action == 'pause' or not control.enabled:
                     CommercialMessage.objects.filter(state='queued').update(state='held')
                 control.enabled=action=='enable';control.save()
             elif action in {'pilot_allow','pilot_revoke'}:
+                if getattr(settings, 'COMMERCIAL_AGENT_PUBLIC_INBOUND_ENABLED', False):
+                    raise ValueError('Lista do piloto indisponível no modo público; use pausa, opt-out ou takeover por conversa.')
                 if control.enabled:
                     raise ValueError('Pause o agente antes de alterar a lista do piloto.')
                 number=normalize_phone(request.data.get('phone'))

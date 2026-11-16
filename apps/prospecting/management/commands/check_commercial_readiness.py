@@ -27,6 +27,7 @@ class Command(BaseCommand):
             return
         self.stdout.write('Motor: contextual local; nenhuma cota/modelo necessário.')
         self.stdout.write('Chave global: ' + str(bool(getattr(settings, 'COMMERCIAL_AGENT_ENABLED', False))))
+        self.stdout.write('Atendimento público de entrada: ' + str(bool(getattr(settings, 'COMMERCIAL_AGENT_PUBLIC_INBOUND_ENABLED', False))))
         self.stdout.write('Controle habilitado: ' + str(control.enabled))
         if BillingSettings.objects.filter(pk=1).exists():
             try:

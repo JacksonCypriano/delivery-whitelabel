@@ -928,6 +928,9 @@ FOOD99_OPERATIONAL_SIMULATION_ENABLED = False
 
 # Dedicated inbound platform sales: opt-in, never uses a merchant instance.
 COMMERCIAL_AGENT_ENABLED = os.getenv('COMMERCIAL_AGENT_ENABLED', '0') == '1'
+# Opt-in explícito: responder a novas mensagens diretas mesmo sem allowlist piloto.
+# A quarentena de OTP e os demais bloqueios continuam obrigatórios.
+COMMERCIAL_AGENT_PUBLIC_INBOUND_ENABLED = os.getenv('COMMERCIAL_AGENT_PUBLIC_INBOUND_ENABLED', 'false').lower() in ('1', 'true', 'yes', 'on')
 # Notifications contain only conversation ID, no phone, message or credentials.
 COMMERCIAL_AGENT_HANDOFF_ALERT_EMAILS = [x.strip() for x in os.getenv('COMMERCIAL_AGENT_HANDOFF_ALERT_EMAILS', '').split(',') if x.strip()]
 COMMERCIAL_AGENT_WEBHOOK_TOKEN = os.getenv('COMMERCIAL_AGENT_WEBHOOK_TOKEN', '')

@@ -291,6 +291,10 @@ def process_message(pk):
         row = CommercialMessage.objects.select_related('conversation').get(pk=pk)
         conv = CommercialConversation.objects.select_for_update().get(pk=row.conversation_id)
         if row.state != 'queued': return
+        # Defesa extra: mensagens da própria instância ou operador nunca
+        # podem virar uma resposta automática, mesmo se forem reenfileiradas.
+        if row.from_me:
+            row.state='held'; row.save(update_fields=['state']); return
         if row.next_attempt_at and row.next_attempt_at > timezone.now(): return
         if not control.enabled or conv.paused or conv.opted_out or conv.instance != control.instance or not eligible(conv.phone, conv.instance):
             row.state='held'; row.save(update_fields=['state']); return

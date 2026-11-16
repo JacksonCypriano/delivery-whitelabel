@@ -30,15 +30,15 @@ export function Commercial(){
  {remote.connection&&<p role="status">Estado: {remote.connection}</p>}{remote.qr&&<img src={remote.qr} alt="QR Code para conectar o WhatsApp comercial" width={250}/>}
  </section>
 </>},
- {id:"safety",label:"Piloto e alertas",content:<> <section className="card"><h2>Piloto restrito · segurança</h2>
- <p role="status">Somente números autorizados podem receber respostas automáticas; destinatários de OTP são excluídos da IA comercial. O envio permanece sujeito à chave global e ao controle da instância.</p>
+ {id:"safety",label:"Piloto e alertas",content:<> <section className="card"><h2>{d.pilot?.restricted === false ? "Atendimento público · segurança" : "Piloto restrito · segurança"}</h2>
+ <p role="status">{d.pilot?.restricted === false ? "O agente responde a novos contatos que iniciarem conversas diretas; destinatários de OTP continuam excluídos. Não há disparo espontâneo." : "Somente números autorizados podem receber respostas automáticas; destinatários de OTP são excluídos do atendimento comercial."} O envio permanece sujeito à chave global e ao controle da instância.</p>
  <p>Contatos excluídos por OTP: <strong>{d.pilot?.otp_excluded_count||0}</strong>. Bloqueio permanente e sem exibição de códigos.</p>
  <form className="board-toolbar" onSubmit={e=>{e.preventDefault();void act('pilot_allow',{phone:pilotPhone.replace(/\D/g,'')}).then(()=>setPilotPhone(''));}}>
  <label>Telefone autorizado para teste (55 + DDD + número)<input required inputMode="numeric" value={pilotPhone} onChange={e=>setPilotPhone(e.target.value)} placeholder="5511999999999"/></label>
- <button disabled={busy||!pilotPhone||d.control.enabled} type="submit">Autorizar teste</button>
+ <button disabled={busy||!pilotPhone||d.control.enabled||d.pilot?.restricted===false} type="submit">Autorizar teste</button>
  </form>
- <p>Contatos autorizados: {d.pilot?.allowed?.length||0}</p>
- {(d.pilot?.allowed||[]).map((x:any)=><div key={x.phone} className="board-toolbar"><span>{x.phone}</span><button className="secondary" disabled={busy||d.control.enabled} onClick={()=>act('pilot_revoke',{phone:x.phone})}>Revogar</button></div>)}
+ <p>{d.pilot?.restricted === false ? "Contatos do antigo piloto (mantidos para retorno seguro):" : "Contatos autorizados:"} {d.pilot?.allowed?.length||0}</p>
+ {(d.pilot?.allowed||[]).map((x:any)=><div key={x.phone} className="board-toolbar"><span>{x.phone}</span><button className="secondary" disabled={busy||d.control.enabled||d.pilot?.restricted===false} onClick={()=>act('pilot_revoke',{phone:x.phone})}>Revogar</button></div>)}
  <h3>Notificações operacionais pelo WhatsApp</h3>
  <p>Destinatário inicial: 5511983491206. Os avisos usam a instância comercial conectada e não alteram a lista do piloto. O envio vem <strong>desabilitado</strong> até autorização explícita nesta tela.</p>
  <form className="board-toolbar" onSubmit={e=>{e.preventDefault();void act('handoff_notify',{phone:notifyPhone.replace(/\D/g,''),enabled:!d.control.handoff_notify_enabled});}}>

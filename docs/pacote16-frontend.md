@@ -1,21 +1,46 @@
-# Pacote 16.2 — frontend administrativo consolidado (Pacotes 16 + 16.1 + 16.2)
+# Pacote 16.3 — frontend consolidado e correções da revisão
 
-Aplicar somente vemdedelivery-pacote16.2-frontend-final-consolidado.zip sobre a base original vemdedelivery-pacote16-frontend-20261113-134313.zip. Este pacote já contém as alterações dos Pacotes 16 e 16.1, com as correções de estabilização 16.2. Não aplicar os ZIPs anteriores separadamente.
+Este ZIP substitui os Pacotes 16, 16.1 e 16.2. Aplicar sobre a base original
+`vemdedelivery-pacote16-frontend-20261113-134313.zip`, sem necessidade de aplicar
+os incrementais anteriores. Também pode ser aplicado sobre a mesma base com o
+16.2 já copiado, desde que não existam modificações locais conflitantes.
 
-## Estabilização 16.2 realizada nesta revisão
+## Correções 16.3
 
-- **JSX impeditivo corrigido:** em `features/superadmin/Operations.tsx`, a tela de alteração de senha tinha duas propriedades `className` no mesmo `<form>`. Unificadas em `className="admin-form card"`.
-- **Editor seguro após salvar:** `features/resources/ResourceDetail.tsx` agora distingue atualização do cadastro atual de criação ou mudança de ID. Quando o ID permanece o mesmo, o desvio de bloqueio de navegação é desligado e o servidor é consultado novamente; o formulário é remontado com os valores persistidos, inclusive campos não controlados e linhas inline. Quando há navegação para outro ID, o desvio permite exclusivamente a transição após sucesso.
-- **Cancelamento e validação preservados:** restauração de dados com confirmação, erro de validação sem remontar entradas, detecção de edição, prévia de gratuidade e confirmação de exclusão permanecem presentes.
-- **Menu em notebook:** entre 761 e 1000px o layout utiliza novamente 220px para a lateral, reduzindo compressão e preservando a largura operacional anterior.
-- **Roteador:** mantido o `RouterProvider` com `createBrowserRouter` que já constava no 16.1, necessário para o `useBlocker`; `App.tsx` e as rotas declarativas não foram substituídas. Sem mudanças nas URLs, permissões e API.
-- **Verificação estática:** inspecionados imports relativos e árvores TS/TSX e atributos JSX duplicados, sem executar compilador, suíte, build, servidor, Docker ou requisições.
+- `Operations.tsx`: unificados os atributos duplicados em `className="admin-form card"`.
+- `Logistics.tsx`: o seletor de entregador é remontado somente quando a atribuição
+  confirmada do mesmo pedido muda. Mudanças externas, inclusive retirada da atribuição,
+  atualizam o seletor. Atualizações sem mudança preservam a seleção local; outros
+  campos de comprovação permanecem montados. Se a atribuição remota mudar durante
+  uma escolha local não enviada, prevalece a atribuição confirmada pelo servidor.
+- Testes existentes de Comercial, Logística e Automações passam a abrir a aba
+  correspondente antes de interagir com seu conteúdo.
+- Escritos 10 novos casos de regressão: 3 de sincronização logística, 5 de cadastros
+  (salvar, cancelar, validação com arquivo, saída com rascunho, operação pendente)
+  e 2 de abas (preservação de rascunho e navegação por teclado).
 
-**Atenção:** mudanças em roteamento, inputs dinâmicos, CSS e comportamento visual ainda exigem testes locais e revisão em navegador; a inspeção estática não atesta ausência de regressões.
+Revisão somente estática. Nenhum teste, compilador, lint, build, ambiente, chamada
+às APIs do projeto, commit, push ou deploy foi executado. Os testes foram escritos
+para validação posterior; não há declaração de aprovação funcional ou visual.
 
-## Correções da auditoria
+O conteúdo do 16.2 foi preservado, exceto os dois arquivos de implementação acima
+e a documentação atualizada. A infraestrutura de testes existente foi reutilizada.
+Backend, rotas de App, Inbox, KDS, Pedidos Ativos, Kanban e configurações de envio
+não receberam novas alterações nesta correção.
 
-ResourceDetail: o editor é remontado por recurso/ID, isolando formulário, erros, prévia, histórico e indicador dirty. O indicador compara os dados do formulário com o estado inicial, incluindo seleções múltiplas e arquivos. Cancelar restaura o esquema e os valores carregados, mediante confirmação. O salvamento só limpa o indicador após sucesso da API; em atualizações sem mudança de ID os valores persistidos são recarregados e o formulário é remontado, enquanto erros de validação preservam os inputs e arquivos montados. O formulário fica desabilitado durante a requisição. Respostas de operações de um editor desmontado são ignoradas; o carregamento também identifica sua geração.
+## Correções finais do 16.2
+
+- Comparação de seleções múltiplas independente da ordem, sem modificar o FormData enviado.
+- Relacionamentos e normalizações de campos notificam o indicador de alterações após atualizar os valores. Consultas antigas de relacionamento são ignoradas.
+- CEP ignora respostas obsoletas, campos desmontados/desabilitados e preserva endereços editados enquanto a consulta estava pendente.
+- Comparação de alterações suspensa durante salvamento, quando o fieldset desabilitado deixa de participar de FormData. Reenvio bloqueado enquanto os dados salvos são recarregados.
+- Confirmação de saída desnecessária é encerrada quando não há alteração/operação pendente; operação em andamento não oferece descarte. Diálogos restauram o foco e aceitam rótulos específicos, preservando os padrões anteriores.
+- Roteador mantido para usar useBlocker; erro de renderização usa a mensagem padrão do painel. App e URLs permanecem intactos.
+- Impressão acompanha mudanças do parâmetro order na mesma página e seleciona a fila sem desmontar preferências. SectionTabs aceita controle opcional, mantendo o comportamento dos consumidores existentes.
+
+## Correções consolidadas da auditoria
+
+ResourceDetail: o editor é remontado por recurso/ID, isolando formulário, erros, prévia, histórico e indicador dirty. O indicador compara os dados do formulário com o estado inicial, incluindo seleções múltiplas e arquivos. Cancelar restaura o esquema e os valores carregados, mediante confirmação. O salvamento só limpa o indicador após sucesso da API; erros de validação mantêm os inputs e arquivos montados. O formulário fica desabilitado durante a requisição. Respostas de operações de um editor desmontado são ignoradas; o carregamento também identifica sua geração.
 
 Navegação: o ponto de entrada utiliza createBrowserRouter/RouterProvider da dependência já existente, mantendo App e suas rotas. Isso habilita useBlocker nos cadastros: mudanças de rota e histórico pedem confirmação quando há edição pendente; operações em andamento orientam a aguardar. Recarregar/fechar utiliza beforeunload. Eventos de sessão expirada/troca obrigatória de senha não são bloqueados. Não foi criada persistência de rascunho fora da página nem alterada a autenticação.
 
@@ -65,7 +90,7 @@ Salve o ZIP em /home/jacksoncypriano/projects:
 
 ```bash
 cd /home/jacksoncypriano/projects/delivery-whitelabel
-unzip -o /home/jacksoncypriano/projects/vemdedelivery-pacote16.2-frontend-final-consolidado.zip -d .
+unzip -o /home/jacksoncypriano/projects/vemdedelivery-pacote16.3-frontend-consolidado.zip -d .
 ```
 
 ## Validação — comandos para executar posteriormente
@@ -80,7 +105,7 @@ cd /home/jacksoncypriano/projects/delivery-whitelabel
 
 ```bash
 cd /home/jacksoncypriano/projects/delivery-whitelabel
-unzip -Z1 /home/jacksoncypriano/projects/vemdedelivery-pacote16.2-frontend-final-consolidado.zip | while IFS= read -r arquivo; do
+unzip -Z1 /home/jacksoncypriano/projects/vemdedelivery-pacote16.3-frontend-consolidado.zip | while IFS= read -r arquivo; do
   git add -- "$arquivo"
 done
 ```
@@ -92,6 +117,7 @@ done
 - `frontend/src/components/Confirm.tsx`
 - `frontend/src/components/Feedback.tsx`
 - `frontend/src/components/Fields.tsx`
+- `frontend/src/components/formState.ts` (novo)
 - `frontend/src/components/PageHeading.tsx` (novo)
 - `frontend/src/components/Pagination.tsx`
 - `frontend/src/components/RelationshipInput.tsx`
@@ -119,3 +145,32 @@ done
 - `frontend/src/layouts/MerchantLayout.tsx`
 - `frontend/src/main.tsx`
 - `docs/pacote16-frontend.md` (novo)
+
+
+## Arquivos adicionados ou ajustados na correção 16.3
+
+- `frontend/src/features/superadmin/Operations.tsx`
+- `frontend/src/features/orders/Logistics.tsx`
+- `frontend/src/features/superadmin/Commercial.test.tsx`
+- `frontend/src/features/orders/NewModules.test.tsx`
+- `frontend/src/features/orders/Sales.test.tsx`
+- `frontend/src/features/orders/LogisticsRefresh.test.tsx` (novo)
+- `frontend/src/features/resources/ResourceDetail.test.tsx` (novo)
+- `frontend/src/components/SectionTabs.test.tsx` (novo)
+- `docs/pacote16-frontend.md`
+- `docs/pacote16.3-arquivos.txt` (manifesto completo do consolidado)
+
+O restante do ZIP é idêntico ao 16.2 revisado. Aplique apenas o 16.3.
+
+Para versionar a lista exata após aplicar:
+
+```bash
+cd /home/jacksoncypriano/projects/delivery-whitelabel || exit 1
+git add --pathspec-from-file=docs/pacote16.3-arquivos.txt
+git diff --cached --stat
+git diff --cached
+```
+
+Confirme que não há alterações anteriores indevidas no staging. Depois dos testes
+locais e da revisão do diff, crie o commit pelo seu fluxo habitual; push e deploy
+não são feitos por nenhum comando de aplicação deste documento.

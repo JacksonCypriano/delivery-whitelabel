@@ -126,11 +126,6 @@
 .inbox-content .commercial-chat-details[open] { max-height: min(40dvh, 320px); }
 .inbox-content :is(button, a, input, textarea, select, summary):focus-visible { outline: 3px solid var(--admin-focus); outline-offset: 2px; }
 @media (max-width: 760px) { .app-shell main.inbox-content { padding: 14px; } }
-/* Keep the original compact sidebar width at intermediate viewport sizes.
-   This also protects the recently approved operational pages. */
-@media (min-width: 761px) and (max-width: 1000px) {
-  .app-shell { --admin-sidebar: 220px; }
-}
 @media (max-width: 1100px) {
   .app-shell main.admin-content { padding: var(--admin-space-6); }
   .admin-content .integration-grid { grid-template-columns: 1fr; }

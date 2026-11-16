@@ -1,3 +1,4 @@
+import { FORM_VALUE_CHANGE, formFingerprint } from "../../components/formState";
 import { resourceDescription } from "./presentation";
 import { panel, panelUrl } from "../../panel";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -50,16 +51,31 @@ function ResourceEditor({ resource, id }: { resource: string; id: string }) {
     !allowNavigation.current && (dirty || busy) &&
     (currentLocation.pathname !== nextLocation.pathname || currentLocation.search !== nextLocation.search));
   function fingerprint() {
-    if (!form.current) return "";
-    return JSON.stringify(Array.from(new FormData(form.current).entries(), ([name, value]) =>
-      [name, typeof value === "string" ? value : !value.name && value.size === 0 ? null : [value.name, value.size, value.lastModified]]));
+    if (!form.current || !d) return "";
+    return formFingerprint(form.current, [
+      ...d.fields, ...d.inlines.flatMap((group: any) => group.forms.flatMap((row: any) => row.fields)),
+    ]);
   }
   function updateDirty() {
-    if (baseline.current !== null) setDirty(fingerprint() !== baseline.current);
+    // Disabled fieldsets are intentionally omitted by FormData during a save.
+    if (!saving.current && !busy && baseline.current !== null && form.current) {
+      allowNavigation.current = false;
+      setDirty(fingerprint() !== baseline.current);
+    }
   }
+  useEffect(() => {
+    const changed = (event: Event) => {
+      if (event.target instanceof Node && form.current?.contains(event.target)) updateDirty();
+    };
+    window.addEventListener(FORM_VALUE_CHANGE, changed);
+    return () => window.removeEventListener(FORM_VALUE_CHANGE, changed);
+  }, [d, busy]);
+  useEffect(() => {
+    if (blocker.state === "blocked" && !dirty && !busy) blocker.reset();
+  }, [blocker, dirty, busy]);
   useLayoutEffect(() => {
-    if (d && d === loaded.current && !q.loading && form.current && baseline.current === null) baseline.current = fingerprint();
-  }, [d, generation, q.loading]);
+    if (d && d === loaded.current && !q.loading && !busy && form.current && baseline.current === null) baseline.current = fingerprint();
+  }, [d, generation, q.loading, busy]);
   useEffect(() => {
     alive.current = true;
     const forcedExit = () => { allowNavigation.current = true; };
@@ -92,8 +108,7 @@ function ResourceEditor({ resource, id }: { resource: string; id: string }) {
 
   async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (saving.current) return;
-    setBusy(true);
+    if (saving.current || q.loading || !d || !loaded.current) return;
     setError(null);
     const data = new FormData(e.currentTarget);
     splitDates(data, [
@@ -119,22 +134,12 @@ function ResourceEditor({ resource, id }: { resource: string; id: string }) {
         { level: "success", text: r.detail },
         ...(r.messages || []),
       ]);
-      // An existing record usually stays on the same route after saving.
-      // Never leave the navigation bypass enabled in that situation.
       setDirty(false);
       baseline.current = null;
       loaded.current = null;
-      setCreatePreview(null);
-      setCreateData(null);
-      if (id !== "novo" && String(r.id) === id) {
-        allowNavigation.current = false;
-        // Reload the persisted server values, remounting uncontrolled inputs.
-        // This also resets conditional inline field state after a successful save.
-        q.reload();
-      } else {
-        allowNavigation.current = true;
-        navigate(panelUrl(`${resource}/${r.id}`), { replace: true });
-      }
+      allowNavigation.current = true;
+      navigate(panelUrl(`${resource}/${r.id}`), { replace: true });
+      q.reload();
     } catch (e) {
       if (!alive.current) return;
       if (e instanceof ApiError && e.data.fields) {
@@ -192,6 +197,10 @@ function ResourceEditor({ resource, id }: { resource: string; id: string }) {
     <>
       {blocker.state === "blocked" && <Confirm
         title={busy ? "Operação em andamento" : "Sair sem salvar?"}
+        description=""
+        confirmLabel="Descartar e sair"
+        cancelLabel="Continuar neste cadastro"
+        hideConfirm={busy}
         details={busy ? "A operação já foi enviada. Aguarde a conclusão para evitar dúvidas sobre o resultado." : "As alterações deste cadastro serão descartadas ao sair."}
         onClose={() => blocker.reset()}
         onConfirm={() => { if (busy) blocker.reset(); else blocker.proceed(); }}
@@ -204,7 +213,7 @@ function ResourceEditor({ resource, id }: { resource: string; id: string }) {
         {d?.can_delete && (
           <button
             className="secondary danger-text"
-            disabled={busy}
+            disabled={busy || q.loading}
             onClick={() => remove()}
           >
             Excluir
@@ -256,12 +265,7 @@ function ResourceEditor({ resource, id }: { resource: string; id: string }) {
       {q.error && <button type="button" className="secondary" onClick={q.reload}>Tentar carregar novamente</button>}
       <Feedback loading={q.loading} error={q.error}>
         {d && (
-          <form ref={form} onSubmit={save} onChange={() => { allowNavigation.current = false; updateDirty(); }} onInput={() => { allowNavigation.current = false; updateDirty(); }} onClick={event => {
-            if ((event.target as HTMLElement).closest(".relationship-choice button, .relationship-results button")) {
-              allowNavigation.current = false;
-              window.setTimeout(() => { if (alive.current) updateDirty(); }, 0);
-            }
-          }} aria-busy={busy} key={`${resource}:${id}:${loadGeneration.current}:${generation}`}>
+          <form ref={form} onSubmit={save} onChange={updateDirty} onInput={updateDirty} aria-busy={busy} key={resource + id + generation}>
             <fieldset className="editor-fields" disabled={busy}>
             {d.sections.length + d.inlines.length > 3 && <nav className="section-index" aria-label="Seções do cadastro">
               {d.sections.map((section: any, i: number) => <a key={i} href={`#resource-section-${i}`}>{section.title}</a>)}

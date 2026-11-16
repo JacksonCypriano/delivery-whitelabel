@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { notifyFormChange } from "./formState";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { request } from "../api/client";
 import type { Field } from "../types/forms";
 export function RelationshipInput({ field: f }: { field: Field }) {
@@ -11,6 +12,7 @@ export function RelationshipInput({ field: f }: { field: Field }) {
     [more, setMore] = useState(false),
     [error, setError] = useState("");
   const input = useRef<HTMLInputElement>(null);
+  useLayoutEffect(() => { notifyFormChange(input.current); }, [selected]);
   useEffect(() => {
     input.current?.setCustomValidity(
       f.required && !selected.length ? "Selecione um registro da lista." : "",
@@ -24,6 +26,7 @@ export function RelationshipInput({ field: f }: { field: Field }) {
         signal: controller.signal,
       })
         .then((d) => {
+          if (controller.signal.aborted) return;
           setOptions(d.results);
           setMore(d.more);
           setError("");

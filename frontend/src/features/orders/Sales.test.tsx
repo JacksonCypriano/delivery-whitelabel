@@ -15,4 +15,4 @@ it('starts disabled and sends explicit checkbox choice',async()=>{
  expect(request).toHaveBeenCalled();
  expect(JSON.parse((vi.mocked(request).mock.calls[0][1] as any).body).recovery_enabled).toBe(true);
 });
-it('allows handling a poor review',async()=>{render(<Sales/>);expect(screen.getByText('Pedido frio')).toBeTruthy();fireEvent.click(screen.getByText('Marcar como tratada'));await waitFor(()=>expect(request).toHaveBeenCalled());expect(JSON.parse((vi.mocked(request).mock.calls[0][1] as any).body)).toEqual({handled_id:3});});
+it('allows handling a poor review',async()=>{render(<Sales/>);fireEvent.click(screen.getByRole('tab',{name:'Avaliações'}));expect(screen.getByText('Pedido frio')).toBeTruthy();fireEvent.click(screen.getByText('Marcar como tratada'));await waitFor(()=>expect(request).toHaveBeenCalled());expect(JSON.parse((vi.mocked(request).mock.calls[0][1] as any).body)).toEqual({handled_id:3});});

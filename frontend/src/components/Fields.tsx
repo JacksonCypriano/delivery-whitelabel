@@ -1,5 +1,6 @@
+import { notifyFormChange } from "./formState";
 import { RelationshipInput } from "./RelationshipInput";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   formatWhatsapp,
   formatPhone,
@@ -37,6 +38,8 @@ export function Display({ value }: { value: any }) {
 }
 export function FieldInput({ field: f }: { field: Field }) {
   const [lookup, setLookup] = useState("");
+  const lookupGeneration = useRef(0);
+  useEffect(() => () => { lookupGeneration.current += 1; }, []);
   const shared = {
     name: f.html_name,
     id: f.html_name,
@@ -50,10 +53,13 @@ export function FieldInput({ field: f }: { field: Field }) {
     const el = e.currentTarget,
       form = el.form,
       raw = el.value.replace(/\D/g, "");
+    const generation = ++lookupGeneration.current;
     if (raw.length !== 8 || !form) return;
+    const previousValues = new Map(Array.from(form.elements).filter((item): item is HTMLInputElement => item instanceof HTMLInputElement).map(input => [input.name, input.value]));
     setLookup("Consultando CEP…");
     try {
       const data = await request("/api/cep/" + raw + "/");
+      if (generation !== lookupGeneration.current || !el.isConnected || el.matches(":disabled") || el.value.replace(/\D/g, "") !== raw) return;
       if (data.success === false) throw new Error(data.error);
       const prefix = f.html_name.slice(0, -f.name.length);
       const mapping =
@@ -75,6 +81,8 @@ export function FieldInput({ field: f }: { field: Field }) {
         ) as HTMLInputElement | null;
         if (
           input &&
+          !input.matches(":disabled") &&
+          input.value === previousValues.get(prefix + target) &&
           data[source] &&
           (!target.includes("complement") || !input.value)
         ) {
@@ -82,8 +90,10 @@ export function FieldInput({ field: f }: { field: Field }) {
           input.dispatchEvent(new Event("input", { bubbles: true }));
         }
       }
+      notifyFormChange(el);
       setLookup("CEP encontrado. Confira o endereço e informe o número.");
     } catch (e) {
+      if (generation !== lookupGeneration.current || !el.isConnected) return;
       setLookup(
         e instanceof Error ? e.message : "Não foi possível consultar o CEP.",
       );
@@ -106,6 +116,7 @@ export function FieldInput({ field: f }: { field: Field }) {
     }
     if (f.kind === "decimal" && !f.localized)
       el.value = el.value.replace(",", ".");
+    notifyFormChange(el);
   }
   function nameChanged(e: React.ChangeEvent<HTMLInputElement>) {
     if (f.name !== "name") return;

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   cleanup,
   fireEvent,
@@ -21,9 +21,28 @@ vi.mock("../../api/client", () => ({
     return f;
   },
 }));
-HTMLDialogElement.prototype.showModal = function () {
-  this.open = true;
+// jsdom does not implement the native <dialog> methods; restore them after the suite.
+const nativeDialogMethods = {
+  showModal: Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, "showModal"),
+  close: Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, "close"),
 };
+beforeAll(() => {
+  Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
+    configurable: true,
+    value: function (this: HTMLDialogElement) { this.open = true; },
+  });
+  Object.defineProperty(HTMLDialogElement.prototype, "close", {
+    configurable: true,
+    value: function (this: HTMLDialogElement) { this.open = false; },
+  });
+});
+afterAll(() => {
+  for (const name of ["showModal", "close"] as const) {
+    const descriptor = nativeDialogMethods[name];
+    if (descriptor) Object.defineProperty(HTMLDialogElement.prototype, name, descriptor);
+    else Reflect.deleteProperty(HTMLDialogElement.prototype, name);
+  }
+});
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
